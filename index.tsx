@@ -29,6 +29,29 @@ const getApiKey = (): string => {
   return 'AlzaSyDsa90NXniw52Wb8PvPpPMsoqsatiDPgLg';
 };
 
+// --- Date Helpers (CRITICAL FIX FOR TIMEZONE ISSUES) ---
+
+// Format Date object to YYYY-MM-DD string using LOCAL time, not UTC.
+// This prevents the "day shift" bug where 14th becomes 13th due to timezone offsets.
+const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+// Create a Date object from YYYY-MM-DD string set to 00:00:00 LOCAL time.
+const parseDateToLocal = (dateStr: string): Date => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+};
+
+// --- Constants & Configuration ---
+
+// STRICT ACADEMIC YEAR BOUNDARIES
+const ACADEMIC_START_DATE = '2025-07-14'; // Hari pertama masuk (MPLS)
+const ACADEMIC_END_DATE = '2026-06-27';   // Tanggal terakhir kalender pendidikan (Penerimaan Rapor/Libur)
+
 // --- Types ---
 
 interface AtpItem {
@@ -107,7 +130,7 @@ interface MonthAnalysis {
     nonEffectiveDetails: { date: string, reason: string }[];
 }
 
-// --- Constants ---
+// --- Constants Data ---
 
 const SUBJECTS = [
   "Bahasa Indonesia",
@@ -221,7 +244,7 @@ const SCHEDULE_OPTIONS = {
 // Referensi Beban JP Intrakurikuler Pertahun (Berdasarkan Lampiran Permendikdasmen No 13 Tahun 2025)
 const JP_STANDARDS: Record<string, Record<string, number>> = {
     "Bahasa Indonesia": { 
-        "Kelas 1": 216, "Kelas 2": 252, "Kelas 3": 216, "Kelas 4": 216, "Kelas 5": 216, "Kelas 6": 192 
+        "Kelas 1": 216, "Kelas 2": 216, "Kelas 3": 216, "Kelas 4": 216, "Kelas 5": 216, "Kelas 6": 192 
     },
     "Matematika": { 
         "Kelas 1": 144, "Kelas 2": 180, "Kelas 3": 180, "Kelas 4": 180, "Kelas 5": 180, "Kelas 6": 160 
@@ -298,16 +321,25 @@ const VisualCalendar = ({
 
         // Actual Days
         for (let d = 1; d <= lastDay.getDate(); d++) {
+            // FIX: Use consistent Local Time construction
             const currentDate = new Date(year, month, d);
-            const dateStr = currentDate.toISOString().split('T')[0];
+            // FIX: Use consistent Local formatting, do NOT use toISOString() as it shifts timezone
+            const dateStr = formatDateLocal(currentDate);
+            
             const dayName = getDayName(currentDate);
             const conflict = checkStatus(dateStr);
             const isScheduled = scheduledDays.includes(dayName);
             
+            // CRITICAL FIX: Check if date is within Academic Year Range
+            const isWithinAcademicYear = dateStr >= ACADEMIC_START_DATE && dateStr <= ACADEMIC_END_DATE;
+
             let status: 'effective' | 'noneffective' | 'off' = 'off';
             let tooltip = '';
 
-            if (isScheduled) {
+            if (!isWithinAcademicYear) {
+                status = 'off';
+                tooltip = 'Diluar Tahun Ajaran 2025/2026';
+            } else if (isScheduled) {
                 if (conflict) {
                     status = 'noneffective';
                     tooltip = conflict.description;
@@ -317,6 +349,8 @@ const VisualCalendar = ({
                 }
             } else if (conflict) {
                 tooltip = conflict.description;
+            } else if (isWithinAcademicYear && !isScheduled) {
+                tooltip = 'Tidak ada jadwal';
             }
 
             days.push({ 
@@ -326,7 +360,8 @@ const VisualCalendar = ({
                 status, 
                 tooltip, 
                 isHoliday: conflict?.type === 'holiday',
-                isSunday: currentDate.getDay() === 0 
+                isSunday: currentDate.getDay() === 0,
+                isOutside: !isWithinAcademicYear
             });
         }
 
@@ -373,21 +408,26 @@ const VisualCalendar = ({
                             <div 
                                 key={day.key}
                                 className={`relative group h-14 sm:h-20 rounded-lg border flex flex-col items-start justify-start p-2 transition-all duration-300 hover:scale-105 hover:shadow-md cursor-default
-                                    ${day.status === 'effective' ? 'bg-green-50 border-green-200 hover:bg-green-100' : 
+                                    ${day.isOutside ? 'bg-gray-100 border-gray-100 opacity-60' :
+                                      day.status === 'effective' ? 'bg-green-50 border-green-200 hover:bg-green-100' : 
                                       day.status === 'noneffective' ? 'bg-red-50 border-red-200 hover:bg-red-100' :
-                                      day.isHoliday || day.isSunday ? 'bg-gray-50 border-gray-100 text-red-400' : 'bg-white border-gray-100 text-gray-400'}
+                                      day.isHoliday || day.isSunday ? 'bg-white border-gray-100 text-red-400' : 'bg-white border-gray-100 text-gray-400'}
                                 `}
                             >
-                                <span className={`text-sm font-bold ${day.status === 'effective' ? 'text-green-700' : day.status === 'noneffective' ? 'text-red-700' : ''}`}>
+                                <span className={`text-sm font-bold ${
+                                    day.isOutside ? 'text-gray-400' :
+                                    day.status === 'effective' ? 'text-green-700' : 
+                                    day.status === 'noneffective' ? 'text-red-700' : ''
+                                }`}>
                                     {day.date}
                                 </span>
                                 
-                                {day.status === 'effective' && (
+                                {!day.isOutside && day.status === 'effective' && (
                                     <div className="mt-auto self-end">
                                         <CheckCircle className="w-4 h-4 text-green-500 opacity-50 group-hover:opacity-100 transition-opacity" />
                                     </div>
                                 )}
-                                {day.status === 'noneffective' && (
+                                {!day.isOutside && day.status === 'noneffective' && (
                                     <div className="mt-auto self-end">
                                         <X className="w-4 h-4 text-red-500 opacity-50 group-hover:opacity-100 transition-opacity" />
                                     </div>
@@ -418,8 +458,8 @@ const VisualCalendar = ({
                         <span>Libur / Ujian (Non-Efektif)</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded bg-white border border-gray-200"></div>
-                        <span>Tidak Ada Jadwal</span>
+                        <div className="w-4 h-4 rounded bg-gray-100 border border-gray-200"></div>
+                        <span>Diluar Tahun Ajaran</span>
                     </div>
                 </div>
             </div>
@@ -675,13 +715,14 @@ const App = () => {
   // Helper: Get list of effective dates for a specific schedule (e.g., ["Senin", "Kamis"])
   const getEffectiveDates = (selectedDays: string[], startYear: number = 2025): Date[] => {
       const dates: Date[] = [];
-      const startDate = new Date(`${startYear}-07-14`); // Start mid-July
-      const endDate = new Date(`${startYear + 1}-06-20`); // End mid-June
+      const startDate = parseDateToLocal(ACADEMIC_START_DATE); 
+      const endDate = parseDateToLocal(ACADEMIC_END_DATE); 
 
       let current = new Date(startDate);
       while (current <= endDate) {
           const dayName = getDayName(current);
-          const dateStr = current.toISOString().split('T')[0];
+          // FIX: Use format helper
+          const dateStr = formatDateLocal(current);
           const conflict = checkNonEffectiveDate(dateStr);
 
           // Logic: Must be a selected day AND not a holiday AND not an exam/activity that stops teaching
@@ -706,9 +747,23 @@ const App = () => {
         const effectiveWeeksEst = className.includes('6') ? 32 : 36;
         const weeklyTargetJP = Math.round(annualTargetJP / effectiveWeeksEst);
 
-        const startDate = new Date('2025-07-14');
-        const endDate = new Date('2026-06-20');
-        const midYearBreak = new Date('2025-12-31');
+        // STRICT ACADEMIC BOUNDARIES FOR ANALYSIS
+        // FIX: Use parseDateToLocal to avoid UTC offset issues
+        const startDate = parseDateToLocal(ACADEMIC_START_DATE);
+        const endDate = parseDateToLocal(ACADEMIC_END_DATE);
+        
+        // DETERMINE SEMESTER SPLIT BASED ON CONFIG
+        // Find the selected "Libur Semester 1" range to determine when Sem 1 ends and Sem 2 starts
+        const liburSmt1Variant = scheduleConfig['libur_smt1'];
+        const liburRange = NON_EFFECTIVE_SCHEDULE.find(r => r.category === 'libur_smt1' && r.variant === liburSmt1Variant);
+        
+        // Default split if not found (fallback to Dec 31)
+        let semester2StartDate = parseDateToLocal('2026-01-01');
+        if (liburRange) {
+            const liburEnd = parseDateToLocal(liburRange.end);
+            semester2StartDate = new Date(liburEnd);
+            semester2StartDate.setDate(semester2StartDate.getDate() + 1); // Sem 2 starts day after holiday
+        }
 
         let totalAvailableSlots = 0;
         let semester1Data = { effectiveDays: 0, nonEffectiveDays: 0, effectiveWeeks: 0, uniqueWeeks: new Set<string>() };
@@ -719,21 +774,25 @@ const App = () => {
         let current = new Date(startDate);
         while (current <= endDate) {
             const dayName = getDayName(current);
-            const dateStr = current.toISOString().split('T')[0];
+            // FIX: Use format helper
+            const dateStr = formatDateLocal(current);
             const monthKey = current.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
-            const semester = current <= midYearBreak ? 1 : 2;
-            const weekKey = `${getISOWeek(current)}-${current.getFullYear()}`; // Helper needed
+            
+            // Dynamic Semester Check
+            const semester = current < semester2StartDate ? 1 : 2;
+            
+            const weekKey = `${getISOWeek(current)}-${current.getFullYear()}`; 
 
             if (!monthDetails[monthKey]) {
                 monthDetails[monthKey] = { monthName: monthKey, semester, effectiveDays: 0, nonEffectiveDetails: [] };
             }
 
-            // Only analyze if it's a scheduled teaching day
+            // Only analyze if it's a scheduled teaching day (e.g. User selected "Monday")
             if (selectedDays.includes(dayName)) {
                  const conflict = checkNonEffectiveDate(dateStr);
                  
                  if (!conflict) {
-                     // Effective
+                     // Effective Day
                      totalAvailableSlots++;
                      monthDetails[monthKey].effectiveDays++;
                      if (semester === 1) {
@@ -744,7 +803,7 @@ const App = () => {
                          semester2Data.uniqueWeeks.add(weekKey);
                      }
                  } else {
-                     // Non-Effective but scheduled
+                     // Non-Effective but scheduled (Holiday falls on a teaching day)
                      monthDetails[monthKey].nonEffectiveDetails.push({ date: dateStr, reason: conflict.description });
                      if (semester === 1) semester1Data.nonEffectiveDays++;
                      else semester2Data.nonEffectiveDays++;
@@ -1053,7 +1112,8 @@ const App = () => {
              // Skip if 0 JP (shouldn't happen unless target is 0)
              if (allocated > 0) {
                  timelineSlots.push({
-                    date: allEffectiveDates[i].toISOString().split('T')[0],
+                    // FIX: Use format helper
+                    date: formatDateLocal(allEffectiveDates[i]),
                     allocatedJP: allocated
                  });
                  accumulatedJP += allocated;
@@ -1257,7 +1317,7 @@ const App = () => {
                       
                       let planDateStr = '-';
                       if (item.planDate) {
-                         const dateObj = new Date(item.planDate);
+                         const dateObj = parseDateToLocal(item.planDate);
                          const dayName = getDayName(dateObj);
                          const formattedDate = dateObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'});
                          planDateStr = `${dayName}, ${formattedDate}`;
@@ -1471,8 +1531,8 @@ const App = () => {
                    <div className="space-y-4">
                        {getEffectiveDatesForCalendar().map((range, index) => {
                            // Simple formatting
-                           const start = new Date(range.start);
-                           const end = new Date(range.end);
+                           const start = parseDateToLocal(range.start);
+                           const end = parseDateToLocal(range.end);
                            const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
                            const dateString = start.getTime() === end.getTime() 
                                ? start.toLocaleDateString('id-ID', options)
@@ -1628,7 +1688,7 @@ const App = () => {
                                                             <ul className="list-disc list-inside space-y-1">
                                                                 {month.nonEffectiveDetails.map((d, i) => (
                                                                     <li key={i}>
-                                                                        <span className="font-semibold text-gray-800">{new Date(d.date).getDate()} {month.monthName.split(' ')[0]}:</span> {d.reason}
+                                                                        <span className="font-semibold text-gray-800">{parseDateToLocal(d.date).getDate()} {month.monthName.split(' ')[0]}:</span> {d.reason}
                                                                     </li>
                                                                 ))}
                                                             </ul>
