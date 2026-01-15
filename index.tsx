@@ -3,6 +3,32 @@ import { createRoot } from 'react-dom/client';
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft } from 'lucide-react';
 
+// --- API Key Helper ---
+// Fungsi ini memastikan API Key terbaca di berbagai environment (Vite/Node) atau menggunakan default
+const getApiKey = (): string => {
+  // 1. Coba standard Vite (import.meta.env)
+  try {
+      // @ts-ignore
+      if (typeof import.meta !== 'undefined' && import.meta.env) {
+          // @ts-ignore
+          if (import.meta.env.VITE_PROTA_API_KEY) return import.meta.env.VITE_PROTA_API_KEY;
+          // @ts-ignore
+          if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
+      }
+  } catch (e) {}
+  
+  // 2. Coba Process env (Node/Webpack/Shim)
+  try {
+      if (typeof process !== 'undefined' && process.env) {
+          if (process.env.VITE_PROTA_API_KEY) return process.env.VITE_PROTA_API_KEY;
+          if (process.env.API_KEY) return process.env.API_KEY;
+      }
+  } catch (e) {}
+
+  // 3. Fallback Hardcoded (Sesuai input user)
+  return 'AlzaSyDsa90NXniw52Wb8PvPpPMsoqsatiDPgLg';
+};
+
 // --- Types ---
 
 interface AtpItem {
@@ -861,7 +887,7 @@ const App = () => {
     setData(null);
 
     try {
-      const apiKey = process.env.API_KEY;
+      const apiKey = getApiKey();
       if (!apiKey) throw new Error("API Key not found");
 
       const ai = new GoogleGenAI({ apiKey });
@@ -989,7 +1015,7 @@ const App = () => {
     }
 
     try {
-        const apiKey = process.env.API_KEY;
+        const apiKey = getApiKey();
         if (!apiKey) throw new Error("API Key not found");
         const ai = new GoogleGenAI({ apiKey });
 
