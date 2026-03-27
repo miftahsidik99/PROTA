@@ -237,6 +237,16 @@ const NON_EFFECTIVE_SCHEDULE: NonEffectiveRange[] = [
   { start: '2026-06-24', end: '2026-06-26', description: 'Administrasi & Pembagian Rapor Smst 2', type: 'activity' },
   { start: '2026-06-29', end: '2026-07-11', description: 'Libur Kenaikan Kelas (Utama)', type: 'holiday', category: 'libur_smt2', variant: 'v1' },
   { start: '2026-06-22', end: '2026-07-04', description: 'Libur Kenaikan Kelas (Alternatif Awal)', type: 'holiday', category: 'libur_smt2', variant: 'v2' },
+  { start: '2026-03-02', end: '2026-03-03', description: 'Simulasi TKA SD (Gelombang 1)', type: 'exam', category: 'tka_simulasi', variant: 'v1' },
+  { start: '2026-03-04', end: '2026-03-05', description: 'Simulasi TKA SD (Gelombang 2)', type: 'exam', category: 'tka_simulasi', variant: 'v2' },
+  { start: '2026-03-06', end: '2026-03-07', description: 'Simulasi TKA SD (Gelombang 3)', type: 'exam', category: 'tka_simulasi', variant: 'v3' },
+  { start: '2026-03-08', end: '2026-03-08', description: 'Simulasi TKA SD (Gelombang 4)', type: 'exam', category: 'tka_simulasi', variant: 'v4' },
+  { start: '2026-03-19', end: '2026-03-19', description: 'Gladi Bersih TKA SD', type: 'exam', category: 'tka_gladi', variant: 'v1' },
+  { start: '2026-04-20', end: '2026-04-21', description: 'Pelaksanaan TKA SD (Gelombang 1)', type: 'exam', category: 'tka_main', variant: 'v1' },
+  { start: '2026-04-22', end: '2026-04-23', description: 'Pelaksanaan TKA SD (Gelombang 2)', type: 'exam', category: 'tka_main', variant: 'v2' },
+  { start: '2026-04-24', end: '2026-04-25', description: 'Pelaksanaan TKA SD (Gelombang 3)', type: 'exam', category: 'tka_main', variant: 'v3' },
+  { start: '2026-04-27', end: '2026-04-28', description: 'Pelaksanaan TKA SD (Gelombang 4)', type: 'exam', category: 'tka_main', variant: 'v4' },
+  { start: '2026-04-29', end: '2026-04-30', description: 'Pelaksanaan TKA SD (Gelombang 5)', type: 'exam', category: 'tka_main', variant: 'v5' },
 ];
 
 const SCHEDULE_OPTIONS: Record<string, { id: string, label: string }[]> = {
@@ -267,6 +277,22 @@ const SCHEDULE_OPTIONS: Record<string, { id: string, label: string }[]> = {
   sumatif_genap: [
     { id: 'v1', label: 'Pekan 1 (2-6 Jun)' },
     { id: 'v2', label: 'Pekan 2 (8-13 Jun)' }
+  ],
+  tka_simulasi: [
+    { id: 'v1', label: 'Gelombang 1 (2-3 Mar)' },
+    { id: 'v2', label: 'Gelombang 2 (4-5 Mar)' },
+    { id: 'v3', label: 'Gelombang 3 (6-7 Mar)' },
+    { id: 'v4', label: 'Gelombang 4 (8 Mar)' }
+  ],
+  tka_gladi: [
+    { id: 'v1', label: 'Gladi Bersih (19 Mar)' }
+  ],
+  tka_main: [
+    { id: 'v1', label: 'Gelombang 1 (20-21 Apr)' },
+    { id: 'v2', label: 'Gelombang 2 (22-23 Apr)' },
+    { id: 'v3', label: 'Gelombang 3 (24-25 Apr)' },
+    { id: 'v4', label: 'Gelombang 4 (27-28 Apr)' },
+    { id: 'v5', label: 'Gelombang 5 (29-30 Apr)' }
   ]
 };
 
@@ -776,7 +802,8 @@ const App = () => {
   // Schedules & Config
   const [classSchedules, setClassSchedules] = useState<Record<string, string[]>>({});
   const [scheduleConfig, setScheduleConfig] = useState<Record<string, string>>({
-    libur_smt1: 'v1', libur_smt2: 'v1', anbk_gladi: 'v1', anbk_main: 'v1', sumatif_ganjil: 'v1', sumatif_jenjang: 'v1', sumatif_genap: 'v1'
+    libur_smt1: 'v1', libur_smt2: 'v1', anbk_gladi: 'v1', anbk_main: 'v1', sumatif_ganjil: 'v1', sumatif_jenjang: 'v1', sumatif_genap: 'v1',
+    tka_simulasi: 'v1', tka_gladi: 'v1', tka_main: 'v1'
   });
 
   // Helper
