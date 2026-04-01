@@ -613,10 +613,31 @@ const ModulAjarGenerator = ({
             if (formData.components.generateImage) {
                 try {
                     const imgPrompt = `Ilustrasi edukatif untuk materi pelajaran SD: ${formData.topic}. Gaya kartun ramah anak, berwarna cerah, jelas.`;
-                    const imgResponse = await ai.models.generateContent({
-                        model: 'gemini-2.5-flash-image',
-                        contents: { parts: [{ text: imgPrompt }] }
-                    });
+                    let imgResponse;
+                    try {
+                        imgResponse = await ai.models.generateContent({
+                            model: 'gemini-2.5-flash-image',
+                            contents: { parts: [{ text: imgPrompt }] },
+                            config: {
+                                imageConfig: {
+                                    aspectRatio: "1:1",
+                                    imageSize: "1K"
+                                }
+                            }
+                        });
+                    } catch (fallbackError) {
+                        console.warn("Fallback to gemini-3.1-flash-image-preview:", fallbackError);
+                        imgResponse = await ai.models.generateContent({
+                            model: 'gemini-3.1-flash-image-preview',
+                            contents: { parts: [{ text: imgPrompt }] },
+                            config: {
+                                imageConfig: {
+                                    aspectRatio: "1:1",
+                                    imageSize: "1K"
+                                }
+                            }
+                        });
+                    }
                     
                     for (const part of imgResponse.candidates?.[0]?.content?.parts || []) {
                         if (part.inlineData) {
@@ -861,16 +882,26 @@ const App = () => {
     };
     setActivities(prev => {
       const updated = [newActivity, ...prev];
-      localStorage.setItem('prota_activities', JSON.stringify(updated));
-      return updated;
+      try {
+        localStorage.setItem('prota_activities', JSON.stringify(updated));
+        return updated;
+      } catch (e) {
+        console.error("Failed to save activities to localStorage:", e);
+        return prev;
+      }
     });
   };
   
   const saveActivityLog = (log: ActivityLog) => {
     setActivities(prev => {
       const updated = [log, ...prev];
-      localStorage.setItem('prota_activities', JSON.stringify(updated));
-      return updated;
+      try {
+        localStorage.setItem('prota_activities', JSON.stringify(updated));
+        return updated;
+      } catch (e) {
+        console.error("Failed to save activities to localStorage:", e);
+        return prev; // Return previous state if saving fails
+      }
     });
   };
 
