@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { motion } from 'motion/react';
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp } from 'lucide-react';
 
@@ -789,7 +790,8 @@ const ModulAjarGenerator = ({
 // --- App Component ---
 
 const App = () => {
-  const [appStage, setAppStage] = useState<'landing' | 'tutorial' | 'generator'>('landing');
+  const [appStage, setAppStage] = useState<'landing' | 'login' | 'register' | 'tutorial' | 'generator'>('landing');
+  const [user, setUser] = useState<{ name: string, email: string } | null>(null);
   const [currentView, setCurrentView] = useState<'generator' | 'history' | 'modul_ajar'>('generator');
   const [selectedFase, setSelectedFase] = useState(FASES[0]);
   const [selectedSubject, setSelectedSubject] = useState(SUBJECTS[0]);
@@ -812,6 +814,30 @@ const App = () => {
   });
 
   // Helper
+  useEffect(() => {
+    const savedUser = localStorage.getItem('prota_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+    const savedActivities = localStorage.getItem('prota_activities');
+    if (savedActivities) {
+      try {
+        const parsed = JSON.parse(savedActivities);
+        // Convert string dates back to Date objects
+        const withDates = parsed.map((a: any) => ({ ...a, timestamp: new Date(a.timestamp) }));
+        setActivities(withDates);
+      } catch (e) {
+        console.error("Failed to parse activities", e);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('prota_user');
+    setUser(null);
+    setAppStage('landing');
+  };
+
   const getSubjectKey = (subjectName: string): string | null => {
       if (!subjectName) return null;
       if (JP_STANDARDS[subjectName]) return subjectName;
@@ -833,11 +859,19 @@ const App = () => {
       dataSnapshot: JSON.parse(JSON.stringify(dataSnapshot)),
       paperSizeSnapshot: paperSize
     };
-    setActivities(prev => [newActivity, ...prev]);
+    setActivities(prev => {
+      const updated = [newActivity, ...prev];
+      localStorage.setItem('prota_activities', JSON.stringify(updated));
+      return updated;
+    });
   };
   
   const saveActivityLog = (log: ActivityLog) => {
-    setActivities(prev => [log, ...prev]);
+    setActivities(prev => {
+      const updated = [log, ...prev];
+      localStorage.setItem('prota_activities', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const checkNonEffectiveDate = (dateStr: string): NonEffectiveRange | null => {
@@ -1403,9 +1437,167 @@ const App = () => {
 
   if (appStage === 'landing') {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex flex-col items-center justify-center text-white">
-            <h1 className="text-5xl font-bold mb-6">Perangkat Ajar AI 2025</h1>
-            <button onClick={() => setAppStage('generator')} className="px-8 py-4 bg-white text-blue-900 rounded-xl font-bold text-lg shadow-xl hover:bg-blue-50 transition-all">Mulai Sekarang</button>
+        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex flex-col items-center justify-center text-white relative overflow-hidden">
+            {/* Background elements */}
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 0.1, scale: 1 }}
+                transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }}
+                className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl"
+            />
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 0.1, scale: 1 }}
+                transition={{ duration: 2.5, repeat: Infinity, repeatType: "reverse", delay: 0.5 }}
+                className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl"
+            />
+            
+            <div className="z-10 text-center px-4 max-w-4xl">
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="mb-6 flex justify-center"
+                >
+                    <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
+                        <BookOpen className="w-16 h-16 text-blue-200" />
+                    </div>
+                </motion.div>
+                
+                <motion.h1 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.2 }}
+                    className="font-display text-4xl md:text-6xl font-extrabold mb-6 tracking-tight leading-tight"
+                >
+                    Perangkat Ajar GTK <br/>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-200">
+                        Jenjang SD Tahun Ajaran 2025-2026
+                    </span>
+                </motion.h1>
+                
+                <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.6, delay: 0.4 }}
+                    className="text-lg md:text-xl text-blue-100 mb-10 max-w-2xl mx-auto"
+                >
+                    Platform cerdas untuk menyusun Capaian Pembelajaran, Tujuan Pembelajaran, Alur Tujuan Pembelajaran, dan Modul Ajar secara otomatis.
+                </motion.p>
+                
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.6 }}
+                >
+                    <button 
+                        onClick={() => user ? setAppStage('generator') : setAppStage('login')} 
+                        className="group relative px-8 py-4 bg-white text-blue-900 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all overflow-hidden"
+                    >
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-50 to-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <span className="relative flex items-center gap-2">
+                            Mulai Sekarang <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </span>
+                    </button>
+                </motion.div>
+            </div>
+        </div>
+    );
+  }
+
+  if (appStage === 'login' || appStage === 'register') {
+    const isLogin = appStage === 'login';
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+            {/* Background Decorations */}
+            <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob" style={{ animationDelay: '2s' }}></div>
+            
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 relative z-10"
+            >
+                <div className="flex justify-center mb-6">
+                    <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/30">
+                        <BookOpen className="w-8 h-8 text-white" />
+                    </div>
+                </div>
+                
+                <h2 className="font-display text-3xl font-extrabold text-center text-slate-800 mb-2">
+                    {isLogin ? 'Selamat Datang' : 'Buat Akun'}
+                </h2>
+                <p className="text-center text-slate-500 mb-8">
+                    {isLogin ? 'Masuk untuk melanjutkan ke platform' : 'Daftar untuk menyimpan perangkat ajar Anda'}
+                </p>
+
+                <form 
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        const email = formData.get('email') as string;
+                        const name = formData.get('name') as string || email.split('@')[0];
+                        
+                        const userData = { name, email };
+                        localStorage.setItem('prota_user', JSON.stringify(userData));
+                        setUser(userData);
+                        setAppStage('generator');
+                    }}
+                    className="space-y-5"
+                >
+                    {!isLogin && (
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap</label>
+                            <input 
+                                type="text" 
+                                name="name"
+                                required 
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
+                                placeholder="Masukkan nama Anda"
+                            />
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                        <input 
+                            type="email" 
+                            name="email"
+                            required 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
+                            placeholder="nama@email.com"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Kata Sandi</label>
+                        <input 
+                            type="password" 
+                            required 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
+                            placeholder="••••••••"
+                        />
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5"
+                    >
+                        {isLogin ? 'Masuk' : 'Daftar Sekarang'}
+                    </button>
+                </form>
+
+                <div className="mt-8 text-center">
+                    <p className="text-slate-600">
+                        {isLogin ? 'Belum punya akun?' : 'Sudah punya akun?'}
+                        <button 
+                            onClick={() => setAppStage(isLogin ? 'register' : 'login')}
+                            className="ml-2 text-blue-600 font-bold hover:text-blue-800 transition-colors"
+                        >
+                            {isLogin ? 'Daftar di sini' : 'Masuk'}
+                        </button>
+                    </p>
+                </div>
+            </motion.div>
         </div>
     );
   }
@@ -1554,17 +1746,34 @@ const App = () => {
             <div className="flex items-center gap-3">
                 <BookOpen className="w-8 h-8" />
                 <div>
-                    <h1 className="text-xl font-bold">Perangkat Ajar AI 2025</h1>
+                    <h1 className="font-display text-xl font-bold">Perangkat Ajar AI 2025</h1>
                     <p className="text-blue-200 text-xs">Generator CP, TP, ATP & Modul Ajar</p>
                 </div>
             </div>
-            <div className="flex bg-blue-800/50 p-1 rounded-lg gap-2">
-                <button onClick={() => setCurrentView('generator')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${currentView === 'generator' ? 'bg-white text-blue-700' : 'text-blue-100 hover:bg-blue-700/50'}`}>
-                    <Zap className="w-4 h-4" /> Generator
-                </button>
-                <button onClick={() => setCurrentView('history')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${currentView === 'history' ? 'bg-white text-blue-700' : 'text-blue-100 hover:bg-blue-700/50'}`}>
-                    <History className="w-4 h-4" /> Riwayat ({activities.length})
-                </button>
+            <div className="flex items-center gap-4">
+                <div className="flex bg-blue-800/50 p-1 rounded-lg gap-2">
+                    <button onClick={() => setCurrentView('generator')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${currentView === 'generator' ? 'bg-white text-blue-700' : 'text-blue-100 hover:bg-blue-700/50'}`}>
+                        <Zap className="w-4 h-4" /> Generator
+                    </button>
+                    <button onClick={() => setCurrentView('history')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${currentView === 'history' ? 'bg-white text-blue-700' : 'text-blue-100 hover:bg-blue-700/50'}`}>
+                        <History className="w-4 h-4" /> Riwayat ({activities.length})
+                    </button>
+                </div>
+                {user && (
+                    <div className="flex items-center gap-3 pl-4 border-l border-blue-600">
+                        <div className="hidden md:block text-right">
+                            <div className="text-sm font-bold">{user.name}</div>
+                            <div className="text-xs text-blue-200">{user.email}</div>
+                        </div>
+                        <button 
+                            onClick={handleLogout}
+                            className="p-2 bg-blue-800 hover:bg-red-600 text-white rounded-lg transition-colors"
+                            title="Keluar"
+                        >
+                            <User className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
       </header>
