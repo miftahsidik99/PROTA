@@ -610,17 +610,22 @@ const ModulAjarGenerator = ({
 
             let imgData = null;
             if (formData.components.generateImage) {
-                const imgPrompt = `Ilustrasi edukatif untuk materi pelajaran SD: ${formData.topic}. Gaya kartun ramah anak, berwarna cerah, jelas.`;
-                const imgResponse = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash-image',
-                    contents: { parts: [{ text: imgPrompt }] }
-                });
-                
-                for (const part of imgResponse.candidates?.[0]?.content?.parts || []) {
-                    if (part.inlineData) {
-                        imgData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-                        setGeneratedImageUrl(imgData);
+                try {
+                    const imgPrompt = `Ilustrasi edukatif untuk materi pelajaran SD: ${formData.topic}. Gaya kartun ramah anak, berwarna cerah, jelas.`;
+                    const imgResponse = await ai.models.generateContent({
+                        model: 'gemini-2.5-flash-image',
+                        contents: { parts: [{ text: imgPrompt }] }
+                    });
+                    
+                    for (const part of imgResponse.candidates?.[0]?.content?.parts || []) {
+                        if (part.inlineData) {
+                            imgData = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+                            setGeneratedImageUrl(imgData);
+                            break;
+                        }
                     }
+                } catch (imgError) {
+                    console.error("Gagal membuat gambar AI:", imgError);
                 }
             }
 
@@ -1295,6 +1300,105 @@ const App = () => {
       setCurrentView('modul_ajar');
   };
 
+  const handleDownloadProta = (className: string) => {
+      if (!data) return;
+      
+      const savedAuthor = localStorage.getItem('prota_author_name') || 'Guru Kelas';
+      const savedInst = localStorage.getItem('prota_institution_name') || 'Sekolah Dasar';
+      
+      let tableRows = '';
+      let no = 1;
+      
+      data.elements.forEach((el) => {
+          const alloc = el.allocations.find(a => a.className === className);
+          if (!alloc || !alloc.structuredAtp) return;
+          
+          alloc.structuredAtp.forEach((grp) => {
+              grp.atpItems.forEach((item) => {
+                  if (item.alur) {
+                      let semester = 'Ganjil / Genap';
+                      if (item.planDate) {
+                          const date = new Date(item.planDate);
+                          semester = date.getMonth() < 6 ? 'Genap' : 'Ganjil';
+                      }
+                      
+                      tableRows += `
+                          <tr>
+                              <td style="text-align: center;">${no++}</td>
+                              <td>${el.elementName}</td>
+                              <td>${grp.tp}</td>
+                              <td>${item.alur}</td>
+                              <td style="text-align: center;">${item.alokasiWaktu}</td>
+                              <td style="text-align: center;">${semester}</td>
+                          </tr>
+                      `;
+                  }
+              });
+          });
+      });
+
+      const htmlContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>Program Tahunan (PROTA)</title>
+          <style>
+            @page { size: 215.9mm 330.2mm; mso-page-orientation: landscape; margin: 2cm; }
+            body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            td, th { border: 1px solid #000; padding: 8px; vertical-align: top; }
+            th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .identity { margin-bottom: 20px; }
+            .identity table { width: auto; border: none; margin-top: 0; }
+            .identity td { border: none; padding: 2px 10px 2px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+              <h2 style="margin: 0;">PROGRAM TAHUNAN (PROTA)</h2>
+              <h3 style="margin: 5px 0;">KURIKULUM MERDEKA</h3>
+          </div>
+          
+          <div class="identity">
+              <table>
+                  <tr><td>Mata Pelajaran</td><td>: ${data.subject}</td></tr>
+                  <tr><td>Instansi</td><td>: ${savedInst}</td></tr>
+                  <tr><td>Kelas/Fase</td><td>: ${className} / ${data.fase}</td></tr>
+                  <tr><td>Tahun Pelajaran</td><td>: 2025/2026</td></tr>
+                  <tr><td>Penyusun</td><td>: ${savedAuthor}</td></tr>
+              </table>
+          </div>
+
+          <table>
+              <thead>
+                  <tr>
+                      <th width="5%">No</th>
+                      <th width="15%">Elemen</th>
+                      <th width="25%">Tujuan Pembelajaran (TP)</th>
+                      <th width="35%">Alur Tujuan Pembelajaran (ATP)</th>
+                      <th width="10%">Alokasi Waktu</th>
+                      <th width="10%">Semester</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  ${tableRows}
+              </tbody>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(['\\ufeff', htmlContent], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `PROTA_${data.subject}_${className}.doc`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
   // --- Render ---
 
   if (appStage === 'landing') {
@@ -1559,6 +1663,11 @@ const App = () => {
                                     {!hasATP && (
                                         <button onClick={() => generateATP(className)} disabled={atpLoading === className} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50">
                                             {atpLoading === className ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />} 2. Susun ATP Otomatis
+                                        </button>
+                                    )}
+                                    {hasATP && (
+                                        <button onClick={() => handleDownloadProta(className)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors">
+                                            <Download className="w-4 h-4" /> Unduh Prota
                                         </button>
                                     )}
                                 </div>
