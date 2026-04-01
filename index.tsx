@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion } from 'motion/react';
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp } from 'lucide-react';
 
 // --- API Key Helper ---
@@ -13,6 +13,8 @@ const getApiKey = (): string => {
           if (import.meta.env.VITE_PROTA_API_KEY) return import.meta.env.VITE_PROTA_API_KEY;
           // @ts-ignore
           if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
+          // @ts-ignore
+          if (import.meta.env.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
       }
   } catch (e) {}
   
@@ -20,10 +22,11 @@ const getApiKey = (): string => {
       if (typeof process !== 'undefined' && process.env) {
           if (process.env.VITE_PROTA_API_KEY) return process.env.VITE_PROTA_API_KEY;
           if (process.env.API_KEY) return process.env.API_KEY;
+          if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
       }
   } catch (e) {}
 
-  return 'AlzaSyDsa90NXniw52Wb8PvPpPMsoqsatiDPgLg';
+  return '';
 };
 
 // --- Date Helpers ---
@@ -509,7 +512,7 @@ const ModulAjarGenerator = ({
         setAiRecommendations([]);
         try {
             const apiKey = getApiKey();
-            if (!apiKey) throw new Error("API Key not found");
+            if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
             const ai = new GoogleGenAI({ apiKey });
 
             const prompt = `
@@ -571,7 +574,7 @@ const ModulAjarGenerator = ({
         setGeneratedImageUrl(null);
         try {
             const apiKey = getApiKey();
-            if (!apiKey) throw new Error("API Key not found");
+            if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
             const ai = new GoogleGenAI({ apiKey });
 
             const prompt = `
@@ -1050,10 +1053,10 @@ const App = () => {
 
     try {
       const apiKey = getApiKey();
-      if (!apiKey) throw new Error("API Key not found");
+      if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
       const ai = new GoogleGenAI({ apiKey });
 
-      const schema: Schema = {
+      const schema = {
         type: Type.OBJECT,
         properties: {
           subject: { type: Type.STRING },
@@ -1091,22 +1094,31 @@ const App = () => {
 
       const prompt = `
         Bertindaklah sebagai ahli kurikulum pendidikan Indonesia (Kurikulum Merdeka 2025).
-        Tugas: Analisis CP dan rumuskan Tujuan Pembelajaran (TP). JANGAN buat ATP dulu.
+        Tugas: Analisis Capaian Pembelajaran (CP) dan rumuskan Tujuan Pembelajaran (TP).
         Parameter: Jenjang SD, Fase ${selectedFase.name}, Mapel ${selectedSubject}, Kelas ${selectedFase.classes.join(" dan ")}.
-        Instruksi: Tuliskan Elemen dan CP terbaru. Pecah CP menjadi Tujuan Pembelajaran (TP) spesifik.
+        Instruksi: 
+        1. Tuliskan deskripsi singkat mata pelajaran.
+        2. Tuliskan Elemen dan CP terbaru. 
+        3. Pecah CP menjadi Tujuan Pembelajaran (TP) spesifik untuk setiap kelas (${selectedFase.classes.join(" dan ")}).
+        4. Pastikan output sesuai dengan skema JSON yang diminta, dengan array 'elements' yang berisi 'allocations' untuk setiap kelas.
       `;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: schema, maxOutputTokens: 8192 }
+        config: { responseMimeType: "application/json", responseSchema: schema }
       });
 
       let resultData: CurriculumData;
       try {
-        resultData = JSON.parse(response.text || "{}") as CurriculumData;
+        let cleanText = response.text || "{}";
+        cleanText = cleanText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        resultData = JSON.parse(cleanText) as CurriculumData;
+        if (!resultData || !resultData.elements || resultData.elements.length === 0) {
+            throw new Error("Data kosong");
+        }
       } catch (e) {
-        throw new Error("Gagal parsing respon JSON dari AI. Silakan coba lagi.");
+        throw new Error("Gagal parsing respon JSON dari AI atau data kosong. Silakan coba lagi.");
       }
       
       setData(resultData);
@@ -1121,8 +1133,13 @@ const App = () => {
   };
 
   const generateATP = async (className: string) => {
-    if (!data) return;
+    if (!data) {
+        console.error("Data CP/TP belum tersedia.");
+        return;
+    }
+    console.log(`Memulai generateATP untuk ${className}...`);
     setAtpLoading(className);
+    setError(null);
     
     // 1. SMART JP CALCULATION
     let targetJP = 216; 
@@ -1130,6 +1147,7 @@ const App = () => {
     if (subjectKey) {
         targetJP = JP_STANDARDS[subjectKey]?.[className] || 216;
     }
+    console.log(`Target JP untuk ${className}: ${targetJP}`);
 
     let selectedDays = classSchedules[className] || [];
     const effectiveWeeks = className.includes('6') ? 32 : 36;
@@ -1139,6 +1157,7 @@ const App = () => {
     // Auto-select days if not enough
     const minDaysNeeded = Math.ceil(weeklyLoad / MAX_JP_PER_DAY);
     if (selectedDays.length < minDaysNeeded) {
+        console.log(`Menambah hari jadwal otomatis karena kurang (butuh ${minDaysNeeded}, ada ${selectedDays.length})`);
         const candidateDays = ["Senin", "Rabu", "Jumat", "Selasa", "Kamis", "Sabtu"];
         const needed = minDaysNeeded - selectedDays.length;
         const available = candidateDays.filter(d => !selectedDays.includes(d));
@@ -1149,11 +1168,16 @@ const App = () => {
 
     try {
         const apiKey = getApiKey();
+        if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
         const ai = new GoogleGenAI({ apiKey });
 
         // 2. TIMELINE GENERATION based on Calendar
         const allEffectiveDates = getEffectiveDates(selectedDays);
+        if (allEffectiveDates.length === 0) {
+            throw new Error("Tidak ada hari efektif yang tersedia untuk jadwal yang dipilih. Silakan periksa kalender akademik atau pilih hari lain.");
+        }
         const totalAvailableSlots = allEffectiveDates.length;
+        console.log(`Total slot tersedia: ${totalAvailableSlots}`);
         
         let baseJP = 0;
         let remainder = 0;
@@ -1189,10 +1213,14 @@ const App = () => {
         const flatTPs: FlatTP[] = [];
         let tpCounter = 1;
         
-        data.elements.forEach((el, elIdx) => {
-            el.allocations.forEach((alloc, allocIdx) => {
-                if (alloc.className === className) {
-                    alloc.tujuanPembelajaran.forEach((tp, tpIdx) => {
+        (data.elements || []).forEach((el, elIdx) => {
+            (el.allocations || []).forEach((alloc, allocIdx) => {
+                // Flexible matching for class names
+                const normalizedAllocClass = alloc.className.toLowerCase().replace(/\s+/g, '');
+                const normalizedTargetClass = className.toLowerCase().replace(/\s+/g, '');
+                
+                if (normalizedAllocClass === normalizedTargetClass) {
+                    (alloc.tujuanPembelajaran || []).forEach((tp, tpIdx) => {
                         flatTPs.push({
                             id: tpCounter++,
                             tp: tp,
@@ -1204,6 +1232,12 @@ const App = () => {
                 }
             });
         });
+
+        console.log(`Flat TPs found: ${flatTPs.length}`);
+
+        if (flatTPs.length === 0) {
+            throw new Error(`Data Tujuan Pembelajaran (TP) untuk ${className} tidak ditemukan dalam hasil analisis CP & TP. Pastikan langkah 1 sudah selesai dengan benar.`);
+        }
 
         const prompt = `
             PERAN: Ahli Kurikulum & Penjadwalan Sekolah Dasar (Kurikulum Merdeka 2025).
@@ -1222,10 +1256,10 @@ const App = () => {
             2. Satu TP bisa dipecah menjadi beberapa aktivitas (beberapa pertemuan) jika kompleks.
             3. Estimasi JP per aktivitas rata-rata ${Math.round(targetJP / timelineSlots.length) || 2} JP.
             4. Gunakan field 'alur' untuk deskripsi aktivitas pembelajaran yang konkret.
-            5. Return JSON array yang memetakan tpId ke daftar aktivitas.
+            5. Return JSON object dengan properti 'allocations' yang berisi array pemetaan tpId ke daftar aktivitas sesuai skema yang diberikan.
         `;
 
-        const schema: Schema = {
+        const schema = {
             type: Type.OBJECT,
             properties: {
                 allocations: {
@@ -1253,13 +1287,13 @@ const App = () => {
             required: ["allocations"]
         };
 
+        console.log("Memanggil AI untuk generate ATP...");
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
             config: { 
                 responseMimeType: "application/json", 
-                responseSchema: schema,
-                maxOutputTokens: 8192
+                responseSchema: schema
             }
         });
 
@@ -1268,9 +1302,13 @@ const App = () => {
             let cleanText = response.text || "{}";
             cleanText = cleanText.replace(/```json/g, '').replace(/```/g, '').trim();
             result = JSON.parse(cleanText);
-        } catch (e) {
+            if (!result || !result.allocations) {
+                throw new Error("Data kosong");
+            }
+            console.log(`AI berhasil generate ${result.allocations.length} alokasi TP.`);
+        } catch (e: any) {
             console.error("JSON Parse Error:", e);
-            throw new Error("Gagal parsing respon ATP. Silakan coba lagi.");
+            throw new Error("Gagal parsing respon JSON dari AI: " + e.message);
         }
 
         // 4. MAP RESULT BACK TO DATA STRUCTURE
@@ -1278,8 +1316,14 @@ const App = () => {
         
         // Ensure structure exists
         flatTPs.forEach(f => {
-             const alloc = newData.elements[f.elementIndex].allocations[f.allocIndex];
-             if (!alloc.structuredAtp) alloc.structuredAtp = new Array(alloc.tujuanPembelajaran.length);
+             const el = newData.elements[f.elementIndex];
+             const alloc = el.allocations[f.allocIndex];
+             if (!alloc.structuredAtp) {
+                 alloc.structuredAtp = new Array(alloc.tujuanPembelajaran.length).fill(null).map((_, i) => ({
+                     tp: alloc.tujuanPembelajaran[i],
+                     atpItems: []
+                 }));
+             }
         });
 
         let slotCursor = 0;
@@ -1335,7 +1379,7 @@ const App = () => {
         });
 
         setData(newData);
-        addActivity('ATP_JP', data.subject, `Penyusunan ATP & Jadwal Otomatis ${className}`, newData);
+        addActivity('ATP_JP', newData.subject, `Penyusunan ATP & Jadwal Otomatis ${className}`, newData);
 
     } catch (err: any) {
         console.error(err);
@@ -1374,12 +1418,16 @@ const App = () => {
       let tableRows = '';
       let no = 1;
       
-      data.elements.forEach((el) => {
-          const alloc = el.allocations.find(a => a.className === className);
+      (data.elements || []).forEach((el) => {
+          const alloc = (el.allocations || []).find(a => {
+              const normalizedAllocClass = a.className.toLowerCase().replace(/\s+/g, '');
+              const normalizedTargetClass = className.toLowerCase().replace(/\s+/g, '');
+              return normalizedAllocClass === normalizedTargetClass;
+          });
           if (!alloc || !alloc.structuredAtp) return;
           
-          alloc.structuredAtp.forEach((grp) => {
-              grp.atpItems.forEach((item) => {
+          (alloc.structuredAtp || []).forEach((grp) => {
+              (grp.atpItems || []).forEach((item) => {
                   if (item.alur) {
                       let semester = 'Ganjil / Genap';
                       if (item.planDate) {
@@ -1884,8 +1932,15 @@ const App = () => {
                 </section>
 
                 {/* Results */}
+                {error && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
+                        <p className="font-medium">Terjadi Kesalahan</p>
+                        <p className="text-sm">{error}</p>
+                        <p className="text-xs mt-2 text-red-500">Debug: API Key is {getApiKey() ? 'Set' : 'Not Set'}</p>
+                    </div>
+                )}
                 {data && selectedFase.classes.map((className) => {
-                    const hasATP = data.elements.some(el => el.allocations.find(a => a.className === className)?.structuredAtp);
+                    const hasATP = (data.elements || []).some(el => (el.allocations || []).find(a => a.className === className)?.structuredAtp);
                     return (
                         <div key={className} className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
                             <div className="p-4 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-4">
@@ -1925,12 +1980,12 @@ const App = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        {data.elements.map((el, elIdx) => {
-                                            const allocIdx = el.allocations.findIndex(a => a.className === className);
-                                            const alloc = el.allocations[allocIdx];
+                                        {(data.elements || []).map((el, elIdx) => {
+                                            const allocIdx = (el.allocations || []).findIndex(a => a.className === className);
+                                            const alloc = (el.allocations || [])[allocIdx];
                                             if (!alloc) return null;
 
-                                            const groups = alloc.structuredAtp || alloc.tujuanPembelajaran.map(tp => ({ tp, atpItems: [] }));
+                                            const groups = alloc.structuredAtp || (alloc.tujuanPembelajaran || []).map(tp => ({ tp, atpItems: [] }));
                                             const rowSpan = groups.reduce((acc, g) => acc + Math.max(g.atpItems.length, 1), 0);
 
                                             return groups.map((grp, grpIdx) => {
