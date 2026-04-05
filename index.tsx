@@ -1426,26 +1426,37 @@ const App = () => {
           });
           if (!alloc || !alloc.structuredAtp) return;
           
-          (alloc.structuredAtp || []).forEach((grp) => {
-              (grp.atpItems || []).forEach((item) => {
-                  if (item.alur) {
-                      let semester = 'Ganjil / Genap';
-                      if (item.planDate) {
-                          const date = new Date(item.planDate);
-                          semester = date.getMonth() < 6 ? 'Genap' : 'Ganjil';
-                      }
-                      
-                      tableRows += `
-                          <tr>
-                              <td style="text-align: center;">${no++}</td>
-                              <td>${el.elementName}</td>
-                              <td>${grp.tp}</td>
-                              <td>${item.alur}</td>
-                              <td style="text-align: center;">${item.alokasiWaktu}</td>
-                              <td style="text-align: center;">${semester}</td>
-                          </tr>
-                      `;
+          const groups = alloc.structuredAtp;
+          const totalItemsInElement = groups.reduce((acc, g) => acc + Math.max((g.atpItems || []).length, 1), 0);
+          
+          let elementFirstRow = true;
+
+          groups.forEach((grp) => {
+              const items = (grp.atpItems || []).length > 0 ? grp.atpItems : [{ alur: '', alokasiWaktu: '-' }];
+              let grpFirstRow = true;
+
+              items.forEach((item) => {
+                  let semester = 'Ganjil / Genap';
+                  if (item.planDate) {
+                      const date = new Date(item.planDate);
+                      semester = date.getMonth() < 6 ? 'Genap' : 'Ganjil';
                   }
+                  
+                  tableRows += `<tr>`;
+                  if (elementFirstRow) {
+                      tableRows += `<td rowspan="${totalItemsInElement}" style="text-align: center; vertical-align: top;">${no++}</td>`;
+                      tableRows += `<td rowspan="${totalItemsInElement}" style="vertical-align: top;"><b>${el.elementName}</b><br/><font size="2">${el.capaianPembelajaran}</font></td>`;
+                      elementFirstRow = false;
+                  }
+                  if (grpFirstRow) {
+                      tableRows += `<td rowspan="${items.length}" style="vertical-align: top;">${grp.tp}</td>`;
+                      grpFirstRow = false;
+                  }
+                  tableRows += `<td style="vertical-align: top;">${item.alur || '<i style="color: #999;">Belum digenerate</i>'}</td>`;
+                  tableRows += `<td style="text-align: center; vertical-align: top;">${item.alokasiWaktu || '-'}</td>`;
+                  tableRows += `<td style="text-align: center; vertical-align: top;">${item.planDate || '-'}</td>`;
+                  tableRows += `<td style="text-align: center; vertical-align: top;">${semester}</td>`;
+                  tableRows += `</tr>`;
               });
           });
       });
@@ -1456,15 +1467,15 @@ const App = () => {
           <meta charset='utf-8'>
           <title>Program Tahunan (PROTA)</title>
           <style>
-            @page { size: 215.9mm 330.2mm; mso-page-orientation: landscape; margin: 2cm; }
-            body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; }
-            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-            td, th { border: 1px solid #000; padding: 8px; vertical-align: top; }
+            @page { size: landscape; margin: 1cm; }
+            body { font-family: 'Arial', sans-serif; font-size: 10pt; line-height: 1.2; }
+            table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+            td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
             th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .identity { margin-bottom: 20px; }
+            .header { text-align: center; margin-bottom: 15px; }
+            .identity { margin-bottom: 15px; }
             .identity table { width: auto; border: none; margin-top: 0; }
-            .identity td { border: none; padding: 2px 10px 2px 0; }
+            .identity td { border: none; padding: 1px 10px 1px 0; }
           </style>
         </head>
         <body>
@@ -1486,11 +1497,12 @@ const App = () => {
           <table>
               <thead>
                   <tr>
-                      <th width="5%">No</th>
-                      <th width="15%">Elemen</th>
-                      <th width="25%">Tujuan Pembelajaran (TP)</th>
-                      <th width="35%">Alur Tujuan Pembelajaran (ATP)</th>
-                      <th width="10%">Alokasi Waktu</th>
+                      <th width="3%">No</th>
+                      <th width="17%">Elemen & CP</th>
+                      <th width="20%">Tujuan Pembelajaran (TP)</th>
+                      <th width="30%">Alur Tujuan Pembelajaran (ATP)</th>
+                      <th width="7%">JP</th>
+                      <th width="13%">Rencana Tanggal</th>
                       <th width="10%">Semester</th>
                   </tr>
               </thead>
