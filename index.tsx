@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp } from 'lucide-react';
+import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2 } from 'lucide-react';
 
 // --- API Key Helper ---
 const getApiKey = (): string => {
@@ -27,6 +27,20 @@ const getApiKey = (): string => {
   } catch (e) {}
 
   return '';
+};
+
+// --- Error Helper ---
+const formatAIError = (err: any): string => {
+    const msg = err?.message || String(err);
+    if (
+        msg.includes('429') || 
+        msg.toLowerCase().includes('quota') || 
+        msg.includes('RESOURCE_EXHAUSTED') ||
+        msg.toLowerCase().includes('rate limit')
+    ) {
+        return "Mohon maaf Server penuh Karena teralu banyak pengguna aplikasi Coba gunakan Aplikasi ini Beberapa saat Lagi";
+    }
+    return msg;
 };
 
 // --- Date Helpers ---
@@ -814,7 +828,9 @@ const ModulAjarGenerator = ({
 // --- App Component ---
 
 const App = () => {
-  const [appStage, setAppStage] = useState<'landing' | 'login' | 'register' | 'tutorial' | 'generator'>('landing');
+  const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'generator'>(() => {
+    return localStorage.getItem('prota_user') ? 'generator' : 'login';
+  });
   const [user, setUser] = useState<{ name: string, email: string } | null>(null);
   const [currentView, setCurrentView] = useState<'generator' | 'history' | 'modul_ajar'>('generator');
   const [selectedFase, setSelectedFase] = useState(FASES[0]);
@@ -859,7 +875,7 @@ const App = () => {
   const handleLogout = () => {
     localStorage.removeItem('prota_user');
     setUser(null);
-    setAppStage('landing');
+    setAppStage('login');
   };
 
   const getSubjectKey = (subjectName: string): string | null => {
@@ -906,6 +922,27 @@ const App = () => {
         return prev; // Return previous state if saving fails
       }
     });
+  };
+
+  const deleteActivity = (id: string) => {
+    setActivities(prev => {
+      const updated = prev.filter(act => act.id !== id);
+      try {
+        localStorage.setItem('prota_activities', JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to update activities in localStorage:", e);
+      }
+      return updated;
+    });
+  };
+
+  const clearAllActivities = () => {
+    setActivities([]);
+    try {
+      localStorage.removeItem('prota_activities');
+    } catch (e) {
+      console.error("Failed to clear activities from localStorage:", e);
+    }
   };
 
   const checkNonEffectiveDate = (dateStr: string): NonEffectiveRange | null => {
@@ -1126,7 +1163,7 @@ const App = () => {
 
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Gagal membuat konten.");
+      setError(formatAIError(err));
     } finally {
       setLoading(false);
     }
@@ -1383,7 +1420,7 @@ const App = () => {
 
     } catch (err: any) {
         console.error(err);
-        setError("Gagal membuat ATP: " + err.message);
+        setError("Gagal membuat ATP: " + formatAIError(err));
     } finally {
         setAtpLoading(null);
     }
@@ -1526,76 +1563,6 @@ const App = () => {
 
   // --- Render ---
 
-  if (appStage === 'landing') {
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex flex-col items-center justify-center text-white relative overflow-hidden">
-            {/* Background elements */}
-            <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 0.1, scale: 1 }}
-                transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }}
-                className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl"
-            />
-            <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 0.1, scale: 1 }}
-                transition={{ duration: 2.5, repeat: Infinity, repeatType: "reverse", delay: 0.5 }}
-                className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl"
-            />
-            
-            <div className="z-10 text-center px-4 max-w-4xl">
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6 }}
-                    className="mb-6 flex justify-center"
-                >
-                    <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
-                        <BookOpen className="w-16 h-16 text-blue-200" />
-                    </div>
-                </motion.div>
-                
-                <motion.h1 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.2 }}
-                    className="font-display text-4xl md:text-6xl font-extrabold mb-6 tracking-tight leading-tight"
-                >
-                    Perangkat Ajar GTK <br/>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-200">
-                        Jenjang SD Tahun Ajaran 2025-2026
-                    </span>
-                </motion.h1>
-                
-                <motion.p 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.6, delay: 0.4 }}
-                    className="text-lg md:text-xl text-blue-100 mb-10 max-w-2xl mx-auto"
-                >
-                    Platform cerdas untuk menyusun Capaian Pembelajaran, Tujuan Pembelajaran, Alur Tujuan Pembelajaran, dan Modul Ajar secara otomatis.
-                </motion.p>
-                
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.6 }}
-                >
-                    <button 
-                        onClick={() => user ? setAppStage('generator') : setAppStage('login')} 
-                        className="group relative px-8 py-4 bg-white text-blue-900 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all overflow-hidden"
-                    >
-                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-50 to-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <span className="relative flex items-center gap-2">
-                            Mulai Sekarang <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                        </span>
-                    </button>
-                </motion.div>
-            </div>
-        </div>
-    );
-  }
-
   if (appStage === 'login' || appStage === 'register') {
     const isLogin = appStage === 'login';
     return (
@@ -1633,7 +1600,7 @@ const App = () => {
                         const userData = { name, email };
                         localStorage.setItem('prota_user', JSON.stringify(userData));
                         setUser(userData);
-                        setAppStage('generator');
+                        setAppStage('tutorial');
                     }}
                     className="space-y-5"
                 >
@@ -1689,6 +1656,228 @@ const App = () => {
                     </p>
                 </div>
             </motion.div>
+        </div>
+    );
+  }
+
+  if (appStage === 'tutorial') {
+    return (
+        <div className="min-h-screen bg-slate-50 text-slate-800 relative overflow-hidden flex flex-col font-sans">
+            {/* Aurora Glassmorphism Background */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 bg-slate-50">
+                <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob"></div>
+                <div className="absolute top-[20%] -right-[10%] w-[35%] h-[35%] rounded-full bg-indigo-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob" style={{ animationDelay: '2s' }}></div>
+                <div className="absolute -bottom-[20%] left-[20%] w-[40%] h-[40%] rounded-full bg-purple-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob" style={{ animationDelay: '4s' }}></div>
+            </div>
+            
+            <div className="max-w-6xl mx-auto px-4 py-20 flex-1 w-full z-10 relative">
+                <button onClick={() => setAppStage('generator')} className="absolute top-8 left-4 flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition-colors bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-white/50 shadow-sm">
+                    <ArrowLeft className="w-4 h-4" /> Lewati Tutorial
+                </button>
+                <motion.div 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="text-center mb-20"
+                >
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 backdrop-blur-md border border-white/40 shadow-sm mb-6 text-sm font-medium text-blue-800">
+                        <Sparkles className="w-4 h-4 text-blue-600" /> Versi Beta - Terus Berkembang
+                    </div>
+                    <h1 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight text-slate-900 drop-shadow-sm">
+                        Halo, Rekan Pendidik! <br/><span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">Selamat Datang.</span>
+                    </h1>
+                    <p className="text-lg md:text-xl opacity-90 max-w-2xl mx-auto text-slate-700 leading-relaxed font-medium">
+                        Mari kenali sejenak bagaimana teman digital ini bekerja untuk membantu Anda merancang pembelajaran yang lebih cepat, bermakna, dan rapi sebelum kita mulai menyusun perangkat ajar.
+                    </p>
+                </motion.div>
+
+                {/* Bento Grid Features */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
+                    {/* Fungsi */}
+                    <motion.div 
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1, duration: 0.5 }}
+                        className="bg-white/60 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 group hover:bg-white/80 transition-all duration-300 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -z-10 group-hover:scale-150 transition-transform duration-500"></div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:-translate-y-1 transition-transform border border-blue-100/50">
+                            <Settings className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-2xl font-bold mb-4 text-slate-800 tracking-tight">Peran Asisten AI</h3>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                            Aplikasi ini dirancang sebagai asisten pribadi Anda. Dari memahami Capaian Pembelajaran (CP) hingga menyusun ATP, Modul Ajar, dan PROTA, semuanya kami rancang agar tugas administratif Anda menjadi jauh lebih ringan.
+                        </p>
+                    </motion.div>
+
+                    {/* Regulasi */}
+                    <motion.div 
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2, duration: 0.5 }}
+                        className="bg-white/60 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 group hover:bg-white/80 transition-all duration-300 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -z-10 group-hover:scale-150 transition-transform duration-500"></div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:-translate-y-1 transition-transform border border-emerald-100/50">
+                            <ShieldCheck className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-2xl font-bold mb-4 text-slate-800 tracking-tight">Kesesuaian Regulasi</h3>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                            Pikiran tenang, karena semua yang dihasilkan di sini sudah sejalan dengan denyut nadi kurikulum terbaru: panduan <strong>BSKAP 046/H/KR/2025</strong>. Strukturnya valid, alokasi waktunya pas, dan siap mendampingi Anda di kelas.
+                        </p>
+                    </motion.div>
+
+                    {/* Metode Pendekatan */}
+                    <motion.div 
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3, duration: 0.5 }}
+                        className="bg-white/60 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 group hover:bg-white/80 transition-all duration-300 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -z-10 group-hover:scale-150 transition-transform duration-500"></div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:-translate-y-1 transition-transform border border-purple-100/50">
+                            <Brain className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-2xl font-bold mb-4 text-slate-800 tracking-tight">Metode Pendekatan</h3>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                            Saat mengurai materi (TP menjadi ATP), asisten AI kami menggunakan kerangka berpikir <strong>Taksonomi Bloom revisi Anderson & Krathwohl</strong>, memastikan aktivitas yang tersusun memiliki gradasi kognitif yang tepat untuk anak didik kita.
+                        </p>
+                    </motion.div>
+                </div>
+
+                {/* Cara Menggunakan - Modern Timeline */}
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4, duration: 0.6 }}
+                    className="bg-white/80 backdrop-blur-2xl rounded-[3rem] p-8 md:p-16 shadow-[0_20px_50px_rgb(0,0,0,0.05)] mb-24 border border-white relative overflow-hidden"
+                >
+                    <h2 className="text-3xl md:text-4xl font-extrabold mb-12 text-center text-slate-900 tracking-tight">Langkah Mudah Memulai</h2>
+                    
+                    <div className="space-y-12 relative before:absolute before:inset-0 before:ml-6 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-1 before:bg-gradient-to-b before:from-blue-200 before:via-indigo-200 before:to-transparent">
+                        
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl border-[3px] border-white bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold shadow-lg shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 text-xl transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">1</div>
+                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-3xl bg-white shadow-sm border border-slate-100 group-hover:shadow-[0_8px_30px_rgb(59,130,246,0.1)] group-hover:-translate-y-1 transition-all duration-300">
+                                <h4 className="font-extrabold text-xl text-slate-800 mb-2">Beritahu Kelas Anda</h4>
+                                <p className="text-slate-500 font-medium leading-relaxed">Cukup beri tahu kami mata pelajaran dan kelas apa yang Anda ampu. Kami akan langsung mencari dan menyiapkan dokumen Capaian Pembelajaran (CP) terbarunya.</p>
+                            </div>
+                        </div>
+
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl border-[3px] border-white bg-gradient-to-br from-indigo-500 to-indigo-600 text-white font-bold shadow-lg shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 text-xl transform group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">2</div>
+                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-3xl bg-white shadow-sm border border-slate-100 group-hover:shadow-[0_8px_30px_rgb(99,102,241,0.1)] group-hover:-translate-y-1 transition-all duration-300">
+                                <h4 className="font-extrabold text-xl text-slate-800 mb-2">Biar AI Meracik TP</h4>
+                                <p className="text-slate-500 font-medium leading-relaxed">Klik tombol ajaib "Generate CP & TP". Asisten AI kami akan membaca CP tersebut dan meraciknya menjadi Tujuan Pembelajaran (TP) yang jelas dan terukur.</p>
+                            </div>
+                        </div>
+
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl border-[3px] border-white bg-gradient-to-br from-purple-500 to-purple-600 text-white font-bold shadow-lg shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 text-xl transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">3</div>
+                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-3xl bg-white shadow-sm border border-slate-100 group-hover:shadow-[0_8px_30px_rgb(168,85,247,0.1)] group-hover:-translate-y-1 transition-all duration-300">
+                                <h4 className="font-extrabold text-xl text-slate-800 mb-2">Tentukan Jadwal & ATP</h4>
+                                <p className="text-slate-500 font-medium leading-relaxed">Kapan jadwal mengajar Anda? Beri tahu sistem, dan klik "Susun ATP Otomatis". TP tadi akan langsung dirangkai menjadi draf jadwal mengajar harian yang rapi.</p>
+                            </div>
+                        </div>
+
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl border-[3px] border-white bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-bold shadow-lg shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 text-xl transform group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">4</div>
+                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-3xl bg-white shadow-sm border border-slate-100 group-hover:shadow-[0_8px_30px_rgb(16,185,129,0.1)] group-hover:-translate-y-1 transition-all duration-300">
+                                <h4 className="font-extrabold text-xl text-slate-800 mb-2">Simpan Modul & PROTA</h4>
+                                <p className="text-slate-500 font-medium leading-relaxed">Satu klik lagi di bagian tabel ATP, Modul Ajar pun jadi! Anda juga bisa langsung mengunduh Program Tahunan (PROTA) dalam format Word yang siap dicetak.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </motion.div>
+
+                {/* Kelebihan dan Kekurangan - Glassmorphic Cards */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5, duration: 0.6 }}
+                    className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-24"
+                >
+                    <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-10 border border-green-100 shadow-[0_8px_30px_rgb(34,197,94,0.06)] relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-green-50 rounded-full mix-blend-multiply blur-3xl opacity-60 -z-10 group-hover:scale-125 transition-transform duration-700"></div>
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="p-3 bg-green-100 rounded-2xl text-green-600"><ThumbsUp className="w-8 h-8" /></div>
+                            <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight">Kelebihan</h3>
+                        </div>
+                        <ul className="space-y-5 text-slate-600 font-medium">
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> Seperti asisten pribadi yang bekerja amat cepat, menyusun semuanya dari nol.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> Pintar! Ia paham hari libur karena terhubung langsung dengan kalender akademik.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> Output sangat terstruktur, rapi, dan siap unduh.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> Antarmuka yang kami usahakan sehangat dan semudah mungkin untuk digunakan.</li>
+                        </ul>
+                    </div>
+
+                    <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-10 border border-orange-100 shadow-[0_8px_30px_rgb(249,115,22,0.06)] relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-orange-50 rounded-full mix-blend-multiply blur-3xl opacity-60 -z-10 group-hover:scale-125 transition-transform duration-700"></div>
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="p-3 bg-orange-100 rounded-2xl text-orange-500"><Info className="w-8 h-8" /></div>
+                            <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight">Catatan & Limitasi</h3>
+                        </div>
+                        <ul className="space-y-5 text-slate-600 font-medium">
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Sangat membutuhkan koneksi internet yang ramah dan stabil.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Versi ini masih dihidupi oleh <strong>API AI versi gratis</strong>, sehingga mungkin sesekali ada batasan kuota jika sedang padat pengunjung.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Belum sepenuhnya menguasai mata pelajaran spesifik seperti Muatan Lokal Daerah tertentu (masih terus kami ajari!).</li>
+                            <li className="flex items-start gap-3 font-semibold italic text-orange-700"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-600 shrink-0"></div> Versi ini belumlah sempurna, namun kami berjanji akan terus bertumbuh untuk menjadi lebih baik.</li>
+                        </ul>
+                    </div>
+                </motion.div>
+
+                {/* Call to Action */}
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.7, duration: 0.6 }}
+                    className="text-center mb-10"
+                >
+                    <button 
+                        onClick={() => setAppStage('generator')}
+                        className="group relative inline-flex items-center justify-center px-10 py-5 font-bold text-white transition-all duration-300 bg-slate-900 rounded-[2rem] hover:bg-slate-800 hover:shadow-[0_20px_40px_rgba(15,23,42,0.2)] hover:-translate-y-1 overflow-hidden"
+                    >
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <span className="relative flex items-center text-lg">
+                            Mulai Buat Perangkat Ajar Sekarang
+                            <ArrowRight className="ml-3 w-6 h-6 group-hover:translate-x-1.5 transition-transform duration-300" />
+                        </span>
+                    </button>
+                    <p className="mt-6 text-sm font-medium text-slate-500">GRATIS • Tanpa Biaya Langganan</p>
+                </motion.div>
+            </div>
+
+            {/* Modern Footer / Donation */}
+            <div className="bg-white border-t border-slate-200 py-16 relative overflow-hidden mt-auto z-10 w-full">
+                <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-100 via-transparent to-transparent"></div>
+                <div className="max-w-5xl mx-auto px-4 relative z-10 text-center">
+                    <div className="inline-flex items-center gap-2 mb-8 px-6 py-2 rounded-full bg-slate-50 border border-slate-200">
+                        <Coffee className="w-5 h-5 text-amber-600" />
+                        <span className="font-bold text-slate-700 tracking-tight">Support The Developer</span>
+                    </div>
+                    
+                    <h4 className="text-2xl font-extrabold text-slate-800 mb-8 tracking-tight">Dukung Pengembangan Aplikasi Ini</h4>
+                    
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
+                        <div className="flex items-center gap-3 bg-white px-8 py-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group hover:-translate-y-1 duration-300">
+                            <span className="text-2xl group-hover:scale-110 group-hover:rotate-6 transition-transform">☕</span>
+                            <span className="text-slate-500 font-medium text-left">Traktir Kopi<br/><strong className="text-slate-800 text-lg">@Miftahsidik99</strong></span>
+                        </div>
+                        <div className="flex items-center gap-3 bg-white px-8 py-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group hover:-translate-y-1 duration-300">
+                            <span className="text-2xl group-hover:scale-110 group-hover:-rotate-6 transition-transform">💳</span>
+                            <span className="text-slate-500 font-medium text-left">Rekening Dana<br/><strong className="text-slate-800 text-lg">082312194681</strong></span>
+                        </div>
+                        <div className="flex items-center gap-3 bg-white px-8 py-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group hover:-translate-y-1 duration-300">
+                            <span className="text-2xl group-hover:scale-110 transition-transform">✉️</span>
+                            <span className="text-slate-500 font-medium text-left">Saran & Kerjasama<br/><strong className="text-slate-800 text-lg">Miftahsidik695@gmail.com</strong></span>
+                        </div>
+                    </div>
+                    <div className="mt-16 text-sm font-bold text-slate-400">
+                        &copy; {new Date().getFullYear()} Miftah Sidik. All rights reserved.
+                    </div>
+                </div>
+            </div>
         </div>
     );
   }
@@ -1858,10 +2047,11 @@ const App = () => {
                         </div>
                         <button 
                             onClick={handleLogout}
-                            className="p-2 bg-blue-800 hover:bg-red-600 text-white rounded-lg transition-colors"
+                            className="p-2 bg-blue-800 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2"
                             title="Keluar"
                         >
-                            <User className="w-5 h-5" />
+                            <LogOut className="w-5 h-5" />
+                            <span className="hidden md:inline text-sm font-medium">Keluar</span>
                         </button>
                     </div>
                 )}
@@ -1878,22 +2068,47 @@ const App = () => {
             />
         ) : currentView === 'history' ? (
             <div className="bg-white rounded-xl shadow p-6">
-                <h2 className="text-xl font-bold mb-4">Riwayat Aktivitas</h2>
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-3">
+                        Riwayat Aktivitas
+                        {activities.length > 0 && (
+                            <button onClick={clearAllActivities} className="text-xs flex items-center gap-1 font-semibold bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" /> Hapus Semua
+                            </button>
+                        )}
+                    </h2>
+                    <button onClick={() => setCurrentView('generator')} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium text-sm">
+                        <ArrowLeft className="w-4 h-4" /> Kembali ke Generator
+                    </button>
+                </div>
                 <div className="space-y-4">
                     {activities.map(act => (
-                        <div key={act.id} className="border p-4 rounded-lg flex justify-between items-center hover:bg-gray-50">
-                            <div>
+                        <div key={act.id} className="border p-4 rounded-lg flex justify-between items-center hover:bg-gray-50 transition-colors group">
+                            <div className="flex-1 min-w-0 pr-4">
                                 <div className="flex items-center gap-2 mb-1">
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${act.type === 'MODUL_AJAR' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{act.type}</span>
                                     <span className="text-xs text-gray-500">{act.timestamp.toLocaleString()}</span>
                                 </div>
-                                <h4 className="font-bold text-gray-800">{act.subject}</h4>
-                                <p className="text-sm text-gray-600 truncate max-w-md">{act.details}</p>
+                                <h4 className="font-bold text-gray-800 truncate">{act.subject}</h4>
+                                <p className="text-sm text-gray-600 truncate">{act.details}</p>
                             </div>
-                            <button onClick={() => { setData(act.dataSnapshot); setCurrentView('generator'); }} className="text-blue-600 hover:underline text-sm font-medium">Lihat/Pulihkan</button>
+                            <div className="flex items-center justify-end gap-3 shrink-0">
+                                <button onClick={() => { setData(act.dataSnapshot); setCurrentView('generator'); }} className="text-blue-600 hover:text-blue-800 text-sm font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                                    Pulihkan
+                                </button>
+                                <button onClick={() => deleteActivity(act.id)} className="text-gray-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Hapus Riwayat">
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     ))}
-                    {activities.length === 0 && <p className="text-gray-500 text-center py-8">Belum ada aktivitas.</p>}
+                    {activities.length === 0 && (
+                        <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                            <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-500 font-medium">Belum ada aktivitas.</p>
+                            <p className="text-gray-400 text-sm mt-1">Riwayat pembuatan perangkat Anda akan muncul di sini.</p>
+                        </div>
+                    )}
                 </div>
             </div>
         ) : (
