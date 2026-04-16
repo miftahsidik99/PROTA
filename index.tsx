@@ -1821,7 +1821,7 @@ const App = () => {
                         <ul className="space-y-5 text-slate-600 font-medium">
                             <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Sangat membutuhkan koneksi internet yang ramah dan stabil.</li>
                             <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Versi ini masih dihidupi oleh <strong>API AI versi gratis</strong>, sehingga mungkin sesekali ada batasan kuota jika sedang padat pengunjung.</li>
-                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Belum sepenuhnya menguasai mata pelajaran spesifik seperti Muatan Lokal Daerah tertentu (masih terus kami ajari!).</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Belum sepenuhnya menyediakan mata pelajaran spesifik Muatan Lokal Daerah tertentu (masih terus kami kembangkan!).</li>
                             <li className="flex items-start gap-3 font-semibold italic text-orange-700"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-600 shrink-0"></div> Versi ini belumlah sempurna, namun kami berjanji akan terus bertumbuh untuk menjadi lebih baik.</li>
                         </ul>
                     </div>
