@@ -889,6 +889,30 @@ const App = () => {
       return fuzzyKey || null;
   };
 
+  const saveActivitiesToStorage = (activities: ActivityLog[]) => {
+      let currentActivities = [...activities];
+      if (currentActivities.length > 20) {
+          currentActivities = currentActivities.slice(0, 20);
+      }
+      
+      while (currentActivities.length > 0) {
+          try {
+              localStorage.setItem('prota_activities', JSON.stringify(currentActivities));
+              return currentActivities;
+          } catch (e: any) {
+              const msg = e?.message?.toLowerCase() || '';
+              if (e.name === 'QuotaExceededError' || msg.includes('quota') || msg.includes('exceeded')) {
+                  console.warn("Storage quota exceeded, removing oldest activity...");
+                  currentActivities.pop();
+              } else {
+                  console.error("Failed to save activities to localStorage:", e);
+                  return currentActivities;
+              }
+          }
+      }
+      return [];
+  };
+
   const addActivity = (type: 'CP_TP' | 'ATP_JP' | 'MODUL_AJAR', subject: string, details: string, dataSnapshot: any) => {
     const newActivity: ActivityLog = {
       id: Date.now().toString(),
@@ -899,41 +923,15 @@ const App = () => {
       dataSnapshot: JSON.parse(JSON.stringify(dataSnapshot)),
       paperSizeSnapshot: paperSize
     };
-    setActivities(prev => {
-      const updated = [newActivity, ...prev];
-      try {
-        localStorage.setItem('prota_activities', JSON.stringify(updated));
-        return updated;
-      } catch (e) {
-        console.error("Failed to save activities to localStorage:", e);
-        return prev;
-      }
-    });
+    setActivities(prev => saveActivitiesToStorage([newActivity, ...prev]));
   };
   
   const saveActivityLog = (log: ActivityLog) => {
-    setActivities(prev => {
-      const updated = [log, ...prev];
-      try {
-        localStorage.setItem('prota_activities', JSON.stringify(updated));
-        return updated;
-      } catch (e) {
-        console.error("Failed to save activities to localStorage:", e);
-        return prev; // Return previous state if saving fails
-      }
-    });
+    setActivities(prev => saveActivitiesToStorage([log, ...prev]));
   };
 
   const deleteActivity = (id: string) => {
-    setActivities(prev => {
-      const updated = prev.filter(act => act.id !== id);
-      try {
-        localStorage.setItem('prota_activities', JSON.stringify(updated));
-      } catch (e) {
-        console.error("Failed to update activities in localStorage:", e);
-      }
-      return updated;
-    });
+    setActivities(prev => saveActivitiesToStorage(prev.filter(act => act.id !== id)));
   };
 
   const clearAllActivities = () => {
