@@ -595,8 +595,8 @@ const ModulAjarGenerator = ({
             const ai = new GoogleGenAI({ apiKey });
 
             const prompt = `
-                Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (BSKAP 046/2025).
-                Buatlah MODUL AJAR lengkap dan komprehensif.
+                Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka.
+                Buatlah MODUL AJAR yang SANGAT LENGKAP, KOMPREHENSIF, dan TIDAK TERPOTONG sesuai Permendikdasmen No. 13 Tahun 2025.
                 INFORMASI UMUM:
                 - Penyusun: ${formData.authorName}
                 - Instansi: ${formData.institutionName}
@@ -606,24 +606,27 @@ const ModulAjarGenerator = ({
                 - Tanggal: ${formData.date}
                 - Topik/Materi: ${formData.topic}
                 - Model Pembelajaran: ${formData.modelMethod || 'Pilih yang sesuai (PBL/PjBL/Inquiry)'}
-                KOMPONEN INTI:
+                KOMPONEN INTI YANG WAJIB DIJABARKAN SECARA MENDALAM:
                 - Capaian Pembelajaran (CP): ${context.cp}
-                - Tujuan Pembelajaran (TP): ${context.tp}
-                - Pemahaman Bermakna
+                - Tujuan Pembelajaran (TP): ${context.tp} (Gunakan spektrum Taksonomi Bloom Revisi)
+                - Pemahaman Bermakna (Jelaskan secara naratif)
                 - Pertanyaan Pemantik
-                - Kegiatan Pembelajaran (Pendahuluan, Inti, Penutup)
+                - Kegiatan Pembelajaran (Pendahuluan, Inti, Penutup - JABARKAN DETAIL LANGKAH-LANGKAHNYA)
                 LAMPIRAN (Sajikan dalam format tabel HTML modern jika memungkinkan):
-                ${formData.components.includeMaterials ? '- Materi Ajar (Ringkasan)' : ''}
-                ${formData.components.includeLKPD ? '- Lembar Kerja Peserta Didik (LKPD) - Buatkan instruksi detail.' : ''}
-                ${formData.components.includeAssessment ? '- Instrumen Penilaian (Rubrik/Soal)' : ''}
+                ${formData.components.includeMaterials ? '- Materi Ajar (Ringkasan Detail)' : ''}
+                ${formData.components.includeLKPD ? '- Lembar Kerja Peserta Didik (LKPD) - Buatkan instruksi detail dan soal/aktivitas.' : ''}
+                ${formData.components.includeAssessment ? '- Instrumen Penilaian (Kognitif, Afektif, Psikomotorik beserta Rubrik lengkap)' : ''}
                 OUTPUT FORMAT:
-                Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black).
-                Gunakan tag <h3> untuk judul bagian.
+                Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black) di mana diperlukan.
+                Gunakan tag <h3> untuk judul bagian. PASTIKAN SELURUH KONTEN SELESAI DIGENERATE DAN TIDAK ADA KALIMAT ATAU TABEL TERPOTONG DI TENGAH JALAN.
             `;
 
             const response = await ai.models.generateContent({
-                model: 'gemini-3.1-flash-lite-preview',
+                model: 'gemini-3-flash-preview',
                 contents: prompt,
+                config: {
+                    maxOutputTokens: 8192
+                }
             });
 
             const html = response.text || "<p>Gagal membuat konten.</p>";
@@ -1132,19 +1135,23 @@ const App = () => {
 
       const prompt = `
         Bertindaklah sebagai ahli kurikulum pendidikan Indonesia (Kurikulum Merdeka 2025).
-        Tugas: Analisis Capaian Pembelajaran (CP) dan rumuskan Tujuan Pembelajaran (TP).
+        Tugas: Analisis Capaian Pembelajaran (CP) dan rumuskan Tujuan Pembelajaran (TP) secara LENGKAP TANPA ADA ELEMEN YANG DIPOTONG.
         Parameter: Jenjang SD, Fase ${selectedFase.name}, Mapel ${selectedSubject}, Kelas ${selectedFase.classes.join(" dan ")}.
-        Instruksi: 
-        1. Tuliskan deskripsi singkat mata pelajaran.
-        2. Tuliskan Elemen dan CP terbaru. 
-        3. Pecah CP menjadi Tujuan Pembelajaran (TP) spesifik untuk setiap kelas (${selectedFase.classes.join(" dan ")}).
-        4. Pastikan output sesuai dengan skema JSON yang diminta, dengan array 'elements' yang berisi 'allocations' untuk setiap kelas.
+        Instruksi WAJIB:
+        1. Tuliskan deskripsi singkat mata pelajaran yang mendalam.
+        2. Tuliskan SEMUA Elemen dan CP terbaru secara lengkap sesuai dengan "Permendikdasmen Nomor 13 Tahun 2025". Jangan sampai ada elemen yang hilang.
+        3. Pecah CP menjadi Tujuan Pembelajaran (TP) spesifik untuk setiap kelas (${selectedFase.classes.join(" dan ")}). Gunakan kata kerja operasional sesuai Taksonomi Bloom Revisi Anderson-Krathwohl.
+        4. Pastikan output TUNTAS SELENGKAP-LENGKAPNYA sesuai dengan skema JSON yang diminta, dengan array 'elements' yang berisi 'allocations' untuk setiap kelas. JANGAN PERNAH me-return data parsial atau tanggung.
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-preview',
+        model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: schema }
+        config: { 
+            responseMimeType: "application/json", 
+            responseSchema: schema,
+            maxOutputTokens: 8192
+        }
       });
 
       let resultData: CurriculumData;
@@ -1279,7 +1286,7 @@ const App = () => {
 
         const prompt = `
             PERAN: Ahli Kurikulum & Penjadwalan Sekolah Dasar (Kurikulum Merdeka 2025).
-            TUGAS: Pecah Tujuan Pembelajaran (TP) menjadi aktivitas-aktivitas kecil (Alur Tujuan Pembelajaran/ATP).
+            TUGAS: Pecah Tujuan Pembelajaran (TP) menjadi aktivitas-aktivitas kecil (Alur Tujuan Pembelajaran/ATP) secara RINCI.
             
             KONTEKS:
             - Mapel: ${data.subject} (${className})
@@ -1289,11 +1296,11 @@ const App = () => {
             DAFTAR TP (ID: TP):
             ${flatTPs.map(f => `${f.id}: ${f.tp}`).join('\n')}
             
-            INSTRUKSI:
-            1. Buat rangkaian aktivitas untuk SETIAP TP di atas.
-            2. Satu TP bisa dipecah menjadi beberapa aktivitas (beberapa pertemuan) jika kompleks.
-            3. Estimasi JP per aktivitas rata-rata ${Math.round(targetJP / timelineSlots.length) || 2} JP.
-            4. Gunakan field 'alur' untuk deskripsi aktivitas pembelajaran yang konkret.
+            INSTRUKSI WAJIB:
+            1. Buat rangkaian aktivitas untuk SETIAP TP di atas. Jangan sampai ada TP yang terlewat.
+            2. Satu TP WAJIB dipecah menjadi beberapa aktivitas (beberapa pertemuan) menggunakan Taksonomi Bloom Revisi (Anderson & Krathwohl). Urutkan dari tingkat kognitif rendah (Mengingat/C1) menuju tinggi (Mencipta/C6).
+            3. Estimasi JP per aktivitas rata-rata ${Math.round(targetJP / timelineSlots.length) || 2} JP. Jangan kurang atau lebih dari total target.
+            4. Gunakan field 'alur' untuk deskripsi aktivitas pembelajaran yang konkret, kontekstual, dan selaras dengan Permendikdasmen No. 13 Tahun 2025.
             5. Return JSON object dengan properti 'allocations' yang berisi array pemetaan tpId ke daftar aktivitas sesuai skema yang diberikan.
         `;
 
@@ -1311,7 +1318,7 @@ const App = () => {
                                 items: {
                                     type: Type.OBJECT,
                                     properties: {
-                                        alur: { type: Type.STRING, description: "Deskripsi aktivitas pembelajaran" },
+                                        alur: { type: Type.STRING, description: "Deskripsi aktivitas pembelajaran (Taksonomi Bloom Revisi)" },
                                         jp: { type: Type.NUMBER, description: "Estimasi JP" }
                                     },
                                     required: ["alur", "jp"]
@@ -1327,11 +1334,12 @@ const App = () => {
 
         console.log("Memanggil AI untuk generate ATP...");
         const response = await ai.models.generateContent({
-            model: 'gemini-3.1-flash-lite-preview',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config: { 
                 responseMimeType: "application/json", 
-                responseSchema: schema
+                responseSchema: schema,
+                maxOutputTokens: 8192
             }
         });
 
