@@ -36,7 +36,10 @@ const formatAIError = (err: any): string => {
         msg.includes('429') || 
         msg.toLowerCase().includes('quota') || 
         msg.includes('RESOURCE_EXHAUSTED') ||
-        msg.toLowerCase().includes('rate limit')
+        msg.toLowerCase().includes('rate limit') ||
+        msg.includes('503') ||
+        msg.toLowerCase().includes('high demand') ||
+        msg.includes('UNAVAILABLE')
     ) {
         return "Mohon maaf Server penuh Karena teralu banyak pengguna aplikasi Coba gunakan Aplikasi ini Beberapa saat Lagi";
     }
@@ -561,7 +564,7 @@ const ModulAjarGenerator = ({
             `;
 
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3.1-flash-lite-preview',
                 contents: prompt,
                 config: { responseMimeType: "application/json" }
             });
@@ -619,7 +622,7 @@ const ModulAjarGenerator = ({
             `;
 
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3.1-flash-lite-preview',
                 contents: prompt,
             });
 
@@ -1139,7 +1142,7 @@ const App = () => {
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.1-flash-lite-preview',
         contents: prompt,
         config: { responseMimeType: "application/json", responseSchema: schema }
       });
@@ -1324,7 +1327,7 @@ const App = () => {
 
         console.log("Memanggil AI untuk generate ATP...");
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.1-flash-lite-preview',
             contents: prompt,
             config: { 
                 responseMimeType: "application/json", 
