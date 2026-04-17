@@ -561,7 +561,7 @@ const ModulAjarGenerator = ({
             `;
 
             const response = await ai.models.generateContent({
-                model: 'gemini-1.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: prompt,
                 config: { responseMimeType: "application/json" }
             });
@@ -619,7 +619,7 @@ const ModulAjarGenerator = ({
             `;
 
             const response = await ai.models.generateContent({
-                model: 'gemini-1.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: prompt,
             });
 
@@ -633,7 +633,7 @@ const ModulAjarGenerator = ({
                     let imgResponse;
                     try {
                         imgResponse = await ai.models.generateContent({
-                            model: 'gemini-1.5-flash',
+                            model: 'gemini-2.5-flash-image',
                             contents: { parts: [{ text: imgPrompt }] },
                             config: {
                                 imageConfig: {
@@ -645,7 +645,7 @@ const ModulAjarGenerator = ({
                     } catch (fallbackError) {
                         console.warn("Fallback to gemini-3.1-flash-image-preview:", fallbackError);
                         imgResponse = await ai.models.generateContent({
-                            model: 'gemini-1.5-flash',
+                            model: 'gemini-3.1-flash-image-preview',
                             contents: { parts: [{ text: imgPrompt }] },
                             config: {
                                 imageConfig: {
@@ -1139,7 +1139,7 @@ const App = () => {
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: "application/json", responseSchema: schema }
       });
@@ -1324,7 +1324,7 @@ const App = () => {
 
         console.log("Memanggil AI untuk generate ATP...");
         const response = await ai.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: { 
                 responseMimeType: "application/json", 
