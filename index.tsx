@@ -57,8 +57,9 @@ const parseDateToLocal = (dateStr: string): Date => {
 };
 
 // --- Constants & Configuration ---
-const ACADEMIC_START_DATE = '2025-07-14';
-const ACADEMIC_END_DATE = '2026-06-27';
+// These are default fallbacks now, mostly replaced by academicYearStart
+const DEFAULT_ACADEMIC_START_DATE = '2025-07-14';
+const DEFAULT_ACADEMIC_END_DATE = '2026-06-27';
 
 // --- Types ---
 interface AtpItem {
@@ -103,13 +104,13 @@ interface ActivityLog {
   paperSizeSnapshot: 'A4' | 'Letter' | 'F4';
 }
 
-interface NonEffectiveRange {
+export interface CalendarEvent {
+  id: string;
   start: string;
   end: string;
   description: string;
   type: 'holiday' | 'exam' | 'activity';
-  category?: string;
-  variant?: string;
+  color: string;
 }
 
 interface AnalysisResult {
@@ -220,95 +221,24 @@ const MODEL_RECOMENDATIONS = [
     "Pembelajaran Berdiferensiasi"
 ];
 
-const NON_EFFECTIVE_SCHEDULE: NonEffectiveRange[] = [
-  { start: '2025-07-14', end: '2025-07-16', description: 'MPLS (Masa Pengenalan Lingkungan Sekolah)', type: 'activity' },
-  { start: '2025-07-21', end: '2025-07-24', description: 'Simulasi Asesmen Nasional', type: 'activity' },
-  { start: '2025-08-17', end: '2025-08-17', description: 'HUT RI Ke-80', type: 'holiday' },
-  { start: '2025-09-05', end: '2025-09-05', description: 'Maulid Nabi Muhammad SAW', type: 'holiday' },
-  { start: '2025-09-08', end: '2025-09-11', description: 'Gladi Bersih AN SD (Gelombang 1)', type: 'exam', category: 'anbk_gladi', variant: 'v1' },
-  { start: '2025-09-15', end: '2025-09-18', description: 'Gladi Bersih AN SD (Gelombang 2)', type: 'exam', category: 'anbk_gladi', variant: 'v2' },
-  { start: '2025-09-22', end: '2025-09-25', description: 'Pelaksanaan AN SD (Tahap 1)', type: 'exam', category: 'anbk_main', variant: 'v1' },
-  { start: '2025-09-29', end: '2025-10-02', description: 'Pelaksanaan AN SD (Tahap 2)', type: 'exam', category: 'anbk_main', variant: 'v2' },
-  { start: '2025-12-01', end: '2025-12-07', description: 'Sumatif Akhir Semester 1 (Pekan 1)', type: 'exam', category: 'sumatif_ganjil', variant: 'v1' },
-  { start: '2025-12-08', end: '2025-12-14', description: 'Sumatif Akhir Semester 1 (Pekan 2)', type: 'exam', category: 'sumatif_ganjil', variant: 'v2' },
-  { start: '2025-12-03', end: '2025-12-03', description: 'Hari Disabilitas Internasional', type: 'activity' },
-  { start: '2025-12-22', end: '2025-12-24', description: 'Administrasi & Pembagian Rapor Smst 1', type: 'activity' },
-  { start: '2025-12-25', end: '2025-12-26', description: 'Natal & Cuti Bersama', type: 'holiday' },
-  { start: '2025-12-29', end: '2026-01-10', description: 'Libur Semester 1 (Utama)', type: 'holiday', category: 'libur_smt1', variant: 'v1' },
-  { start: '2025-12-22', end: '2026-01-03', description: 'Libur Semester 1 (Alternatif Awal)', type: 'holiday', category: 'libur_smt1', variant: 'v2' },
-  { start: '2026-01-01', end: '2026-01-01', description: 'Tahun Baru Masehi', type: 'holiday' },
-  { start: '2026-01-16', end: '2026-01-16', description: 'Isra Mi\'raj', type: 'holiday' },
-  { start: '2026-02-17', end: '2026-02-17', description: 'Tahun Baru Imlek', type: 'holiday' },
-  { start: '2026-02-20', end: '2026-02-23', description: 'Perkiraan Libur Awal Ramadan', type: 'holiday' },
-  { start: '2026-02-24', end: '2026-03-13', description: 'Kegiatan Penumbuhan Budi Pekerti', type: 'activity' },
-  { start: '2026-03-14', end: '2026-03-28', description: 'Libur Idul Fitri', type: 'holiday' },
-  { start: '2026-05-11', end: '2026-05-16', description: 'Sumatif Akhir Jenjang SD (Pekan 1)', type: 'exam', category: 'sumatif_jenjang', variant: 'v1' },
-  { start: '2026-05-18', end: '2026-05-23', description: 'Sumatif Akhir Jenjang SD (Pekan 2)', type: 'exam', category: 'sumatif_jenjang', variant: 'v2' },
-  { start: '2026-06-01', end: '2026-06-01', description: 'Hari Lahir Pancasila', type: 'holiday' },
-  { start: '2026-06-02', end: '2026-06-06', description: 'Sumatif Akhir Tahun/Fase (Pekan 1)', type: 'exam', category: 'sumatif_genap', variant: 'v1' },
-  { start: '2026-06-08', end: '2026-06-13', description: 'Sumatif Akhir Tahun/Fase (Pekan 2)', type: 'exam', category: 'sumatif_genap', variant: 'v2' },
-  { start: '2026-06-16', end: '2026-06-16', description: 'Tahun Baru Islam', type: 'holiday' },
-  { start: '2026-06-24', end: '2026-06-26', description: 'Administrasi & Pembagian Rapor Smst 2', type: 'activity' },
-  { start: '2026-06-29', end: '2026-07-11', description: 'Libur Kenaikan Kelas (Utama)', type: 'holiday', category: 'libur_smt2', variant: 'v1' },
-  { start: '2026-06-22', end: '2026-07-04', description: 'Libur Kenaikan Kelas (Alternatif Awal)', type: 'holiday', category: 'libur_smt2', variant: 'v2' },
-  { start: '2026-03-02', end: '2026-03-03', description: 'Simulasi TKA SD (Gelombang 1)', type: 'exam', category: 'tka_simulasi', variant: 'v1' },
-  { start: '2026-03-04', end: '2026-03-05', description: 'Simulasi TKA SD (Gelombang 2)', type: 'exam', category: 'tka_simulasi', variant: 'v2' },
-  { start: '2026-03-06', end: '2026-03-07', description: 'Simulasi TKA SD (Gelombang 3)', type: 'exam', category: 'tka_simulasi', variant: 'v3' },
-  { start: '2026-03-08', end: '2026-03-08', description: 'Simulasi TKA SD (Gelombang 4)', type: 'exam', category: 'tka_simulasi', variant: 'v4' },
-  { start: '2026-03-19', end: '2026-03-19', description: 'Gladi Bersih TKA SD', type: 'exam', category: 'tka_gladi', variant: 'v1' },
-  { start: '2026-04-20', end: '2026-04-21', description: 'Pelaksanaan TKA SD (Gelombang 1)', type: 'exam', category: 'tka_main', variant: 'v1' },
-  { start: '2026-04-22', end: '2026-04-23', description: 'Pelaksanaan TKA SD (Gelombang 2)', type: 'exam', category: 'tka_main', variant: 'v2' },
-  { start: '2026-04-24', end: '2026-04-25', description: 'Pelaksanaan TKA SD (Gelombang 3)', type: 'exam', category: 'tka_main', variant: 'v3' },
-  { start: '2026-04-27', end: '2026-04-28', description: 'Pelaksanaan TKA SD (Gelombang 4)', type: 'exam', category: 'tka_main', variant: 'v4' },
-  { start: '2026-04-29', end: '2026-04-30', description: 'Pelaksanaan TKA SD (Gelombang 5)', type: 'exam', category: 'tka_main', variant: 'v5' },
+export const DEFAULT_CALENDAR_EVENTS: CalendarEvent[] = [
+  { id: 'ev-1', start: '2025-07-01', end: '2025-07-13', description: 'Libur Akhir Tahun Pelajaran', type: 'holiday', color: 'bg-red-500' },
+  { id: 'ev-2', start: '2025-07-15', end: '2025-07-16', description: 'Masa Pengenalan Lingkungan Sekolah', type: 'activity', color: 'bg-green-500' },
+  { id: 'ev-3', start: '2025-08-17', end: '2025-08-18', description: 'Libur Hari Proklamasi Kemerdekaan RI', type: 'holiday', color: 'bg-red-500' },
+  { id: 'ev-4', start: '2025-09-05', end: '2025-09-05', description: 'Libur Maulid Nabi', type: 'holiday', color: 'bg-red-500' },
+  { id: 'ev-5', start: '2025-10-06', end: '2025-10-10', description: 'Kemungkinan Penilaian Tengah Semester', type: 'exam', color: 'bg-orange-500' },
+  { id: 'ev-6', start: '2025-12-08', end: '2025-12-12', description: 'Prakiraan Penilaian Akhir Semester 1', type: 'exam', color: 'bg-orange-500' },
+  { id: 'ev-7', start: '2025-12-15', end: '2025-12-20', description: 'Prakiraan Pengolahan Nilai PAS 1', type: 'activity', color: 'bg-purple-500' },
+  { id: 'ev-8', start: '2025-12-23', end: '2026-01-09', description: 'Libur Semester 1', type: 'holiday', color: 'bg-pink-500' },
+  { id: 'ev-9', start: '2026-01-16', end: '2026-01-16', description: 'Libur Isra Mi\'raj', type: 'holiday', color: 'bg-red-500' },
+  { id: 'ev-10', start: '2026-02-17', end: '2026-02-17', description: 'Libur Tahun Baru Imlek', type: 'holiday', color: 'bg-red-500' },
+  { id: 'ev-11', start: '2026-02-20', end: '2026-02-23', description: 'Prakiraan Libur Awal Ramadan 1447 H', type: 'holiday', color: 'bg-red-500' },
+  { id: 'ev-12', start: '2026-03-04', end: '2026-03-13', description: 'Pesantren Ramadhan 1447 H', type: 'activity', color: 'bg-teal-500' },
+  { id: 'ev-13', start: '2026-03-16', end: '2026-03-29', description: 'Prakiraan Libur Hari Raya Idul Fitri', type: 'holiday', color: 'bg-red-500' },
+  { id: 'ev-14', start: '2026-06-09', end: '2026-06-12', description: 'Prakiraan Penilaian Akhir Tahun', type: 'exam', color: 'bg-orange-500' },
+  { id: 'ev-15', start: '2026-06-15', end: '2026-06-26', description: 'Prakiraan Pengolahan Nilai PSAT', type: 'activity', color: 'bg-purple-500' },
+  { id: 'ev-16', start: '2026-06-29', end: '2026-06-30', description: 'Libur Akhir Tahun Pelajaran', type: 'holiday', color: 'bg-red-500' }
 ];
-
-const SCHEDULE_OPTIONS: Record<string, { id: string, label: string }[]> = {
-  libur_smt1: [
-    { id: 'v1', label: 'Utama (29 Des - 10 Jan)' },
-    { id: 'v2', label: 'Alternatif (22 Des - 3 Jan)' }
-  ],
-  libur_smt2: [
-    { id: 'v1', label: 'Utama (29 Jun - 11 Jul)' },
-    { id: 'v2', label: 'Alternatif (22 Jun - 4 Jul)' }
-  ],
-  anbk_gladi: [
-    { id: 'v1', label: 'Gelombang 1 (8-11 Sep)' },
-    { id: 'v2', label: 'Gelombang 2 (15-18 Sep)' }
-  ],
-  anbk_main: [
-    { id: 'v1', label: 'Tahap 1 (22-25 Sep)' },
-    { id: 'v2', label: 'Tahap 2 (29 Sep - 2 Okt)' }
-  ],
-  sumatif_ganjil: [
-    { id: 'v1', label: 'Pekan 1 (1-7 Des)' },
-    { id: 'v2', label: 'Pekan 2 (8-14 Des)' }
-  ],
-  sumatif_jenjang: [
-    { id: 'v1', label: 'Pekan 1 (11-16 Mei)' },
-    { id: 'v2', label: 'Pekan 2 (18-23 Mei)' }
-  ],
-  sumatif_genap: [
-    { id: 'v1', label: 'Pekan 1 (2-6 Jun)' },
-    { id: 'v2', label: 'Pekan 2 (8-13 Jun)' }
-  ],
-  tka_simulasi: [
-    { id: 'v1', label: 'Gelombang 1 (2-3 Mar)' },
-    { id: 'v2', label: 'Gelombang 2 (4-5 Mar)' },
-    { id: 'v3', label: 'Gelombang 3 (6-7 Mar)' },
-    { id: 'v4', label: 'Gelombang 4 (8 Mar)' }
-  ],
-  tka_gladi: [
-    { id: 'v1', label: 'Gladi Bersih (19 Mar)' }
-  ],
-  tka_main: [
-    { id: 'v1', label: 'Gelombang 1 (20-21 Apr)' },
-    { id: 'v2', label: 'Gelombang 2 (22-23 Apr)' },
-    { id: 'v3', label: 'Gelombang 3 (24-25 Apr)' },
-    { id: 'v4', label: 'Gelombang 4 (27-28 Apr)' },
-    { id: 'v5', label: 'Gelombang 5 (29-30 Apr)' }
-  ]
-};
 
 const JP_STANDARDS: Record<string, Record<string, number>> = {
     "Bahasa Indonesia": { "Kelas 1": 216, "Kelas 2": 216, "Kelas 3": 216, "Kelas 4": 216, "Kelas 5": 216, "Kelas 6": 192 },
@@ -335,27 +265,19 @@ const JP_STANDARDS: Record<string, Record<string, number>> = {
 
 const VisualCalendar = ({ 
     scheduledDays, 
-    scheduleConfig,
-    activeScheduleConfig
+    calendarEvents,
+    academicYearStart,
+    schoolDaysCount
 }: { 
     scheduledDays: string[], 
-    scheduleConfig: Record<string, string>,
-    activeScheduleConfig: Record<string, boolean>
+    calendarEvents: CalendarEvent[],
+    academicYearStart: number,
+    schoolDaysCount: 5 | 6
 }) => {
-    const [viewDate, setViewDate] = useState(new Date(2025, 6, 1)); // Start July 2025
+    const [viewDate, setViewDate] = useState(new Date(academicYearStart, 6, 1)); 
 
-    const checkStatus = (dateStr: string): NonEffectiveRange | null => {
-        return NON_EFFECTIVE_SCHEDULE.find(range => {
-            const inRange = dateStr >= range.start && dateStr <= range.end;
-            if (!inRange) return false;
-            if (range.category) {
-                if (activeScheduleConfig[range.category] === false) return false;
-                if (range.variant) {
-                    return scheduleConfig[range.category] === range.variant;
-                }
-            }
-            return true;
-        }) || null;
+    const checkStatus = (dateStr: string): CalendarEvent | null => {
+        return calendarEvents.find(range => dateStr >= range.start && dateStr <= range.end) || null;
     };
 
     const getDayName = (date: Date): string => {
@@ -378,13 +300,17 @@ const VisualCalendar = ({
             days.push({ type: 'empty', key: `pad-${i}` });
         }
 
+        const academicStartStr = `${academicYearStart}-07-14`;
+        const academicEndStr = `${academicYearStart + 1}-06-27`;
+
         for (let d = 1; d <= lastDay.getDate(); d++) {
             const currentDate = new Date(year, month, d);
             const dateStr = formatDateLocal(currentDate);
             const dayName = getDayName(currentDate);
             const conflict = checkStatus(dateStr);
             const isScheduled = scheduledDays.includes(dayName);
-            const isWithinAcademicYear = dateStr >= ACADEMIC_START_DATE && dateStr <= ACADEMIC_END_DATE;
+            const isWithinAcademicYear = dateStr >= academicStartStr && dateStr <= academicEndStr;
+            const isWeekend = currentDate.getDay() === 0 || (schoolDaysCount === 5 && currentDate.getDay() === 6);
 
             let status: 'effective' | 'noneffective' | 'off' = 'off';
             let tooltip = '';
@@ -393,46 +319,45 @@ const VisualCalendar = ({
             if (!isWithinAcademicYear) {
                 status = 'off';
                 tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: Diluar Tahun Ajaran`;
+            } else if (isWeekend) {
+                status = 'noneffective'; // weekends are non-effective
+                tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: LIBUR (Akhir Pekan)`;
+                if(conflict) tooltip += `\nKeterangan: ${conflict.description}`;
+            } else if (conflict) {
+                status = 'noneffective';
+                tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: TIDAK EFEKTIF (Jadwal Terganggu)\nKeterangan: ${conflict.description}`;
             } else if (isScheduled) {
-                if (conflict) {
-                    status = 'noneffective';
-                    tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: TIDAK EFEKTIF (Jadwal Terganggu)\nKeterangan: ${conflict.description}`;
-                } else {
-                    status = 'effective';
-                    tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: EFEKTIF BELAJAR\nJadwal Rutin: ${dayName}`;
-                }
+                status = 'effective';
+                tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: EFEKTIF BELAJAR\nJadwal Rutin: ${dayName}`;
             } else {
-                if (conflict) {
-                    tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: LIBUR/KEGIATAN\nKeterangan: ${conflict.description}`;
-                } else {
-                    tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: Tidak Ada Jadwal`;
-                }
+                status = 'noneffective';
+                tooltip = `${dayName}, ${d} ${viewDate.toLocaleString('id-ID', { month: 'long'})} ${year}\nStatus: Tidak Ada Jadwal (Hari Tidak Terjadwal)`;
             }
 
             days.push({ 
                 type: 'day', key: dateStr, date: d, status, tooltip, 
-                isHoliday: conflict?.type === 'holiday', isSunday: currentDate.getDay() === 0, isOutside: !isWithinAcademicYear
+                isHoliday: conflict?.type === 'holiday' || isWeekend, isSunday: currentDate.getDay() === 0, isOutside: !isWithinAcademicYear
             });
         }
         return days;
-    }, [viewDate, scheduledDays, scheduleConfig, activeScheduleConfig]);
+    }, [viewDate, scheduledDays, calendarEvents, academicYearStart, schoolDaysCount]);
 
     const handlePrev = () => {
         const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
-        if (newDate >= new Date(2025, 6, 1)) setViewDate(newDate);
+        if (newDate >= new Date(academicYearStart, 6, 1)) setViewDate(newDate);
     };
 
     const handleNext = () => {
         const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
-        if (newDate <= new Date(2026, 6, 1)) setViewDate(newDate);
+        if (newDate <= new Date(academicYearStart + 1, 6, 1)) setViewDate(newDate);
     };
 
     return (
         <div className="bg-white rounded-xl border border-indigo-100 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between p-4 bg-indigo-50/50 border-b border-indigo-100">
-                <button onClick={handlePrev} className="p-1 hover:bg-white rounded" disabled={viewDate.getMonth() === 6 && viewDate.getFullYear() === 2025}><ChevronLeft className="w-5 h-5 text-indigo-600" /></button>
+                <button onClick={handlePrev} className="p-1 hover:bg-white rounded" disabled={viewDate.getMonth() === 6 && viewDate.getFullYear() === academicYearStart}><ChevronLeft className="w-5 h-5 text-indigo-600" /></button>
                 <h3 className="font-bold text-gray-800 text-lg">{viewDate.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}</h3>
-                <button onClick={handleNext} className="p-1 hover:bg-white rounded" disabled={viewDate.getMonth() === 6 && viewDate.getFullYear() === 2026}><ChevronRight className="w-5 h-5 text-indigo-600" /></button>
+                <button onClick={handleNext} className="p-1 hover:bg-white rounded" disabled={viewDate.getMonth() === 6 && viewDate.getFullYear() === academicYearStart + 1}><ChevronRight className="w-5 h-5 text-indigo-600" /></button>
             </div>
             <div className="p-4">
                 <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold text-gray-400">
@@ -457,6 +382,174 @@ const VisualCalendar = ({
                      <div className="flex items-center gap-1"><span className="w-3 h-3 bg-green-100 border border-green-200 rounded"></span> Efektif</div>
                      <div className="flex items-center gap-1"><span className="w-3 h-3 bg-red-100 border border-red-200 rounded"></span> Libur/Ujian (Kena Jadwal)</div>
                      <div className="flex items-center gap-1"><span className="w-3 h-3 bg-white border border-gray-200 text-red-400 rounded flex items-center justify-center text-[8px]"></span> Libur Lain</div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Master Calendar Config ---
+const MasterCalendarConfig = ({ 
+    calendarEvents, 
+    onDateClick,
+    academicYearStart,
+    setAcademicYearStart,
+    schoolDaysCount,
+    setSchoolDaysCount
+}: { 
+    calendarEvents: CalendarEvent[], 
+    onDateClick: (dateStr: string, ev: CalendarEvent | undefined) => void,
+    academicYearStart: number,
+    setAcademicYearStart: (year: number) => void,
+    schoolDaysCount: 5 | 6,
+    setSchoolDaysCount: (count: 5 | 6) => void
+}) => {
+    const months = Array.from({ length: 12 }, (_, i) => {
+        const date = new Date(academicYearStart, 6 + i, 1);
+        return { y: date.getFullYear(), m: date.getMonth() };
+    });
+
+    const getDaysInMonth = (year: number, month: number) => {
+        const date = new Date(year, month, 1);
+        const days = [];
+        while (date.getMonth() === month) {
+            days.push(new Date(date));
+            date.setDate(date.getDate() + 1);
+        }
+        return days;
+    };
+
+    const getEventForDate = (dateStr: string) => {
+        return calendarEvents.find(ev => dateStr >= ev.start && dateStr <= ev.end);
+    };
+
+    const padDays = (firstDay: Date) => {
+        let start = firstDay.getDay();
+        if (start === 0) start = 7;
+        return Array.from({ length: start - 1 }, (_, i) => i);
+    };
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row justify-between items-center bg-gray-100 p-4 rounded-lg gap-4">
+                <div className="flex items-center gap-4">
+                    <h3 className="font-bold text-gray-800">Tahun Ajaran</h3>
+                    <select 
+                        value={academicYearStart} 
+                        onChange={(e) => setAcademicYearStart(Number(e.target.value))}
+                        className="p-2 border border-gray-300 rounded font-semibold text-gray-700 focus:ring-blue-500 bg-white"
+                    >
+                        {[2024, 2025, 2026, 2027, 2028].map(y => (
+                            <option key={y} value={y}>{y}/{y+1}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex items-center gap-4">
+                    <h3 className="font-bold text-gray-800">Sistem Hari</h3>
+                    <div className="flex bg-white rounded-lg border border-gray-300 overflow-hidden">
+                        <button 
+                            onClick={() => setSchoolDaysCount(5)} 
+                            className={`px-4 py-2 text-sm font-semibold transition-colors ${schoolDaysCount === 5 ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            5 Hari (Sen-Jum)
+                        </button>
+                        <button 
+                            onClick={() => setSchoolDaysCount(6)} 
+                            className={`px-4 py-2 text-sm font-semibold transition-colors ${schoolDaysCount === 6 ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            6 Hari (Sen-Sab)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
+                    <CalendarDays className="w-5 h-5 text-blue-600"/> SEMESTER 1 (Juli - Des {academicYearStart})
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {months.slice(0, 6).map((item, idx) => {
+                        const days = getDaysInMonth(item.y, item.m);
+                        const firstDay = days[0];
+                        return (
+                            <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden group">
+                                <div className="bg-blue-50/80 px-4 py-2 font-bold text-blue-900 border-b border-blue-100 text-center uppercase tracking-wider text-sm">
+                                    {firstDay.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}
+                                </div>
+                                <div className="p-3">
+                                    <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                                        {['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'].map((d, i) => <div key={i} className={`text-[10px] font-bold ${d==='Mg' || (schoolDaysCount === 5 && d==='Sb') ? 'text-red-500' : 'text-gray-500'}`}>{d}</div>)}
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-1 text-center">
+                                        {padDays(firstDay).map(p => <div key={'pad'+p} className="p-1"></div>)}
+                                        {days.map(d => {
+                                            const dateStr = formatDateLocal(d);
+                                            const ev = getEventForDate(dateStr);
+                                            const isWeekend = d.getDay() === 0 || (schoolDaysCount === 5 && d.getDay() === 6);
+                                            const bgClass = ev ? ev.color : (isWeekend ? 'bg-red-50 text-red-600' : 'hover:bg-gray-100');
+                                            const textClass = ev ? 'text-white' : (isWeekend ? 'text-red-500 font-bold' : 'text-gray-700');
+                                            
+                                            return (
+                                                <button 
+                                                    key={d.getDate()} 
+                                                    onClick={() => onDateClick(dateStr, ev)}
+                                                    className={`p-1.5 text-xs rounded transition-all ${bgClass} ${textClass} relative ${ev ? 'shadow-sm transform hover:scale-110 z-10 font-bold' : 'hover:bg-gray-200'}`}
+                                                    title={ev ? ev.description : 'Kosong'}
+                                                >
+                                                    {d.getDate()}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+
+            <div>
+                <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
+                    <CalendarDays className="w-5 h-5 text-indigo-600"/> SEMESTER 2 (Jan - Jun {academicYearStart + 1})
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {months.slice(6, 12).map((item, idx) => {
+                        const days = getDaysInMonth(item.y, item.m);
+                        const firstDay = days[0];
+                        return (
+                            <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden group">
+                                <div className="bg-indigo-50/80 px-4 py-2 font-bold text-indigo-900 border-b border-indigo-100 text-center uppercase tracking-wider text-sm">
+                                    {firstDay.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}
+                                </div>
+                                <div className="p-3">
+                                    <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                                        {['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'].map((d, i) => <div key={i} className={`text-[10px] font-bold ${d==='Mg' || (schoolDaysCount === 5 && d==='Sb') ? 'text-red-500' : 'text-gray-500'}`}>{d}</div>)}
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-1 text-center">
+                                        {padDays(firstDay).map(p => <div key={'pad'+p} className="p-1"></div>)}
+                                        {days.map(d => {
+                                            const dateStr = formatDateLocal(d);
+                                            const ev = getEventForDate(dateStr);
+                                            const isWeekend = d.getDay() === 0 || (schoolDaysCount === 5 && d.getDay() === 6);
+                                            const bgClass = ev ? ev.color : (isWeekend ? 'bg-red-50 text-red-600' : 'hover:bg-gray-100');
+                                            const textClass = ev ? 'text-white' : (isWeekend ? 'text-red-500 font-bold' : 'text-gray-700');
+                                            
+                                            return (
+                                                <button 
+                                                    key={d.getDate()} 
+                                                    onClick={() => onDateClick(dateStr, ev)}
+                                                    className={`p-1.5 text-xs rounded transition-all ${bgClass} ${textClass} relative ${ev ? 'shadow-sm transform hover:scale-110 z-10 font-bold' : 'hover:bg-gray-200'}`}
+                                                    title={ev ? ev.description : 'Kosong'}
+                                                >
+                                                    {d.getDate()}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
                 </div>
             </div>
         </div>
@@ -830,7 +923,6 @@ const App = () => {
   const [showJpReference, setShowJpReference] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [analysisModal, setAnalysisModal] = useState<string | null>(null);
-  const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   
   const [userIdentity, setUserIdentity] = useState<UserIdentity>(() => ({
       authorName: localStorage.getItem('prota_author_name') || '',
@@ -841,14 +933,23 @@ const App = () => {
 
   // Schedules & Config
   const [classSchedules, setClassSchedules] = useState<Record<string, string[]>>({});
-  const [scheduleConfig, setScheduleConfig] = useState<Record<string, string>>({
-    libur_smt1: 'v1', libur_smt2: 'v1', anbk_gladi: 'v1', anbk_main: 'v1', sumatif_ganjil: 'v1', sumatif_jenjang: 'v1', sumatif_genap: 'v1',
-    tka_simulasi: 'v1', tka_gladi: 'v1', tka_main: 'v1'
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(() => {
+    try {
+        const saved = localStorage.getItem('prota_calendar_events');
+        if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return DEFAULT_CALENDAR_EVENTS;
   });
-  const [activeScheduleConfig, setActiveScheduleConfig] = useState<Record<string, boolean>>({
-    libur_smt1: true, libur_smt2: true, anbk_gladi: true, anbk_main: true, sumatif_ganjil: true, sumatif_jenjang: true, sumatif_genap: true,
-    tka_simulasi: true, tka_gladi: true, tka_main: true
+  const [editingCalendarEvent, setEditingCalendarEvent] = useState<{dateStr: string, ev?: CalendarEvent} | null>(null);
+  const [academicYearStart, setAcademicYearStart] = useState<number>(2025);
+  const [schoolDaysCount, setSchoolDaysCount] = useState<5 | 6>(() => {
+      const saved = localStorage.getItem('prota_school_days_count');
+      return saved ? parseInt(saved, 10) as 5 | 6 : 6;
   });
+
+  useEffect(() => {
+      localStorage.setItem('prota_school_days_count', schoolDaysCount.toString());
+  }, [schoolDaysCount]);
 
   // Helper
   useEffect(() => {
@@ -940,29 +1041,9 @@ const App = () => {
     }
   };
 
-  const checkNonEffectiveDate = (dateStr: string): NonEffectiveRange | null => {
+  const checkNonEffectiveDate = (dateStr: string): CalendarEvent | null => {
       if (!dateStr) return null;
-      
-      const customMatch = customHolidays.find(h => {
-          const start = h.start;
-          const end = h.end || h.start;
-          return dateStr >= start && dateStr <= end;
-      });
-      if (customMatch) {
-          return { start: customMatch.start, end: customMatch.end || customMatch.start, description: customMatch.description } as NonEffectiveRange;
-      }
-
-      return NON_EFFECTIVE_SCHEDULE.find(range => {
-          const inRange = dateStr >= range.start && dateStr <= range.end;
-          if (!inRange) return false;
-          if (range.category) {
-              if (activeScheduleConfig[range.category] === false) return false;
-              if (range.variant) {
-                  return scheduleConfig[range.category] === range.variant;
-              }
-          }
-          return true;
-      }) || null;
+      return calendarEvents.find(range => dateStr >= range.start && dateStr <= range.end) || null;
   };
 
   const getDayName = (date: Date): string => {
@@ -972,15 +1053,19 @@ const App = () => {
 
   const getEffectiveDates = (selectedDays: string[]): Date[] => {
       const dates: Date[] = [];
-      const startDate = parseDateToLocal(ACADEMIC_START_DATE); 
-      const endDate = parseDateToLocal(ACADEMIC_END_DATE); 
+      const academicStartStr = `${academicYearStart}-07-14`;
+      const academicEndStr = `${academicYearStart + 1}-06-27`;
+      const startDate = parseDateToLocal(academicStartStr); 
+      const endDate = parseDateToLocal(academicEndStr); 
+
+      const validDays = schoolDaysCount === 5 ? selectedDays.filter(d => d !== 'Sabtu') : selectedDays;
 
       let current = new Date(startDate);
       while (current <= endDate) {
           const dayName = getDayName(current);
           const dateStr = formatDateLocal(current);
           const conflict = checkNonEffectiveDate(dateStr);
-          if (selectedDays.includes(dayName) && (!conflict)) {
+          if (validDays.includes(dayName) && (!conflict)) {
               dates.push(new Date(current));
           }
           current.setDate(current.getDate() + 1);
@@ -1009,19 +1094,21 @@ const App = () => {
   };
 
   const calculateCalendarAnalysis = (className: string, subject: string): AnalysisResult | null => {
-        const selectedDays = classSchedules[className] || [];
+        const rawSelectedDays = classSchedules[className] || [];
+        const selectedDays = schoolDaysCount === 5 ? rawSelectedDays.filter(d => d !== 'Sabtu') : rawSelectedDays;
+        
         if (selectedDays.length === 0) return null;
 
         const subjectKey = getSubjectKey(subject);
         const annualTargetJP = subjectKey ? JP_STANDARDS[subjectKey]?.[className] || 0 : 0;
         
-        const startDate = parseDateToLocal(ACADEMIC_START_DATE);
-        const endDate = parseDateToLocal(ACADEMIC_END_DATE);
+        const academicStartStr = `${academicYearStart}-07-14`;
+        const academicEndStr = `${academicYearStart + 1}-06-27`;
+        const startDate = parseDateToLocal(academicStartStr);
+        const endDate = parseDateToLocal(academicEndStr);
         
-        const liburSmt1Active = activeScheduleConfig['libur_smt1'] !== false;
-        const liburSmt1Variant = scheduleConfig['libur_smt1'];
-        const liburRange = liburSmt1Active ? NON_EFFECTIVE_SCHEDULE.find(r => r.category === 'libur_smt1' && r.variant === liburSmt1Variant) : null;
-        let semester2StartDate = parseDateToLocal('2026-01-01');
+        const liburRange = calendarEvents.find(r => r.description.toLowerCase().includes('libur semester 1') || r.description.toLowerCase().includes('libur akhir tahun pelajaran'));
+        let semester2StartDate = parseDateToLocal(`${academicYearStart + 1}-01-01`);
         if (liburRange) {
             const liburEnd = parseDateToLocal(liburRange.end);
             semester2StartDate = new Date(liburEnd);
@@ -1049,8 +1136,12 @@ const App = () => {
                 monthDetails[monthKey] = { monthName: monthKey, semester, effectiveDays: 0, nonEffectiveDetails: [] };
             }
 
+            // FILTER: If 5 days, force Saturday as non-effective
+            const isSabtu = dayName === 'Sabtu';
+            const isSabtuNonEffective = schoolDaysCount === 5 && isSabtu;
+
             if (selectedDays.includes(dayName)) {
-                 const conflict = checkNonEffectiveDate(dateStr);
+                 const conflict = checkNonEffectiveDate(dateStr) || (isSabtuNonEffective ? { description: 'Libur Sabtu', type: 'holiday' } : null);
                  if (!conflict) {
                      totalAvailableSlots++;
                      monthDetails[monthKey].effectiveDays++;
@@ -1068,6 +1159,11 @@ const App = () => {
                      if (semester === 1) semester1Data.nonEffectiveDays++;
                      else semester2Data.nonEffectiveDays++;
                  }
+            } else if (isSabtuNonEffective) {
+                 // Even if not in selectedDays, we count Sabtu as a non-effective day for data fidelity
+                 monthDetails[monthKey].nonEffectiveDetails.push({ date: dateStr, reason: 'Libur Sabtu' });
+                 if (semester === 1) semester1Data.nonEffectiveDays++;
+                 else semester2Data.nonEffectiveDays++;
             }
             current.setDate(current.getDate() + 1);
         }
@@ -1077,8 +1173,12 @@ const App = () => {
         const weeklyTargetJP = totalEffectiveWeeks > 0 ? Math.round(annualTargetJP / totalEffectiveWeeks) : 0;
         
         // Approx JP calc
-        semester1Data.availableJP = semester1Data.effectiveDays * Math.round(weeklyTargetJP / selectedDays.length || 1);
-        semester2Data.availableJP = semester2Data.effectiveDays * Math.round(weeklyTargetJP / selectedDays.length || 1);
+        const daysPerWeek = selectedDays.length || 1;
+        semester1Data.availableJP = semester1Data.effectiveDays * Math.round(weeklyTargetJP / daysPerWeek);
+        semester2Data.availableJP = semester2Data.effectiveDays * Math.round(weeklyTargetJP / daysPerWeek);
+        
+        semester1Data.effectiveWeeks = semester1Data.uniqueWeeks.size;
+        semester2Data.effectiveWeeks = semester2Data.uniqueWeeks.size;
 
         return {
             totalTargetJP: annualTargetJP,
@@ -1204,7 +1304,10 @@ const App = () => {
     const minDaysNeeded = Math.ceil(weeklyLoad / MAX_JP_PER_DAY);
     if (selectedDays.length < minDaysNeeded) {
         console.log(`Menambah hari jadwal otomatis karena kurang (butuh ${minDaysNeeded}, ada ${selectedDays.length})`);
-        const candidateDays = ["Senin", "Rabu", "Jumat", "Selasa", "Kamis", "Sabtu"];
+        let candidateDays = ["Senin", "Rabu", "Jumat", "Selasa", "Kamis", "Sabtu"];
+        if (schoolDaysCount === 5) {
+            candidateDays = candidateDays.filter(d => d !== "Sabtu");
+        }
         const needed = minDaysNeeded - selectedDays.length;
         const available = candidateDays.filter(d => !selectedDays.includes(d));
         selectedDays = [...selectedDays, ...available.slice(0, needed)];
@@ -2024,29 +2127,87 @@ const App = () => {
       {/* Calendar Modal */}
       {showCalendar && (
          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-               <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-blue-50">
-                  <div className="flex items-center gap-3"><CalendarDays className="w-6 h-6 text-blue-600" /><div><h3 className="text-xl font-bold text-gray-900">Kalender Akademik 2025/2026</h3><p className="text-sm text-gray-500">Daftar hari libur dan kegiatan non-efektif</p></div></div>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+               <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-blue-50 shrink-0">
+                  <div className="flex items-center gap-3"><CalendarDays className="w-6 h-6 text-blue-600" /><div><h3 className="text-xl font-bold text-gray-900">Kalender Akademik 2025/2026</h3><p className="text-sm text-gray-500">Sentuh/klik tanggal untuk menyesuaikan hari libur/non-efektif</p></div></div>
                   <button onClick={() => setShowCalendar(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-6 h-6 text-gray-500" /></button>
                </div>
-               <div className="p-6 overflow-y-auto">
-                   <div className="space-y-4">
-                       {NON_EFFECTIVE_SCHEDULE.map((range, index) => {
-                           if (range.category) {
-                               if (activeScheduleConfig[range.category] === false) return null;
-                               if (range.variant && range.variant !== scheduleConfig[range.category]) return null;
-                           }
-                           return (
-                               <div key={index} className="flex items-start gap-4 p-3 rounded-lg border bg-blue-50 border-blue-100">
-                                   <div className="p-2 rounded-full shrink-0 bg-blue-100 text-blue-600"><CalendarCheck className="w-5 h-5" /></div>
-                                   <div><h4 className="font-bold text-sm text-blue-800">{range.description}</h4><p className="text-xs text-gray-600 mt-1">{range.start} - {range.end}</p></div>
-                               </div>
-                           )
-                       })}
-                   </div>
+               <div className="p-6 overflow-y-auto bg-gray-50/50">
+                   <MasterCalendarConfig 
+                       calendarEvents={calendarEvents} 
+                       onDateClick={(dateStr, ev) => setEditingCalendarEvent({ dateStr, ev })} 
+                       academicYearStart={academicYearStart}
+                       setAcademicYearStart={setAcademicYearStart}
+                       schoolDaysCount={schoolDaysCount}
+                       setSchoolDaysCount={setSchoolDaysCount}
+                   />
                </div>
             </div>
          </div>
+      )}
+
+      {/* Editing Event Modal */}
+      {editingCalendarEvent && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">{editingCalendarEvent.ev ? 'Ubah/Hapus Keterangan' : 'Tambah Keterangan Libur'}</h3>
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Mulai</label>
+                          <input type="date" id="ev-start" defaultValue={editingCalendarEvent.ev?.start || editingCalendarEvent.dateStr} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Selesai</label>
+                          <input type="date" id="ev-end" defaultValue={editingCalendarEvent.ev?.end || editingCalendarEvent.dateStr} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
+                          <input type="text" id="ev-desc" defaultValue={editingCalendarEvent.ev?.description || ''} placeholder="Contoh: Libur Nasional" className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Warna / Tipe</label>
+                          <select id="ev-color" defaultValue={editingCalendarEvent.ev?.color || 'bg-red-500'} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500">
+                              <option value="bg-red-500">Merah (Libur Nasional/Umum)</option>
+                              <option value="bg-orange-500">Oranye (Ujian/Asesmen)</option>
+                              <option value="bg-blue-500">Biru (Kegiatan Khusus)</option>
+                              <option value="bg-purple-500">Ungu (Pengolahan Nilai)</option>
+                              <option value="bg-green-500">Hijau (Awal Masuk/MPLS)</option>
+                          </select>
+                      </div>
+                  </div>
+                  <div className="mt-6 flex justify-between gap-3">
+                      {editingCalendarEvent.ev ? (
+                          <button onClick={() => {
+                              const newEvents = calendarEvents.filter(e => e.id !== editingCalendarEvent.ev!.id);
+                              setCalendarEvents(newEvents);
+                              localStorage.setItem('prota_calendar_events', JSON.stringify(newEvents));
+                              setEditingCalendarEvent(null);
+                          }} className="px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 font-medium">Hapus</button>
+                      ) : <div></div>}
+                      <div className="flex gap-2">
+                          <button onClick={() => setEditingCalendarEvent(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium">Batal</button>
+                          <button onClick={() => {
+                              const title = (document.getElementById('ev-desc') as HTMLInputElement).value;
+                              if (!title) return alert("Keterangan tidak boleh kosong");
+                              const newEv: CalendarEvent = {
+                                  id: editingCalendarEvent.ev?.id || `ev-custom-${Date.now()}`,
+                                  start: (document.getElementById('ev-start') as HTMLInputElement).value,
+                                  end: (document.getElementById('ev-end') as HTMLInputElement).value,
+                                  description: title,
+                                  color: (document.getElementById('ev-color') as HTMLSelectElement).value,
+                                  type: 'holiday'
+                              };
+                              const newEvents = editingCalendarEvent.ev 
+                                  ? calendarEvents.map(e => e.id === newEv.id ? newEv : e) 
+                                  : [...calendarEvents, newEv];
+                              setCalendarEvents(newEvents);
+                              localStorage.setItem('prota_calendar_events', JSON.stringify(newEvents));
+                              setEditingCalendarEvent(null);
+                          }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Simpan</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
       )}
 
       {/* Analysis Modal */}
@@ -2121,7 +2282,7 @@ const App = () => {
                                     <span>Visualisasi Kalender Akademik</span>
                                     <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Gerakkan kursor pada tanggal untuk detail</span>
                                 </h4>
-                                <VisualCalendar scheduledDays={classSchedules[analysisModal] || []} scheduleConfig={scheduleConfig} activeScheduleConfig={activeScheduleConfig} />
+                                <VisualCalendar scheduledDays={classSchedules[analysisModal] || []} calendarEvents={calendarEvents} academicYearStart={academicYearStart} />
                                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 flex items-start gap-2">
                                     <AlertTriangle className="w-4 h-4 shrink-0" />
                                     <p>Perhitungan pekan efektif menggunakan standar ISO-8601. Konfigurasi libur dapat diubah pada menu utama.</p>
@@ -2234,7 +2395,6 @@ const App = () => {
                         <h2 className="text-lg font-semibold flex items-center gap-2"><Settings className="w-5 h-5 text-blue-600" /> Konfigurasi Awal</h2>
                         <div className="flex gap-2">
                             <button onClick={() => setShowJpReference(true)} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg"><Table className="w-4 h-4" /> Tabel JP</button>
-                            <button onClick={() => setShowCalendar(true)} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg"><CalendarDays className="w-4 h-4" /> Kalender</button>
                         </div>
                     </div>
 
@@ -2258,61 +2418,16 @@ const App = () => {
                         </div>
                     </div>
 
-                    <div className="bg-blue-50/50 p-6 rounded-lg border border-blue-100 space-y-4">
-                         <div className="flex items-center gap-2 text-blue-800 font-semibold text-sm mb-2"><SlidersHorizontal className="w-4 h-4" /> Konfigurasi Kalender Akademik (Libur & Ujian)</div>
-                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                            {Object.entries(SCHEDULE_OPTIONS).map(([key, options]) => (
-                                <div key={key} className="space-y-1 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <input 
-                                            type="checkbox" 
-                                            id={`enable-${key}`}
-                                            checked={activeScheduleConfig[key] !== false}
-                                            onChange={(e) => setActiveScheduleConfig({...activeScheduleConfig, [key]: e.target.checked})}
-                                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
-                                        />
-                                        <label htmlFor={`enable-${key}`} className="text-xs font-bold text-gray-700 uppercase tracking-wide cursor-pointer">{key.replace('_', ' ')}</label>
-                                    </div>
-                                    <select 
-                                        value={scheduleConfig[key]} 
-                                        onChange={(e) => setScheduleConfig({...scheduleConfig, [key]: e.target.value})} 
-                                        disabled={activeScheduleConfig[key] === false}
-                                        className="w-full p-2 text-sm bg-gray-50 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100"
-                                    >
-                                        {options.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
-                                    </select>
-                                </div>
-                            ))}
-                         </div>
-
-                         <div className="pt-4 border-t border-blue-200/60">
-                             <h4 className="text-sm font-bold text-blue-800 mb-3 block">Penyesuaian Hari Libur Manual (Custom)</h4>
-                             <div className="flex flex-col md:flex-row gap-3 mb-4">
-                                <input type="text" id="custom-holiday-desc" placeholder="Keterangan (cth: Libur Sekolah Custom)" className="flex-1 p-2 text-sm bg-white border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
-                                <input type="date" id="custom-holiday-start" className="w-full md:w-auto p-2 text-sm bg-white border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
-                                <button type="button" onClick={() => {
-                                    const descInput = document.getElementById('custom-holiday-desc') as HTMLInputElement;
-                                    const startInput = document.getElementById('custom-holiday-start') as HTMLInputElement;
-                                    if (descInput.value && startInput.value) {
-                                        setCustomHolidays(prev => [...prev, { id: Date.now().toString(), description: descInput.value, start: startInput.value }]);
-                                        descInput.value = '';
-                                    } else {
-                                        alert("Isi keterangan dan tanggal dengan lengkap.");
-                                    }
-                                }} className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold shadow hover:bg-blue-700 whitespace-nowrap">Tambah Libur</button>
+                    <div className="bg-blue-50/50 p-6 rounded-lg border border-blue-100 flex items-center justify-between">
+                         <div className="flex flex-col">
+                             <div className="flex items-center gap-2 text-blue-800 font-semibold mb-1">
+                                 <SlidersHorizontal className="w-5 h-5" /> Konfigurasi Kalender Akademik
                              </div>
-                             
-                             {customHolidays.length > 0 && (
-                                 <div className="space-y-2">
-                                     {customHolidays.map(hol => (
-                                         <div key={hol.id} className="flex justify-between items-center bg-white p-2 border border-orange-200 rounded text-sm shadow-sm">
-                                             <div className="flex items-center gap-2 text-orange-700 font-medium"><CalendarCheck className="w-4 h-4"/> {hol.description} <span className="text-gray-500 text-xs ml-2">({hol.start})</span></div>
-                                             <button onClick={() => setCustomHolidays(prev => prev.filter(h => h.id !== hol.id))} className="text-red-500 hover:text-red-700 p-1"><X className="w-4 h-4"/></button>
-                                         </div>
-                                     ))}
-                                 </div>
-                             )}
+                             <p className="text-sm text-gray-600">Sesuaikan jadwal libur, ujian, dan kegiatan non-efektif per-tanggal.</p>
                          </div>
+                         <button onClick={() => setShowCalendar(true)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+                             <CalendarDays className="w-5 h-5" /> Atur Kalender Master
+                         </button>
                     </div>
                 </section>
 
@@ -2333,13 +2448,12 @@ const App = () => {
                                     <h3 className="font-bold text-lg border-l-4 border-blue-600 pl-3">{className}</h3>
                                     <div className="flex items-center gap-2 mt-2 ml-4">
                                         <span className="text-xs font-medium text-gray-600">Jadwal:</span>
-                                        {DAYS_OF_WEEK.map(day => (
+                                        {DAYS_OF_WEEK.filter(day => schoolDaysCount === 6 || day !== 'Sabtu').map(day => (
                                             <button key={day} onClick={() => toggleScheduleDay(className, day)} className={`px-2 py-1 text-[10px] rounded border transition-all ${(classSchedules[className] || []).includes(day) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>{day}</button>
                                         ))}
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => setAnalysisModal(className)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-sm font-medium rounded-lg"><BarChart3 className="w-4 h-4" /> Analisis Kalender</button>
                                     {!hasATP && (
                                         <button onClick={() => generateATP(className)} disabled={atpLoading === className} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50">
                                             {atpLoading === className ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />} 2. Susun ATP Otomatis
@@ -2354,6 +2468,82 @@ const App = () => {
                             </div>
                             
                             <div className="overflow-x-auto">
+                                {(classSchedules[className] && classSchedules[className].length > 0) && (() => {
+                                    const result = calculateCalendarAnalysis(className, data.subject);
+                                    if (!result) return null;
+                                    return (
+                                        <div className="p-6 bg-indigo-50/20 border-b border-gray-200 animate-in fade-in duration-300">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <BarChart3 className="w-5 h-5 text-indigo-600" />
+                                                <h3 className="text-md font-bold text-gray-800">Analisis Hari Efektif Belajar & Alokasi Waktu ({className})</h3>
+                                            </div>
+                                            <div className="flex flex-col lg:flex-row gap-6">
+                                                <div className="w-full lg:w-1/3 flex flex-col gap-4">
+                                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
+                                                        <h4 className="text-xs font-bold text-gray-700 uppercase mb-3 flex items-center gap-2"><Target className="w-3 h-3 text-indigo-600"/> Perhitungan Alokasi</h4>
+                                                        <div className="space-y-3">
+                                                            <div className="flex justify-between items-center p-2 bg-indigo-50 rounded-lg">
+                                                                <span className="text-xs font-medium text-gray-600">Total Hari Efektif</span>
+                                                                <span className="text-sm font-bold text-indigo-700">{result.totalAvailableSlots} Hari</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center p-2 bg-green-50 rounded-lg">
+                                                                <span className="text-xs font-medium text-gray-600">Total Pekan Efektif</span>
+                                                                <span className="text-sm font-bold text-green-700">{result.totalEffectiveWeeks} Pekan</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center p-2 bg-blue-50 rounded-lg border border-blue-100">
+                                                                <span className="text-xs font-medium text-gray-600">Target Kurikulum</span>
+                                                                <span className="text-sm font-bold text-blue-700">{result.totalTargetJP} JP/Thn</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center p-2 bg-amber-50 rounded-lg border border-amber-100">
+                                                                <span className="text-xs font-medium text-gray-600">Alokasi per Minggu</span>
+                                                                <span className="text-sm font-bold text-amber-700">{result.weeklyTargetJP} JP/Mg</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                                        <h4 className="text-xs font-bold text-gray-700 uppercase mb-3 flex items-center gap-2"><Table className="w-3 h-3 text-gray-500"/> Alokasi Waktu Semester</h4>
+                                                        <table className="w-full text-xs text-left">
+                                                            <thead className="bg-gray-100 text-gray-700 font-bold uppercase">
+                                                                <tr>
+                                                                    <th className="p-2">Uraian</th>
+                                                                    <th className="p-2 text-center">Jadwal</th>
+                                                                    <th className="p-2 text-center">Jml HBE</th>
+                                                                    <th className="p-2 text-center">Jam Pel</th>
+                                                                    <th className="p-2 text-center">Total JP</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y text-gray-600">
+                                                                <tr>
+                                                                    <td className="p-2 font-bold text-blue-800">Semester 1</td>
+                                                                    <td className="p-2 text-center">{(classSchedules[className] || []).join(', ')}</td>
+                                                                    <td className="p-2 text-center font-bold">{result.semester1.effectiveDays}</td>
+                                                                    <td className="p-2 text-center font-bold">{Math.round(result.weeklyTargetJP / (classSchedules[className]?.length || 1))}</td>
+                                                                    <td className="p-2 text-center font-bold text-blue-700">{result.semester1.availableJP}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td className="p-2 font-bold text-indigo-800">Semester 2</td>
+                                                                    <td className="p-2 text-center">{(classSchedules[className] || []).join(', ')}</td>
+                                                                    <td className="p-2 text-center font-bold">{result.semester2.effectiveDays}</td>
+                                                                    <td className="p-2 text-center font-bold">{Math.round(result.weeklyTargetJP / (classSchedules[className]?.length || 1))}</td>
+                                                                    <td className="p-2 text-center font-bold text-indigo-700">{result.semester2.availableJP}</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                <div className="w-full lg:w-2/3 space-y-4">
+                                                    <h4 className="text-sm font-bold text-gray-800 flex items-center justify-between">
+                                                        <span className="flex items-center gap-2"><CalendarDays className="w-4 h-4 text-gray-500" /> Visualisasi Kalender</span>
+                                                        <span className="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Gerakkan kursor pada tanggal untuk detail</span>
+                                                    </h4>
+                                                    <VisualCalendar scheduledDays={classSchedules[className] || []} calendarEvents={calendarEvents} academicYearStart={academicYearStart} schoolDaysCount={schoolDaysCount} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-gray-100 text-gray-700 uppercase">
                                         <tr>
