@@ -150,12 +150,8 @@ interface ModulAjarContext {
 
 // Interface for Modul Ajar Form Data
 interface ModulAjarData {
-    authorName: string;
-    institutionName: string;
     className: string;
     fase: string;
-    academicYear: string;
-    semester: string;
     subject: string;
     topic: string;
     allocation: string;
@@ -339,10 +335,12 @@ const JP_STANDARDS: Record<string, Record<string, number>> = {
 
 const VisualCalendar = ({ 
     scheduledDays, 
-    scheduleConfig 
+    scheduleConfig,
+    activeScheduleConfig
 }: { 
     scheduledDays: string[], 
-    scheduleConfig: Record<string, string> 
+    scheduleConfig: Record<string, string>,
+    activeScheduleConfig: Record<string, boolean>
 }) => {
     const [viewDate, setViewDate] = useState(new Date(2025, 6, 1)); // Start July 2025
 
@@ -350,8 +348,11 @@ const VisualCalendar = ({
         return NON_EFFECTIVE_SCHEDULE.find(range => {
             const inRange = dateStr >= range.start && dateStr <= range.end;
             if (!inRange) return false;
-            if (range.category && range.variant) {
-                return scheduleConfig[range.category] === range.variant;
+            if (range.category) {
+                if (activeScheduleConfig[range.category] === false) return false;
+                if (range.variant) {
+                    return scheduleConfig[range.category] === range.variant;
+                }
             }
             return true;
         }) || null;
@@ -414,7 +415,7 @@ const VisualCalendar = ({
             });
         }
         return days;
-    }, [viewDate, scheduledDays, scheduleConfig]);
+    }, [viewDate, scheduledDays, scheduleConfig, activeScheduleConfig]);
 
     const handlePrev = () => {
         const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
@@ -466,20 +467,18 @@ const VisualCalendar = ({
 
 const ModulAjarGenerator = ({ 
     context, 
+    userIdentity,
     onBack, 
     onSave 
 }: { 
     context: ModulAjarContext, 
+    userIdentity: UserIdentity,
     onBack: () => void, 
     onSave: (log: ActivityLog) => void 
 }) => {
     const [formData, setFormData] = useState<ModulAjarData>({
-        authorName: '',
-        institutionName: '',
         className: context.className,
         fase: context.fase,
-        academicYear: '2025/2026',
-        semester: new Date(context.atpItem.planDate || new Date()).getMonth() < 6 ? 'Genap' : 'Ganjil',
         subject: context.subject,
         topic: context.atpItem.alur,
         allocation: context.atpItem.alokasiWaktu,
@@ -502,25 +501,6 @@ const ModulAjarGenerator = ({
     const [recLoading, setRecLoading] = useState(false);
     const [aiRecommendations, setAiRecommendations] = useState<AIModelRecommendation[]>([]);
 
-    // Auto-load Identity
-    useEffect(() => {
-        const savedAuthor = localStorage.getItem('prota_author_name');
-        const savedInst = localStorage.getItem('prota_institution_name');
-        if (savedAuthor || savedInst) {
-            setFormData(prev => ({
-                ...prev,
-                authorName: savedAuthor || prev.authorName,
-                institutionName: savedInst || prev.institutionName
-            }));
-        }
-    }, []);
-
-    // Auto-save Identity
-    const handleIdentityChange = (field: 'authorName' | 'institutionName', value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        localStorage.setItem(`prota_${field === 'authorName' ? 'author_name' : 'institution_name'}`, value);
-    };
-
     const handleGetRecommendation = async () => {
         setRecLoading(true);
         setAiRecommendations([]);
@@ -530,8 +510,8 @@ const ModulAjarGenerator = ({
             const ai = new GoogleGenAI({ apiKey });
 
             const prompt = `
-                Bertindaklah sebagai Konsultan Kurikulum Merdeka.
-                Berikan 3 REKOMENDASI Model Pembelajaran beserta METODE/TEKNIK Pembelajaran yang spesifik dan efektif untuk materi berikut.
+                Bertindaklah sebagai Konsultan Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
+                Berikan 3 REKOMENDASI Model Pembelajaran beserta METODE/TEKNIK Pembelajaran yang spesifik, efektif, dan mengintegrasikan prinsip Mindful Learning, Joyful Learning, serta Meaningful Learning untuk materi berikut.
                 
                 KONTEKS:
                 - Jenjang: SD
@@ -592,11 +572,13 @@ const ModulAjarGenerator = ({
             const ai = new GoogleGenAI({ apiKey });
 
             const prompt = `
-                Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (BSKAP 046/2025).
+                Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
                 Buatlah MODUL AJAR lengkap dan komprehensif.
+                SANGAT PENTING: Modul Ajar harus secara eksplisit mengintegrasikan 3 prinsip utama yaitu Mindful Learning (Pembelajaran Berkesadaran Penuh), Joyful Learning (Pembelajaran Menyenangkan/Sukacita), dan Meaningful Learning (Pembelajaran Bermakna) pada setiap tahapan kegiatan.
+                
                 INFORMASI UMUM:
-                - Penyusun: ${formData.authorName}
-                - Instansi: ${formData.institutionName}
+                - Penyusun: ${userIdentity.authorName}
+                - Instansi: ${userIdentity.institutionName}
                 - Jenjang/Kelas: SD / ${formData.className} (${formData.fase})
                 - Mapel: ${formData.subject}
                 - Alokasi Waktu: ${formData.allocation}
@@ -689,7 +671,7 @@ const ModulAjarGenerator = ({
     const handleDownloadDoc = () => {
         if (!resultContent) return;
         const size = PAPER_SIZES[paperSize];
-        const footerText = `Modul Ajar - ${formData.subject} - ${formData.className} | Disusun oleh: ${formData.authorName}`;
+        const footerText = `Modul Ajar - ${formData.subject} - ${formData.className} | Disusun oleh: ${userIdentity.authorName}`;
 
         const htmlContent = `
           <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -708,7 +690,7 @@ const ModulAjarGenerator = ({
           <body>
             <div style="text-align: center; margin-bottom: 20pt;">
                 <h2 style="margin: 0;">MODUL AJAR KURIKULUM MERDEKA</h2>
-                <h3 style="margin: 5pt 0;">${formData.institutionName.toUpperCase()}</h3>
+                <h3 style="margin: 5pt 0;">${userIdentity.institutionName.toUpperCase()}</h3>
             </div>
             <hr/><br/>
             ${resultContent}
@@ -742,19 +724,8 @@ const ModulAjarGenerator = ({
                     <div className="w-full lg:w-1/3 bg-gray-50 p-6 overflow-y-auto border-r border-gray-200">
                          <div className="space-y-4">
                             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                                <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><User className="w-4 h-4 text-blue-500" /> Identitas Penyusun</h3>
-                                <div className="space-y-3">
-                                    <div><label className="text-xs font-medium text-gray-600 block mb-1">Nama Penyusun</label><input type="text" value={formData.authorName} onChange={(e) => handleIdentityChange('authorName', e.target.value)} className="w-full text-sm p-2 border border-gray-300 rounded" placeholder="Contoh: Budi Santoso, S.Pd." /></div>
-                                    <div><label className="text-xs font-medium text-gray-600 block mb-1">Nama Instansi</label><input type="text" value={formData.institutionName} onChange={(e) => handleIdentityChange('institutionName', e.target.value)} className="w-full text-sm p-2 border border-gray-300 rounded" placeholder="Contoh: SD Negeri 1 Merdeka" /></div>
-                                </div>
-                            </div>
-                            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                                 <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-purple-500" /> Informasi Umum</h3>
                                 <div className="space-y-3">
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div><label className="text-xs font-medium text-gray-600 block mb-1">Tahun Ajaran</label><select value={formData.academicYear} onChange={(e) => setFormData({...formData, academicYear: e.target.value})} className="w-full text-sm p-2 border border-gray-300 rounded"><option>2025/2026</option><option>2026/2027</option></select></div>
-                                        <div><label className="text-xs font-medium text-gray-600 block mb-1">Semester</label><select value={formData.semester} onChange={(e) => setFormData({...formData, semester: e.target.value})} className="w-full text-sm p-2 border border-gray-300 rounded"><option>Ganjil</option><option>Genap</option></select></div>
-                                    </div>
                                     <div>
                                         <label className="text-xs font-medium text-gray-600 block mb-1">Model Pembelajaran</label>
                                         <div className="flex gap-2 mb-2">
@@ -798,7 +769,7 @@ const ModulAjarGenerator = ({
                                     ))}
                                 </div>
                             </div>
-                            <button onClick={handleGenerateModul} disabled={loading || !formData.authorName} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}{loading ? 'Sedang Menyusun...' : 'Generate Modul Ajar'}</button>
+                            <button onClick={handleGenerateModul} disabled={loading || !userIdentity.authorName} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}{loading ? 'Sedang Menyusun...' : 'Generate Modul Ajar'}</button>
                          </div>
                     </div>
                     <div className="w-full lg:w-2/3 p-6 bg-white overflow-y-auto">
@@ -812,7 +783,7 @@ const ModulAjarGenerator = ({
                         <div className="border border-gray-200 rounded-lg p-8 min-h-[600px] shadow-inner bg-gray-50">
                              {resultContent ? (
                                  <div className="prose max-w-none font-serif">
-                                     <div className="text-center mb-6 pb-4 border-b border-gray-300"><h1 className="text-xl font-bold uppercase mb-1">Modul Ajar {formData.subject}</h1><p className="text-sm text-gray-600">{formData.institutionName} | Tahun Ajaran {formData.academicYear}</p></div>
+                                     <div className="text-center mb-6 pb-4 border-b border-gray-300"><h1 className="text-xl font-bold uppercase mb-1">Modul Ajar {formData.subject}</h1><p className="text-sm text-gray-600">{userIdentity.institutionName} | Tahun Ajaran {userIdentity.academicYear}</p></div>
                                      <div dangerouslySetInnerHTML={{__html: resultContent}} />
                                      {generatedImageUrl && (<div className="mt-6 text-center"><h4 className="font-bold text-sm mb-2 text-left">Lampiran Visual</h4><img src={generatedImageUrl} alt="Generated" className="max-w-md mx-auto rounded shadow-sm border border-gray-300" /></div>)}
                                  </div>
@@ -827,8 +798,22 @@ const ModulAjarGenerator = ({
 
 // --- App Component ---
 
+interface CustomHoliday {
+    id: string;
+    description: string;
+    start: string;
+    end?: string;
+}
+
+interface UserIdentity {
+    authorName: string;
+    institutionName: string;
+    academicYear: string;
+    semester: string;
+}
+
 const App = () => {
-  const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'generator'>(() => {
+  const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'identity' | 'generator'>(() => {
     return localStorage.getItem('prota_user') ? 'generator' : 'login';
   });
   const [user, setUser] = useState<{ name: string, email: string } | null>(null);
@@ -845,12 +830,24 @@ const App = () => {
   const [showJpReference, setShowJpReference] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [analysisModal, setAnalysisModal] = useState<string | null>(null);
+  const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   
+  const [userIdentity, setUserIdentity] = useState<UserIdentity>(() => ({
+      authorName: localStorage.getItem('prota_author_name') || '',
+      institutionName: localStorage.getItem('prota_institution_name') || '',
+      academicYear: localStorage.getItem('prota_academic_year') || '',
+      semester: localStorage.getItem('prota_semester') || ''
+  }));
+
   // Schedules & Config
   const [classSchedules, setClassSchedules] = useState<Record<string, string[]>>({});
   const [scheduleConfig, setScheduleConfig] = useState<Record<string, string>>({
     libur_smt1: 'v1', libur_smt2: 'v1', anbk_gladi: 'v1', anbk_main: 'v1', sumatif_ganjil: 'v1', sumatif_jenjang: 'v1', sumatif_genap: 'v1',
     tka_simulasi: 'v1', tka_gladi: 'v1', tka_main: 'v1'
+  });
+  const [activeScheduleConfig, setActiveScheduleConfig] = useState<Record<string, boolean>>({
+    libur_smt1: true, libur_smt2: true, anbk_gladi: true, anbk_main: true, sumatif_ganjil: true, sumatif_jenjang: true, sumatif_genap: true,
+    tka_simulasi: true, tka_gladi: true, tka_main: true
   });
 
   // Helper
@@ -945,11 +942,24 @@ const App = () => {
 
   const checkNonEffectiveDate = (dateStr: string): NonEffectiveRange | null => {
       if (!dateStr) return null;
+      
+      const customMatch = customHolidays.find(h => {
+          const start = h.start;
+          const end = h.end || h.start;
+          return dateStr >= start && dateStr <= end;
+      });
+      if (customMatch) {
+          return { start: customMatch.start, end: customMatch.end || customMatch.start, description: customMatch.description } as NonEffectiveRange;
+      }
+
       return NON_EFFECTIVE_SCHEDULE.find(range => {
           const inRange = dateStr >= range.start && dateStr <= range.end;
           if (!inRange) return false;
-          if (range.category && range.variant) {
-              return scheduleConfig[range.category] === range.variant;
+          if (range.category) {
+              if (activeScheduleConfig[range.category] === false) return false;
+              if (range.variant) {
+                  return scheduleConfig[range.category] === range.variant;
+              }
           }
           return true;
       }) || null;
@@ -1008,8 +1018,9 @@ const App = () => {
         const startDate = parseDateToLocal(ACADEMIC_START_DATE);
         const endDate = parseDateToLocal(ACADEMIC_END_DATE);
         
+        const liburSmt1Active = activeScheduleConfig['libur_smt1'] !== false;
         const liburSmt1Variant = scheduleConfig['libur_smt1'];
-        const liburRange = NON_EFFECTIVE_SCHEDULE.find(r => r.category === 'libur_smt1' && r.variant === liburSmt1Variant);
+        const liburRange = liburSmt1Active ? NON_EFFECTIVE_SCHEDULE.find(r => r.category === 'libur_smt1' && r.variant === liburSmt1Variant) : null;
         let semester2StartDate = parseDateToLocal('2026-01-01');
         if (liburRange) {
             const liburEnd = parseDateToLocal(liburRange.end);
@@ -1522,10 +1533,10 @@ const App = () => {
           <div class="identity">
               <table>
                   <tr><td>Mata Pelajaran</td><td>: ${data.subject}</td></tr>
-                  <tr><td>Instansi</td><td>: ${savedInst}</td></tr>
+                  <tr><td>Instansi</td><td>: ${userIdentity.institutionName || '-'}</td></tr>
                   <tr><td>Kelas/Fase</td><td>: ${className} / ${data.fase}</td></tr>
-                  <tr><td>Tahun Pelajaran</td><td>: 2025/2026</td></tr>
-                  <tr><td>Penyusun</td><td>: ${savedAuthor}</td></tr>
+                  <tr><td>Tahun Pelajaran</td><td>: ${userIdentity.academicYear || '-'}</td></tr>
+                  <tr><td>Penyusun</td><td>: ${userIdentity.authorName || '-'}</td></tr>
               </table>
           </div>
 
@@ -1669,7 +1680,7 @@ const App = () => {
             </div>
             
             <div className="max-w-6xl mx-auto px-4 py-20 flex-1 w-full z-10 relative">
-                <button onClick={() => setAppStage('generator')} className="absolute top-8 left-4 flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition-colors bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-white/50 shadow-sm">
+                <button onClick={() => setAppStage('identity')} className="absolute top-8 left-4 flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition-colors bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-white/50 shadow-sm">
                     <ArrowLeft className="w-4 h-4" /> Lewati Tutorial
                 </button>
                 <motion.div 
@@ -1833,7 +1844,7 @@ const App = () => {
                     className="text-center mb-10"
                 >
                     <button 
-                        onClick={() => setAppStage('generator')}
+                        onClick={() => setAppStage('identity')}
                         className="group relative inline-flex items-center justify-center px-10 py-5 font-bold text-white transition-all duration-300 bg-slate-900 rounded-[2rem] hover:bg-slate-800 hover:shadow-[0_20px_40px_rgba(15,23,42,0.2)] hover:-translate-y-1 overflow-hidden"
                     >
                         <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -1880,6 +1891,108 @@ const App = () => {
     );
   }
 
+  if (appStage === 'identity') {
+      return (
+          <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+             <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 bg-slate-50">
+                <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob"></div>
+                <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-indigo-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob animation-delay-2000"></div>
+                <div className="absolute -bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-purple-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob animation-delay-4000"></div>
+             </div>
+
+             <motion.div
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 className="bg-white/80 backdrop-blur-xl p-8 md:p-10 rounded-[2rem] shadow-xl border border-white/50 w-full max-w-lg z-10"
+             >
+                 <div className="text-center mb-8">
+                     <div className="mx-auto w-16 h-16 bg-gradient-to-tr from-blue-100 to-indigo-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-white">
+                         <User className="w-8 h-8" />
+                     </div>
+                     <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Identitas Penyusun</h2>
+                     <p className="text-slate-500 mt-2 text-sm">Lengkapi data diri untuk disematkan otomatis pada seluruh dokumen perangkat ajar Anda.</p>
+                 </div>
+                 
+                 <div className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Penyusun</label>
+                        <input 
+                            type="text" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                            placeholder="Contoh: Budi Santoso, S.Pd."
+                            value={userIdentity.authorName}
+                            onChange={(e) => setUserIdentity(prev => ({...prev, authorName: e.target.value}))}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Instansi / Sekolah</label>
+                        <input 
+                            type="text" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                            placeholder="Contoh: SD Negeri 1 Merdeka"
+                            value={userIdentity.institutionName}
+                            onChange={(e) => setUserIdentity(prev => ({...prev, institutionName: e.target.value}))}
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Tahun Pelajaran</label>
+                            <input 
+                                type="text" 
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                                placeholder="Contoh: 2025/2026"
+                                value={userIdentity.academicYear}
+                                onChange={(e) => setUserIdentity(prev => ({...prev, academicYear: e.target.value}))}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Semester</label>
+                            <input 
+                                type="text" 
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                                placeholder="Contoh: Ganjil / Genap"
+                                value={userIdentity.semester}
+                                onChange={(e) => setUserIdentity(prev => ({...prev, semester: e.target.value}))}
+                            />
+                        </div>
+                    </div>
+                    
+                    <div className="flex gap-3 pt-4">
+                        <button 
+                            onClick={() => {
+                                setUserIdentity({ authorName: '', institutionName: '', academicYear: '', semester: '' });
+                                localStorage.removeItem('prota_author_name');
+                                localStorage.removeItem('prota_institution_name');
+                                localStorage.removeItem('prota_academic_year');
+                                localStorage.removeItem('prota_semester');
+                            }}
+                            className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                        >
+                            Bersihkan
+                        </button>
+                        <button 
+                            onClick={() => {
+                                localStorage.setItem('prota_author_name', userIdentity.authorName);
+                                localStorage.setItem('prota_institution_name', userIdentity.institutionName);
+                                localStorage.setItem('prota_academic_year', userIdentity.academicYear);
+                                localStorage.setItem('prota_semester', userIdentity.semester);
+                                setAppStage('generator');
+                            }}
+                            className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                        >
+                            Konfirmasi &amp; Lanjut <ArrowRight className="w-5 h-5"/>
+                        </button>
+                    </div>
+                    
+                    <button onClick={() => setAppStage('tutorial')} className="w-full mt-4 flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700 font-medium">
+                        <ArrowLeft className="w-4 h-4"/> Kembali ke Tutorial
+                    </button>
+                 </div>
+             </motion.div>
+          </div>
+      );
+  }
+
   return (
     <div className="min-h-screen flex flex-col relative bg-gray-50">
       {/* JP Reference Modal */}
@@ -1919,7 +2032,10 @@ const App = () => {
                <div className="p-6 overflow-y-auto">
                    <div className="space-y-4">
                        {NON_EFFECTIVE_SCHEDULE.map((range, index) => {
-                           if (range.category && range.variant !== scheduleConfig[range.category]) return null;
+                           if (range.category) {
+                               if (activeScheduleConfig[range.category] === false) return null;
+                               if (range.variant && range.variant !== scheduleConfig[range.category]) return null;
+                           }
                            return (
                                <div key={index} className="flex items-start gap-4 p-3 rounded-lg border bg-blue-50 border-blue-100">
                                    <div className="p-2 rounded-full shrink-0 bg-blue-100 text-blue-600"><CalendarCheck className="w-5 h-5" /></div>
@@ -2005,7 +2121,7 @@ const App = () => {
                                     <span>Visualisasi Kalender Akademik</span>
                                     <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Gerakkan kursor pada tanggal untuk detail</span>
                                 </h4>
-                                <VisualCalendar scheduledDays={classSchedules[analysisModal] || []} scheduleConfig={scheduleConfig} />
+                                <VisualCalendar scheduledDays={classSchedules[analysisModal] || []} scheduleConfig={scheduleConfig} activeScheduleConfig={activeScheduleConfig} />
                                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 flex items-start gap-2">
                                     <AlertTriangle className="w-4 h-4 shrink-0" />
                                     <p>Perhitungan pekan efektif menggunakan standar ISO-8601. Konfigurasi libur dapat diubah pada menu utama.</p>
@@ -2061,6 +2177,7 @@ const App = () => {
         {currentView === 'modul_ajar' && modulContext ? (
             <ModulAjarGenerator 
                 context={modulContext} 
+                userIdentity={userIdentity}
                 onBack={() => setCurrentView('generator')}
                 onSave={saveActivityLog}
             />
@@ -2143,15 +2260,58 @@ const App = () => {
 
                     <div className="bg-blue-50/50 p-6 rounded-lg border border-blue-100 space-y-4">
                          <div className="flex items-center gap-2 text-blue-800 font-semibold text-sm mb-2"><SlidersHorizontal className="w-4 h-4" /> Konfigurasi Kalender Akademik (Libur & Ujian)</div>
-                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                             {Object.entries(SCHEDULE_OPTIONS).map(([key, options]) => (
-                                <div key={key} className="space-y-1">
-                                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">{key.replace('_', ' ')}</label>
-                                    <select value={scheduleConfig[key]} onChange={(e) => setScheduleConfig({...scheduleConfig, [key]: e.target.value})} className="w-full p-2 text-sm bg-white border border-gray-200 rounded-md">
+                                <div key={key} className="space-y-1 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <input 
+                                            type="checkbox" 
+                                            id={`enable-${key}`}
+                                            checked={activeScheduleConfig[key] !== false}
+                                            onChange={(e) => setActiveScheduleConfig({...activeScheduleConfig, [key]: e.target.checked})}
+                                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                                        />
+                                        <label htmlFor={`enable-${key}`} className="text-xs font-bold text-gray-700 uppercase tracking-wide cursor-pointer">{key.replace('_', ' ')}</label>
+                                    </div>
+                                    <select 
+                                        value={scheduleConfig[key]} 
+                                        onChange={(e) => setScheduleConfig({...scheduleConfig, [key]: e.target.value})} 
+                                        disabled={activeScheduleConfig[key] === false}
+                                        className="w-full p-2 text-sm bg-gray-50 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100"
+                                    >
                                         {options.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                                     </select>
                                 </div>
                             ))}
+                         </div>
+
+                         <div className="pt-4 border-t border-blue-200/60">
+                             <h4 className="text-sm font-bold text-blue-800 mb-3 block">Penyesuaian Hari Libur Manual (Custom)</h4>
+                             <div className="flex flex-col md:flex-row gap-3 mb-4">
+                                <input type="text" id="custom-holiday-desc" placeholder="Keterangan (cth: Libur Sekolah Custom)" className="flex-1 p-2 text-sm bg-white border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
+                                <input type="date" id="custom-holiday-start" className="w-full md:w-auto p-2 text-sm bg-white border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
+                                <button type="button" onClick={() => {
+                                    const descInput = document.getElementById('custom-holiday-desc') as HTMLInputElement;
+                                    const startInput = document.getElementById('custom-holiday-start') as HTMLInputElement;
+                                    if (descInput.value && startInput.value) {
+                                        setCustomHolidays(prev => [...prev, { id: Date.now().toString(), description: descInput.value, start: startInput.value }]);
+                                        descInput.value = '';
+                                    } else {
+                                        alert("Isi keterangan dan tanggal dengan lengkap.");
+                                    }
+                                }} className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold shadow hover:bg-blue-700 whitespace-nowrap">Tambah Libur</button>
+                             </div>
+                             
+                             {customHolidays.length > 0 && (
+                                 <div className="space-y-2">
+                                     {customHolidays.map(hol => (
+                                         <div key={hol.id} className="flex justify-between items-center bg-white p-2 border border-orange-200 rounded text-sm shadow-sm">
+                                             <div className="flex items-center gap-2 text-orange-700 font-medium"><CalendarCheck className="w-4 h-4"/> {hol.description} <span className="text-gray-500 text-xs ml-2">({hol.start})</span></div>
+                                             <button onClick={() => setCustomHolidays(prev => prev.filter(h => h.id !== hol.id))} className="text-red-500 hover:text-red-700 p-1"><X className="w-4 h-4"/></button>
+                                         </div>
+                                     ))}
+                                 </div>
+                             )}
                          </div>
                     </div>
                 </section>
@@ -2274,5 +2434,9 @@ const App = () => {
   );
 };
 
-const root = createRoot(document.getElementById('root')!);
+// Create or get the root element
+const rootElement = document.getElementById('root')!;
+const root = (window as any).__REACT_ROOT__ || createRoot(rootElement);
+(window as any).__REACT_ROOT__ = root;
+
 root.render(<App />);
