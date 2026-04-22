@@ -933,6 +933,14 @@ const App = () => {
 
   // Schedules & Config
   const [classSchedules, setClassSchedules] = useState<Record<string, string[]>>({});
+  const [classDailyJP, setClassDailyJP] = useState<Record<string, Record<string, number>>>(() => {
+      const saved = localStorage.getItem('prota_class_daily_jp');
+      return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+      localStorage.setItem('prota_class_daily_jp', JSON.stringify(classDailyJP));
+  }, [classDailyJP]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(() => {
     try {
         const saved = localStorage.getItem('prota_calendar_events');
@@ -1051,8 +1059,10 @@ const App = () => {
       return days[date.getDay()];
   };
 
-  const getEffectiveDates = (selectedDays: string[]): Date[] => {
-      const dates: Date[] = [];
+  const getEffectiveDates = (className: string): { date: Date, jp: number }[] => {
+      const selectedDays = classSchedules[className] || [];
+      const dailyJP = classDailyJP[className] || {};
+      const dates: { date: Date, jp: number }[] = [];
       const academicStartStr = `${academicYearStart}-07-14`;
       const academicEndStr = `${academicYearStart + 1}-06-27`;
       const startDate = parseDateToLocal(academicStartStr); 
@@ -1066,23 +1076,48 @@ const App = () => {
           const dateStr = formatDateLocal(current);
           const conflict = checkNonEffectiveDate(dateStr);
           if (validDays.includes(dayName) && (!conflict)) {
-              dates.push(new Date(current));
+              const jp = dailyJP[dayName] || 0;
+              if (jp > 0) {
+                dates.push({ date: new Date(current), jp });
+              }
           }
           current.setDate(current.getDate() + 1);
       }
       return dates;
   };
 
+  const updateDailyJP = (className: string, day: string, jp: number) => {
+    setClassDailyJP(prev => ({
+        ...prev,
+        [className]: {
+            ...(prev[className] || {}),
+            [day]: jp
+        }
+    }));
+  };
+
   const toggleScheduleDay = (className: string, day: string) => {
+      const isRemoving = (classSchedules[className] || []).includes(day);
+      
       setClassSchedules(prev => {
           const currentDays = prev[className] || [];
-          if (currentDays.includes(day)) {
+          if (isRemoving) {
               return { ...prev, [className]: currentDays.filter(d => d !== day) };
           } else {
               const newDays = [...currentDays, day].sort((a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b));
               return { ...prev, [className]: newDays };
           }
       });
+
+      if (!isRemoving && !(classDailyJP[className]?.[day])) {
+          setClassDailyJP(prev => ({
+              ...prev,
+              [className]: {
+                  ...(prev[className] || {}),
+                  [day]: 3 
+              }
+          }));
+      }
   };
 
   const getISOWeek = (d: Date) => {
@@ -1143,6 +1178,7 @@ const App = () => {
             if (selectedDays.includes(dayName)) {
                  const conflict = checkNonEffectiveDate(dateStr) || (isSabtuNonEffective ? { description: 'Libur Sabtu', type: 'holiday' } : null);
                  if (!conflict) {
+                     const dailyJPVal = (classDailyJP[className] || {})[dayName] || 0;
                      totalAvailableSlots++;
                      monthDetails[monthKey].effectiveDays++;
                      dayDistribution[dayName] = (dayDistribution[dayName] || 0) + 1;
@@ -1150,9 +1186,11 @@ const App = () => {
                      if (semester === 1) {
                          semester1Data.effectiveDays++;
                          semester1Data.uniqueWeeks.add(weekKey);
+                         semester1Data.availableJP += dailyJPVal;
                      } else {
                          semester2Data.effectiveDays++;
                          semester2Data.uniqueWeeks.add(weekKey);
+                         semester2Data.availableJP += dailyJPVal;
                      }
                  } else {
                      monthDetails[monthKey].nonEffectiveDetails.push({ date: dateStr, reason: conflict.description });
@@ -1171,11 +1209,6 @@ const App = () => {
         // Calculate Weekly Target based on effective weeks
         const totalEffectiveWeeks = semester1Data.uniqueWeeks.size + semester2Data.uniqueWeeks.size;
         const weeklyTargetJP = totalEffectiveWeeks > 0 ? Math.round(annualTargetJP / totalEffectiveWeeks) : 0;
-        
-        // Approx JP calc
-        const daysPerWeek = selectedDays.length || 1;
-        semester1Data.availableJP = semester1Data.effectiveDays * Math.round(weeklyTargetJP / daysPerWeek);
-        semester2Data.availableJP = semester2Data.effectiveDays * Math.round(weeklyTargetJP / daysPerWeek);
         
         semester1Data.effectiveWeeks = semester1Data.uniqueWeeks.size;
         semester2Data.effectiveWeeks = semester2Data.uniqueWeeks.size;
@@ -1321,35 +1354,19 @@ const App = () => {
         const ai = new GoogleGenAI({ apiKey });
 
         // 2. TIMELINE GENERATION based on Calendar
-        const allEffectiveDates = getEffectiveDates(selectedDays);
+        const allEffectiveDates = getEffectiveDates(className);
         if (allEffectiveDates.length === 0) {
             throw new Error("Tidak ada hari efektif yang tersedia untuk jadwal yang dipilih. Silakan periksa kalender akademik atau pilih hari lain.");
         }
-        const totalAvailableSlots = allEffectiveDates.length;
-        console.log(`Total slot tersedia: ${totalAvailableSlots}`);
         
-        let baseJP = 0;
-        let remainder = 0;
-        if (totalAvailableSlots > 0) {
-            baseJP = Math.floor(targetJP / totalAvailableSlots);
-            remainder = targetJP % totalAvailableSlots;
-        }
+        const timelineSlots: { date: string, allocatedJP: number }[] = allEffectiveDates.map(slot => ({
+            date: formatDateLocal(slot.date),
+            allocatedJP: slot.jp
+        }));
         
-        const timelineSlots: { date: string, allocatedJP: number }[] = [];
-        let accumulatedJP = 0;
+        const accumulatedJP = timelineSlots.reduce((sum, s) => sum + s.allocatedJP, 0);
+        console.log(`Total JP tersedia pada timeline: ${accumulatedJP} JP`);
         
-        for (let i = 0; i < totalAvailableSlots; i++) {
-             if (accumulatedJP >= targetJP) break; 
-             const allocated = i < remainder ? baseJP + 1 : baseJP;
-             if (allocated > 0) {
-                 timelineSlots.push({
-                    date: formatDateLocal(allEffectiveDates[i]),
-                    allocatedJP: allocated
-                 });
-                 accumulatedJP += allocated;
-             }
-        }
-
         // 3. PREPARE FLATTENED TP LIST (Optimization for Token Limits)
         interface FlatTP {
             id: number;
@@ -1394,8 +1411,8 @@ const App = () => {
             
             KONTEKS:
             - Mapel: ${data.subject} (${className})
-            - Total Target JP: ${targetJP} JP
-            - Jumlah Slot Pertemuan: ${timelineSlots.length}
+            - Total Target JP: ${accumulatedJP} JP
+            - Jumlah Slot Pertemuan: ${timelineSlots.length} (dengan variasi JP per pertemuan sesuai jadwal pengguna)
             
             DAFTAR TP (ID: TP):
             ${flatTPs.map(f => `${f.id}: ${f.tp}`).join('\n')}
@@ -1403,7 +1420,7 @@ const App = () => {
             INSTRUKSI:
             1. Buat rangkaian aktivitas untuk SETIAP TP di atas.
             2. Satu TP bisa dipecah menjadi beberapa aktivitas (beberapa pertemuan) jika kompleks.
-            3. Estimasi JP per aktivitas rata-rata ${Math.round(targetJP / timelineSlots.length) || 2} JP.
+            3. Distribusikan TP ini ke dalam total ${accumulatedJP} JP yang tersedia.
             4. Gunakan field 'alur' untuk deskripsi aktivitas pembelajaran yang konkret.
             5. Return JSON object dengan properti 'allocations' yang berisi array pemetaan tpId ke daftar aktivitas sesuai skema yang diberikan.
         `;
@@ -1476,6 +1493,7 @@ const App = () => {
         });
 
         let slotCursor = 0;
+        let remainingJPInCurrentSlot = 0;
 
         // Iterate flatTPs to ensure every TP is handled
         flatTPs.forEach(f => {
@@ -1486,35 +1504,50 @@ const App = () => {
 
             if (activities.length > 0) {
                  activities.forEach(act => {
-                     let date = '';
-                     let jp = `${act.jp} JP`;
-
-                     if (slotCursor < timelineSlots.length) {
-                         const slot = timelineSlots[slotCursor];
-                         date = slot.date;
-                         jp = `${slot.allocatedJP} JP`; // Align JP with timeline slot
-                         slotCursor++;
-                     }
-
-                     processedItems.push({
-                         alur: act.alur,
-                         alokasiWaktu: jp,
-                         planDate: date
-                     });
+                      let jpToAllocate = act.jp;
+                      
+                      while (jpToAllocate > 0 && slotCursor < timelineSlots.length) {
+                          if (remainingJPInCurrentSlot <= 0) {
+                              remainingJPInCurrentSlot = timelineSlots[slotCursor].allocatedJP;
+                          }
+                          
+                          const date = timelineSlots[slotCursor].date;
+                          const take = Math.min(jpToAllocate, remainingJPInCurrentSlot);
+                          
+                          processedItems.push({
+                              alur: act.alur + (act.jp > take ? ` (Bag. ${act.jp - jpToAllocate + take}/${act.jp} JP)` : ''),
+                              alokasiWaktu: `${take} JP`,
+                              planDate: date
+                          });
+                          
+                          jpToAllocate -= take;
+                          remainingJPInCurrentSlot -= take;
+                          
+                          if (remainingJPInCurrentSlot <= 0) {
+                              slotCursor++;
+                              remainingJPInCurrentSlot = 0;
+                          }
+                      }
                  });
             } else {
                 // Fallback for missing TPs
                 let date = '';
-                let jp = '2 JP';
+                let jpVal = 2;
+                if (remainingJPInCurrentSlot <= 0 && slotCursor < timelineSlots.length) {
+                    remainingJPInCurrentSlot = timelineSlots[slotCursor].allocatedJP;
+                }
                 if (slotCursor < timelineSlots.length) {
-                     const slot = timelineSlots[slotCursor];
-                     date = slot.date;
-                     jp = `${slot.allocatedJP} JP`;
-                     slotCursor++;
+                    date = timelineSlots[slotCursor].date;
+                    jpVal = Math.min(2, remainingJPInCurrentSlot || 2);
+                    remainingJPInCurrentSlot -= jpVal;
+                    if (remainingJPInCurrentSlot <= 0) {
+                        slotCursor++;
+                        remainingJPInCurrentSlot = 0;
+                    }
                 }
                 processedItems.push({
                      alur: `Pembelajaran: ${f.tp}`,
-                     alokasiWaktu: jp,
+                     alokasiWaktu: `${jpVal} JP`,
                      planDate: date
                 });
             }
@@ -1561,6 +1594,7 @@ const App = () => {
   const handleDownloadProta = (className: string) => {
       if (!data) return;
       
+      const calAnalysis = calculateCalendarAnalysis(className, data.subject);
       const savedAuthor = localStorage.getItem('prota_author_name') || 'Guru Kelas';
       const savedInst = localStorage.getItem('prota_institution_name') || 'Sekolah Dasar';
       
@@ -1643,6 +1677,42 @@ const App = () => {
               </table>
           </div>
 
+          <div style="margin-bottom: 20px;">
+              <h4 style="margin-bottom: 5px;">A. ALOKASI WAKTU SEMESTER</h4>
+              <table style="width: 100%; border: 1px solid black; border-collapse: collapse;">
+                  <thead style="background-color: #f2f2f2;">
+                      <tr>
+                          <th>Semester</th>
+                          <th>Jadwal</th>
+                          <th>Jml HBE</th>
+                          <th>Jam Pel (JP)</th>
+                          <th>Total JP</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      <tr>
+                          <td style="text-align: center;">Semester 1 (Ganjil)</td>
+                          <td style="text-align: center;">${(classSchedules[className] || []).join(', ')}</td>
+                          <td style="text-align: center;">${calAnalysis?.semester1.effectiveDays || 0}</td>
+                          <td style="text-align: center;">${(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
+                          <td style="text-align: center;">${calAnalysis?.semester1.availableJP || 0}</td>
+                      </tr>
+                      <tr>
+                          <td style="text-align: center;">Semester 2 (Genap)</td>
+                          <td style="text-align: center;">${(classSchedules[className] || []).join(', ')}</td>
+                          <td style="text-align: center;">${calAnalysis?.semester2.effectiveDays || 0}</td>
+                          <td style="text-align: center;">${(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
+                          <td style="text-align: center;">${calAnalysis?.semester2.availableJP || 0}</td>
+                      </tr>
+                      <tr style="background-color: #f9f9f9; font-weight: bold;">
+                          <td colspan="4" style="text-align: right; padding-right: 10px;">TOTAL JP SETAHUN</td>
+                          <td style="text-align: center;">${(calAnalysis?.semester1.availableJP || 0) + (calAnalysis?.semester2.availableJP || 0)}</td>
+                      </tr>
+                  </tbody>
+              </table>
+          </div>
+
+          <h4 style="margin-bottom: 5px;">B. PROGRAM TAHUNAN</h4>
           <table>
               <thead>
                   <tr>
@@ -2282,7 +2352,7 @@ const App = () => {
                                     <span>Visualisasi Kalender Akademik</span>
                                     <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Gerakkan kursor pada tanggal untuk detail</span>
                                 </h4>
-                                <VisualCalendar scheduledDays={classSchedules[analysisModal] || []} calendarEvents={calendarEvents} academicYearStart={academicYearStart} />
+                                <VisualCalendar scheduledDays={classSchedules[analysisModal] || []} calendarEvents={calendarEvents} academicYearStart={academicYearStart} schoolDaysCount={schoolDaysCount} />
                                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 flex items-start gap-2">
                                     <AlertTriangle className="w-4 h-4 shrink-0" />
                                     <p>Perhitungan pekan efektif menggunakan standar ISO-8601. Konfigurasi libur dapat diubah pada menu utama.</p>
@@ -2446,11 +2516,37 @@ const App = () => {
                             <div className="p-4 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-4">
                                 <div>
                                     <h3 className="font-bold text-lg border-l-4 border-blue-600 pl-3">{className}</h3>
-                                    <div className="flex items-center gap-2 mt-2 ml-4">
-                                        <span className="text-xs font-medium text-gray-600">Jadwal:</span>
-                                        {DAYS_OF_WEEK.filter(day => schoolDaysCount === 6 || day !== 'Sabtu').map(day => (
-                                            <button key={day} onClick={() => toggleScheduleDay(className, day)} className={`px-2 py-1 text-[10px] rounded border transition-all ${(classSchedules[className] || []).includes(day) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>{day}</button>
-                                        ))}
+                                    <div className="flex flex-wrap items-center gap-2 mt-2 ml-4">
+                                        <span className="text-xs font-medium text-gray-600">Jadwal & JP:</span>
+                                        <div className="flex flex-wrap gap-2">
+                                            {DAYS_OF_WEEK.filter(day => schoolDaysCount === 6 || day !== 'Sabtu').map(day => {
+                                                const isSelected = (classSchedules[className] || []).includes(day);
+                                                return (
+                                                    <div key={day} className="flex flex-col items-center gap-1">
+                                                        <button 
+                                                            onClick={() => toggleScheduleDay(className, day)} 
+                                                            className={`px-2 py-1 text-[10px] rounded border transition-all ${isSelected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                                                        >
+                                                            {day}
+                                                        </button>
+                                                        {isSelected && (
+                                                            <div className="flex items-center gap-1 bg-white border border-blue-200 rounded px-1 group shadow-sm animate-in zoom-in-95 duration-200">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="1" 
+                                                                    max="10"
+                                                                    value={(classDailyJP[className] || {})[day] || 3}
+                                                                    onChange={(e) => updateDailyJP(className, day, parseInt(e.target.value) || 0)}
+                                                                    className="w-6 text-[9px] font-bold text-blue-700 text-center focus:outline-none bg-transparent"
+                                                                    title="Tentukan JP untuk hari ini"
+                                                                />
+                                                                <span className="text-[8px] text-blue-400 font-bold pr-0.5">JP</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
@@ -2518,14 +2614,14 @@ const App = () => {
                                                                     <td className="p-2 font-bold text-blue-800">Semester 1</td>
                                                                     <td className="p-2 text-center">{(classSchedules[className] || []).join(', ')}</td>
                                                                     <td className="p-2 text-center font-bold">{result.semester1.effectiveDays}</td>
-                                                                    <td className="p-2 text-center font-bold">{Math.round(result.weeklyTargetJP / (classSchedules[className]?.length || 1))}</td>
+                                                                    <td className="p-2 text-center font-bold">{(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
                                                                     <td className="p-2 text-center font-bold text-blue-700">{result.semester1.availableJP}</td>
                                                                 </tr>
                                                                 <tr>
                                                                     <td className="p-2 font-bold text-indigo-800">Semester 2</td>
                                                                     <td className="p-2 text-center">{(classSchedules[className] || []).join(', ')}</td>
                                                                     <td className="p-2 text-center font-bold">{result.semester2.effectiveDays}</td>
-                                                                    <td className="p-2 text-center font-bold">{Math.round(result.weeklyTargetJP / (classSchedules[className]?.length || 1))}</td>
+                                                                    <td className="p-2 text-center font-bold">{(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
                                                                     <td className="p-2 text-center font-bold text-indigo-700">{result.semester2.availableJP}</td>
                                                                 </tr>
                                                             </tbody>
