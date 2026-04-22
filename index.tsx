@@ -1076,7 +1076,7 @@ const App = () => {
           const dateStr = formatDateLocal(current);
           const conflict = checkNonEffectiveDate(dateStr);
           if (validDays.includes(dayName) && (!conflict)) {
-              const jp = dailyJP[dayName] || 0;
+              const jp = dailyJP[dayName] || 3;
               if (jp > 0) {
                 dates.push({ date: new Date(current), jp });
               }
@@ -1142,14 +1142,6 @@ const App = () => {
         const startDate = parseDateToLocal(academicStartStr);
         const endDate = parseDateToLocal(academicEndStr);
         
-        const liburRange = calendarEvents.find(r => r.description.toLowerCase().includes('libur semester 1') || r.description.toLowerCase().includes('libur akhir tahun pelajaran'));
-        let semester2StartDate = parseDateToLocal(`${academicYearStart + 1}-01-01`);
-        if (liburRange) {
-            const liburEnd = parseDateToLocal(liburRange.end);
-            semester2StartDate = new Date(liburEnd);
-            semester2StartDate.setDate(semester2StartDate.getDate() + 1); 
-        }
-
         let totalAvailableSlots = 0;
         let semester1Data = { effectiveDays: 0, nonEffectiveDays: 0, effectiveWeeks: 0, uniqueWeeks: new Set<string>(), availableJP: 0 };
         let semester2Data = { effectiveDays: 0, nonEffectiveDays: 0, effectiveWeeks: 0, uniqueWeeks: new Set<string>(), availableJP: 0 };
@@ -1164,7 +1156,10 @@ const App = () => {
             const dayName = getDayName(current);
             const dateStr = formatDateLocal(current);
             const monthKey = current.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
-            const semester = current < semester2StartDate ? 1 : 2;
+            
+            // Fixed Semester Logic: July-Dec is Semester 1, Jan-June is Semester 2
+            const semester = (current.getMonth() >= 6 && current.getFullYear() === academicYearStart) ? 1 : 2;
+            
             const weekKey = `${getISOWeek(current)}-${current.getFullYear()}`; 
 
             if (!monthDetails[monthKey]) {
@@ -1178,7 +1173,7 @@ const App = () => {
             if (selectedDays.includes(dayName)) {
                  const conflict = checkNonEffectiveDate(dateStr) || (isSabtuNonEffective ? { description: 'Libur Sabtu', type: 'holiday' } : null);
                  if (!conflict) {
-                     const dailyJPVal = (classDailyJP[className] || {})[dayName] || 0;
+                     const dailyJPVal = (classDailyJP[className] || {})[dayName] || 3;
                      totalAvailableSlots++;
                      monthDetails[monthKey].effectiveDays++;
                      dayDistribution[dayName] = (dayDistribution[dayName] || 0) + 1;
@@ -1420,7 +1415,8 @@ const App = () => {
             INSTRUKSI:
             1. Buat rangkaian aktivitas untuk SETIAP TP di atas.
             2. Satu TP bisa dipecah menjadi beberapa aktivitas (beberapa pertemuan) jika kompleks.
-            3. Distribusikan TP ini ke dalam total ${accumulatedJP} JP yang tersedia.
+            3. Distribusikan TP ini ke dalam total ${accumulatedJP} JP yang tersedia. Pastikan total JP dari semua aktivitas diakumulasikan tepat ${accumulatedJP} JP.
+               PENTING: Gunakan alokasi JP per-aktivitas yang wajar (misal: 1, 2, atau 3 JP). Hindari membuat satu aktivitas dengan JP yang sangat besar yang tidak mungkin selesai dalam satu hari (kapasitas harian ${classSchedules[className]?.map(d => `${d}: ${classDailyJP[className]?.[d] || 3} JP`).join(', ')}).
             4. Gunakan field 'alur' untuk deskripsi aktivitas pembelajaran yang konkret.
             5. Return JSON object dengan properti 'allocations' yang berisi array pemetaan tpId ke daftar aktivitas sesuai skema yang diberikan.
         `;
@@ -1621,8 +1617,10 @@ const App = () => {
               items.forEach((item) => {
                   let semester = 'Ganjil / Genap';
                   if (item.planDate) {
-                      const date = new Date(item.planDate);
-                      semester = date.getMonth() < 6 ? 'Genap' : 'Ganjil';
+                      const d = new Date(item.planDate);
+                      const m = d.getMonth();
+                      const y = d.getFullYear();
+                      semester = (m >= 6 && y === academicYearStart) ? 'Ganjil (Sems 1)' : 'Genap (Sems 2)';
                   }
                   
                   tableRows += `<tr>`;
@@ -2624,6 +2622,13 @@ const App = () => {
                                                                     <td className="p-2 text-center font-bold">{(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
                                                                     <td className="p-2 text-center font-bold text-indigo-700">{result.semester2.availableJP}</td>
                                                                 </tr>
+                                                                <tr className="bg-blue-50/50 font-bold border-t-2 border-blue-100">
+                                                                    <td className="p-2 text-blue-900 uppercase text-[10px]">Total Setahun</td>
+                                                                    <td className="p-2 text-center">-</td>
+                                                                    <td className="p-2 text-center text-blue-900">{result.semester1.effectiveDays + result.semester2.effectiveDays} Hari</td>
+                                                                    <td className="p-2 text-center">-</td>
+                                                                    <td className="p-2 text-center text-blue-900 font-extrabold">{result.semester1.availableJP + result.semester2.availableJP} JP</td>
+                                                                </tr>
                                                             </tbody>
                                                         </table>
                                                     </div>
@@ -2683,12 +2688,15 @@ const App = () => {
                                                             <td className="px-4 py-3 border align-top">
                                                                 {item.alur ? (
                                                                     <div className="flex flex-col gap-2">
-                                                                        <input 
-                                                                            type="date" 
-                                                                            className={`w-full text-xs p-1 border rounded ${nonEffective ? 'border-red-400 bg-red-50 text-red-700 font-bold' : ''}`}
-                                                                            value={item.planDate || ''}
-                                                                            onChange={(e) => handleUpdateDate(className, elIdx, allocIdx, grpIdx, itemIdx, e.target.value)}
-                                                                        />
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input 
+                                                                                type="date" 
+                                                                                className={`flex-1 text-xs p-1 border rounded ${nonEffective ? 'border-red-400 bg-red-50 text-red-700 font-bold' : ''}`}
+                                                                                value={item.planDate || ''}
+                                                                                onChange={(e) => handleUpdateDate(className, elIdx, allocIdx, grpIdx, itemIdx, e.target.value)}
+                                                                            />
+                                                                            {item.planDate && <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{getDayName(new Date(item.planDate))}</span>}
+                                                                        </div>
                                                                         {nonEffective && <div className="text-[10px] text-red-600 bg-red-100 p-1 rounded flex gap-1"><AlertCircle className="w-3 h-3"/> {nonEffective.description}</div>}
                                                                         {item.planDate && (
                                                                             <button 
