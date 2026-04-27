@@ -4,6 +4,15 @@ import { motion } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2 } from 'lucide-react';
 
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, addDoc, query, orderBy, getDocs, where, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import firebaseConfig from './firebase-applet-config.json';
+
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);                
+export const auth = getAuth();
+
 // --- API Key Helper ---
 const getApiKey = (): string => {
   try {
@@ -944,6 +953,21 @@ interface UserIdentity {
 }
 
 const App = () => {
+  const [firebaseUser, setFirebaseUser] = useState<any>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setFirebaseUser(user);
+      } else {
+        signInAnonymously(auth).catch(err => {
+            console.error("Failed to sign in anonymously", err);
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
   const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'identity' | 'generator'>(() => {
     return localStorage.getItem('prota_user') ? 'generator' : 'login';
   });
@@ -1088,7 +1112,39 @@ const App = () => {
       return [];
   };
 
-  const addActivity = (type: 'CP_TP' | 'ATP_JP' | 'MODUL_AJAR', subject: string, details: string, dataSnapshot: any) => {
+  // Activity Management
+  // Fetch activities from Firestore
+  useEffect(() => {
+    const fetchActivities = async () => {
+      if (!firebaseUser) return;
+      try {
+        const q = query(
+          collection(db, 'users', firebaseUser.uid, 'activities'),
+          orderBy('timestamp', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        const fetchedActivities: ActivityLog[] = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            timestamp: data.timestamp.toDate(),
+            type: data.type,
+            subject: data.subject,
+            details: data.details,
+            dataSnapshot: data.dataSnapshot,
+            paperSizeSnapshot: data.paperSizeSnapshot
+          };
+        });
+        setActivities(fetchedActivities);
+      } catch (e) {
+        console.error("Failed to fetch activities from Firestore", e);
+      }
+    };
+    fetchActivities();
+  }, [firebaseUser]);
+
+  const addActivity = async (type: 'CP_TP' | 'ATP_JP' | 'MODUL_AJAR', subject: string, details: string, dataSnapshot: any) => {
+    if (!user) return;
     const newActivity: ActivityLog = {
       id: Date.now().toString(),
       timestamp: new Date(),
@@ -1098,23 +1154,56 @@ const App = () => {
       dataSnapshot: JSON.parse(JSON.stringify(dataSnapshot)),
       paperSizeSnapshot: paperSize
     };
-    setActivities(prev => saveActivitiesToStorage([newActivity, ...prev]));
+    
+    try {
+        await addDoc(collection(db, 'users', auth.currentUser?.uid || 'anonymous', 'activities'), {
+            ...newActivity,
+            timestamp: serverTimestamp()
+        });
+        setActivities(prev => [newActivity, ...prev]);
+    } catch (e) {
+        console.error("Failed to add activity to Firestore", e);
+    }
   };
   
-  const saveActivityLog = (log: ActivityLog) => {
-    setActivities(prev => saveActivitiesToStorage([log, ...prev]));
-  };
-
-  const deleteActivity = (id: string) => {
-    setActivities(prev => saveActivitiesToStorage(prev.filter(act => act.id !== id)));
-  };
-
-  const clearAllActivities = () => {
-    setActivities([]);
+  const saveActivityLog = async (log: ActivityLog) => {
+    if (!user) return;
     try {
-      localStorage.removeItem('prota_activities');
+        await addDoc(collection(db, 'users', auth.currentUser?.uid || 'anonymous', 'activities'), {
+            ...log,
+            timestamp: serverTimestamp()
+        });
+        setActivities(prev => [log, ...prev]);
     } catch (e) {
-      console.error("Failed to clear activities from localStorage:", e);
+        console.error("Failed to save activity log to Firestore", e);
+    }
+  };
+
+  const deleteActivity = async (id: string) => {
+    if (!user) return;
+    try {
+        const q = query(collection(db, 'users', auth.currentUser?.uid || 'anonymous', 'activities'), where("id", "==", id));
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (doc) => {
+            await deleteDoc(doc.ref);
+        });
+        setActivities(prev => prev.filter(act => act.id !== id));
+    } catch (e) {
+        console.error("Failed to delete activity from Firestore", e);
+    }
+  };
+
+  const clearAllActivities = async () => {
+    if (!user) return;
+    try {
+        const q = query(collection(db, 'users', auth.currentUser?.uid || 'anonymous', 'activities'));
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (doc) => {
+            await deleteDoc(doc.ref);
+        });
+        setActivities([]);
+    } catch (e) {
+        console.error("Failed to clear activities from Firestore", e);
     }
   };
 
@@ -1661,6 +1750,26 @@ const App = () => {
   };
 
   const runBulkGeneration = async (className: string, semChoice: '1' | '2') => {
+      const rawItems: { el: any, tp: any, atpItem: any }[] = [];
+      (data?.elements || []).forEach((el) => {
+          (el.allocations || []).forEach((alloc) => {
+              if (alloc.structuredAtp) {
+                  alloc.structuredAtp.forEach((grp: any) => {
+                       grp.atpItems.forEach((atpItem: any) => {
+                           rawItems.push({ el, tp: grp.tp, atpItem });
+                       });
+                  });
+              }
+          });
+      });
+
+      const itemsToGenerateFinal = rawItems.filter(item => {
+          const date = item.atpItem.planDate ? new Date(item.atpItem.planDate) : new Date();
+          const month = date.getMonth() + 1;
+          if (semChoice === '1') return month >= 7 && month <= 12;
+          return month >= 1 && month <= 6;
+      });
+
       const allDates = getEffectiveDates(className);
       const semDates = allDates.filter(d => {
           const month = d.date.getMonth() + 1;
@@ -1679,7 +1788,9 @@ const App = () => {
       }));
 
       // Ensure that cancellation flag is reset for this class
-      window.bulkAbortedMap = { ...(window.bulkAbortedMap || {}), [className]: false };
+      (window as any).bulkAbortedMap = { ...((window as any).bulkAbortedMap || {}), [className]: false };
+      const collectedModulesData: any[] = [];
+      let collectedHtml = '';
 
       try {
           const apiKey = getApiKey();
@@ -1688,7 +1799,7 @@ const App = () => {
 
           const maxModules = Math.min(itemsToGenerateFinal.length, semDates.length);
           for (let i = 0; i < maxModules; i++) {
-              if (window.bulkAbortedMap?.[className]) {
+              if ((window as any).bulkAbortedMap?.[className]) {
                   setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}));
                   return;
               }
@@ -1703,6 +1814,7 @@ const App = () => {
               const allocation = atpItem.alokasiWaktu;
               const date = atpItem.planDate || formatDateLocal(new Date());
 
+              try {
                   const prompt = `
                       Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
                       Buatlah MODUL AJAR lengkap dan komprehensif.
@@ -1772,37 +1884,13 @@ const App = () => {
                   }
 
                   if (!success) {
-                      throw new Error(`Gagal memproses karena limit kuota API Gemini telah tercapai secara berturut-turut. Proses terhenti di modul ke-${i + 1}.`);
+                       throw new Error(`Gagal memproses setelah percobaan berulang: ${topic}`);
                   }
 
                   const html = response?.text || "<p>Gagal membuat konten.</p>";
 
-                  saveActivityLog({
-                      id: Date.now().toString() + Math.random().toString(36).substring(7),
-                      timestamp: new Date(),
-                      type: 'MODUL_AJAR',
-                      subject: data?.subject || '',
-                      details: `Modul Ajar: ${topic}`,
-                      dataSnapshot: {
-                          className: className,
-                          semester: semChoice,
-                          fase: data?.fase || '',
-                          subject: data?.subject || '',
-                          topic: topic,
-                          allocation: allocation,
-                          date: date,
-                          modelMethod: 'Pilih yang sesuai (PBL/PjBL/Inquiry)',
-                          resultContent: html,
-                          generatedImageUrl: null,
-                          components: {
-                              includeLKPD: true,
-                              includeMaterials: true,
-                              includeAssessment: true,
-                              generateImage: false,
-                          }
-                      },
-                      paperSizeSnapshot: 'A4'
-                  });
+                  collectedHtml += html + `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
+                  collectedModulesData.push({ topic, html });
 
                   setBulkGenerationStatus(prev => ({
                       ...prev,
@@ -1823,7 +1911,33 @@ const App = () => {
                        }));
                        await new Promise(res => setTimeout(res, nextDelay));
                   }
+              } catch (err: any) {
+                  console.error(`Error generating module ${i+1}: ${err}`);
+              }
           }
+
+          saveActivityLog({
+              id: Date.now().toString() + Math.random().toString(36).substring(7),
+              timestamp: new Date(),
+              type: 'MODUL_AJAR',
+              subject: data?.subject || '',
+              details: `Kumpulan Modul Ajar: ${className} (Semester ${semChoice})`,
+              dataSnapshot: {
+                  className: className,
+                  semester: semChoice,
+                  isBulk: true,
+                  combinedHtml: collectedHtml,
+                  modulesList: collectedModulesData,
+                  components: {
+                      includeLKPD: true,
+                      includeMaterials: true,
+                      includeAssessment: true,
+                      generateImage: false,
+                  }
+              },
+              paperSizeSnapshot: 'A4'
+          });
+
           alert('Berhasil membuat semua Modul Ajar untuk kelas ' + className + '. Silakan cek tab History.');
       } catch (err: any) {
           alert('Proses terhenti: ' + formatAIError(err) + '\n\nModul yang sudah berhasil dibuat dapat diunduh melalui tombol Unduh Semua Modul (Docx). Anda dapat mencobanya kembali nanti untuk menyelesaikan sisanya.');
@@ -1847,21 +1961,27 @@ const App = () => {
           return;
       }
 
-      // Re-sort them ascending by index/time (oldest to newest generated)
-      const chronologicalModules = [...classModules].reverse();
-
-      const size = PAPER_SIZES['A4'];
-      const footerText = `Kumpulan Modul Ajar - ${data?.subject || ''} - ${className} | Disusun oleh: ${userIdentity.authorName}`;
-
+      // Check if there's a bulk activity
+      const bulkActivity = classModules.find(a => a.dataSnapshot?.isBulk);
       let combinedHtml = '';
-      chronologicalModules.forEach((modActivity, index) => {
-          const modData = modActivity.dataSnapshot;
-          const html = modData.resultContent || modData.content || '<p>Tidak ada konten</p>';
-          combinedHtml += html;
-          if (index < chronologicalModules.length - 1) {
-              combinedHtml += `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
-          }
-      });
+      const size = PAPER_SIZES['A4'];
+
+      if (bulkActivity) {
+          combinedHtml = bulkActivity.dataSnapshot.combinedHtml;
+      } else {
+          // Re-sort them ascending by index/time (oldest to newest generated)
+          const chronologicalModules = [...classModules].reverse();
+          const footerText = `Kumpulan Modul Ajar - ${data?.subject || ''} - ${className} | Disusun oleh: ${userIdentity.authorName}`;
+
+          chronologicalModules.forEach((modActivity, index) => {
+              const modData = modActivity.dataSnapshot;
+              const html = modData.resultContent || modData.content || '<p>Tidak ada konten</p>';
+              combinedHtml += html;
+              if (index < chronologicalModules.length - 1) {
+                  combinedHtml += `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
+              }
+          });
+      }
 
       const htmlContent = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -2107,9 +2227,17 @@ const App = () => {
                 </p>
 
                 <form 
-                    onSubmit={(e) => {
+                    onSubmit={async (e) => {
                         e.preventDefault();
-                        const formData = new FormData(e.currentTarget);
+                        const form = e.currentTarget as HTMLFormElement;
+                        
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (err) {
+                            console.error("Failed to sign in anonymously. Firestore saving might not work.", err);
+                        }
+
+                        const formData = new FormData(form);
                         const email = formData.get('email') as string;
                         const name = formData.get('name') as string || email.split('@')[0];
                         
@@ -2828,7 +2956,69 @@ const App = () => {
                                 <p className="text-sm text-gray-600 truncate">{act.details}</p>
                             </div>
                             <div className="flex items-center justify-end gap-3 shrink-0">
-                                <button onClick={() => { setData(act.dataSnapshot); setCurrentView('generator'); }} className="text-blue-600 hover:text-blue-800 text-sm font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                                {act.type === 'MODUL_AJAR' && (
+                                    <>
+                                        <button onClick={() => {
+                                            const printWindow = window.open('', '_blank');
+                                            if (printWindow) {
+                                                const content = act.dataSnapshot.isBulk ? act.dataSnapshot.combinedHtml : act.dataSnapshot.resultContent;
+                                                printWindow.document.write(`
+                                                    <html>
+                                                        <head>
+                                                            <title>${act.subject} - ${act.dataSnapshot.isBulk ? 'Kumpulan Modul Ajar' : 'Modul Ajar'}</title>
+                                                            <style>
+                                                                @page { size: A4; margin: 20mm; }
+                                                                body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #333; }
+                                                                .content { width: 100%; }
+                                                                table { border-collapse: collapse; width: 100%; }
+                                                                td, th { border: 1px solid #000; padding: 5px; }
+                                                            </style>
+                                                        </head>
+                                                        <body>
+                                                            <div class="content">${content}</div>
+                                                            <script>
+                                                                window.onload = () => { window.print(); };
+                                                            </script>
+                                                        </body>
+                                                    </html>
+                                                `);
+                                                printWindow.document.close();
+                                            }
+                                        }} className="text-purple-600 hover:text-purple-800 text-sm font-medium bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors">
+                                            Preview {act.dataSnapshot.isBulk ? 'Semua' : 'PDF'}
+                                        </button>
+                                        <button onClick={() => {
+                                             const size = PAPER_SIZES['A4'];
+                                             const htmlContent = `
+                                              <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                                              <head>
+                                                <meta charset='utf-8'>
+                                                <title>Modul Ajar</title>
+                                                <style>
+                                                  @page { size: ${size.width} ${size.height}; mso-page-orientation: portrait; margin: 2.54cm; }
+                                                  body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; }
+                                                  table { border-collapse: collapse; width: 100%; }
+                                                  td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
+                                                </style>
+                                              </head>
+                                              <body>
+                                                ${act.dataSnapshot.isBulk ? act.dataSnapshot.combinedHtml : act.dataSnapshot.resultContent}
+                                              </body>
+                                              </html>`;
+                                              const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+                                              const url = URL.createObjectURL(blob);
+                                              const link = document.createElement('a');
+                                              link.href = url;
+                                              link.download = `Modul_Ajar_${act.subject.replace(/\s+/g, '_')}.doc`;
+                                              document.body.appendChild(link);
+                                              link.click();
+                                              document.body.removeChild(link);
+                                        }} className="text-green-600 hover:text-green-800 text-sm font-medium bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors">
+                                            Unduh Word
+                                        </button>
+                                    </>
+                                )}
+                                <button onClick={() => { setData(act.dataSnapshot); setCurrentView('generator'); }} className="text-blue-600 hover:blue-800 text-sm font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
                                     Pulihkan
                                 </button>
                                 <button onClick={() => deleteActivity(act.id)} className="text-gray-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Hapus Riwayat">
@@ -2959,7 +3149,7 @@ const App = () => {
                                             </button>
                                             {bulkGenerationStatus[className]?.active && (
                                                 <button 
-                                                    onClick={() => { window.bulkAbortedMap = { ...(window.bulkAbortedMap || {}), [className]: true }; setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}))}}
+                                                    onClick={() => { (window as any).bulkAbortedMap = { ...((window as any).bulkAbortedMap || {}), [className]: true }; setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}))}}
                                                     className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-red-700 transition-all border border-red-700 shadow-sm"
                                                 >
                                                     <X className="w-4 h-4" /> Batal
