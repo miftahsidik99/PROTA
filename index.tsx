@@ -967,10 +967,13 @@ const App = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && event.key === 'm') {
+      // Check for Ctrl+m or Ctrl+M
+      if (event.ctrlKey && event.key.toLowerCase() === 'm') {
+        event.preventDefault();
         setIsMaintenanceMode(false);
         localStorage.setItem('prota_maintenance_bypass', 'true');
-        alert("Mode Maintenance Dinonaktifkan.");
+        alert("Mode Maintenance Dinonaktifkan. Halaman akan dimuat ulang.");
+        window.location.reload(); 
       }
     };
     window.addEventListener('keydown', handleKeyDown);
