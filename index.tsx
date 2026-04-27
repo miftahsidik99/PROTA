@@ -786,7 +786,7 @@ Hasil akhir:
                 type: 'MODUL_AJAR',
                 subject: formData.subject,
                 details: `Modul Ajar: ${formData.topic}`,
-                dataSnapshot: { ...formData, content: html, generatedImages: imgData ? [imgData] : [] },
+                dataSnapshot: { ...formData, semester: userIdentity.semester, content: html, generatedImages: imgData ? [imgData] : [] },
                 paperSizeSnapshot: paperSize
             });
 
@@ -962,6 +962,7 @@ const App = () => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [analysisModal, setAnalysisModal] = useState<string | null>(null);
   const [bulkGenerationStatus, setBulkGenerationStatus] = useState<Record<string, { current: number, total: number, percent: number, active: boolean, statusText?: string }>>({});
+  const [pendingSemesterSelection, setPendingSemesterSelection] = useState<string | null>(null);
   
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(() => localStorage.getItem('prota_maintenance_bypass') !== 'true');
 
@@ -1625,12 +1626,9 @@ const App = () => {
                 }
                 if (slotCursor < timelineSlots.length) {
                     date = timelineSlots[slotCursor].date;
-                    jpVal = Math.min(2, remainingJPInCurrentSlot || 2);
-                    remainingJPInCurrentSlot -= jpVal;
-                    if (remainingJPInCurrentSlot <= 0) {
-                        slotCursor++;
-                        remainingJPInCurrentSlot = 0;
-                    }
+                    jpVal = remainingJPInCurrentSlot;
+                    slotCursor++;
+                    remainingJPInCurrentSlot = 0;
                 }
                 processedItems.push({
                      alur: `Pembelajaran: ${f.tp}`,
@@ -1658,84 +1656,53 @@ const App = () => {
     }
   };
 
-  const handleBulkGenerateModulForClass = async (className: string) => {
-      const itemsToGenerate: { el: ElementData, tp: string, atpItem: AtpItem }[] = [];
-      data?.elements?.forEach(el => {
-          const alloc = el.allocations?.find(a => {
-              const classWithoutSpaces = className.toLowerCase().replace(/\s+/g, '');
-              const allocWithoutSpaces = a.className.toLowerCase().replace(/\s+/g, '');
-              return allocWithoutSpaces === classWithoutSpaces ||
-                     allocWithoutSpaces.includes(classWithoutSpaces.replace('kelas', '')) ||
-                     classWithoutSpaces.includes(allocWithoutSpaces.replace('kelas', '')) ||
-                     a.className.toLowerCase().includes(className.toLowerCase().replace('kelas ', ''));
-          });
-          if (!alloc) return;
-          const groups = alloc.structuredAtp || [];
-          groups.forEach(grp => {
-              grp.atpItems?.forEach(item => {
-                  if (item && item.alur) {
-                      itemsToGenerate.push({ el, tp: grp.tp, atpItem: item });
-                  }
-              });
-          });
-      });
+  const handleBulkGenerateModulForClass = (className: string) => {
+      setPendingSemesterSelection(className);
+  };
 
-      if (itemsToGenerate.length === 0) {
-          alert('Tidak ada ATP yang sudah digenerate untuk kelas ini.');
-          return;
-      }
-
-      const semChoice = prompt("Pilih Semester untuk Modul Ajar:\n1: Semester 1 (Juli-Desember)\n2: Semester 2 (Januari-Juni)");
-      if (!semChoice || (semChoice !== '1' && semChoice !== '2')) return;
-      
-      const filteredItems = itemsToGenerate.filter(item => {
-          const itemDate = new Date(item.atpItem.planDate || new Date());
-          const month = itemDate.getMonth() + 1; // 1-12
+  const runBulkGeneration = async (className: string, semChoice: '1' | '2') => {
+      const allDates = getEffectiveDates(className);
+      const semDates = allDates.filter(d => {
+          const month = d.date.getMonth() + 1;
           if (semChoice === '1') return month >= 7 && month <= 12;
           return month >= 1 && month <= 6;
       });
 
-      if (filteredItems.length === 0) {
-          alert(`Tidak ada Modul Ajar untuk Semester ${semChoice}.`);
+      if (semDates.length === 0) {
+          alert(`Tidak ada hari efektif untuk Semester ${semChoice}.`);
           return;
       }
-      
-      const itemsToGenerateFinal = filteredItems;
 
       setBulkGenerationStatus(prev => ({
           ...prev,
-          [className]: { current: 0, total: itemsToGenerateFinal.length, percent: 0, active: true, statusText: "Memulai proses..." }
+          [className]: { current: 0, total: semDates.length, percent: 0, active: true, statusText: "Memulai proses..." }
       }));
+
+      // Ensure that cancellation flag is reset for this class
+      window.bulkAbortedMap = { ...(window.bulkAbortedMap || {}), [className]: false };
 
       try {
           const apiKey = getApiKey();
           if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
           const ai = new GoogleGenAI({ apiKey });
 
-          for (let i = 0; i < itemsToGenerateFinal.length; i++) {
+          const maxModules = Math.min(itemsToGenerateFinal.length, semDates.length);
+          for (let i = 0; i < maxModules; i++) {
+              if (window.bulkAbortedMap?.[className]) {
+                  setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}));
+                  return;
+              }
+              
               setBulkGenerationStatus(prev => ({
                   ...prev,
-                  [className]: { ...prev[className], statusText: `Memproses modul ${i + 1} dari ${itemsToGenerateFinal.length}...` }
+                  [className]: { ...prev[className], statusText: `Memproses modul ${i + 1} dari ${maxModules}...` }
               }));
 
-              // Ensure component isn't unmounted or user hasn't tried to exit
               const { el, tp, atpItem } = itemsToGenerateFinal[i];
               const topic = atpItem.alur;
               const allocation = atpItem.alokasiWaktu;
               const date = atpItem.planDate || formatDateLocal(new Date());
 
-              // REUSE CHECK
-              const existingActivity = activities.find(a =>
-                  a.type === 'MODUL_AJAR' &&
-                  a.dataSnapshot?.className === className &&
-                  a.dataSnapshot?.topic === topic
-              );
-              
-              let html;
-              
-              if (existingActivity) {
-                  html = existingActivity.dataSnapshot.resultContent;
-              } else {
                   const prompt = `
                       Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
                       Buatlah MODUL AJAR lengkap dan komprehensif.
@@ -1808,7 +1775,7 @@ const App = () => {
                       throw new Error(`Gagal memproses karena limit kuota API Gemini telah tercapai secara berturut-turut. Proses terhenti di modul ke-${i + 1}.`);
                   }
 
-                  html = response?.text || "<p>Gagal membuat konten.</p>";
+                  const html = response?.text || "<p>Gagal membuat konten.</p>";
 
                   saveActivityLog({
                       id: Date.now().toString() + Math.random().toString(36).substring(7),
@@ -1818,6 +1785,7 @@ const App = () => {
                       details: `Modul Ajar: ${topic}`,
                       dataSnapshot: {
                           className: className,
+                          semester: semChoice,
                           fase: data?.fase || '',
                           subject: data?.subject || '',
                           topic: topic,
@@ -1835,29 +1803,27 @@ const App = () => {
                       },
                       paperSizeSnapshot: 'A4'
                   });
-              }
 
-              setBulkGenerationStatus(prev => ({
-                  ...prev,
-                  [className]: { 
-                      current: i + 1, 
-                      total: itemsToGenerateFinal.length, 
-                      percent: Math.round(((i + 1) / itemsToGenerateFinal.length) * 100), 
-                      active: true,
-                      statusText: `Modul ${i + 1} selesai. Menjeda untuk modul berikutnya...`
+                  setBulkGenerationStatus(prev => ({
+                      ...prev,
+                      [className]: { 
+                          current: i + 1, 
+                          total: itemsToGenerateFinal.length, 
+                          percent: Math.round(((i + 1) / itemsToGenerateFinal.length) * 100), 
+                          active: true,
+                          statusText: `Modul ${i + 1} selesai. Menjeda untuk modul berikutnya...`
+                      }
+                  }));
+                  
+                  const nextDelay = isRateLimited ? 60000 : 20000;
+                  if (i < itemsToGenerateFinal.length - 1) {
+                       setBulkGenerationStatus(prev => ({
+                           ...prev,
+                           [className]: { ...prev[className], statusText: `Modul selesai. Menyiapkan modul berikutnya dalam ${nextDelay/1000} detik...` }
+                       }));
+                       await new Promise(res => setTimeout(res, nextDelay));
                   }
-              }));
-              
-              const nextDelay = isRateLimited ? 60000 : 20000;
-              if (i < itemsToGenerateFinal.length - 1) {
-                   setBulkGenerationStatus(prev => ({
-                       ...prev,
-                       [className]: { ...prev[className], statusText: `Modul selesai. Menyiapkan modul berikutnya dalam ${nextDelay/1000} detik...` }
-                   }));
-                   await new Promise(res => setTimeout(res, nextDelay));
-              }
           }
-
           alert('Berhasil membuat semua Modul Ajar untuk kelas ' + className + '. Silakan cek tab History.');
       } catch (err: any) {
           alert('Proses terhenti: ' + formatAIError(err) + '\n\nModul yang sudah berhasil dibuat dapat diunduh melalui tombol Unduh Semua Modul (Docx). Anda dapat mencobanya kembali nanti untuk menyelesaikan sisanya.');
@@ -1869,14 +1835,15 @@ const App = () => {
       }
   };
 
-  const handleDownloadAllModulForClass = (className: string) => {
+  const handleDownloadAllModulForClass = (className: string, semester: '1' | '2') => {
       const classModules = activities.filter(a => 
           a.type === 'MODUL_AJAR' && 
-          (a.dataSnapshot?.className === className || a.details.includes(className))
+          (a.dataSnapshot?.className === className || a.details.includes(className)) &&
+          (a.dataSnapshot?.semester || '1') === semester
       );
 
       if (classModules.length === 0) {
-          alert('Belum ada Modul Ajar yang di-generate untuk kelas ini dalam riwayat aktivitas.');
+          alert(`Belum ada Modul Ajar Semester ${semester} yang di-generate untuk kelas ini dalam riwayat aktivitas.`);
           return;
       }
 
@@ -2664,6 +2631,44 @@ const App = () => {
           </div>
       )}
 
+      {/* Semester Selection Modal */}
+      {pendingSemesterSelection && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Pilih Semester</h3>
+            <p className="text-sm text-gray-600 mb-6 text-center">Pilih semester untuk menghasilkan modul ajar sesuai dengan rencana tanggal di Prota.</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  const className = pendingSemesterSelection;
+                  setPendingSemesterSelection(null);
+                  runBulkGeneration(className, '1');
+                }}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-md transform hover:scale-[1.02] transition-all"
+              >
+                Semester 1
+              </button>
+              <button 
+                onClick={() => {
+                  const className = pendingSemesterSelection;
+                  setPendingSemesterSelection(null);
+                  runBulkGeneration(className, '2');
+                }}
+                className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-md transform hover:scale-[1.02] transition-all"
+              >
+                Semester 2
+              </button>
+              <button 
+                onClick={() => setPendingSemesterSelection(null)}
+                className="w-full py-2 text-gray-500 hover:text-gray-700 font-medium text-sm mt-2"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Analysis Modal */}
       {analysisModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -2952,15 +2957,35 @@ const App = () => {
                                                 {bulkGenerationStatus[className]?.active ? <Loader2 className="animate-spin w-4 h-4" /> : <FilePlus className="w-4 h-4" />} 
                                                 {bulkGenerationStatus[className]?.active ? 'Sedang Membuat Modul...' : '3. Buat Semua Modul Ajar Sekaligus'}
                                             </button>
+                                            {bulkGenerationStatus[className]?.active && (
+                                                <button 
+                                                    onClick={() => { window.bulkAbortedMap = { ...(window.bulkAbortedMap || {}), [className]: true }; setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}))}}
+                                                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-red-700 transition-all border border-red-700 shadow-sm"
+                                                >
+                                                    <X className="w-4 h-4" /> Batal
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                     {activities.some(a => a.type === 'MODUL_AJAR' && (a.dataSnapshot?.className === className || a.details.includes(className))) && (
-                                        <button 
-                                            onClick={() => handleDownloadAllModulForClass(className)} 
-                                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all border border-indigo-700 shadow-sm"
-                                        >
-                                            <Download className="w-4 h-4" /> Unduh Semua Modul (Docx)
-                                        </button>
+                                        <div className="flex flex-col gap-2">
+                                            {activities.filter(a => a.type === 'MODUL_AJAR' && a.dataSnapshot?.className === className && a.dataSnapshot?.semester === '1').length > 0 && (
+                                                <button 
+                                                    onClick={() => handleDownloadAllModulForClass(className, '1')} 
+                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all border border-indigo-700 shadow-sm"
+                                                >
+                                                    <Download className="w-4 h-4" /> Unduh Modul Sem 1
+                                                </button>
+                                            )}
+                                            {activities.filter(a => a.type === 'MODUL_AJAR' && a.dataSnapshot?.className === className && a.dataSnapshot?.semester === '2').length > 0 && (
+                                                <button 
+                                                    onClick={() => handleDownloadAllModulForClass(className, '2')} 
+                                                    className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-sky-700 transition-all border border-sky-700 shadow-sm"
+                                                >
+                                                    <Download className="w-4 h-4" /> Unduh Modul Sem 2
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </div>
