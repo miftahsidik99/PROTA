@@ -7,6 +7,9 @@ import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, 
 // --- API Key Helper ---
 const getApiKey = (): string => {
   try {
+      const customKey = localStorage.getItem('prota_custom_api_key');
+      if (customKey) return customKey;
+      
       // @ts-ignore
       if (typeof import.meta !== 'undefined' && import.meta.env) {
           // @ts-ignore
@@ -31,16 +34,16 @@ const getApiKey = (): string => {
 
 // --- Error Helper ---
 const formatAIError = (err: any): string => {
-    const msg = err?.message || String(err);
+    const errorString = JSON.stringify(err) + (err?.message || String(err)) + (err?.error?.status || '');
     if (
-        msg.includes('429') || 
-        msg.toLowerCase().includes('quota') || 
-        msg.includes('RESOURCE_EXHAUSTED') ||
-        msg.toLowerCase().includes('rate limit')
+        errorString.includes('429') || 
+        errorString.toLowerCase().includes('quota') || 
+        errorString.includes('RESOURCE_EXHAUSTED') ||
+        errorString.toLowerCase().includes('rate limit')
     ) {
-        return "Mohon maaf Server penuh Karena teralu banyak pengguna aplikasi Coba gunakan Aplikasi ini Beberapa saat Lagi";
+        return "Limit API Google Gemini telah tercapai. Jika ini limit per menit, mohon tunggu 1-2 menit sebelum mencoba lagi. Jika jatah harian habis, limit akan di-reset besok (sekitar pk 14.00/15.00 WIB).";
     }
-    return msg;
+    return err?.message || String(err);
 };
 
 // --- Date Helpers ---
@@ -650,7 +653,7 @@ const ModulAjarGenerator = ({
             }
 
         } catch (e: any) {
-            alert("Gagal mendapatkan rekomendasi: " + e.message);
+            alert("Gagal mendapatkan rekomendasi: " + formatAIError(e));
         } finally {
             setRecLoading(false);
         }
@@ -667,7 +670,9 @@ const ModulAjarGenerator = ({
             const prompt = `
                 Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
                 Buatlah MODUL AJAR lengkap dan komprehensif.
-                SANGAT PENTING: Modul Ajar harus secara eksplisit mengintegrasikan 3 prinsip utama yaitu Mindful Learning (Pembelajaran Berkesadaran Penuh), Joyful Learning (Pembelajaran Menyenangkan/Sukacita), dan Meaningful Learning (Pembelajaran Bermakna) pada setiap tahapan kegiatan.
+                SANGAT PENTING: 
+                - Modul Ajar harus secara eksplisit mengintegrasikan 3 prinsip utama BSKAP 032 HKR 2025 yaitu Mindful Learning (Pembelajaran Berkesadaran Penuh), Joyful Learning (Pembelajaran Menyenangkan/Sukacita), dan Meaningful Learning (Pembelajaran Bermakna) pada setiap tahapan kegiatan.
+                - Gunakan pendekatan/model pembelajaran yang paling sesuai, bervariasi, dan direkomendasikan berdasarkan tingkat SD Kelas ${formData.className} dan Fase ${formData.fase}. Jangan hanya terpaku pada satu model.
                 
                 INFORMASI UMUM:
                 - Penyusun: ${userIdentity.authorName}
@@ -677,19 +682,23 @@ const ModulAjarGenerator = ({
                 - Alokasi Waktu: ${formData.allocation}
                 - Tanggal: ${formData.date}
                 - Topik/Materi: ${formData.topic}
-                - Model Pembelajaran: ${formData.modelMethod || 'Pilih yang sesuai (PBL/PjBL/Inquiry)'}
+                - Model/Pendekatan Pembelajaran: (Tentukan/Pilihkan model yang paling tepat lalu tuliskan)
+                
                 KOMPONEN INTI:
                 - Capaian Pembelajaran (CP): ${context.cp}
                 - Tujuan Pembelajaran (TP): ${context.tp}
                 - Pemahaman Bermakna
                 - Pertanyaan Pemantik
-                - Kegiatan Pembelajaran (Pendahuluan, Inti, Penutup)
+                - Kegiatan Pembelajaran (Pendahuluan, Inti, Penutup) terpadu dengan 3 prinsip di atas.
+                
                 LAMPIRAN (Sajikan dalam format tabel HTML modern jika memungkinkan):
-                ${formData.components.includeMaterials ? '- Materi Ajar (Ringkasan)' : ''}
+                ${formData.components.includeMaterials ? '- Materi Ajar (Ringkasan/Bahan Ajar)' : ''}
                 ${formData.components.includeLKPD ? '- Lembar Kerja Peserta Didik (LKPD) - Buatkan instruksi detail.' : ''}
                 ${formData.components.includeAssessment ? '- Instrumen Penilaian (Rubrik/Soal)' : ''}
+                - Jurnal Mengajar/Sikap (Disajikan dalam bentuk tabel format pengisian).
+                
                 OUTPUT FORMAT:
-                Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black).
+                Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black, width: 100%).
                 Gunakan tag <h3> untuk judul bagian.
             `;
 
@@ -704,7 +713,35 @@ const ModulAjarGenerator = ({
             let imgData = null;
             if (formData.components.generateImage) {
                 try {
-                    const imgPrompt = `Ilustrasi edukatif untuk materi pelajaran SD: ${formData.topic}. Gaya kartun ramah anak, berwarna cerah, jelas.`;
+                    const imgPrompt = `Buatkan gambar lampiran visual modul ajar LKPD untuk materi pembelajaran SD.
+
+Topik: "${formData.topic}"
+Capaian Pembelajaran: "${context.cp}"
+Tujuan Pembelajaran: "${context.tp}"
+
+Gaya visual:
+- ilustrasi edukatif, rapi, bersih, ramah anak/sekolah
+- warna cerah namun tetap profesional
+- detail cukup, tidak berlebihan
+- komposisi seimbang dan mudah dipahami
+- cocok untuk dicetak di lembar kerja siswa (LKPD)
+
+Isi visual utama:
+- tampilkan tokoh/objek utama yang sedang melakukan aktivitas Lembar Kerja (LKPD) sesuai dengan Topik dan Tujuan Pembelajaran di atas.
+- sertakan latar/tempat yang relevan dengan skenario pembelajaran.
+- bila perlu tambahkan elemen pendukung seperti alat, buku, papan tulis, angka, simbol, tanaman, atau alat peraga yang relevan dengan Tujuan Pembelajaran.
+
+Ketentuan penting:
+- PENTING: DILARANG keras menampilkan tulisan, kata-kata, huruf alfabet, huruf Arab/hijaiyah, angka, atau teks apa pun di dalam gambar (ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS).
+- gambar harus sesuai dengan konteks LKPD dan topik.
+- jangan menampilkan elemen yang tidak ada hubungannya dengan materi
+- jangan terlalu ramai
+- gunakan sudut pandang yang mudah dipahami siswa
+
+Hasil akhir:
+- ilustrasi resolusi tinggi
+- format horizontal
+- terlihat seperti gambar untuk lampiran lembar kerja peserta didik formal`;
                     let imgResponse;
                     try {
                         imgResponse = await ai.models.generateContent({
@@ -755,7 +792,7 @@ const ModulAjarGenerator = ({
 
         } catch (e: any) {
             console.error(e);
-            alert("Gagal: " + e.message);
+            alert("Gagal: " + formatAIError(e));
         } finally {
             setLoading(false);
         }
@@ -903,6 +940,7 @@ interface UserIdentity {
     institutionName: string;
     academicYear: string;
     semester: string;
+    customApiKey?: string;
 }
 
 const App = () => {
@@ -923,12 +961,39 @@ const App = () => {
   const [showJpReference, setShowJpReference] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [analysisModal, setAnalysisModal] = useState<string | null>(null);
+  const [bulkGenerationStatus, setBulkGenerationStatus] = useState<Record<string, { current: number, total: number, percent: number, active: boolean, statusText?: string }>>({});
+  
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(() => localStorage.getItem('prota_maintenance_bypass') !== 'true');
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key === 'm') {
+        setIsMaintenanceMode(false);
+        localStorage.setItem('prota_maintenance_bypass', 'true');
+        alert("Mode Maintenance Dinonaktifkan.");
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  if (isMaintenanceMode) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen w-full bg-gray-50 text-center p-6 bg-gradient-to-b from-blue-50 to-white">
+          <div className="bg-white p-8 rounded-2xl shadow-xl ring-1 ring-gray-200 max-w-md">
+             <h1 className="text-3xl font-bold text-gray-800 mb-4">Mohon maaf sistem sedang dalam perbaikan</h1>
+             <p className="text-gray-600">Terima kasih atas kesabaran Anda.</p>
+          </div>
+        </div>
+      );
+  }
   
   const [userIdentity, setUserIdentity] = useState<UserIdentity>(() => ({
       authorName: localStorage.getItem('prota_author_name') || '',
       institutionName: localStorage.getItem('prota_institution_name') || '',
       academicYear: localStorage.getItem('prota_academic_year') || '',
-      semester: localStorage.getItem('prota_semester') || ''
+      semester: localStorage.getItem('prota_semester') || '',
+      customApiKey: localStorage.getItem('prota_custom_api_key') || ''
   }));
 
   // Schedules & Config
@@ -1248,7 +1313,10 @@ const App = () => {
                   items: {
                     type: Type.OBJECT,
                     properties: {
-                      className: { type: Type.STRING },
+                      className: { 
+                        type: Type.STRING,
+                        description: `Nama kelas, HARUS persis salah satu dari: ${selectedFase.classes.join(" atau ")}`
+                      },
                       tujuanPembelajaran: { 
                         type: Type.ARRAY, 
                         items: { type: Type.STRING },
@@ -1273,7 +1341,7 @@ const App = () => {
         Instruksi: 
         1. Tuliskan deskripsi singkat mata pelajaran.
         2. Tuliskan Elemen dan CP terbaru. 
-        3. Pecah CP menjadi Tujuan Pembelajaran (TP) spesifik untuk setiap kelas (${selectedFase.classes.join(" dan ")}).
+        3. Pecah CP menjadi Tujuan Pembelajaran (TP) pembelajaran yang spesifik, aplikatif, dan terukur untuk setiap kelas yang diminta (${selectedFase.classes.join(" dan ")}). Anda WAJIB memberikan minimal 2 Tujuan Pembelajaran (TP) untuk setiap kelas dalam array 'tujuanPembelajaran'. JANGAN PERNAH mengosongkan array 'tujuanPembelajaran'.
         4. Pastikan output sesuai dengan skema JSON yang diminta, dengan array 'elements' yang berisi 'allocations' untuk setiap kelas.
       `;
 
@@ -1379,8 +1447,25 @@ const App = () => {
                 // Flexible matching for class names
                 const normalizedAllocClass = alloc.className.toLowerCase().replace(/\s+/g, '');
                 const normalizedTargetClass = className.toLowerCase().replace(/\s+/g, '');
+                const hasRomawi = (idx: string, text: string) => {
+                   const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi'];
+                   const numMatch = text.match(/\d/);
+                   if (numMatch) {
+                       const num = parseInt(numMatch[0]);
+                       return text.replace(num.toString(), r[num-1] || num.toString());
+                   }
+                   return text;
+                };
                 
-                if (normalizedAllocClass === normalizedTargetClass) {
+                const classWithoutSpaces = className.toLowerCase().replace(/\s+/g, ''); // "kelas1"
+                const allocWithoutSpaces = alloc.className.toLowerCase().replace(/\s+/g, '');
+
+                if (
+                    allocWithoutSpaces === classWithoutSpaces ||
+                    allocWithoutSpaces.includes(classWithoutSpaces.replace('kelas', '')) ||
+                    classWithoutSpaces.includes(allocWithoutSpaces.replace('kelas', '')) ||
+                    alloc.className.toLowerCase().includes(className.toLowerCase().replace('kelas ', ''))
+                ) {
                     (alloc.tujuanPembelajaran || []).forEach((tp, tpIdx) => {
                         flatTPs.push({
                             id: tpCounter++,
@@ -1397,7 +1482,10 @@ const App = () => {
         console.log(`Flat TPs found: ${flatTPs.length}`);
 
         if (flatTPs.length === 0) {
-            throw new Error(`Data Tujuan Pembelajaran (TP) untuk ${className} tidak ditemukan dalam hasil analisis CP & TP. Pastikan langkah 1 sudah selesai dengan benar.`);
+            const availableClasses = Array.from(new Set(
+                (data.elements || []).flatMap(el => (el.allocations || []).map(a => a.className))
+            )).join(', ');
+            throw new Error(`Data Tujuan Pembelajaran (TP) untuk ${className} tidak ditemukan dalam hasil analisis CP & TP. Kelas yang tersedia dari hasil AI: ${availableClasses}. Pastikan langkah 1 (Genearte CP & TP) menghasilkan data untuk kelas ini.`);
         }
 
         const prompt = `
@@ -1565,6 +1653,284 @@ const App = () => {
     } finally {
         setAtpLoading(null);
     }
+  };
+
+  const handleBulkGenerateModulForClass = async (className: string) => {
+      const itemsToGenerate: { el: ElementData, tp: string, atpItem: AtpItem }[] = [];
+      data?.elements?.forEach(el => {
+          const alloc = el.allocations?.find(a => {
+              const classWithoutSpaces = className.toLowerCase().replace(/\s+/g, '');
+              const allocWithoutSpaces = a.className.toLowerCase().replace(/\s+/g, '');
+              return allocWithoutSpaces === classWithoutSpaces ||
+                     allocWithoutSpaces.includes(classWithoutSpaces.replace('kelas', '')) ||
+                     classWithoutSpaces.includes(allocWithoutSpaces.replace('kelas', '')) ||
+                     a.className.toLowerCase().includes(className.toLowerCase().replace('kelas ', ''));
+          });
+          if (!alloc) return;
+          const groups = alloc.structuredAtp || [];
+          groups.forEach(grp => {
+              grp.atpItems?.forEach(item => {
+                  if (item && item.alur) {
+                      itemsToGenerate.push({ el, tp: grp.tp, atpItem: item });
+                  }
+              });
+          });
+      });
+
+      if (itemsToGenerate.length === 0) {
+          alert('Tidak ada ATP yang sudah digenerate untuk kelas ini.');
+          return;
+      }
+
+      const semChoice = prompt("Pilih Semester untuk Modul Ajar:\n1: Semester 1 (Juli-Desember)\n2: Semester 2 (Januari-Juni)");
+      if (!semChoice || (semChoice !== '1' && semChoice !== '2')) return;
+      
+      const filteredItems = itemsToGenerate.filter(item => {
+          const itemDate = new Date(item.atpItem.planDate || new Date());
+          const month = itemDate.getMonth() + 1; // 1-12
+          if (semChoice === '1') return month >= 7 && month <= 12;
+          return month >= 1 && month <= 6;
+      });
+
+      if (filteredItems.length === 0) {
+          alert(`Tidak ada Modul Ajar untuk Semester ${semChoice}.`);
+          return;
+      }
+      
+      const itemsToGenerateFinal = filteredItems;
+
+      setBulkGenerationStatus(prev => ({
+          ...prev,
+          [className]: { current: 0, total: itemsToGenerateFinal.length, percent: 0, active: true, statusText: "Memulai proses..." }
+      }));
+
+      try {
+          const apiKey = getApiKey();
+          if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
+          const ai = new GoogleGenAI({ apiKey });
+
+          for (let i = 0; i < itemsToGenerateFinal.length; i++) {
+              setBulkGenerationStatus(prev => ({
+                  ...prev,
+                  [className]: { ...prev[className], statusText: `Memproses modul ${i + 1} dari ${itemsToGenerateFinal.length}...` }
+              }));
+
+              // Ensure component isn't unmounted or user hasn't tried to exit
+              const { el, tp, atpItem } = itemsToGenerateFinal[i];
+              const topic = atpItem.alur;
+              const allocation = atpItem.alokasiWaktu;
+              const date = atpItem.planDate || formatDateLocal(new Date());
+
+              // REUSE CHECK
+              const existingActivity = activities.find(a =>
+                  a.type === 'MODUL_AJAR' &&
+                  a.dataSnapshot?.className === className &&
+                  a.dataSnapshot?.topic === topic
+              );
+              
+              let html;
+              
+              if (existingActivity) {
+                  html = existingActivity.dataSnapshot.resultContent;
+              } else {
+                  const prompt = `
+                      Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
+                      Buatlah MODUL AJAR lengkap dan komprehensif.
+                      SANGAT PENTING: 
+                      - Modul Ajar harus secara eksplisit mengintegrasikan 3 prinsip utama BSKAP 032 HKR 2025 yaitu Mindful Learning (Pembelajaran Berkesadaran Penuh), Joyful Learning (Pembelajaran Menyenangkan/Sukacita), dan Meaningful Learning (Pembelajaran Bermakna) pada setiap tahapan kegiatan.
+                      - Gunakan pendekatan/model pembelajaran yang paling sesuai, bervariasi, dan direkomendasikan berdasarkan tingkat Kelas ${className} dan Fase ${data?.fase} (Misalnya: TaRL, CRT, PjBL, PBL, dll). Jangan hanya terpaku pada satu model.
+                      
+                      INFORMASI UMUM:
+                      - Penyusun: ${userIdentity.authorName}
+                      - Instansi: ${userIdentity.institutionName}
+                      - Jenjang/Kelas: SD / ${className} (${data?.fase})
+                      - Mapel: ${data?.subject}
+                      - Alokasi Waktu: ${allocation}
+                      - Tanggal: ${date}
+                      - Topik/Materi: ${topic}
+                      - Model/Pendekatan Pembelajaran: (Pilihkan satu yang paling tepat dan sebutkan)
+                      
+                      KOMPONEN INTI:
+                      - Capaian Pembelajaran (CP): ${el.capaianPembelajaran}
+                      - Tujuan Pembelajaran (TP): ${tp}
+                      - Pemahaman Bermakna
+                      - Pertanyaan Pemantik
+                      - Kegiatan Pembelajaran (Pendahuluan, Inti, Penutup) terpadu dengan 3 prinsip di atas.
+                      
+                      LAMPIRAN (Sajikan dalam format tabel HTML modern jika memungkinkan):
+                      - Materi Ajar (Ringkasan/Bahan Ajar)
+                      - Lembar Kerja Peserta Didik (LKPD) - Buatkan instruksi detail.
+                      - Instrumen Penilaian (Rubrik/Soal)
+                      - Jurnal Mengajar/Sikap (Disajikan dalam bentuk tabel format pengisian).
+                      
+                      OUTPUT FORMAT:
+                      Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black, width: 100%).
+                      Gunakan tag <h3> untuk judul bagian.
+                  `;
+
+                  let response;
+                  let retries = 6;
+                  let success = false;
+                  let delayMs = 20000;
+                  let isRateLimited = false;
+                  
+                  while (retries > 0 && !success) {
+                      try {
+                          response = await ai.models.generateContent({
+                              model: 'gemini-3-flash-preview',
+                              contents: prompt,
+                          });
+                          success = true;
+                      } catch (e: any) {
+                          const errorString = JSON.stringify(e) + (e?.message || String(e)) + (e?.error?.status || '');
+                          const isRateLimit = errorString.includes('429') || errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('rate limit') || errorString.includes('RESOURCE_EXHAUSTED');
+                          if (isRateLimit && retries > 1) {
+                              isRateLimited = true;
+                              let waitTime = Math.max(delayMs, 60000);
+                              console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s... (${retries - 1} retries left)`);
+                              setBulkGenerationStatus(prev => ({
+                                  ...prev,
+                                  [className]: { ...prev[className], statusText: `Mencegah limit server. Jeda pendinginan ${waitTime / 1000} detik... (${retries - 1} percobaan tersisa)` }
+                              }));
+                              await new Promise(res => setTimeout(res, waitTime));
+                              delayMs = waitTime + 15000;
+                              retries--;
+                          } else {
+                              throw e;
+                          }
+                      }
+                  }
+
+                  if (!success) {
+                      throw new Error(`Gagal memproses karena limit kuota API Gemini telah tercapai secara berturut-turut. Proses terhenti di modul ke-${i + 1}.`);
+                  }
+
+                  html = response?.text || "<p>Gagal membuat konten.</p>";
+
+                  saveActivityLog({
+                      id: Date.now().toString() + Math.random().toString(36).substring(7),
+                      timestamp: new Date(),
+                      type: 'MODUL_AJAR',
+                      subject: data?.subject || '',
+                      details: `Modul Ajar: ${topic}`,
+                      dataSnapshot: {
+                          className: className,
+                          fase: data?.fase || '',
+                          subject: data?.subject || '',
+                          topic: topic,
+                          allocation: allocation,
+                          date: date,
+                          modelMethod: 'Pilih yang sesuai (PBL/PjBL/Inquiry)',
+                          resultContent: html,
+                          generatedImageUrl: null,
+                          components: {
+                              includeLKPD: true,
+                              includeMaterials: true,
+                              includeAssessment: true,
+                              generateImage: false,
+                          }
+                      },
+                      paperSizeSnapshot: 'A4'
+                  });
+              }
+
+              setBulkGenerationStatus(prev => ({
+                  ...prev,
+                  [className]: { 
+                      current: i + 1, 
+                      total: itemsToGenerateFinal.length, 
+                      percent: Math.round(((i + 1) / itemsToGenerateFinal.length) * 100), 
+                      active: true,
+                      statusText: `Modul ${i + 1} selesai. Menjeda untuk modul berikutnya...`
+                  }
+              }));
+              
+              const nextDelay = isRateLimited ? 60000 : 20000;
+              if (i < itemsToGenerateFinal.length - 1) {
+                   setBulkGenerationStatus(prev => ({
+                       ...prev,
+                       [className]: { ...prev[className], statusText: `Modul selesai. Menyiapkan modul berikutnya dalam ${nextDelay/1000} detik...` }
+                   }));
+                   await new Promise(res => setTimeout(res, nextDelay));
+              }
+          }
+
+          alert('Berhasil membuat semua Modul Ajar untuk kelas ' + className + '. Silakan cek tab History.');
+      } catch (err: any) {
+          alert('Proses terhenti: ' + formatAIError(err) + '\n\nModul yang sudah berhasil dibuat dapat diunduh melalui tombol Unduh Semua Modul (Docx). Anda dapat mencobanya kembali nanti untuk menyelesaikan sisanya.');
+      } finally {
+          setBulkGenerationStatus(prev => ({
+              ...prev,
+              [className]: { ...prev[className], percent: 100, active: false, statusText: "" }
+          }));
+      }
+  };
+
+  const handleDownloadAllModulForClass = (className: string) => {
+      const classModules = activities.filter(a => 
+          a.type === 'MODUL_AJAR' && 
+          (a.dataSnapshot?.className === className || a.details.includes(className))
+      );
+
+      if (classModules.length === 0) {
+          alert('Belum ada Modul Ajar yang di-generate untuk kelas ini dalam riwayat aktivitas.');
+          return;
+      }
+
+      // Re-sort them ascending by index/time (oldest to newest generated)
+      const chronologicalModules = [...classModules].reverse();
+
+      const size = PAPER_SIZES['A4'];
+      const footerText = `Kumpulan Modul Ajar - ${data?.subject || ''} - ${className} | Disusun oleh: ${userIdentity.authorName}`;
+
+      let combinedHtml = '';
+      chronologicalModules.forEach((modActivity, index) => {
+          const modData = modActivity.dataSnapshot;
+          const html = modData.resultContent || modData.content || '<p>Tidak ada konten</p>';
+          combinedHtml += html;
+          if (index < chronologicalModules.length - 1) {
+              combinedHtml += `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
+          }
+      });
+
+      const htmlContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>Kumpulan Modul Ajar ${className}</title>
+          <style>
+            @page { size: ${size.width} ${size.height}; mso-page-orientation: portrait; margin: 2.54cm; mso-page-footer: f1; }
+            div.f1 { margin-bottom: 20pt; font-size: 9pt; text-align: right; color: #666; border-top: 1px solid #ccc; padding-top: 5pt; }
+            body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; }
+            table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
+            td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
+            img { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ddd; }
+          </style>
+        </head>
+        <body>
+          <div style="text-align: center; margin-bottom: 20pt;">
+              <h2 style="margin: 0;">KUMPULAN MODUL AJAR KURIKULUM MERDEKA</h2>
+              <h3 style="margin: 5pt 0;">${userIdentity.institutionName.toUpperCase()}</h3>
+              <p style="margin: 0;">Mata Pelajaran: <b>${data?.subject || '-'}</b></p>
+              <p style="margin: 0;">Kelas: <b>${className}</b></p>
+          </div>
+          <hr/><br/>
+          ${combinedHtml}
+          <div style='mso-element:footer' id='f1'><div class='f1'>${footerText} - Halaman <span style='mso-field-code:" PAGE "'></span></div></div>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(['\ufeff', htmlContent], {
+          type: 'application/msword'
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Semua_Modul_Ajar_${(data?.subject || 'Mapel').replace(/\s+/g, '_')}_${className.replace(/\s+/g, '_')}.doc`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   const handleUpdateDate = (className: string, elIdx: number, allocIdx: number, grpIdx: number, itemIdx: number, date: string) => {
@@ -2127,15 +2493,27 @@ const App = () => {
                             />
                         </div>
                     </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">API Key Gemini Opsional <span className="text-xs text-slate-400 font-normal italic">(Diperlukan jika terkena limit Quota)</span></label>
+                        <input 
+                            type="password" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                            placeholder="AIzaSy..."
+                            value={userIdentity.customApiKey || ''}
+                            onChange={(e) => setUserIdentity(prev => ({...prev, customApiKey: e.target.value}))}
+                        />
+                        <p className="text-xs text-slate-500 mt-2">Dapatkan API Key gratis di <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Google AI Studio</a>.</p>
+                    </div>
                     
                     <div className="flex gap-3 pt-4">
                         <button 
                             onClick={() => {
-                                setUserIdentity({ authorName: '', institutionName: '', academicYear: '', semester: '' });
+                                setUserIdentity({ authorName: '', institutionName: '', academicYear: '', semester: '', customApiKey: '' });
                                 localStorage.removeItem('prota_author_name');
                                 localStorage.removeItem('prota_institution_name');
                                 localStorage.removeItem('prota_academic_year');
                                 localStorage.removeItem('prota_semester');
+                                localStorage.removeItem('prota_custom_api_key');
                             }}
                             className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
                         >
@@ -2147,6 +2525,11 @@ const App = () => {
                                 localStorage.setItem('prota_institution_name', userIdentity.institutionName);
                                 localStorage.setItem('prota_academic_year', userIdentity.academicYear);
                                 localStorage.setItem('prota_semester', userIdentity.semester);
+                                if (userIdentity.customApiKey) {
+                                    localStorage.setItem('prota_custom_api_key', userIdentity.customApiKey);
+                                } else {
+                                    localStorage.removeItem('prota_custom_api_key');
+                                }
                                 setAppStage('generator');
                             }}
                             className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
@@ -2554,13 +2937,56 @@ const App = () => {
                                         </button>
                                     )}
                                     {hasATP && (
-                                        <button onClick={() => handleDownloadProta(className)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors">
-                                            <Download className="w-4 h-4" /> Unduh Prota
+                                        <>
+                                            <button onClick={() => handleDownloadProta(className)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors">
+                                                <Download className="w-4 h-4" /> Unduh Prota
+                                            </button>
+                                            <button 
+                                                onClick={() => handleBulkGenerateModulForClass(className)} 
+                                                disabled={bulkGenerationStatus[className]?.active}
+                                                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none"
+                                            >
+                                                {bulkGenerationStatus[className]?.active ? <Loader2 className="animate-spin w-4 h-4" /> : <FilePlus className="w-4 h-4" />} 
+                                                {bulkGenerationStatus[className]?.active ? 'Sedang Membuat Modul...' : '3. Buat Semua Modul Ajar Sekaligus'}
+                                            </button>
+                                        </>
+                                    )}
+                                    {activities.some(a => a.type === 'MODUL_AJAR' && (a.dataSnapshot?.className === className || a.details.includes(className))) && (
+                                        <button 
+                                            onClick={() => handleDownloadAllModulForClass(className)} 
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all border border-indigo-700 shadow-sm"
+                                        >
+                                            <Download className="w-4 h-4" /> Unduh Semua Modul (Docx)
                                         </button>
                                     )}
                                 </div>
                             </div>
                             
+                            {bulkGenerationStatus[className]?.active && (
+                                <div className="p-6 bg-purple-50/50 border-b border-purple-200">
+                                    <div className="max-w-xl mx-auto space-y-3">
+                                        <div className="flex justify-between text-sm font-bold text-purple-900">
+                                            <span className="flex items-center gap-2">
+                                                <Loader2 className="animate-spin w-4 h-4" />
+                                                Memproses Modul Ajar ({bulkGenerationStatus[className].current} dari {bulkGenerationStatus[className].total} ATP)
+                                            </span>
+                                            <span>{bulkGenerationStatus[className].percent}%</span>
+                                        </div>
+                                        <div className="w-full bg-purple-200 rounded-full h-4 overflow-hidden shadow-inner">
+                                            <div 
+                                                className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-300 ease-out flex items-center justify-center relative overflow-hidden" 
+                                                style={{ width: `${bulkGenerationStatus[className].percent}%` }}
+                                            >
+                                                <div className="absolute inset-0 bg-white/20 animate-pulse w-full"></div>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-purple-700 italic text-center font-medium">
+                                            {bulkGenerationStatus[className].statusText || "Harap tunggu, proses ini dapat memakan waktu beberapa menit. Jangan menutup tab browser Anda."}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="overflow-x-auto">
                                 {(classSchedules[className] && classSchedules[className].length > 0) && (() => {
                                     const result = calculateCalendarAnalysis(className, data.subject);
