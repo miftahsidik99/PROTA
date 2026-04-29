@@ -1815,12 +1815,38 @@ const App = () => {
               const date = atpItem.planDate || formatDateLocal(new Date());
 
               try {
+                  // Phase 1: Model Selection
+                  setBulkGenerationStatus(prev => ({
+                      ...prev,
+                      [className]: { ...prev[className], statusText: `Memilih model pembelajaran AI terbaik untuk: ${topic}...` }
+                  }));
+
+                  const modelPrompt = `Pilih 1 model pembelajaran yang paling efektif (misalnya: PjBL, PBL, Inkuiri, Discovery, TaRL, dll) untuk Kelas ${className}, Fase ${data?.fase}, Topik: ${topic}. Jawablah hanya dengan format: "Nama Model: [Nama Model]"`;
+                  
+                  let modelResponseText = "Tidak ditentukan";
+                  try {
+                    const modelRec = await ai.models.generateContent({
+                        model: 'gemini-3-flash-preview',
+                        contents: modelPrompt,
+                    });
+                     modelResponseText = modelRec.text || "Tidak ditentukan";
+                  } catch (e) {
+                    console.error("Model rec failed, fallback:", e);
+                  }
+                  
+                  setBulkGenerationStatus(prev => ({
+                      ...prev,
+                      [className]: { ...prev[className], statusText: `Model dipilih: ${modelResponseText}. Membuat konten modul...` }
+                  }));
+                  await new Promise(res => setTimeout(res, 1000));
+
+                  // Phase 2: Content Generation
                   const prompt = `
                       Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
                       Buatlah MODUL AJAR lengkap dan komprehensif.
                       SANGAT PENTING: 
+                      - Gunakan Model Pembelajaran berikut: ${modelResponseText}
                       - Modul Ajar harus secara eksplisit mengintegrasikan 3 prinsip utama BSKAP 032 HKR 2025 yaitu Mindful Learning (Pembelajaran Berkesadaran Penuh), Joyful Learning (Pembelajaran Menyenangkan/Sukacita), dan Meaningful Learning (Pembelajaran Bermakna) pada setiap tahapan kegiatan.
-                      - Gunakan pendekatan/model pembelajaran yang paling sesuai, bervariasi, dan direkomendasikan berdasarkan tingkat Kelas ${className} dan Fase ${data?.fase} (Misalnya: TaRL, CRT, PjBL, PBL, dll). Jangan hanya terpaku pada satu model.
                       
                       INFORMASI UMUM:
                       - Penyusun: ${userIdentity.authorName}
@@ -1830,7 +1856,6 @@ const App = () => {
                       - Alokasi Waktu: ${allocation}
                       - Tanggal: ${date}
                       - Topik/Materi: ${topic}
-                      - Model/Pendekatan Pembelajaran: (Pilihkan satu yang paling tepat dan sebutkan)
                       
                       KOMPONEN INTI:
                       - Capaian Pembelajaran (CP): ${el.capaianPembelajaran}
@@ -1848,7 +1873,7 @@ const App = () => {
                       OUTPUT FORMAT:
                       Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black, width: 100%).
                       Gunakan tag <h3> untuk judul bagian.
-                  `;
+                   `;
 
                   let response;
                   let retries = 6;
@@ -1965,13 +1990,13 @@ const App = () => {
       const bulkActivity = classModules.find(a => a.dataSnapshot?.isBulk);
       let combinedHtml = '';
       const size = PAPER_SIZES['A4'];
+      const footerText = `Kumpulan Modul Ajar - ${data?.subject || ''} - ${className} | Disusun oleh: ${userIdentity.authorName}`;
 
       if (bulkActivity) {
           combinedHtml = bulkActivity.dataSnapshot.combinedHtml;
       } else {
           // Re-sort them ascending by index/time (oldest to newest generated)
           const chronologicalModules = [...classModules].reverse();
-          const footerText = `Kumpulan Modul Ajar - ${data?.subject || ''} - ${className} | Disusun oleh: ${userIdentity.authorName}`;
 
           chronologicalModules.forEach((modActivity, index) => {
               const modData = modActivity.dataSnapshot;
