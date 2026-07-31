@@ -4,14 +4,17 @@ import { motion } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2 } from 'lucide-react';
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, orderBy, getDocs, where, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);                
-export const auth = getAuth();
+import localforage from 'localforage';
+
+
+
+
+                
+
+export const activitiesDB = localforage.createInstance({ name: 'ProtaApp', storeName: 'activities' });
+export const usersDB = localforage.createInstance({ name: 'ProtaApp', storeName: 'users' });
+
 
 // --- API Key Helper ---
 const getApiKey = (): string => {
@@ -680,10 +683,14 @@ const ModulAjarGenerator = ({
                 Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
                 Buatlah MODUL AJAR lengkap dan komprehensif.
                 SANGAT PENTING: 
-                - Modul Ajar harus secara eksplisit mengintegrasikan 3 prinsip utama BSKAP 032 HKR 2025 yaitu Mindful Learning (Pembelajaran Berkesadaran Penuh), Joyful Learning (Pembelajaran Menyenangkan/Sukacita), dan Meaningful Learning (Pembelajaran Bermakna) pada setiap tahapan kegiatan.
-                - Gunakan pendekatan/model pembelajaran yang paling sesuai, bervariasi, dan direkomendasikan berdasarkan tingkat SD Kelas ${formData.className} dan Fase ${formData.fase}. Jangan hanya terpaku pada satu model.
-                
-                INFORMASI UMUM:
+                      - Gunakan Model Pembelajaran berikut: ${formData.modelMethod}
+                      - Modul Ajar harus secara eksplisit mengintegrasikan prinsip 8,3,3,4 secara mendalam pada setiap tahapan kegiatan, yakni:
+                        * 8 Dimensi Profil Lulusan: Keimanan, Kewargaan, Penalaran kritis, Kreativitas, Kolaborasi, Kemandirian, Kesehatan, Komunikasi.
+                        * 3 Prinsip Pembelajaran: Berkesadaran (Mindful), Bermakna (Meaningful), Menggembirakan (Joyful).
+                        * 3 Pengalaman Belajar: Memahami, Mengaplikasikan, Merefleksikan.
+                        * 4 Kerangka Pembelajaran: Praktik Pedagogis, Kemitraan Pembelajaran, Lingkungan Pembelajaran, Pemanfaatan Teknologi Digital.
+                      
+                      INFORMASI UMUM:
                 - Penyusun: ${userIdentity.authorName}
                 - Instansi: ${userIdentity.institutionName}
                 - Jenjang/Kelas: SD / ${formData.className} (${formData.fase})
@@ -953,25 +960,59 @@ interface UserIdentity {
 }
 
 const App = () => {
-  const [firebaseUser, setFirebaseUser] = useState<any>(null);
-
+  
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setFirebaseUser(user);
-      } else {
-        signInAnonymously(auth).catch(err => {
-            console.error("Failed to sign in anonymously", err);
-        });
-      }
-    });
-
-    return () => unsubscribe();
+    const savedUser = localStorage.getItem('prota_user');
+    if (savedUser) {
+        setUser(JSON.parse(savedUser));
+    }
   }, []);
+
   const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'identity' | 'generator'>(() => {
     return localStorage.getItem('prota_user') ? 'generator' : 'login';
   });
   const [user, setUser] = useState<{ name: string, email: string } | null>(null);
+
+  const handleBackup = async () => {
+    try {
+      if (!user) return;
+      const data = await activitiesDB.getItem(user.email) || [];
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_prota_${user.email}_${formatDateLocal(new Date())}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      alert('Gagal melakukan backup');
+    }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      if (!user || !e.target.files?.[0]) return;
+      const file = e.target.files[0];
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+          await activitiesDB.setItem(user.email, parsed);
+          setActivities(parsed);
+          alert('Berhasil merestore data!');
+      } else {
+          alert('Format file tidak valid.');
+      }
+    } catch(err) {
+      alert('Gagal merestore data');
+    }
+    if (e.target) e.target.value = '';
+  };
+
+const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem('prota_custom_api_key') || '');
+const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, boolean>>>({});
+
   const [currentView, setCurrentView] = useState<'generator' | 'history' | 'modul_ajar'>('generator');
   const [selectedFase, setSelectedFase] = useState(FASES[0]);
   const [selectedSubject, setSelectedSubject] = useState(SUBJECTS[0]);
@@ -1114,35 +1155,26 @@ const App = () => {
 
   // Activity Management
   // Fetch activities from Firestore
+  
   useEffect(() => {
     const fetchActivities = async () => {
-      if (!firebaseUser) return;
+      if (!user) return;
       try {
-        const q = query(
-          collection(db, 'users', firebaseUser.uid, 'activities'),
-          orderBy('timestamp', 'desc')
-        );
-        const querySnapshot = await getDocs(q);
-        const fetchedActivities: ActivityLog[] = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            timestamp: data.timestamp.toDate(),
-            type: data.type,
-            subject: data.subject,
-            details: data.details,
-            dataSnapshot: data.dataSnapshot,
-            paperSizeSnapshot: data.paperSizeSnapshot
-          };
-        });
-        setActivities(fetchedActivities);
+        const data = await activitiesDB.getItem(user.email);
+        if (data && Array.isArray(data)) {
+            setActivities(data);
+        } else {
+            setActivities([]);
+        }
       } catch (e) {
-        console.error("Failed to fetch activities from Firestore", e);
+        console.error("Failed to fetch activities", e);
       }
     };
     fetchActivities();
-  }, [firebaseUser]);
+  }, [user]);
 
+
+  
   const addActivity = async (type: 'CP_TP' | 'ATP_JP' | 'MODUL_AJAR', subject: string, details: string, dataSnapshot: any) => {
     if (!user) return;
     const newActivity: ActivityLog = {
@@ -1154,58 +1186,56 @@ const App = () => {
       dataSnapshot: JSON.parse(JSON.stringify(dataSnapshot)),
       paperSizeSnapshot: paperSize
     };
-    
     try {
-        await addDoc(collection(db, 'users', auth.currentUser?.uid || 'anonymous', 'activities'), {
-            ...newActivity,
-            timestamp: serverTimestamp()
-        });
-        setActivities(prev => [newActivity, ...prev]);
+        const prev = (await activitiesDB.getItem<ActivityLog[]>(user.email)) || [];
+        const updated = [newActivity, ...prev];
+        await activitiesDB.setItem(user.email, updated);
+        setActivities(updated);
     } catch (e) {
-        console.error("Failed to add activity to Firestore", e);
+        console.error("Failed to add activity", e);
     }
   };
+
+  
   
   const saveActivityLog = async (log: ActivityLog) => {
     if (!user) return;
     try {
-        await addDoc(collection(db, 'users', auth.currentUser?.uid || 'anonymous', 'activities'), {
-            ...log,
-            timestamp: serverTimestamp()
-        });
-        setActivities(prev => [log, ...prev]);
+        const prev = (await activitiesDB.getItem<ActivityLog[]>(user.email)) || [];
+        const updated = [log, ...prev];
+        await activitiesDB.setItem(user.email, updated);
+        setActivities(updated);
     } catch (e) {
-        console.error("Failed to save activity log to Firestore", e);
+        console.error("Failed to save activity log", e);
     }
   };
 
+
+  
   const deleteActivity = async (id: string) => {
     if (!user) return;
     try {
-        const q = query(collection(db, 'users', auth.currentUser?.uid || 'anonymous', 'activities'), where("id", "==", id));
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(async (doc) => {
-            await deleteDoc(doc.ref);
-        });
-        setActivities(prev => prev.filter(act => act.id !== id));
+        const prev = (await activitiesDB.getItem<ActivityLog[]>(user.email)) || [];
+        const updated = prev.filter(act => act.id !== id);
+        await activitiesDB.setItem(user.email, updated);
+        setActivities(updated);
     } catch (e) {
-        console.error("Failed to delete activity from Firestore", e);
+        console.error("Failed to delete activity", e);
     }
   };
 
+
+  
   const clearAllActivities = async () => {
     if (!user) return;
     try {
-        const q = query(collection(db, 'users', auth.currentUser?.uid || 'anonymous', 'activities'));
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(async (doc) => {
-            await deleteDoc(doc.ref);
-        });
+        await activitiesDB.setItem(user.email, []);
         setActivities([]);
     } catch (e) {
-        console.error("Failed to clear activities from Firestore", e);
+        console.error("Failed to clear activities", e);
     }
   };
+
 
   const checkNonEffectiveDate = (dateStr: string): CalendarEvent | null => {
       if (!dateStr) return null;
@@ -1750,18 +1780,26 @@ const App = () => {
   };
 
   const runBulkGeneration = async (className: string, semChoice: '1' | '2') => {
+      
       const rawItems: { el: any, tp: any, atpItem: any }[] = [];
-      (data?.elements || []).forEach((el) => {
+      const currentSelected = selectedAtps[className] || {};
+      const hasSelection = Object.keys(currentSelected).length > 0 && Object.values(currentSelected).some(v => v);
+
+      (data?.elements || []).forEach((el, elIdx) => {
           (el.allocations || []).forEach((alloc) => {
               if (alloc.structuredAtp) {
-                  alloc.structuredAtp.forEach((grp: any) => {
-                       grp.atpItems.forEach((atpItem: any) => {
-                           rawItems.push({ el, tp: grp.tp, atpItem });
+                  alloc.structuredAtp.forEach((grp: any, grpIdx) => {
+                       grp.atpItems.forEach((atpItem: any, itemIdx) => {
+                           const key = `${elIdx}-${grpIdx}-${itemIdx}`;
+                           if (!hasSelection || currentSelected[key]) {
+                               rawItems.push({ el, tp: grp.tp, atpItem });
+                           }
                        });
                   });
               }
           });
       });
+
 
       const itemsToGenerateFinal = rawItems.filter(item => {
           const date = item.atpItem.planDate ? new Date(item.atpItem.planDate) : new Date();
@@ -2251,28 +2289,47 @@ const App = () => {
                     {isLogin ? 'Masuk untuk melanjutkan ke platform' : 'Daftar untuk menyimpan perangkat ajar Anda'}
                 </p>
 
-                <form 
-                    onSubmit={async (e) => {
-                        e.preventDefault();
-                        const form = e.currentTarget as HTMLFormElement;
-                        
-                        try {
-                            await signInAnonymously(auth);
-                        } catch (err) {
-                            console.error("Failed to sign in anonymously. Firestore saving might not work.", err);
-                        }
+                
+  <form 
+      onSubmit={async (e) => {
+          e.preventDefault();
+          const form = e.currentTarget as HTMLFormElement;
+          const formData = new FormData(form);
+          const email = formData.get('email') as string;
+          const password = formData.get('password') as string;
+          const name = formData.get('name') as string || email.split('@')[0];
+          
+          try {
+              if (isLogin) {
+                  const storedUser = await usersDB.getItem<{password: string, name: string, email: string}>(email);
+                  if (storedUser && storedUser.password === password) {
+                      const userData = { name: storedUser.name, email };
+                      localStorage.setItem('prota_user', JSON.stringify(userData));
+                      setUser(userData);
+                      setAppStage('generator');
+                  } else {
+                      alert('Email atau Password salah.');
+                  }
+              } else {
+                  const storedUser = await usersDB.getItem(email);
+                  if (storedUser) {
+                      alert('Akun dengan email ini sudah ada.');
+                  } else {
+                      const userData = { password, name, email };
+                      await usersDB.setItem(email, userData);
+                      localStorage.setItem('prota_user', JSON.stringify({ name, email }));
+                      setUser({ name, email });
+                      setAppStage('tutorial');
+                  }
+              }
+          } catch(err) {
+              console.error(err);
+              alert('Terjadi kesalahan saat memproses akun');
+          }
+      }}
+      className="space-y-5"
+  >
 
-                        const formData = new FormData(form);
-                        const email = formData.get('email') as string;
-                        const name = formData.get('name') as string || email.split('@')[0];
-                        
-                        const userData = { name, email };
-                        localStorage.setItem('prota_user', JSON.stringify(userData));
-                        setUser(userData);
-                        setAppStage('tutorial');
-                    }}
-                    className="space-y-5"
-                >
                     {!isLogin && (
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap</label>
@@ -2285,6 +2342,7 @@ const App = () => {
                             />
                         </div>
                     )}
+                    
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
                         <input 
@@ -2295,6 +2353,17 @@ const App = () => {
                             placeholder="nama@email.com"
                         />
                     </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Kata Sandi</label>
+                        <input 
+                            type="password" 
+                            name="password"
+                            required 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
+                            placeholder="Masukkan kata sandi"
+                        />
+                    </div>
+
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Kata Sandi</label>
                         <input 
@@ -2932,8 +3001,27 @@ const App = () => {
                             <div className="text-sm font-bold">{user.name}</div>
                             <div className="text-xs text-blue-200">{user.email}</div>
                         </div>
+                        
+                        <button 
+                            onClick={() => {
+                                const currentKey = localStorage.getItem('prota_custom_api_key') || '';
+                                const newKey = prompt('Masukkan API Key Gemini Anda:', currentKey);
+                                if (newKey !== null) {
+                                    localStorage.setItem('prota_custom_api_key', newKey.trim());
+                                    setApiKeyInput(newKey.trim());
+                                    alert('API Key berhasil disimpan!');
+                                    window.location.reload();
+                                }
+                            }}
+                            className="p-2 bg-blue-800 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                            title="Pengaturan API Key"
+                        >
+                            <Settings className="w-5 h-5" />
+                            <span className="hidden md:inline text-sm font-medium">API Key</span>
+                        </button>
                         <button 
                             onClick={handleLogout}
+
                             className="p-2 bg-blue-800 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2"
                             title="Keluar"
                         >
@@ -2960,9 +3048,20 @@ const App = () => {
                     <h2 className="text-xl font-bold flex items-center gap-3">
                         Riwayat Aktivitas
                         {activities.length > 0 && (
-                            <button onClick={clearAllActivities} className="text-xs flex items-center gap-1 font-semibold bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" /> Hapus Semua
-                            </button>
+                            
+                            <div className="flex items-center gap-2">
+                                <button onClick={handleBackup} className="text-xs flex items-center gap-1 font-semibold bg-green-50 text-green-600 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors">
+                                    <FileDown className="w-3.5 h-3.5" /> Backup Database
+                                </button>
+                                <label className="text-xs flex items-center gap-1 font-semibold bg-orange-50 text-orange-600 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+                                    <FileOutput className="w-3.5 h-3.5" /> Restore Database
+                                    <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
+                                </label>
+                                <button onClick={clearAllActivities} className="text-xs flex items-center gap-1 font-semibold bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" /> Hapus Semua
+                                </button>
+                            </div>
+
                         )}
                     </h2>
                     <button onClick={() => setCurrentView('generator')} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium text-sm">
@@ -3319,7 +3418,37 @@ const App = () => {
                                         <tr>
                                             <th className="px-4 py-3 border">Elemen & CP</th>
                                             <th className="px-4 py-3 border w-1/4">Tujuan Pembelajaran (TP)</th>
-                                            <th className="px-4 py-3 border w-1/4">Alur Tujuan Pembelajaran (ATP)</th>
+                                            
+<th className="px-4 py-3 border w-1/4">
+  <div className="flex items-center gap-2">
+      Alur Tujuan Pembelajaran (ATP)
+      <button 
+          onClick={() => {
+              const currentClass = selectedAtps[className] || {};
+              const allChecked = Object.keys(currentClass).length > 0 && Object.values(currentClass).every(v => v);
+              const newSelection = {};
+              if (!allChecked) {
+                  (data.elements || []).forEach((el, elIdx) => {
+                      const allocIdx = (el.allocations || []).findIndex(a => a.className === className);
+                      const alloc = (el.allocations || [])[allocIdx];
+                      if (!alloc) return;
+                      const groups = alloc.structuredAtp || [];
+                      groups.forEach((grp, grpIdx) => {
+                          grp.atpItems.forEach((_, itemIdx) => {
+                              newSelection[`${elIdx}-${grpIdx}-${itemIdx}`] = true;
+                          });
+                      });
+                  });
+              }
+              setSelectedAtps(prev => ({...prev, [className]: newSelection}));
+          }}
+          className="text-[10px] bg-white border border-gray-300 px-2 py-0.5 rounded hover:bg-gray-50"
+      >
+          Pilih Semua
+      </button>
+  </div>
+</th>
+
                                             <th className="px-4 py-3 border text-center">JP</th>
                                             <th className="px-4 py-3 border w-48 text-center">Rencana Tanggal & Aksi</th>
                                         </tr>
@@ -3350,9 +3479,40 @@ const App = () => {
                                                                     <ul className="list-disc pl-4 text-gray-700"><li>{grp.tp}</li></ul>
                                                                 </td>
                                                             )}
-                                                            <td className="px-4 py-3 border align-top bg-green-50/20">
-                                                                {item.alur ? <div className="flex gap-2"><span className="font-bold text-green-600">{itemIdx+1}.</span>{item.alur}</div> : <span className="text-gray-400 italic">Belum digenerate</span>}
-                                                            </td>
+                                                            
+<td className={`px-4 py-3 border align-top ${activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur?.substring(0, 30) || 'xxx')) ? 'bg-indigo-100/50' : 'bg-green-50/20'}`}>
+    {item.alur ? (
+        <div className="flex gap-2">
+            <input 
+                type="checkbox" 
+                checked={!!(selectedAtps[className] && selectedAtps[className][`${elIdx}-${grpIdx}-${itemIdx}`])}
+                onChange={(e) => {
+                    const checked = e.target.checked;
+                    setSelectedAtps(prev => ({
+                        ...prev,
+                        [className]: {
+                            ...(prev[className] || {}),
+                            [`${elIdx}-${grpIdx}-${itemIdx}`]: checked
+                        }
+                    }));
+                }}
+                className="mt-1"
+            />
+            <div className="flex flex-col">
+                <div className="flex gap-1 items-start">
+                    <span className="font-bold text-green-600">{itemIdx+1}.</span>
+                    <span>{item.alur}</span>
+                </div>
+                {activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur.substring(0, 30))) && (
+                    <span className="mt-1 inline-block text-[10px] font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded w-fit">
+                        ✓ Modul Dibuat
+                    </span>
+                )}
+            </div>
+        </div>
+    ) : <span className="text-gray-400 italic">Belum digenerate</span>}
+</td>
+
                                                             <td className="px-4 py-3 border text-center align-top">{item.alokasiWaktu}</td>
                                                             <td className="px-4 py-3 border align-top">
                                                                 {item.alur ? (
