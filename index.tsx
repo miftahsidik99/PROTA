@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2 } from 'lucide-react';
+import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, EyeOff, Key, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2 } from 'lucide-react';
 
 
 import localforage from 'localforage';
@@ -162,6 +162,7 @@ interface ModulAjarContext {
     cp: string;
     tp: string;
     atpItem: AtpItem;
+    selectedAtpItems?: { el: any; tp: string; atpItem: AtpItem }[];
 }
 
 // Interface for Modul Ajar Form Data
@@ -203,12 +204,6 @@ const SUBJECTS = [
   "Seni Teater",
   "PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan)",
   "Bahasa Inggris",
-  "Pendidikan Agama Islam",
-  "Pendidikan Agama Kristen",
-  "Pendidikan Agama Katolik",
-  "Pendidikan Agama Hindu",
-  "Pendidikan Agama Buddha",
-  "Pendidikan Agama Khonghucu",
   "Muatan Lokal"
 ];
 
@@ -571,16 +566,444 @@ const MasterCalendarConfig = ({
     );
 };
 
+// --- Integrated Calendar Page View Component ---
+interface CalendarPageViewProps {
+    selectedClass: string;
+    setSelectedClass: (cls: string) => void;
+    selectedSubject: string;
+    setSelectedSubject: (subj: string) => void;
+    availableClasses: string[];
+    availableSubjects: string[];
+    classSchedules: Record<string, string[]>;
+    toggleScheduleDay: (className: string, day: string) => void;
+    classDailyJP: Record<string, Record<string, number>>;
+    updateDailyJP: (className: string, day: string, jp: number) => void;
+    calendarEvents: CalendarEvent[];
+    onDateClick: (dateStr: string, ev: CalendarEvent | undefined) => void;
+    academicYearStart: number;
+    setAcademicYearStart: (year: number) => void;
+    schoolDaysCount: 5 | 6;
+    setSchoolDaysCount: (count: 5 | 6) => void;
+    calculateCalendarAnalysis: (className: string, subject: string) => AnalysisResult | null;
+    activeTab: 'all' | 'master' | 'visual' | 'analysis';
+    setActiveTab: (tab: 'all' | 'master' | 'visual' | 'analysis') => void;
+    onBackToGenerator: () => void;
+}
+
+const CalendarPageView = ({
+    selectedClass,
+    setSelectedClass,
+    selectedSubject,
+    setSelectedSubject,
+    availableClasses,
+    availableSubjects,
+    classSchedules,
+    toggleScheduleDay,
+    classDailyJP,
+    updateDailyJP,
+    calendarEvents,
+    onDateClick,
+    academicYearStart,
+    setAcademicYearStart,
+    schoolDaysCount,
+    setSchoolDaysCount,
+    calculateCalendarAnalysis,
+    activeTab,
+    setActiveTab,
+    onBackToGenerator
+}: CalendarPageViewProps) => {
+    const analysisResult = useMemo(() => {
+        return calculateCalendarAnalysis(selectedClass, selectedSubject);
+    }, [selectedClass, selectedSubject, classSchedules, classDailyJP, calendarEvents, academicYearStart, schoolDaysCount]);
+
+    return (
+        <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Page Header */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-100">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
+                                <CalendarDays className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900 font-display">Kalender Akademik & Analisis Belajar</h2>
+                                <p className="text-sm text-gray-500">
+                                    Pengaturan Kalender Master, Analisis Alokasi JP, dan Visualisasi Hari Efektif Belajar ({academicYearStart}/{academicYearStart + 1})
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={onBackToGenerator}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl transition-colors self-start md:self-auto cursor-pointer"
+                    >
+                        <ArrowLeft className="w-4 h-4" /> Kembali ke Generator
+                    </button>
+                </div>
+
+                {/* Main Navigation Tabs */}
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-4">
+                    <div className="flex bg-gray-100 p-1.5 rounded-xl gap-1">
+                        <button
+                            onClick={() => setActiveTab('all')}
+                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'all' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
+                            <Layout className="w-4 h-4" /> Semua (Terpadu)
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('master')}
+                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'master' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
+                            <CalendarDays className="w-4 h-4" /> Kalender Master
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('analysis')}
+                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'analysis' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
+                            <BarChart3 className="w-4 h-4" /> Analisis & Beban JP
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('visual')}
+                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'visual' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
+                            <CalendarCheck className="w-4 h-4" /> Visual Kalender
+                        </button>
+                    </div>
+
+                    {/* Class & Subject Selector Controls */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 bg-blue-50/80 border border-blue-100 p-1 rounded-xl">
+                            <span className="text-xs font-bold text-blue-900 px-2">Kelas:</span>
+                            {availableClasses.map(cls => (
+                                <button
+                                    key={cls}
+                                    onClick={() => setSelectedClass(cls)}
+                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${selectedClass === cls ? 'bg-blue-600 text-white shadow-xs' : 'text-blue-700 hover:bg-blue-100'}`}
+                                >
+                                    {cls}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 p-1.5 rounded-xl">
+                            <span className="text-xs font-bold text-gray-500 pl-1">Mapel:</span>
+                            <select
+                                value={selectedSubject}
+                                onChange={(e) => setSelectedSubject(e.target.value)}
+                                className="text-xs font-bold text-gray-800 bg-transparent focus:outline-none pr-1 cursor-pointer"
+                            >
+                                {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* SECTION 1: KALENDER MASTER */}
+            {(activeTab === 'all' || activeTab === 'master') && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
+                    <div className="flex items-center justify-between border-b pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                                <CalendarDays className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Kalender Master Akademik</h3>
+                                <p className="text-xs text-gray-500">Klik pada tanggal untuk menetapkan hari libur, kegiatan sekolah, atau jadwal ujian.</p>
+                            </div>
+                        </div>
+                        <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full border border-indigo-100">
+                            TA {academicYearStart}/{academicYearStart + 1} • {schoolDaysCount} Hari Sekolah
+                        </span>
+                    </div>
+
+                    {/* Quick Schedule & JP Allocator for Active Class */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-2">
+                                <SlidersHorizontal className="w-4 h-4 text-blue-600" /> Setting Jadwal & JP Rutin ({selectedClass})
+                            </h4>
+                            <span className="text-[11px] text-blue-700 font-medium">Klik hari untuk mengaktifkan & atur Jam Pelajaran (JP) per hari</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-1">
+                            {DAYS_OF_WEEK.filter(day => schoolDaysCount === 6 || day !== 'Sabtu').map(day => {
+                                const isSelected = (classSchedules[selectedClass] || []).includes(day);
+                                return (
+                                    <div key={day} className="flex flex-col items-center p-2.5 rounded-xl border border-blue-200/60 bg-white shadow-2xs">
+                                        <button 
+                                            onClick={() => toggleScheduleDay(selectedClass, day)} 
+                                            className={`w-full py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+                                        >
+                                            {day}
+                                        </button>
+                                        {isSelected && (
+                                            <div className="flex items-center gap-1 mt-2 bg-blue-50 border border-blue-200 rounded-lg px-2 py-0.5 w-full justify-center">
+                                                <input 
+                                                    type="number" 
+                                                    min="1" 
+                                                    max="10"
+                                                    value={(classDailyJP[selectedClass] || {})[day] || 3}
+                                                    onChange={(e) => updateDailyJP(selectedClass, day, parseInt(e.target.value) || 0)}
+                                                    className="w-8 text-xs font-extrabold text-blue-700 text-center focus:outline-none bg-transparent"
+                                                />
+                                                <span className="text-[10px] text-blue-600 font-bold">JP</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Master Calendar Config Grid */}
+                    <MasterCalendarConfig 
+                        calendarEvents={calendarEvents} 
+                        onDateClick={onDateClick} 
+                        academicYearStart={academicYearStart}
+                        setAcademicYearStart={setAcademicYearStart}
+                        schoolDaysCount={schoolDaysCount}
+                        setSchoolDaysCount={setSchoolDaysCount}
+                    />
+                </div>
+            )}
+
+            {/* SECTION 2: ANALISIS KALENDER & BEBAN JP */}
+            {(activeTab === 'all' || activeTab === 'analysis') && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
+                    <div className="flex items-center justify-between border-b pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                                <BarChart3 className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Analisis Hari Efektif & Alokasi Beban JP</h3>
+                                <p className="text-xs text-gray-500">Perhitungan matematis akurat hari belajar efektif, pekan efektif, dan pemetaan JP mata pelajaran {selectedSubject} ({selectedClass}).</p>
+                            </div>
+                        </div>
+                        <span className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-100">
+                            Target Permendikdasmen No. 13 Tahun 2025
+                        </span>
+                    </div>
+
+                    {!analysisResult ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                            <CalendarDays className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-600 font-bold">Jadwal Belajar Belum Dipilih</p>
+                            <p className="text-gray-400 text-xs mt-1">Aktifkan minimal 1 hari jadwal pembelajaran di atas untuk menghitung analisis efektif.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* KPI Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 p-5 rounded-xl border border-blue-100 flex items-center justify-between">
+                                    <div>
+                                        <div className="text-xs font-bold text-blue-600 uppercase tracking-wider">Total Hari Efektif</div>
+                                        <div className="text-2xl font-black text-blue-900 mt-1">{analysisResult.totalAvailableSlots} <span className="text-sm font-bold text-blue-700">Hari</span></div>
+                                        <div className="text-[10px] text-blue-600 mt-1">Hari Pertemuan Pembelajaran</div>
+                                    </div>
+                                    <div className="p-3 bg-blue-600 text-white rounded-xl shadow-xs">
+                                        <CalendarCheck className="w-6 h-6" />
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-100 flex items-center justify-between">
+                                    <div>
+                                        <div className="text-xs font-bold text-green-600 uppercase tracking-wider">Total Pekan Efektif</div>
+                                        <div className="text-2xl font-black text-green-900 mt-1">{analysisResult.totalEffectiveWeeks} <span className="text-sm font-bold text-green-700">Pekan</span></div>
+                                        <div className="text-[10px] text-green-600 mt-1">Standar ISO-8601 Akademik</div>
+                                    </div>
+                                    <div className="p-3 bg-green-600 text-white rounded-xl shadow-xs">
+                                        <Target className="w-6 h-6" />
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-indigo-50 to-purple-50/50 p-5 rounded-xl border border-indigo-100 flex items-center justify-between">
+                                    <div>
+                                        <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Target Kurikulum</div>
+                                        <div className="text-2xl font-black text-indigo-900 mt-1">{analysisResult.totalTargetJP} <span className="text-sm font-bold text-indigo-700">JP/Thn</span></div>
+                                        <div className="text-[10px] text-indigo-600 mt-1">Beban {selectedSubject} ({selectedClass})</div>
+                                    </div>
+                                    <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-xs">
+                                        <BookOpen className="w-6 h-6" />
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 p-5 rounded-xl border border-amber-100 flex items-center justify-between">
+                                    <div>
+                                        <div className="text-xs font-bold text-amber-600 uppercase tracking-wider">Alokasi Per Pekan</div>
+                                        <div className="text-2xl font-black text-amber-900 mt-1">{analysisResult.weeklyTargetJP} <span className="text-sm font-bold text-amber-700">JP/Minggu</span></div>
+                                        <div className="text-[10px] text-amber-600 mt-1">Rata-rata Alokasi Efektif</div>
+                                    </div>
+                                    <div className="p-3 bg-amber-600 text-white rounded-xl shadow-xs">
+                                        <Zap className="w-6 h-6" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Semester Table & Day Distribution */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-gray-200 shadow-2xs space-y-4">
+                                    <h4 className="font-bold text-gray-800 text-sm flex items-center justify-between">
+                                        <span className="flex items-center gap-2"><Table className="w-4 h-4 text-blue-600" /> Ringkasan Alokasi Semester 1 & 2</span>
+                                        <span className="text-xs text-gray-500 font-normal">Tahun Ajaran {academicYearStart}/{academicYearStart + 1}</span>
+                                    </h4>
+                                    <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                                        <table className="w-full text-xs text-left">
+                                            <thead className="bg-gray-100 text-gray-700 font-bold uppercase">
+                                                <tr>
+                                                    <th className="p-3 border-b">Uraian Komponen</th>
+                                                    <th className="p-3 text-center border-b border-l bg-blue-50/50 text-blue-800">Semester 1 (Ganjil)</th>
+                                                    <th className="p-3 text-center border-b border-l bg-indigo-50/50 text-indigo-800">Semester 2 (Genap)</th>
+                                                    <th className="p-3 text-center border-b border-l bg-gray-50 text-gray-900 font-extrabold">Total Setahun</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y text-gray-700">
+                                                <tr>
+                                                    <td className="p-3 font-medium">Hari Efektif Belajar (HEB)</td>
+                                                    <td className="p-3 text-center border-l font-bold text-blue-700">{analysisResult.semester1.effectiveDays} Hari</td>
+                                                    <td className="p-3 text-center border-l font-bold text-indigo-700">{analysisResult.semester2.effectiveDays} Hari</td>
+                                                    <td className="p-3 text-center border-l font-black text-gray-900 bg-gray-50">{analysisResult.semester1.effectiveDays + analysisResult.semester2.effectiveDays} Hari</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="p-3 font-medium">Pekan Efektif Belajar (PEB)</td>
+                                                    <td className="p-3 text-center border-l font-bold text-blue-700">{analysisResult.semester1.effectiveWeeks} Pekan</td>
+                                                    <td className="p-3 text-center border-l font-bold text-indigo-700">{analysisResult.semester2.effectiveWeeks} Pekan</td>
+                                                    <td className="p-3 text-center border-l font-black text-gray-900 bg-gray-50">{analysisResult.totalEffectiveWeeks} Pekan</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="p-3 font-medium text-red-600">Hari Libur / Non-Efektif</td>
+                                                    <td className="p-3 text-center border-l font-bold text-red-600">{analysisResult.semester1.nonEffectiveDays} Hari</td>
+                                                    <td className="p-3 text-center border-l font-bold text-red-600">{analysisResult.semester2.nonEffectiveDays} Hari</td>
+                                                    <td className="p-3 text-center border-l font-bold text-red-700 bg-red-50">{analysisResult.semester1.nonEffectiveDays + analysisResult.semester2.nonEffectiveDays} Hari</td>
+                                                </tr>
+                                                <tr className="bg-blue-50/30 font-bold">
+                                                    <td className="p-3 font-extrabold text-blue-900 uppercase">Jam Pelajaran Efektif (JP)</td>
+                                                    <td className="p-3 text-center border-l font-extrabold text-blue-800 text-sm">{analysisResult.semester1.availableJP} JP</td>
+                                                    <td className="p-3 text-center border-l font-extrabold text-indigo-800 text-sm">{analysisResult.semester2.availableJP} JP</td>
+                                                    <td className="p-3 text-center border-l font-black text-blue-900 text-base bg-blue-100/60">{analysisResult.semester1.availableJP + analysisResult.semester2.availableJP} JP</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-2xs space-y-4">
+                                    <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                        <CalendarCheck className="w-4 h-4 text-green-600" /> Distribusi Hari Mengajar ({selectedClass})
+                                    </h4>
+                                    <p className="text-xs text-gray-500">Jumlah total hari tatap muka efektif berdasarkan hari mengajar:</p>
+                                    <div className="space-y-3 pt-2">
+                                        {Object.entries(analysisResult.dayDistribution).length === 0 ? (
+                                            <div className="text-xs text-gray-400 text-center py-6">Tidak ada jadwal aktif</div>
+                                        ) : (
+                                            Object.entries(analysisResult.dayDistribution).map(([day, count]) => (
+                                                <div key={day} className="space-y-1">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="font-bold text-gray-700">{day}</span>
+                                                        <span className="font-extrabold text-blue-700">{count} Pertemuan</span>
+                                                    </div>
+                                                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (Number(count) / 40) * 100)}%` }}></div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Detailed Monthly Analysis Table */}
+                            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-2xs space-y-4">
+                                <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                    <CalendarDays className="w-4 h-4 text-purple-600" /> Rincian Hari Efektif & Tidak Efektif Per Bulan (Juli - Juni)
+                                </h4>
+                                <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-gray-100 text-gray-700 font-bold uppercase">
+                                            <tr>
+                                                <th className="p-3 border-b">Bulan & Tahun</th>
+                                                <th className="p-3 text-center border-b border-l">Semester</th>
+                                                <th className="p-3 text-center border-b border-l">Hari Efektif</th>
+                                                <th className="p-3 border-b border-l">Detail Keterangan Libur / Non-Efektif</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y text-gray-700">
+                                            {analysisResult.details.map((m, idx) => (
+                                                <tr key={idx} className={m.semester === 1 ? 'hover:bg-blue-50/20' : 'hover:bg-indigo-50/20'}>
+                                                    <td className="p-3 font-bold text-gray-900 border-r">{m.monthName}</td>
+                                                    <td className="p-3 text-center border-r">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.semester === 1 ? 'bg-blue-100 text-blue-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                                                            Sem {m.semester}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 text-center font-extrabold text-green-700 border-r">{m.effectiveDays} Hari</td>
+                                                    <td className="p-3">
+                                                        {m.nonEffectiveDetails.length === 0 ? (
+                                                            <span className="text-gray-400 italic">Tidak ada hari libur terjadwal</span>
+                                                        ) : (
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {m.nonEffectiveDetails.map((ne, nIdx) => (
+                                                                    <span key={nIdx} className="bg-red-50 text-red-700 border border-red-200 text-[10px] px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                                                                        <span className="font-bold">{ne.date.split('-').slice(1).reverse().join('/')}:</span> {ne.reason}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* SECTION 3: VISUAL KALENDER */}
+            {(activeTab === 'all' || activeTab === 'visual') && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
+                    <div className="flex items-center justify-between border-b pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-green-50 text-green-600 rounded-xl">
+                                <CalendarCheck className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Visualisasi Kalender Bulanan ({selectedClass})</h3>
+                                <p className="text-xs text-gray-500">Tampilan kalender interaktif per bulan dengan penandaan warna hari efektif, libur, dan jadwal mengajar.</p>
+                            </div>
+                        </div>
+                        <span className="text-xs font-bold bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-100">
+                            Navigasi Bulan Interaktif
+                        </span>
+                    </div>
+
+                    <VisualCalendar 
+                        scheduledDays={classSchedules[selectedClass] || []} 
+                        calendarEvents={calendarEvents} 
+                        academicYearStart={academicYearStart} 
+                        schoolDaysCount={schoolDaysCount} 
+                    />
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- Modul Ajar Generator Component ---
 
 const ModulAjarGenerator = ({ 
     context, 
     userIdentity,
+    selectedCharacteristic = 'Beragam (Visual, Auditori, Kinestetik)',
     onBack, 
     onSave 
 }: { 
     context: ModulAjarContext, 
     userIdentity: UserIdentity,
+    selectedCharacteristic?: string,
     onBack: () => void, 
     onSave: (log: ActivityLog) => void 
 }) => {
@@ -680,47 +1103,171 @@ const ModulAjarGenerator = ({
             const ai = new GoogleGenAI({ apiKey });
 
             const prompt = `
-                Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
-                Buatlah MODUL AJAR lengkap dan komprehensif.
-                SANGAT PENTING: 
-                      - Gunakan Model Pembelajaran berikut: ${formData.modelMethod}
-                      - Modul Ajar harus secara eksplisit mengintegrasikan prinsip 8,3,3,4 secara mendalam pada setiap tahapan kegiatan, yakni:
-                        * 8 Dimensi Profil Lulusan: Keimanan, Kewargaan, Penalaran kritis, Kreativitas, Kolaborasi, Kemandirian, Kesehatan, Komunikasi.
-                        * 3 Prinsip Pembelajaran: Berkesadaran (Mindful), Bermakna (Meaningful), Menggembirakan (Joyful).
-                        * 3 Pengalaman Belajar: Memahami, Mengaplikasikan, Merefleksikan.
-                        * 4 Kerangka Pembelajaran: Praktik Pedagogis, Kemitraan Pembelajaran, Lingkungan Pembelajaran, Pemanfaatan Teknologi Digital.
-                      
-                      INFORMASI UMUM:
-                - Penyusun: ${userIdentity.authorName}
-                - Instansi: ${userIdentity.institutionName}
-                - Jenjang/Kelas: SD / ${formData.className} (${formData.fase})
-                - Mapel: ${formData.subject}
-                - Alokasi Waktu: ${formData.allocation}
-                - Tanggal: ${formData.date}
-                - Topik/Materi: ${formData.topic}
-                - Model/Pendekatan Pembelajaran: (Tentukan/Pilihkan model yang paling tepat lalu tuliskan)
-                
-                KOMPONEN INTI:
-                - Capaian Pembelajaran (CP): ${context.cp}
-                - Tujuan Pembelajaran (TP): ${context.tp}
-                - Pemahaman Bermakna
-                - Pertanyaan Pemantik
-                - Kegiatan Pembelajaran (Pendahuluan, Inti, Penutup) terpadu dengan 3 prinsip di atas.
-                
-                LAMPIRAN (Sajikan dalam format tabel HTML modern jika memungkinkan):
-                ${formData.components.includeMaterials ? '- Materi Ajar (Ringkasan/Bahan Ajar)' : ''}
-                ${formData.components.includeLKPD ? '- Lembar Kerja Peserta Didik (LKPD) - Buatkan instruksi detail.' : ''}
-                ${formData.components.includeAssessment ? '- Instrumen Penilaian (Rubrik/Soal)' : ''}
-                - Jurnal Mengajar/Sikap (Disajikan dalam bentuk tabel format pengisian).
-                
-                OUTPUT FORMAT:
-                Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black, width: 100%).
-                Gunakan tag <h3> untuk judul bagian.
-            `;
+Bertindaklah sebagai **Tim Ahli Kurikulum Pendidikan Indonesia**, yang terdiri atas:
+* Ahli Kurikulum Kemendikdasmen
+* Pengembang Modul Ajar
+* Pengembang Kurikulum Merdeka
+* Pengembang Pembelajaran Mendalam (Deep Learning)
+* Pengawas Sekolah
+* Asesor Akreditasi Sekolah
+* Guru Inti Nasional
+* Editor Bahasa Indonesia
+* Desainer Dokumen Pendidikan
+
+Anda memiliki pengalaman lebih dari 20 tahun dalam menyusun perangkat ajar SD.
+Seluruh dokumen HARUS menggunakan Bahasa Indonesia baku, profesional, mudah dipahami guru, serta siap digunakan sebagai dokumen resmi sekolah dan siap dicetak tanpa perlu ditambah lagi.
+
+# TUJUAN
+Hasilkan **Modul Ajar Lengkap** (bukan ringkasan), utuh dan menyeluruh. Dokumen harus siap dicetak dan dipindahkan ke Microsoft Word tanpa perlu ditambah lagi.
+
+# LANDASAN PENYUSUNAN
+* Permendikdasmen Nomor 13 Tahun 2025
+* Capaian Pembelajaran (CP) yang berlaku untuk mata pelajaran dan fase yang diminta
+* Prinsip Pembelajaran Mendalam (Deep Learning)
+* Delapan Dimensi Profil Lulusan
+* Prinsip 8,3,3,4
+* Kurikulum yang berlaku
+Jangan mengutip atau mengklaim isi regulasi yang tidak diketahui. Bila informasi spesifik belum diberikan pengguna (misalnya NIP atau data spesifik), gunakan placeholder **[DIISI OLEH GURU]**.
+
+# INFORMASI UTAMA:
+- Nama Guru / Penyusun: ${userIdentity.authorName}
+- NIP: [DIISI OLEH GURU]
+- Sekolah / Instansi: ${userIdentity.institutionName}
+- Tahun Pelajaran: ${userIdentity.academicYear || '2025/2026'}
+- Jenjang / Kelas: SD / ${formData.className} (${formData.fase})
+- Semester: ${userIdentity.semester || '1'}
+- Mata Pelajaran: ${formData.subject}
+- Elemen: ${context.elementName}
+- Capaian Pembelajaran (CP): ${context.cp}
+- Tujuan Pembelajaran (TP): ${context.tp}
+- Materi / Topik / Alur (ATP): ${formData.topic}
+- Alokasi Waktu & Beban JP: ${formData.allocation}
+- Tanggal Pelaksanaan: ${formData.date}
+- Model Pembelajaran: ${formData.modelMethod || 'Problem Based Learning (PBL) / Teaching at the Right Level (TaRL)'}
+- Karakteristik Peserta Didik: ${selectedCharacteristic || 'Beragam (Visual, Auditori, Kinestetik)'}
+
+# PRINSIP PEMBELAJARAN (DEEP LEARNING 8,3,3,4) WAJIB DIURAIKAN KONTEKSUAL:
+A. 8 Dimensi Profil Lulusan (Uraikan implementasi konkret setiap dimensi pada materi):
+   1. Beriman, Bertakwa kepada Tuhan YME, dan Berakhlak Mulia
+   2. Berkebinekaan Global
+   3. Gotong Royong
+   4. Mandiri
+   5. Bernalar Kritis
+   6. Kreatif
+   7. Jasmani dan Rohani yang Sehat
+   8. Pemahaman Literasi-Numerasi / Komunikasi
+B. 3 Prinsip Pembelajaran (Jelaskan implementasi nyata pada materi):
+   1. Mindful Learning (Pembelajaran Bermakna & Kesadaran Diri)
+   2. Meaningful Learning (Pembelajaran Relevan dengan Kehidupan Nyata)
+   3. Joyful Learning (Pembelajaran Menyenangkan & Menggugah Semangat)
+C. 3 Pengalaman Belajar (Lengkapi aktivitas peserta didik pada setiap bagian):
+   1. Memahami
+   2. Mengaplikasi
+   3. Merefleksi
+D. 4 Kerangka Pembelajaran (Jelaskan implementasinya secara nyata sesuai materi):
+   1. Praktik Pedagogis
+   2. Kemitraan Pembelajaran
+   3. Lingkungan Pembelajaran
+   4. Pemanfaatan Teknologi Digital
+
+# STRUKTUR MODUL AJAR (WAJIB BERURUTAN & LENGKAP):
+Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontainer utama) dengan komponen wajib berurutan berikut:
+
+1. **COVER**:
+   - Judul Modul Ajar: MODUL AJAR ${formData.subject.toUpperCase()} (H1, center, bold, 16pt, uppercase)
+   - Landasan Subtitle: BERBASIS PERMENDIKDASMEN NOMOR 13 TAHUN 2025 (italic, 11pt, color: #374151, center)
+   - Logo Sekolah Placeholder: [ LOGO SEKOLAH / INSTANSI ] (border dashed, padding 10px, text-align center)
+   - Blok Identitas Cover: Nama Guru (${userIdentity.authorName}), NIP ([DIISI OLEH GURU]), Sekolah (${userIdentity.institutionName}), Tahun Pelajaran (${userIdentity.academicYear || '2025/2026'}), Fase (${formData.fase}), Kelas (${formData.className}), Semester (${userIdentity.semester || '1'}), Mata Pelajaran (${formData.subject}).
+
+2. **IDENTITAS MODUL**:
+   - Tabel HTML 2-kolom rapi (style: width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10.5pt;).
+   - Tampilkan: Nama Guru, Sekolah, NIP [DIISI OLEH GURU], Fase, Kelas, Semester, Mapel, Elemen, Materi, Alokasi Waktu (beban JP), Tanggal Pelaksanaan (<span style="color: #dc2626; font-weight: bold;">Jadwal: ${formData.date}</span>), Model Pembelajaran, Pendekatan, Metode, Media, Sumber Belajar, Karakteristik Peserta Didik, Target Peserta Didik, Sarana Prasarana.
+
+3. **CAPAIAN PEMBELAJARAN (CP)**: CP lengkap sesuai mata pelajaran dan fase.
+
+4. **TUJUAN PEMBELAJARAN (TP)**: Memuat tujuan pembelajaran spesifik dengan kata kerja operasional (KKO) yang terukur.
+
+5. **ALUR TUJUAN PEMBELAJARAN (ATP)**: Rangkaian ATP yang berurutan, logis, dan berkesinambungan.
+
+6. **PEMAHAMAN BERMAKNA**: Manfaat konkret pembelajaran bagi kehidupan nyata peserta didik sesuai level kelas.
+
+7. **PERTANYAAN PEMANTIK**: Minimal 5 pertanyaan pemantik yang mengaktifkan berpikir kritis dan rasa ingin tahu.
+
+8. **DIAGNOSTIK**:
+   - Diagnostik Kognitif & Diagnostik Non-Kognitif lengkap beserta instrumen dan kriteria tindak lanjut.
+
+9. **PEMBELAJARAN MENDALAM (DEEP LEARNING 8,3,3,4)**:
+   - Uraian kontekstual implementasi 8 Dimensi Profil Lulusan, 3 Prinsip Pembelajaran (Mindful, Meaningful, Joyful), 3 Pengalaman Belajar (Memahami, Mengaplikasi, Merefleksi), dan 4 Kerangka Pembelajaran (Praktik Pedagogis, Kemitraan, Lingkungan, Teknologi Digital).
+
+10. **LANGKAH PEMBELAJARAN**:
+    - Dibuat sangat rinci untuk setiap pertemuan.
+    - Menggunakan TABEL HTML rapi.
+    - Minimal terdiri atas: Pendahuluan, Kegiatan Inti, Penutup.
+    - Cantumkan estimasi waktu JP dan tanggal pelaksanaan dari ATP.
+    - Pada Kegiatan Inti, jelaskan aktivitas guru dan peserta didik secara rinci sesuai sintaks model pembelajaran yang dipilih.
+
+11. **ASESMEN**:
+    - Diagnostik, Formatif, Sumatif (Lengkap).
+    - Pilih salah satu instrumen asesmen yang PALING RELEVAN berdasarkan tujuan pembelajaran, karakteristik materi, model, pendekatan, metode, aktivitas, dan bukti belajar. Jangan memaksakan seluruh jenis asesmen. Setiap asesmen yang dipilih harus memiliki keterkaitan langsung dengan TP.
+
+12. **INSTRUMEN PENILAIAN**:
+    - Pilih salah satu instrumen penilaian yang PALING RELEVAN (Observasi / Kinerja / Produk / Tes Tertulis / Tes Lisan / Praktik / Portofolio). Jangan memaksakan seluruh instrumen. Setiap instrumen dilengkapi kriteria dan bukti belajar.
+
+13. **RUBRIK PENILAIAN**:
+    - Gunakan skala yang konsisten (contoh: Skor 4 = Sangat Baik, 3 = Baik, 2 = Cukup, 1 = Perlu Bimbingan). Sertakan indikator dan deskripsi jelas untuk tiap tingkat capaian.
+
+14. **PENGAYAAN**: Rencana & materi pengayaan lengkap untuk peserta didik yang mencapai KTPM.
+
+15. **REMEDIAL**: Rencana & pendampingan remedial lengkap untuk peserta didik yang belum mencapai KTPM.
+
+16. **REFLEKSI GURU**: Minimal 10 pertanyaan refleksi mendalam untuk evaluasi diri guru.
+
+17. **REFLEKSI PESERTA DIDIK**: Minimal 10 pertanyaan refleksi sederhana dan ramah anak sesuai usia peserta didik.
+
+18. **LEMBAR KERJA PESERTA DIDIK (LKPD)**:
+    - Format SIAP CETAK.
+    - Memiliki: Judul, Tujuan, Petunjuk, Alat & Bahan, Langkah Kerja, Tugas, Soal, Ruang Jawaban.
+
+19. **BAHAN BACAAN**: Bahan Bacaan Guru dan Bahan Bacaan Peserta Didik.
+
+20. **GLOSARIUM**: Definisi lengkap seluruh istilah penting dalam materi.
+
+21. **DAFTAR PUSTAKA**: Disusun sesuai sumber referensi yang benar-benar digunakan. Jangan mengarang referensi.
+
+22. **LAMPIRAN**:
+    - Cantumkan lampiran relevan: Lembar Observasi, Rubrik Sikap, Rubrik Pengetahuan, Rubrik Keterampilan, Daftar Hadir, Jurnal Mengajar, Jurnal Refleksi, Instrumen Diagnostik, Bank Soal, Kunci Jawaban, Pedoman Penskoran, Media Pembelajaran, Bahan Presentasi, Daftar Alat dan Bahan, Rencana Pengayaan, Rencana Remedial.
+
+23. **TABEL VALIDASI OTOMATIS**:
+    - Lakukan pemeriksaan mandiri dan tampilkan TABEL VALIDASI OTOMATIS HTML (3 kolom: ASPEK OTOMATIS | STATUS [LENGKAP/SESUAI/KONSISTEN] | CATATAN VALIDASI) yang memuat:
+      * Kelengkapan komponen modul
+      * Kesesuaian dengan data pengguna
+      * Bagian yang menggunakan placeholder [DIISI OLEH GURU]
+      * Bagian yang perlu disesuaikan sekolah
+      * Konsistensi tujuan, kegiatan, dan asesmen
+
+24. **OUTPUT RINGKASAN & CATATAN PENYEMPURNAAN**:
+    - Sertakan ringkasan di bagian paling bawah:
+      1. Modul Ajar Lengkap Status: SUDAH DIPENUHI
+      2. Tabel Validasi: TERSEDIA
+      3. Daftar Komponen yang Telah Dipenuhi
+      4. Daftar Placeholder yang Perlu Dilengkapi Guru (jika ada)
+      5. Saran Penyempurnaan Modul Ajar
+
+# FORMAT PENULISAN & STYLING HTML:
+- Gunakan tag <h2 style="color: #059669; font-size: 13pt; font-weight: bold; margin-top: 22px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #059669; padding-bottom: 3px; font-family: Arial, sans-serif;"> untuk Judul Bagian Utama (Menggunakan Angka Romawi I sampai XXIV).
+- Gunakan <h3 style="color: #111827; font-size: 11pt; font-weight: bold; margin-top: 12px; margin-bottom: 4px; font-family: Arial, sans-serif;"> untuk Sub-Bagian.
+- Semua TABEL HTML wajib menggunakan style: border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; margin-top: 8px; margin-bottom: 14px; font-size: 10.5pt;.
+- Tabel header <th>: background-color: #f1f5f9; font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left;.
+- Tabel cell <td>: padding: 6px 8px; border: 1px solid #cbd5e1; vertical-align: top;.
+- Berikan output HANYA berupa kode HTML div murni (tanpa tag <html>/<body>, tanpa markdown triple backticks).
+`;
 
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
+                config: {
+                    maxOutputTokens: 8192,
+                }
             });
 
             const html = response.text || "<p>Gagal membuat konten.</p>";
@@ -823,24 +1370,97 @@ Hasil akhir:
           <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
           <head>
             <meta charset='utf-8'>
-            <title>Modul Ajar</title>
+            <title>Modul Ajar ${formData.subject}</title>
             <style>
-              @page { size: ${size.width} ${size.height}; mso-page-orientation: portrait; margin: 2.54cm; mso-page-footer: f1; }
-              div.f1 { margin-bottom: 20pt; font-size: 9pt; text-align: right; color: #666; border-top: 1px solid #ccc; padding-top: 5pt; }
-              body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; }
-              table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
-              td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
-              img { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ddd; }
+              @page {
+                size: ${size.width} ${size.height};
+                mso-page-orientation: portrait;
+                margin: 2.54cm 2.54cm 2.54cm 2.54cm;
+                mso-header-margin: 36pt;
+                mso-footer-margin: 36pt;
+                mso-paper-source: 0;
+              }
+              body {
+                font-family: Arial, 'Helvetica Neue', sans-serif;
+                font-size: 11pt;
+                line-height: 1.4;
+                color: #1f2937;
+              }
+              h1 {
+                font-family: Arial, sans-serif;
+                font-size: 16pt;
+                font-weight: bold;
+                text-align: center;
+                color: #111827;
+                margin: 0 0 4pt 0;
+                text-transform: uppercase;
+              }
+              h2 {
+                font-family: Arial, sans-serif;
+                font-size: 13pt;
+                font-weight: bold;
+                color: #059669;
+                text-transform: uppercase;
+                margin-top: 18pt;
+                margin-bottom: 8pt;
+                border-bottom: 2px solid #059669;
+                padding-bottom: 2pt;
+              }
+              h3 {
+                font-family: Arial, sans-serif;
+                font-size: 11pt;
+                font-weight: bold;
+                color: #111827;
+                margin-top: 12pt;
+                margin-bottom: 4pt;
+              }
+              p, li {
+                margin-top: 3pt;
+                margin-bottom: 5pt;
+                line-height: 1.4;
+              }
+              table {
+                border-collapse: collapse;
+                width: 100%;
+                margin-top: 6pt;
+                margin-bottom: 12pt;
+                font-size: 10.5pt;
+              }
+              td, th {
+                border: 1px solid #cbd5e1;
+                padding: 6pt 8pt;
+                vertical-align: top;
+              }
+              th {
+                background-color: #f1f5f9;
+                font-weight: bold;
+                color: #0f172a;
+                text-align: left;
+              }
+              ul, ol {
+                margin-top: 4pt;
+                margin-bottom: 6pt;
+                padding-left: 20pt;
+              }
+              img {
+                max-width: 100%;
+                height: auto;
+                margin: 10px 0;
+                border: 1px solid #cbd5e1;
+              }
+              div.f1 {
+                margin-top: 15pt;
+                font-size: 9pt;
+                text-align: right;
+                color: #6b7280;
+                border-top: 1px solid #cbd5e1;
+                padding-top: 5pt;
+              }
             </style>
           </head>
           <body>
-            <div style="text-align: center; margin-bottom: 20pt;">
-                <h2 style="margin: 0;">MODUL AJAR KURIKULUM MERDEKA</h2>
-                <h3 style="margin: 5pt 0;">${userIdentity.institutionName.toUpperCase()}</h3>
-            </div>
-            <hr/><br/>
             ${resultContent}
-            ${generatedImageUrl ? `<br/><h3>Lampiran Visual</h3><img src="${generatedImageUrl}" alt="Ilustrasi Materi" width="400" />` : ''}
+            ${generatedImageUrl ? `<br/><h2>LAMPIRAN VISUAL LKPD</h2><div style="text-align: center;"><img src="${generatedImageUrl}" alt="Ilustrasi Materi" width="400" /></div>` : ''}
             <div style='mso-element:footer' id='f1'><div class='f1'>${footerText} - Halaman <span style='mso-field-code:" PAGE "'></span></div></div>
           </body>
           </html>
@@ -850,7 +1470,7 @@ Hasil akhir:
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `Modul_Ajar_${formData.subject}_${formData.topic.substring(0,20)}.doc`;
+        link.download = `Modul_Ajar_${formData.subject}_${formData.topic.substring(0,20).replace(/\s+/g, '_')}.doc`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1011,11 +1631,26 @@ const App = () => {
   };
 
 const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem('prota_custom_api_key') || '');
+const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+const [showApiKeyText, setShowApiKeyText] = useState(false);
+const [apiKeyMessage, setApiKeyMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
 const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, boolean>>>({});
 
-  const [currentView, setCurrentView] = useState<'generator' | 'history' | 'modul_ajar'>('generator');
+  const [currentView, setCurrentView] = useState<'generator' | 'history' | 'modul_ajar' | 'calendar'>('generator');
+  const [calendarPageTab, setCalendarPageTab] = useState<'all' | 'master' | 'visual' | 'analysis'>('all');
   const [selectedFase, setSelectedFase] = useState(FASES[0]);
   const [selectedSubject, setSelectedSubject] = useState(SUBJECTS[0]);
+  const [selectedClass, setSelectedClass] = useState<string>(FASES[0].classes[0]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState<'config' | 'analysis' | 'calendar'>('config');
+
+  useEffect(() => {
+    if (selectedFase && selectedFase.classes && selectedFase.classes.length > 0) {
+      if (!selectedFase.classes.includes(selectedClass)) {
+        setSelectedClass(selectedFase.classes[0]);
+      }
+    }
+  }, [selectedFase]);
   const [loading, setLoading] = useState(false);
   const [atpLoading, setAtpLoading] = useState<string | null>(null);
   const [data, setData] = useState<CurriculumData | null>(null);
@@ -1028,35 +1663,15 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
   const [analysisModal, setAnalysisModal] = useState<string | null>(null);
   const [bulkGenerationStatus, setBulkGenerationStatus] = useState<Record<string, { current: number, total: number, percent: number, active: boolean, statusText?: string }>>({});
   const [pendingSemesterSelection, setPendingSemesterSelection] = useState<string | null>(null);
+  const [selectedCharacteristic, setSelectedCharacteristic] = useState("Beragam (Visual, Auditori, Kinestetik)");
   
-  const [isMaintenanceMode, setIsMaintenanceMode] = useState(() => localStorage.getItem('prota_maintenance_bypass') !== 'true');
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Check for Ctrl+m or Ctrl+M
-      if (event.ctrlKey && event.key.toLowerCase() === 'm') {
-        event.preventDefault();
-        setIsMaintenanceMode(false);
-        localStorage.setItem('prota_maintenance_bypass', 'true');
-        alert("Mode Maintenance Dinonaktifkan. Halaman akan dimuat ulang.");
-        window.location.reload(); 
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Maintenance mode bypass removed
   }, []);
 
-  if (isMaintenanceMode) {
-      return (
-        <div className="flex flex-col items-center justify-center h-screen w-full bg-gray-50 text-center p-6 bg-gradient-to-b from-blue-50 to-white">
-          <div className="bg-white p-8 rounded-2xl shadow-xl ring-1 ring-gray-200 max-w-md">
-             <h1 className="text-3xl font-bold text-gray-800 mb-4">Mohon maaf sistem sedang dalam perbaikan</h1>
-             <p className="text-gray-600">Terima kasih atas kesabaran Anda.</p>
-          </div>
-        </div>
-      );
-  }
-  
+
   const [userIdentity, setUserIdentity] = useState<UserIdentity>(() => ({
       authorName: localStorage.getItem('prota_author_name') || '',
       institutionName: localStorage.getItem('prota_institution_name') || '',
@@ -1406,12 +2021,85 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
             details: Object.values(monthDetails),
             dayDistribution
         };
-  };
+  };const normalizeClassStr = (str: string): string => {
+    if (!str) return '';
+    let s = str.toLowerCase().trim().replace(/\s+/g, '');
+    s = s.replace(/kelas/g, '').replace(/kls/g, '').replace(/sd/g, '');
+    const romanMap: Record<string, string> = {
+        'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6'
+    };
+    if (romanMap[s]) return romanMap[s];
+    const numMatch = s.match(/\d/);
+    if (numMatch) return numMatch[0];
+    return s;
+};
 
-  const generateContent = async () => {
+const isSameClass = (classA: string, classB: string): boolean => {
+    if (!classA || !classB) return false;
+    const normA = normalizeClassStr(classA);
+    const normB = normalizeClassStr(classB);
+    return normA !== '' && normA === normB;
+};
+
+const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string) => {
+    if (!currData || !currData.elements) return [];
+    
+    interface FlatTP {
+        id: number;
+        tp: string;
+        elementIndex: number;
+        allocIndex: number;
+        tpIndex: number;
+    }
+
+    const flatTPs: FlatTP[] = [];
+    let tpCounter = 1;
+
+    currData.elements.forEach((el, elIdx) => {
+        (el.allocations || []).forEach((alloc, allocIdx) => {
+            const matchesClass = isSameClass(alloc.className, targetClassName) ||
+                                (el.allocations.length === 1 && !alloc.className);
+            if (matchesClass) {
+                (alloc.tujuanPembelajaran || []).forEach((tp, tpIdx) => {
+                    flatTPs.push({
+                        id: tpCounter++,
+                        tp: tp,
+                        elementIndex: elIdx,
+                        allocIndex: allocIdx,
+                        tpIndex: tpIdx
+                    });
+                });
+            }
+        });
+    });
+
+    if (flatTPs.length === 0) {
+        const targetDigit = normalizeClassStr(targetClassName);
+        currData.elements.forEach((el, elIdx) => {
+            (el.allocations || []).forEach((alloc, allocIdx) => {
+                if (alloc.className && alloc.className.includes(targetDigit)) {
+                    (alloc.tujuanPembelajaran || []).forEach((tp, tpIdx) => {
+                        flatTPs.push({
+                            id: tpCounter++,
+                            tp: tp,
+                            elementIndex: elIdx,
+                            allocIndex: allocIdx,
+                            tpIndex: tpIdx
+                        });
+                    });
+                }
+            });
+        });
+    }
+
+    return flatTPs;
+};
+
+  const generateContent = async (overrideFase?: typeof FASES[0], overrideSubject?: string): Promise<CurriculumData | null> => {
     setLoading(true);
     setError(null);
-    setData(null);
+    const faseToUse = overrideFase || selectedFase;
+    const subjectToUse = overrideSubject || selectedSubject;
 
     try {
       const apiKey = getApiKey();
@@ -1438,7 +2126,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                     properties: {
                       className: { 
                         type: Type.STRING,
-                        description: `Nama kelas, HARUS persis salah satu dari: ${selectedFase.classes.join(" atau ")}`
+                        description: `Nama kelas, HARUS persis salah satu dari: ${(faseToUse?.classes || []).join(" atau ")}`
                       },
                       tujuanPembelajaran: { 
                         type: Type.ARRAY, 
@@ -1460,11 +2148,11 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
       const prompt = `
         Bertindaklah sebagai ahli kurikulum pendidikan Indonesia (Kurikulum Merdeka 2025).
         Tugas: Analisis Capaian Pembelajaran (CP) dan rumuskan Tujuan Pembelajaran (TP).
-        Parameter: Jenjang SD, Fase ${selectedFase.name}, Mapel ${selectedSubject}, Kelas ${selectedFase.classes.join(" dan ")}.
+        Parameter: Jenjang SD, Fase ${faseToUse?.name || ''}, Mapel ${subjectToUse}, Kelas ${(faseToUse?.classes || []).join(" dan ")}.
         Instruksi: 
         1. Tuliskan deskripsi singkat mata pelajaran.
         2. Tuliskan Elemen dan CP terbaru. 
-        3. Pecah CP menjadi Tujuan Pembelajaran (TP) pembelajaran yang spesifik, aplikatif, dan terukur untuk setiap kelas yang diminta (${selectedFase.classes.join(" dan ")}). Anda WAJIB memberikan minimal 2 Tujuan Pembelajaran (TP) untuk setiap kelas dalam array 'tujuanPembelajaran'. JANGAN PERNAH mengosongkan array 'tujuanPembelajaran'.
+        3. Pecah CP menjadi Tujuan Pembelajaran (TP) pembelajaran yang spesifik, aplikatif, dan terukur untuk setiap kelas yang diminta (${(faseToUse?.classes || []).join(" dan ")}). Anda WAJIB memberikan minimal 2 Tujuan Pembelajaran (TP) untuk setiap kelas dalam array 'tujuanPembelajaran'. JANGAN PERNAH mengosongkan array 'tujuanPembelajaran'.
         4. Pastikan output sesuai dengan skema JSON yang diminta, dengan array 'elements' yang berisi 'allocations' untuk setiap kelas.
       `;
 
@@ -1487,28 +2175,45 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
       }
       
       setData(resultData);
-      addActivity('CP_TP', selectedSubject, `Analisis CP & TP untuk ${selectedFase.name}`, resultData);
+      addActivity('CP_TP', subjectToUse, `Analisis CP & TP untuk ${faseToUse.name}`, resultData);
+      return resultData;
 
     } catch (err: any) {
       console.error(err);
       setError(formatAIError(err));
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
   const generateATP = async (className: string) => {
-    if (!data) {
-        console.error("Data CP/TP belum tersedia.");
-        return;
-    }
     console.log(`Memulai generateATP untuk ${className}...`);
     setAtpLoading(className);
     setError(null);
-    
+
+    let activeData = data;
+    let flatTPs = extractFlatTPs(activeData, className);
+
+    if (!activeData || flatTPs.length === 0) {
+        console.log(`TP untuk ${className} tidak ditemukan dalam data saat ini. Otomatis membuat CP & TP...`);
+        const targetFase = FASES.find(f => f.classes.some(c => isSameClass(c, className))) || selectedFase;
+        const newData = await generateContent(targetFase, selectedSubject);
+        if (newData) {
+            activeData = newData;
+            flatTPs = extractFlatTPs(activeData, className);
+        }
+    }
+
+    if (!activeData || flatTPs.length === 0) {
+        setAtpLoading(null);
+        setError(`Data Tujuan Pembelajaran (TP) untuk ${className} tidak dapat ditemukan atau dihasilkan. Silakan klik tombol 'Generate CP & TP' di menu samping.`);
+        return;
+    }
+
     // 1. SMART JP CALCULATION
     let targetJP = 216; 
-    const subjectKey = getSubjectKey(selectedSubject) || getSubjectKey(data.subject);
+    const subjectKey = getSubjectKey(selectedSubject) || getSubjectKey(activeData.subject);
     if (subjectKey) {
         targetJP = JP_STANDARDS[subjectKey]?.[className] || 216;
     }
@@ -1552,71 +2257,15 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
         
         const accumulatedJP = timelineSlots.reduce((sum, s) => sum + s.allocatedJP, 0);
         console.log(`Total JP tersedia pada timeline: ${accumulatedJP} JP`);
-        
-        // 3. PREPARE FLATTENED TP LIST (Optimization for Token Limits)
-        interface FlatTP {
-            id: number;
-            tp: string;
-            elementIndex: number;
-            allocIndex: number;
-            tpIndex: number;
-        }
-        
-        const flatTPs: FlatTP[] = [];
-        let tpCounter = 1;
-        
-        (data.elements || []).forEach((el, elIdx) => {
-            (el.allocations || []).forEach((alloc, allocIdx) => {
-                // Flexible matching for class names
-                const normalizedAllocClass = alloc.className.toLowerCase().replace(/\s+/g, '');
-                const normalizedTargetClass = className.toLowerCase().replace(/\s+/g, '');
-                const hasRomawi = (idx: string, text: string) => {
-                   const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi'];
-                   const numMatch = text.match(/\d/);
-                   if (numMatch) {
-                       const num = parseInt(numMatch[0]);
-                       return text.replace(num.toString(), r[num-1] || num.toString());
-                   }
-                   return text;
-                };
-                
-                const classWithoutSpaces = className.toLowerCase().replace(/\s+/g, ''); // "kelas1"
-                const allocWithoutSpaces = alloc.className.toLowerCase().replace(/\s+/g, '');
-
-                if (
-                    allocWithoutSpaces === classWithoutSpaces ||
-                    allocWithoutSpaces.includes(classWithoutSpaces.replace('kelas', '')) ||
-                    classWithoutSpaces.includes(allocWithoutSpaces.replace('kelas', '')) ||
-                    alloc.className.toLowerCase().includes(className.toLowerCase().replace('kelas ', ''))
-                ) {
-                    (alloc.tujuanPembelajaran || []).forEach((tp, tpIdx) => {
-                        flatTPs.push({
-                            id: tpCounter++,
-                            tp: tp,
-                            elementIndex: elIdx,
-                            allocIndex: allocIdx,
-                            tpIndex: tpIdx
-                        });
-                    });
-                }
-            });
-        });
 
         console.log(`Flat TPs found: ${flatTPs.length}`);
-
-        if (flatTPs.length === 0) {
-            const availableClasses = Array.from(new Set(
-                (data.elements || []).flatMap(el => (el.allocations || []).map(a => a.className))
-            )).join(', ');
-            throw new Error(`Data Tujuan Pembelajaran (TP) untuk ${className} tidak ditemukan dalam hasil analisis CP & TP. Kelas yang tersedia dari hasil AI: ${availableClasses}. Pastikan langkah 1 (Genearte CP & TP) menghasilkan data untuk kelas ini.`);
-        }
 
         const prompt = `
             PERAN: Ahli Kurikulum & Penjadwalan Sekolah Dasar (Kurikulum Merdeka 2025).
             TUGAS: Pecah Tujuan Pembelajaran (TP) menjadi aktivitas-aktivitas kecil (Alur Tujuan Pembelajaran/ATP).
             
             KONTEKS:
-            - Mapel: ${data.subject} (${className})
+            - Mapel: ${activeData.subject} (${className})
             - Total Target JP: ${accumulatedJP} JP
             - Jumlah Slot Pertemuan: ${timelineSlots.length} (dengan variasi JP per pertemuan sesuai jadwal pengguna)
             
@@ -1627,7 +2276,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
             1. Buat rangkaian aktivitas untuk SETIAP TP di atas.
             2. Satu TP bisa dipecah menjadi beberapa aktivitas (beberapa pertemuan) jika kompleks.
             3. Distribusikan TP ini ke dalam total ${accumulatedJP} JP yang tersedia. Pastikan total JP dari semua aktivitas diakumulasikan tepat ${accumulatedJP} JP.
-               PENTING: Gunakan alokasi JP per-aktivitas yang wajar (misal: 1, 2, atau 3 JP). Hindari membuat satu aktivitas dengan JP yang sangat besar yang tidak mungkin selesai dalam satu hari (kapasitas harian ${classSchedules[className]?.map(d => `${d}: ${classDailyJP[className]?.[d] || 3} JP`).join(', ')}).
+               PENTING: Gunakan alokasi JP per-aktivitas yang wajar (misal: 1, 2, atau 3 JP). Hindari membuat satu aktivitas dengan JP yang sangat besar yang tidak mungkin selesai dalam satu hari (kapasitas harian ${(selectedDays || []).map(d => `${d}: ${(classDailyJP[className] || {})[d] || 3} JP`).join(', ')}).
             4. Gunakan field 'alur' untuk deskripsi aktivitas pembelajaran yang konkret.
             5. Return JSON object dengan properti 'allocations' yang berisi array pemetaan tpId ke daftar aktivitas sesuai skema yang diberikan.
         `;
@@ -1685,7 +2334,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
         }
 
         // 4. MAP RESULT BACK TO DATA STRUCTURE
-        const newData = JSON.parse(JSON.stringify(data));
+        const newData = JSON.parse(JSON.stringify(activeData));
         
         // Ensure structure exists
         flatTPs.forEach(f => {
@@ -1699,61 +2348,61 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
              }
         });
 
+        const totalAIJP = flatTPs.reduce((sum, f) => {
+            const alloc = result.allocations?.find(a => a.tpId === f.id);
+            return sum + (alloc?.activities || []).reduce((s, a) => s + (a.jp || 2), 0);
+        }, 0) || 1;
+
+        let slotsRemaining = timelineSlots.length;
+        let aiJPRemaining = totalAIJP;
         let slotCursor = 0;
-        let remainingJPInCurrentSlot = 0;
 
         // Iterate flatTPs to ensure every TP is handled
-        flatTPs.forEach(f => {
+        flatTPs.forEach((f, idx) => {
             const aiAllocation = result.allocations?.find(a => a.tpId === f.id);
             const activities = aiAllocation?.activities || [];
+            const tpAIJP = activities.reduce((s, a) => s + (a.jp || 2), 0) || 1;
             
+            let slotsForThisTP = Math.round((tpAIJP / aiJPRemaining) * slotsRemaining);
+            
+            const remainingTPs = flatTPs.length - 1 - idx;
+            if (slotsForThisTP < 1) slotsForThisTP = 1;
+            if (slotsForThisTP > slotsRemaining - remainingTPs) {
+                slotsForThisTP = slotsRemaining - remainingTPs;
+            }
+            
+            aiJPRemaining -= tpAIJP;
+            slotsRemaining -= slotsForThisTP;
+
             const processedItems: AtpItem[] = [];
 
-            if (activities.length > 0) {
-                 activities.forEach(act => {
-                      let jpToAllocate = act.jp;
-                      
-                      while (jpToAllocate > 0 && slotCursor < timelineSlots.length) {
-                          if (remainingJPInCurrentSlot <= 0) {
-                              remainingJPInCurrentSlot = timelineSlots[slotCursor].allocatedJP;
-                          }
-                          
-                          const date = timelineSlots[slotCursor].date;
-                          const take = Math.min(jpToAllocate, remainingJPInCurrentSlot);
-                          
-                          processedItems.push({
-                              alur: act.alur + (act.jp > take ? ` (Bag. ${act.jp - jpToAllocate + take}/${act.jp} JP)` : ''),
-                              alokasiWaktu: `${take} JP`,
-                              planDate: date
-                          });
-                          
-                          jpToAllocate -= take;
-                          remainingJPInCurrentSlot -= take;
-                          
-                          if (remainingJPInCurrentSlot <= 0) {
-                              slotCursor++;
-                              remainingJPInCurrentSlot = 0;
-                          }
-                      }
-                 });
-            } else {
-                // Fallback for missing TPs
-                let date = '';
-                let jpVal = 2;
-                if (remainingJPInCurrentSlot <= 0 && slotCursor < timelineSlots.length) {
-                    remainingJPInCurrentSlot = timelineSlots[slotCursor].allocatedJP;
+            if (slotsForThisTP > 0) {
+                const slots = timelineSlots.slice(slotCursor, slotCursor + slotsForThisTP);
+                slotCursor += slotsForThisTP;
+
+                if (activities.length > 0) {
+                    slots.forEach((slot, slotIdx) => {
+                         const startActIdx = Math.floor((slotIdx / slots.length) * activities.length);
+                         let endActIdx = Math.floor(((slotIdx + 1) / slots.length) * activities.length);
+                         if (endActIdx === startActIdx) endActIdx = startActIdx + 1;
+                         
+                         const assignedActivities = activities.slice(startActIdx, endActIdx);
+                         
+                         processedItems.push({
+                               alur: assignedActivities.map(a => "- " + a.alur).join('\n'),
+                               alokasiWaktu: `${slot.allocatedJP} JP`,
+                               planDate: slot.date
+                         });
+                    });
+                } else {
+                    slots.forEach(slot => {
+                        processedItems.push({
+                             alur: `Pembelajaran: ${f.tp}`,
+                             alokasiWaktu: `${slot.allocatedJP} JP`,
+                             planDate: slot.date
+                        });
+                    });
                 }
-                if (slotCursor < timelineSlots.length) {
-                    date = timelineSlots[slotCursor].date;
-                    jpVal = remainingJPInCurrentSlot;
-                    slotCursor++;
-                    remainingJPInCurrentSlot = 0;
-                }
-                processedItems.push({
-                     alur: `Pembelajaran: ${f.tp}`,
-                     alokasiWaktu: `${jpVal} JP`,
-                     planDate: date
-                });
             }
 
             // Assign
@@ -1766,7 +2415,6 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
 
         setData(newData);
         addActivity('ATP_JP', newData.subject, `Penyusunan ATP & Jadwal Otomatis ${className}`, newData);
-
     } catch (err: any) {
         console.error(err);
         setError("Gagal membuat ATP: " + formatAIError(err));
@@ -1775,8 +2423,71 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
     }
   };
 
+  const openModulGeneratorForSelected = (className: string) => {
+      const rawItems: { el: any, tp: any, atpItem: any }[] = [];
+      const currentSelected = selectedAtps[className] || {};
+
+      (data?.elements || []).forEach((el, elIdx) => {
+          (el.allocations || []).forEach((alloc) => {
+              if (alloc.structuredAtp) {
+                  alloc.structuredAtp.forEach((grp: any, grpIdx) => {
+                       grp.atpItems.forEach((atpItem: any, itemIdx) => {
+                           const key = `${elIdx}-${grpIdx}-${itemIdx}`;
+                           if (currentSelected[key]) {
+                               rawItems.push({ el, tp: grp.tp, atpItem });
+                           }
+                       });
+                  });
+              }
+          });
+      });
+
+      if (rawItems.length === 0) {
+          alert("Silakan pilih minimal satu ATP (centang pada kolom Alur Tujuan Pembelajaran) untuk dibuatkan Modul Ajar.");
+          return;
+      }
+
+      const combinedTopics = rawItems.map((item, idx) => `${idx + 1}. ${item.atpItem.alur}`).join('\n');
+      const combinedTPs = Array.from(new Set(rawItems.map(item => item.tp))).join('\n');
+      const combinedCPs = Array.from(new Set(rawItems.map(item => item.el.capaianPembelajaran))).join('\n');
+      const combinedElements = Array.from(new Set(rawItems.map(item => item.el.elementName))).join(', ');
+      
+      let totalJP = 0;
+      rawItems.forEach(item => {
+          const match = String(item.atpItem.alokasiWaktu).match(/\d+/);
+          totalJP += match ? parseInt(match[0]) : 2;
+      });
+
+      const dates = rawItems.map(item => item.atpItem.planDate).filter(Boolean);
+      const dateString = dates.length > 0 ? Array.from(new Set(dates)).join(', ') : formatDateLocal(new Date());
+
+      setModulContext({
+          subject: data?.subject || '',
+          className,
+          fase: data?.fase || '',
+          elementName: combinedElements,
+          cp: combinedCPs,
+          tp: combinedTPs,
+          atpItem: {
+              alur: combinedTopics,
+              alokasiWaktu: `${totalJP} JP (${rawItems.length} Pertemuan)`,
+              planDate: dateString
+          },
+          selectedAtpItems: rawItems
+      });
+      setCurrentView('modul_ajar');
+  };
+
   const handleBulkGenerateModulForClass = (className: string) => {
-      setPendingSemesterSelection(className);
+      const currentSelected = selectedAtps[className] || {};
+      const hasSelection = Object.keys(currentSelected).length > 0 && Object.values(currentSelected).some(v => v);
+      
+      if (!hasSelection) {
+          alert("Silakan pilih minimal satu ATP (centang pada kolom Alur Tujuan Pembelajaran) untuk dibuatkan Modul Ajar.");
+          return;
+      }
+      
+      openModulGeneratorForSelected(className);
   };
 
   const runBulkGeneration = async (className: string, semChoice: '1' | '2') => {
@@ -1791,7 +2502,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                   alloc.structuredAtp.forEach((grp: any, grpIdx) => {
                        grp.atpItems.forEach((atpItem: any, itemIdx) => {
                            const key = `${elIdx}-${grpIdx}-${itemIdx}`;
-                           if (!hasSelection || currentSelected[key]) {
+                           if (currentSelected[key]) {
                                rawItems.push({ el, tp: grp.tp, atpItem });
                            }
                        });
@@ -1820,9 +2531,16 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
           return;
       }
 
+      const maxModules = Math.min(itemsToGenerateFinal.length, semDates.length);
+      
+      if (maxModules === 0) {
+          alert(`Tidak ada ATP yang terpilih untuk Semester ${semChoice} yang memiliki tanggal rencana.`);
+          return;
+      }
+
       setBulkGenerationStatus(prev => ({
           ...prev,
-          [className]: { current: 0, total: semDates.length, percent: 0, active: true, statusText: "Memulai proses..." }
+          [className]: { current: 0, total: maxModules, percent: 0, active: true, statusText: "Memulai proses..." }
       }));
 
       // Ensure that cancellation flag is reset for this class
@@ -1834,150 +2552,270 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
           const apiKey = getApiKey();
           if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
           const ai = new GoogleGenAI({ apiKey });
+          
+          let combinedTopics = '';
+          let combinedTPs = '';
+          let totalJP = 0;
+          let combinedDates = [];
+          let combinedCPs = new Set<string>();
 
-          const maxModules = Math.min(itemsToGenerateFinal.length, semDates.length);
           for (let i = 0; i < maxModules; i++) {
-              if ((window as any).bulkAbortedMap?.[className]) {
-                  setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}));
-                  return;
-              }
-              
-              setBulkGenerationStatus(prev => ({
-                  ...prev,
-                  [className]: { ...prev[className], statusText: `Memproses modul ${i + 1} dari ${maxModules}...` }
-              }));
-
               const { el, tp, atpItem } = itemsToGenerateFinal[i];
-              const topic = atpItem.alur;
-              const allocation = atpItem.alokasiWaktu;
-              const date = atpItem.planDate || formatDateLocal(new Date());
+              combinedTopics += `- ${atpItem.alur}\n`;
+              combinedTPs += `- ${tp}\n`;
+              const jpMatch = String(atpItem.alokasiWaktu).match(/(\d+)/);
+              if (jpMatch) totalJP += parseInt(jpMatch[1]);
+              if (atpItem.planDate) combinedDates.push(formatDateLocal(new Date(atpItem.planDate)));
+              combinedCPs.add(el.capaianPembelajaran);
+          }
 
+          const dateString = combinedDates.length > 0 ? Array.from(new Set(combinedDates)).join(', ') : formatDateLocal(new Date());
+          const combinedCPString = Array.from(combinedCPs).join('\n');
+
+          if ((window as any).bulkAbortedMap?.[className]) {
+              setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}));
+              return;
+          }
+
+          setBulkGenerationStatus(prev => ({
+              ...prev,
+              [className]: { ...prev[className], statusText: `Memilih model pembelajaran AI terbaik untuk topik gabungan...` }
+          }));
+
+          const modelPrompt = `Pilih 1 model pembelajaran yang paling efektif (misalnya: PjBL, PBL, Inkuiri, Discovery, TaRL, dll) untuk Kelas ${className}, Fase ${data?.fase}, Topik gabungan: \n${combinedTopics}. Karakteristik Peserta Didik: ${selectedCharacteristic}. Jawablah hanya dengan format: "Nama Model: [Nama Model]"`;
+          
+          let modelResponseText = "Tidak ditentukan";
+          try {
+            const modelRec = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: modelPrompt,
+            });
+             modelResponseText = modelRec.text || "Tidak ditentukan";
+          } catch (e) {
+            console.error("Model rec failed, fallback:", e);
+          }
+
+          setBulkGenerationStatus(prev => ({
+              ...prev,
+              [className]: { ...prev[className], statusText: `Model dipilih: ${modelResponseText}. Membuat konten modul gabungan...` }
+          }));
+
+          const prompt = `
+Bertindaklah sebagai **Tim Ahli Kurikulum Pendidikan Indonesia**, yang terdiri atas:
+* Ahli Kurikulum Kemendikdasmen
+* Pengembang Modul Ajar
+* Pengembang Kurikulum Merdeka
+* Pengembang Pembelajaran Mendalam (Deep Learning)
+* Pengawas Sekolah
+* Asesor Akreditasi Sekolah
+* Guru Inti Nasional
+* Editor Bahasa Indonesia
+* Desainer Dokumen Pendidikan
+
+Anda memiliki pengalaman lebih dari 20 tahun dalam menyusun perangkat ajar SD.
+Seluruh dokumen HARUS menggunakan Bahasa Indonesia baku, profesional, mudah dipahami guru, serta siap digunakan sebagai dokumen resmi sekolah dan siap dicetak tanpa perlu ditambah lagi.
+
+# TUJUAN
+Anda akan menghasilkan **Modul Ajar Lengkap** (bukan ringkasan), utuh dan menyeluruh, yang mencakup beberapa Alur Tujuan Pembelajaran (ATP) sekaligus dalam satu dokumen modul ajar. 
+Dokumen harus siap dicetak dan dipindahkan ke Microsoft Word tanpa perlu ditambah lagi.
+
+# LANDASAN PENYUSUNAN
+* Permendikdasmen Nomor 13 Tahun 2025
+* Capaian Pembelajaran (CP) yang berlaku untuk mata pelajaran dan fase yang diminta
+* Prinsip Pembelajaran Mendalam (Deep Learning)
+* Delapan Dimensi Profil Lulusan
+* Prinsip 8,3,3,4
+* Kurikulum yang berlaku
+Jangan mengutip atau mengklaim isi regulasi yang tidak diketahui. Bila informasi spesifik belum diberikan pengguna (misalnya NIP atau data spesifik), gunakan placeholder **[DIISI OLEH GURU]**.
+
+# INFORMASI UTAMA:
+- Nama Guru / Penyusun: ${userIdentity.authorName}
+- NIP: [DIISI OLEH GURU]
+- Sekolah / Instansi: ${userIdentity.institutionName}
+- Tahun Pelajaran: ${userIdentity.academicYear || '2025/2026'}
+- Jenjang / Kelas: SD / ${className} (${data?.fase})
+- Semester: ${semChoice}
+- Mata Pelajaran: ${data?.subject}
+- Materi / Topik Gabungan (ATP): 
+${combinedTopics}
+- Capaian Pembelajaran (CP) Gabungan: 
+${combinedCPString}
+- Tujuan Pembelajaran (TP) Gabungan: 
+${combinedTPs}
+- Total Alokasi Waktu & Beban JP: ${totalJP} JP
+- Tanggal Pelaksanaan: ${dateString}
+- Model Pembelajaran: ${modelResponseText}
+- Karakteristik Peserta Didik: ${selectedCharacteristic || 'Beragam (Visual, Auditori, Kinestetik)'}
+
+# PRINSIP PEMBELAJARAN (DEEP LEARNING 8,3,3,4) WAJIB DIURAIKAN KONTEKSUAL:
+A. 8 Dimensi Profil Lulusan (Uraikan implementasi konkret setiap dimensi pada materi):
+   1. Beriman, Bertakwa kepada Tuhan YME, dan Berakhlak Mulia
+   2. Berkebinekaan Global
+   3. Gotong Royong
+   4. Mandiri
+   5. Bernalar Kritis
+   6. Kreatif
+   7. Jasmani dan Rohani yang Sehat
+   8. Pemahaman Literasi-Numerasi / Komunikasi
+B. 3 Prinsip Pembelajaran (Jelaskan implementasi nyata pada materi):
+   1. Mindful Learning (Pembelajaran Bermakna & Kesadaran Diri)
+   2. Meaningful Learning (Pembelajaran Relevan dengan Kehidupan Nyata)
+   3. Joyful Learning (Pembelajaran Menyenangkan & Menggugah Semangat)
+C. 3 Pengalaman Belajar (Lengkapi aktivitas peserta didik pada setiap bagian):
+   1. Memahami
+   2. Mengaplikasi
+   3. Merefleksi
+D. 4 Kerangka Pembelajaran (Jelaskan implementasinya secara nyata sesuai materi):
+   1. Praktik Pedagogis
+   2. Kemitraan Pembelajaran
+   3. Lingkungan Pembelajaran
+   4. Pemanfaatan Teknologi Digital
+
+# STRUKTUR MODUL AJAR (WAJIB BERURUTAN & LENGKAP):
+Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontainer utama) dengan komponen wajib berurutan berikut:
+
+1. **COVER**:
+   - Judul Modul Ajar: MODUL AJAR ${data?.subject ? data.subject.toUpperCase() : 'MAPEL'} (H1, center, bold, 16pt, uppercase)
+   - Landasan Subtitle: BERBASIS PERMENDIKDASMEN NOMOR 13 TAHUN 2025 (italic, 11pt, color: #374151, center)
+   - Logo Sekolah Placeholder: [ LOGO SEKOLAH / INSTANSI ] (border dashed, padding 10px, text-align center)
+   - Blok Identitas Cover: Nama Guru (${userIdentity.authorName}), NIP ([DIISI OLEH GURU]), Sekolah (${userIdentity.institutionName}), Tahun Pelajaran (${userIdentity.academicYear || '2025/2026'}), Fase (${data?.fase}), Kelas (${className}), Semester (${semChoice}), Mata Pelajaran (${data?.subject}).
+
+2. **IDENTITAS MODUL**:
+   - Tabel HTML 2-kolom rapi (style: width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10.5pt;).
+   - Tampilkan: Nama Guru, Sekolah, NIP [DIISI OLEH GURU], Fase, Kelas, Semester, Mapel, Topik Gabungan, Total Alokasi Waktu (${totalJP} JP), Tanggal Pelaksanaan (<span style="color: #dc2626; font-weight: bold;">Jadwal: ${dateString}</span>), Model Pembelajaran, Pendekatan, Metode, Media, Sumber Belajar, Karakteristik Peserta Didik, Target Peserta Didik, Sarana Prasarana.
+
+3. **CAPAIAN PEMBELAJARAN (CP)**: CP lengkap sesuai mata pelajaran dan fase.
+
+4. **TUJUAN PEMBELAJARAN (TP)**: Memuat tujuan pembelajaran spesifik dengan kata kerja operasional (KKO) yang terukur.
+
+5. **ALUR TUJUAN PEMBELAJARAN (ATP)**: Rangkaian ATP yang berurutan, logis, dan berkesinambungan.
+
+6. **PEMAHAMAN BERMAKNA**: Manfaat konkret pembelajaran bagi kehidupan nyata peserta didik sesuai level kelas.
+
+7. **PERTANYAAN PEMANTIK**: Minimal 5 pertanyaan pemantik yang mengaktifkan berpikir kritis dan rasa ingin tahu.
+
+8. **DIAGNOSTIK**:
+   - Diagnostik Kognitif & Diagnostik Non-Kognitif lengkap beserta instrumen dan kriteria tindak lanjut.
+
+9. **PEMBELAJARAN MENDALAM (DEEP LEARNING 8,3,3,4)**:
+   - Uraian kontekstual implementasi 8 Dimensi Profil Lulusan, 3 Prinsip Pembelajaran (Mindful, Meaningful, Joyful), 3 Pengalaman Belajar (Memahami, Mengaplikasi, Merefleksi), dan 4 Kerangka Pembelajaran (Praktik Pedagogis, Kemitraan, Lingkungan, Teknologi Digital).
+
+10. **LANGKAH PEMBELAJARAN**:
+    - Dibuat sangat rinci untuk setiap pertemuan (sesuai total beban ${totalJP} JP dan alokasi tanggal ${dateString}).
+    - Menggunakan TABEL HTML rapi.
+    - Minimal terdiri atas: Pendahuluan, Kegiatan Inti, Penutup.
+    - Cantumkan estimasi waktu JP dan tanggal pelaksanaan dari ATP.
+    - Pada Kegiatan Inti, jelaskan aktivitas guru dan peserta didik secara rinci sesuai sintaks model pembelajaran yang dipilih.
+
+11. **ASESMEN**:
+    - Diagnostik, Formatif, Sumatif (Lengkap).
+    - Pilih salah satu instrumen asesmen yang PALING RELEVAN berdasarkan tujuan pembelajaran, karakteristik materi, model, pendekatan, metode, aktivitas, dan bukti belajar. Jangan memaksakan seluruh jenis asesmen. Setiap asesmen yang dipilih harus memiliki keterkaitan langsung dengan TP.
+
+12. **INSTRUMEN PENILAIAN**:
+    - Pilih salah satu instrumen penilaian yang PALING RELEVAN (Observasi / Kinerja / Produk / Tes Tertulis / Tes Lisan / Praktik / Portofolio). Jangan memaksakan seluruh instrumen. Setiap instrumen dilengkapi kriteria dan bukti belajar.
+
+13. **RUBRIK PENILAIAN**:
+    - Gunakan skala yang konsisten (contoh: Skor 4 = Sangat Baik, 3 = Baik, 2 = Cukup, 1 = Perlu Bimbingan). Sertakan indikator dan deskripsi jelas untuk tiap tingkat capaian.
+
+14. **PENGAYAAN**: Rencana & materi pengayaan lengkap untuk peserta didik yang mencapai KTPM.
+
+15. **REMEDIAL**: Rencana & pendampingan remedial lengkap untuk peserta didik yang belum mencapai KTPM.
+
+16. **REFLEKSI GURU**: Minimal 10 pertanyaan refleksi mendalam untuk evaluasi diri guru.
+
+17. **REFLEKSI PESERTA DIDIK**: Minimal 10 pertanyaan refleksi sederhana dan ramah anak sesuai usia peserta didik.
+
+18. **LEMBAR KERJA PESERTA DIDIK (LKPD)**:
+    - Format SIAP CETAK.
+    - Memiliki: Judul, Tujuan, Petunjuk, Alat & Bahan, Langkah Kerja, Tugas, Soal, Ruang Jawaban.
+
+19. **BAHAN BACAAN**: Bahan Bacaan Guru dan Bahan Bacaan Peserta Didik.
+
+20. **GLOSARIUM**: Definisi lengkap seluruh istilah penting dalam materi.
+
+21. **DAFTAR PUSTAKA**: Disusun sesuai sumber referensi yang benar-benar digunakan. Jangan mengarang referensi.
+
+22. **LAMPIRAN**:
+    - Cantumkan lampiran relevan: Lembar Observasi, Rubrik Sikap, Rubrik Pengetahuan, Rubrik Keterampilan, Daftar Hadir, Jurnal Mengajar, Jurnal Refleksi, Instrumen Diagnostik, Bank Soal, Kunci Jawaban, Pedoman Penskoran, Media Pembelajaran, Bahan Presentasi, Daftar Alat dan Bahan, Rencana Pengayaan, Rencana Remedial.
+
+23. **TABEL VALIDASI OTOMATIS**:
+    - Lakukan pemeriksaan mandiri dan tampilkan TABEL VALIDASI OTOMATIS HTML (3 kolom: ASPEK OTOMATIS | STATUS [LENGKAP/SESUAI/KONSISTEN] | CATATAN VALIDASI) yang memuat:
+      * Kelengkapan komponen modul
+      * Kesesuaian dengan data pengguna
+      * Bagian yang menggunakan placeholder [DIISI OLEH GURU]
+      * Bagian yang perlu disesuaikan sekolah
+      * Konsistensi tujuan, kegiatan, dan asesmen
+
+24. **OUTPUT RINGKASAN & CATATAN PENYEMPURNAAN**:
+    - Sertakan ringkasan di bagian paling bawah:
+      1. Modul Ajar Lengkap Status: SUDAH DIPENUHI
+      2. Tabel Validasi: TERSEDIA
+      3. Daftar Komponen yang Telah Dipenuhi
+      4. Daftar Placeholder yang Perlu Dilengkapi Guru (jika ada)
+      5. Saran Penyempurnaan Modul Ajar
+
+# FORMAT PENULISAN & STYLING HTML:
+- Gunakan tag <h2 style="color: #059669; font-size: 13pt; font-weight: bold; margin-top: 22px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #059669; padding-bottom: 3px; font-family: Arial, sans-serif;"> untuk Judul Bagian Utama (Menggunakan Angka Romawi I sampai XXIV).
+- Gunakan <h3 style="color: #111827; font-size: 11pt; font-weight: bold; margin-top: 12px; margin-bottom: 4px; font-family: Arial, sans-serif;"> untuk Sub-Bagian.
+- Semua TABEL HTML wajib menggunakan style: border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; margin-top: 8px; margin-bottom: 14px; font-size: 10.5pt;.
+- Tabel header <th>: background-color: #f1f5f9; font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left;.
+- Tabel cell <td>: padding: 6px 8px; border: 1px solid #cbd5e1; vertical-align: top;.
+- Berikan output HANYA berupa kode HTML div murni (tanpa tag <html>/<body>, tanpa markdown triple backticks).
+`;
+
+          let response;
+          let retries = 6;
+          let success = false;
+          let delayMs = 20000;
+          
+          while (retries > 0 && !success) {
               try {
-                  // Phase 1: Model Selection
-                  setBulkGenerationStatus(prev => ({
-                      ...prev,
-                      [className]: { ...prev[className], statusText: `Memilih model pembelajaran AI terbaik untuk: ${topic}...` }
-                  }));
-
-                  const modelPrompt = `Pilih 1 model pembelajaran yang paling efektif (misalnya: PjBL, PBL, Inkuiri, Discovery, TaRL, dll) untuk Kelas ${className}, Fase ${data?.fase}, Topik: ${topic}. Jawablah hanya dengan format: "Nama Model: [Nama Model]"`;
-                  
-                  let modelResponseText = "Tidak ditentukan";
-                  try {
-                    const modelRec = await ai.models.generateContent({
-                        model: 'gemini-3-flash-preview',
-                        contents: modelPrompt,
-                    });
-                     modelResponseText = modelRec.text || "Tidak ditentukan";
-                  } catch (e) {
-                    console.error("Model rec failed, fallback:", e);
-                  }
-                  
-                  setBulkGenerationStatus(prev => ({
-                      ...prev,
-                      [className]: { ...prev[className], statusText: `Model dipilih: ${modelResponseText}. Membuat konten modul...` }
-                  }));
-                  await new Promise(res => setTimeout(res, 1000));
-
-                  // Phase 2: Content Generation
-                  const prompt = `
-                      Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
-                      Buatlah MODUL AJAR lengkap dan komprehensif.
-                      SANGAT PENTING: 
-                      - Gunakan Model Pembelajaran berikut: ${modelResponseText}
-                      - Modul Ajar harus secara eksplisit mengintegrasikan 3 prinsip utama BSKAP 032 HKR 2025 yaitu Mindful Learning (Pembelajaran Berkesadaran Penuh), Joyful Learning (Pembelajaran Menyenangkan/Sukacita), dan Meaningful Learning (Pembelajaran Bermakna) pada setiap tahapan kegiatan.
-                      
-                      INFORMASI UMUM:
-                      - Penyusun: ${userIdentity.authorName}
-                      - Instansi: ${userIdentity.institutionName}
-                      - Jenjang/Kelas: SD / ${className} (${data?.fase})
-                      - Mapel: ${data?.subject}
-                      - Alokasi Waktu: ${allocation}
-                      - Tanggal: ${date}
-                      - Topik/Materi: ${topic}
-                      
-                      KOMPONEN INTI:
-                      - Capaian Pembelajaran (CP): ${el.capaianPembelajaran}
-                      - Tujuan Pembelajaran (TP): ${tp}
-                      - Pemahaman Bermakna
-                      - Pertanyaan Pemantik
-                      - Kegiatan Pembelajaran (Pendahuluan, Inti, Penutup) terpadu dengan 3 prinsip di atas.
-                      
-                      LAMPIRAN (Sajikan dalam format tabel HTML modern jika memungkinkan):
-                      - Materi Ajar (Ringkasan/Bahan Ajar)
-                      - Lembar Kerja Peserta Didik (LKPD) - Buatkan instruksi detail.
-                      - Instrumen Penilaian (Rubrik/Soal)
-                      - Jurnal Mengajar/Sikap (Disajikan dalam bentuk tabel format pengisian).
-                      
-                      OUTPUT FORMAT:
-                      Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black, width: 100%).
-                      Gunakan tag <h3> untuk judul bagian.
-                   `;
-
-                  let response;
-                  let retries = 6;
-                  let success = false;
-                  let delayMs = 20000;
-                  let isRateLimited = false;
-                  
-                  while (retries > 0 && !success) {
-                      try {
-                          response = await ai.models.generateContent({
-                              model: 'gemini-3-flash-preview',
-                              contents: prompt,
-                          });
-                          success = true;
-                      } catch (e: any) {
-                          const errorString = JSON.stringify(e) + (e?.message || String(e)) + (e?.error?.status || '');
-                          const isRateLimit = errorString.includes('429') || errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('rate limit') || errorString.includes('RESOURCE_EXHAUSTED');
-                          if (isRateLimit && retries > 1) {
-                              isRateLimited = true;
-                              let waitTime = Math.max(delayMs, 60000);
-                              console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s... (${retries - 1} retries left)`);
-                              setBulkGenerationStatus(prev => ({
-                                  ...prev,
-                                  [className]: { ...prev[className], statusText: `Mencegah limit server. Jeda pendinginan ${waitTime / 1000} detik... (${retries - 1} percobaan tersisa)` }
-                              }));
-                              await new Promise(res => setTimeout(res, waitTime));
-                              delayMs = waitTime + 15000;
-                              retries--;
-                          } else {
-                              throw e;
-                          }
+                  response = await ai.models.generateContent({
+                      model: 'gemini-3-flash-preview',
+                      contents: prompt,
+                      config: {
+                          maxOutputTokens: 8192,
                       }
+                  });
+                  success = true;
+              } catch (e: any) {
+                  const errorString = JSON.stringify(e) + (e?.message || String(e)) + (e?.error?.status || '');
+                  const isRateLimit = errorString.includes('429') || errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('rate limit') || errorString.includes('RESOURCE_EXHAUSTED');
+                  if (isRateLimit && retries > 1) {
+                      let waitTime = Math.max(delayMs, 60000);
+                      console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s... (${retries - 1} retries left)`);
+                      setBulkGenerationStatus(prev => ({
+                          ...prev,
+                          [className]: { ...prev[className], statusText: `Mencegah limit server. Jeda pendinginan ${waitTime / 1000} detik... (${retries - 1} percobaan tersisa)` }
+                      }));
+                      await new Promise(res => setTimeout(res, waitTime));
+                      delayMs = waitTime + 15000;
+                      retries--;
+                  } else {
+                      throw e;
                   }
-
-                  if (!success) {
-                       throw new Error(`Gagal memproses setelah percobaan berulang: ${topic}`);
-                  }
-
-                  const html = response?.text || "<p>Gagal membuat konten.</p>";
-
-                  collectedHtml += html + `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
-                  collectedModulesData.push({ topic, html });
-
-                  setBulkGenerationStatus(prev => ({
-                      ...prev,
-                      [className]: { 
-                          current: i + 1, 
-                          total: itemsToGenerateFinal.length, 
-                          percent: Math.round(((i + 1) / itemsToGenerateFinal.length) * 100), 
-                          active: true,
-                          statusText: `Modul ${i + 1} selesai. Menjeda untuk modul berikutnya...`
-                      }
-                  }));
-                  
-                  const nextDelay = isRateLimited ? 60000 : 20000;
-                  if (i < itemsToGenerateFinal.length - 1) {
-                       setBulkGenerationStatus(prev => ({
-                           ...prev,
-                           [className]: { ...prev[className], statusText: `Modul selesai. Menyiapkan modul berikutnya dalam ${nextDelay/1000} detik...` }
-                       }));
-                       await new Promise(res => setTimeout(res, nextDelay));
-                  }
-              } catch (err: any) {
-                  console.error(`Error generating module ${i+1}: ${err}`);
               }
           }
+
+          if (!success) {
+               throw new Error(`Gagal memproses setelah percobaan berulang.`);
+          }
+
+          const html = response?.text || "<p>Gagal membuat konten.</p>";
+          collectedHtml += html + `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
+          collectedModulesData.push({ topic: 'Modul Gabungan', html });
+
+          setBulkGenerationStatus(prev => ({
+              ...prev,
+              [className]: { 
+                  current: maxModules, 
+                  total: maxModules, 
+                  percent: 100, 
+                  active: true,
+                  statusText: `Modul gabungan selesai.`
+              }
+          }));
+
 
           saveActivityLog({
               id: Date.now().toString() + Math.random().toString(36).substring(7),
@@ -2052,22 +2890,99 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
           <meta charset='utf-8'>
           <title>Kumpulan Modul Ajar ${className}</title>
           <style>
-            @page { size: ${size.width} ${size.height}; mso-page-orientation: portrait; margin: 2.54cm; mso-page-footer: f1; }
-            div.f1 { margin-bottom: 20pt; font-size: 9pt; text-align: right; color: #666; border-top: 1px solid #ccc; padding-top: 5pt; }
-            body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; }
-            table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
-            td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
-            img { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ddd; }
+            @page {
+              size: ${size.width} ${size.height};
+              mso-page-orientation: portrait;
+              margin: 2.54cm 2.54cm 2.54cm 2.54cm;
+              mso-header-margin: 36pt;
+              mso-footer-margin: 36pt;
+              mso-paper-source: 0;
+            }
+            body {
+              font-family: Arial, 'Helvetica Neue', sans-serif;
+              font-size: 11pt;
+              line-height: 1.4;
+              color: #1f2937;
+            }
+            h1 {
+              font-family: Arial, sans-serif;
+              font-size: 16pt;
+              font-weight: bold;
+              text-align: center;
+              color: #111827;
+              margin: 0 0 4pt 0;
+              text-transform: uppercase;
+            }
+            h2 {
+              font-family: Arial, sans-serif;
+              font-size: 13pt;
+              font-weight: bold;
+              color: #059669;
+              text-transform: uppercase;
+              margin-top: 18pt;
+              margin-bottom: 8pt;
+              border-bottom: 2px solid #059669;
+              padding-bottom: 2pt;
+            }
+            h3 {
+              font-family: Arial, sans-serif;
+              font-size: 11pt;
+              font-weight: bold;
+              color: #111827;
+              margin-top: 12pt;
+              margin-bottom: 4pt;
+            }
+            p, li {
+              margin-top: 3pt;
+              margin-bottom: 5pt;
+              line-height: 1.4;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin-top: 6pt;
+              margin-bottom: 12pt;
+              font-size: 10.5pt;
+            }
+            td, th {
+              border: 1px solid #cbd5e1;
+              padding: 6pt 8pt;
+              vertical-align: top;
+            }
+            th {
+              background-color: #f1f5f9;
+              font-weight: bold;
+              color: #0f172a;
+              text-align: left;
+            }
+            ul, ol {
+              margin-top: 4pt;
+              margin-bottom: 6pt;
+              padding-left: 20pt;
+            }
+            img {
+              max-width: 100%;
+              height: auto;
+              margin: 10px 0;
+              border: 1px solid #cbd5e1;
+            }
+            div.f1 {
+              margin-top: 15pt;
+              font-size: 9pt;
+              text-align: right;
+              color: #6b7280;
+              border-top: 1px solid #cbd5e1;
+              padding-top: 5pt;
+            }
           </style>
         </head>
         <body>
           <div style="text-align: center; margin-bottom: 20pt;">
-              <h2 style="margin: 0;">KUMPULAN MODUL AJAR KURIKULUM MERDEKA</h2>
-              <h3 style="margin: 5pt 0;">${userIdentity.institutionName.toUpperCase()}</h3>
-              <p style="margin: 0;">Mata Pelajaran: <b>${data?.subject || '-'}</b></p>
-              <p style="margin: 0;">Kelas: <b>${className}</b></p>
+              <h1 style="margin: 0; color: #059669;">KUMPULAN MODUL AJAR KURIKULUM MERDEKA</h1>
+              <h3 style="margin: 5pt 0; color: #374151;">${userIdentity.institutionName.toUpperCase()}</h3>
+              <p style="margin: 2pt 0; font-size: 10.5pt;">Mata Pelajaran: <b>${data?.subject || '-'}</b> | Kelas: <b>${className}</b></p>
           </div>
-          <hr/><br/>
+          <hr style="border: 0; border-top: 1.5px solid #059669; margin-bottom: 15pt;"/>
           ${combinedHtml}
           <div style='mso-element:footer' id='f1'><div class='f1'>${footerText} - Halaman <span style='mso-field-code:" PAGE "'></span></div></div>
         </body>
@@ -2361,16 +3276,6 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                             required 
                             className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
                             placeholder="Masukkan kata sandi"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Kata Sandi</label>
-                        <input 
-                            type="password" 
-                            required 
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
-                            placeholder="••••••••"
                         />
                     </div>
 
@@ -2741,6 +3646,151 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
 
   return (
     <div className="min-h-screen flex flex-col relative bg-gray-50">
+      {/* API Key Modal */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100 animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-r from-blue-700 to-indigo-700 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-xl backdrop-blur-xs">
+                  <Key className="w-6 h-6 text-blue-200" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Pengaturan API Key Gemini</h3>
+                  <p className="text-xs text-blue-100">Kelola API Key pribadi Anda</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowApiKeyModal(false)}
+                className="p-1.5 hover:bg-white/20 rounded-full transition-colors text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 bg-slate-50/50">
+              {/* Active Status Badge */}
+              <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 ${
+                localStorage.getItem('prota_custom_api_key') 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                  : 'bg-blue-50 border-blue-200 text-blue-800'
+              }`}>
+                {localStorage.getItem('prota_custom_api_key') ? (
+                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <span className="font-bold block text-sm">
+                    {localStorage.getItem('prota_custom_api_key') ? 'Custom API Key Aktif' : 'Menggunakan API Key System (Default)'}
+                  </span>
+                  <p className="mt-0.5 leading-relaxed">
+                    {localStorage.getItem('prota_custom_api_key')
+                      ? 'Proses pemrosesan AI menggunakan API Key pribadi yang Anda simpan.'
+                      : 'Jika terjadi limit kuota pada server, Anda dapat memasukkan Gemini API Key pribadi di bawah ini.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Notification Message */}
+              {apiKeyMessage && (
+                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in ${
+                  apiKeyMessage.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+                  apiKeyMessage.type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
+                  'bg-amber-100 text-amber-800 border border-amber-200'
+                }`}>
+                  <span>{apiKeyMessage.text}</span>
+                  <button onClick={() => setApiKeyMessage(null)} className="text-gray-500 hover:text-gray-700 ml-2">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Input Field */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Gemini API Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showApiKeyText ? "text" : "password"}
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="Masukkan Gemini API Key (contoh: AIzaSy...)"
+                    className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm bg-white font-mono transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyText(!showApiKeyText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                    title={showApiKeyText ? "Sembunyikan Key" : "Tampilkan Key"}
+                  >
+                    {showApiKeyText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Key ini disimpan secara lokal di peramban (localStorage) dan tidak akan dikirim ke server pihak ketiga.
+                </p>
+              </div>
+
+              {/* External Link */}
+              <div className="pt-1">
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-semibold hover:underline"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Dapatkan API Key Gratis di Google AI Studio ↗
+                </a>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-2 justify-end">
+                {localStorage.getItem('prota_custom_api_key') && (
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('prota_custom_api_key');
+                      setApiKeyInput('');
+                      setUserIdentity(prev => ({ ...prev, customApiKey: '' }));
+                      setApiKeyMessage({ type: 'info', text: 'API Key dihapus. Menggunakan key system default.' });
+                    }}
+                    className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" /> Hapus Key
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowApiKeyModal(false)}
+                  className="px-4 py-2.5 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    const trimmed = apiKeyInput.trim();
+                    if (trimmed) {
+                      localStorage.setItem('prota_custom_api_key', trimmed);
+                      setUserIdentity(prev => ({ ...prev, customApiKey: trimmed }));
+                      setApiKeyMessage({ type: 'success', text: 'API Key berhasil disimpan dan diaktifkan!' });
+                    } else {
+                      localStorage.removeItem('prota_custom_api_key');
+                      setUserIdentity(prev => ({ ...prev, customApiKey: '' }));
+                      setApiKeyMessage({ type: 'info', text: 'API Key dikosongkan. Menggunakan key default system.' });
+                    }
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" /> Simpan API Key
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* JP Reference Modal */}
       {showJpReference && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -2857,8 +3907,25 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
       {pendingSemesterSelection && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Pilih Semester</h3>
-            <p className="text-sm text-gray-600 mb-6 text-center">Pilih semester untuk menghasilkan modul ajar sesuai dengan rencana tanggal di Prota.</p>
+            <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Konfigurasi Modul</h3>
+            <p className="text-sm text-gray-600 mb-4 text-center">Tentukan karakteristik peserta didik dan pilih semester untuk menghasilkan modul ajar.</p>
+            
+            <div className="mb-6">
+                <label className="block text-xs font-bold text-gray-700 mb-2">Karakteristik Peserta Didik</label>
+                <select 
+                    value={selectedCharacteristic}
+                    onChange={(e) => setSelectedCharacteristic(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                    <option value="Beragam (Visual, Auditori, Kinestetik)">Beragam (Visual, Auditori, Kinestetik)</option>
+                    <option value="Sangat Aktif dan Suka Bermain (Kinestetik dominan)">Sangat Aktif dan Suka Bermain (Kinestetik dominan)</option>
+                    <option value="Cenderung Pasif/Pemalu (Membutuhkan dorongan interaksi)">Cenderung Pasif/Pemalu (Membutuhkan dorongan interaksi)</option>
+                    <option value="Pemahaman Cepat (Membutuhkan tantangan/pengayaan lebih)">Pemahaman Cepat (Membutuhkan tantangan/pengayaan lebih)</option>
+                    <option value="Membutuhkan Pendampingan Khusus (Instruksi bertahap)">Membutuhkan Pendampingan Khusus (Instruksi bertahap)</option>
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1">Model pembelajaran akan disesuaikan otomatis oleh AI.</p>
+            </div>
+
             <div className="flex flex-col gap-3">
               <button 
                 onClick={() => {
@@ -2987,11 +4054,14 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                 </div>
             </div>
             <div className="flex items-center gap-4">
-                <div className="flex bg-blue-800/50 p-1 rounded-lg gap-2">
-                    <button onClick={() => setCurrentView('generator')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${currentView === 'generator' ? 'bg-white text-blue-700' : 'text-blue-100 hover:bg-blue-700/50'}`}>
+                <div className="flex bg-blue-800/50 p-1 rounded-lg gap-1.5">
+                    <button onClick={() => setCurrentView('generator')} className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all cursor-pointer ${currentView === 'generator' ? 'bg-white text-blue-700 shadow-xs' : 'text-blue-100 hover:bg-blue-700/50'}`}>
                         <Zap className="w-4 h-4" /> Generator
                     </button>
-                    <button onClick={() => setCurrentView('history')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${currentView === 'history' ? 'bg-white text-blue-700' : 'text-blue-100 hover:bg-blue-700/50'}`}>
+                    <button onClick={() => setCurrentView('calendar')} className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all cursor-pointer ${currentView === 'calendar' ? 'bg-white text-blue-700 shadow-xs' : 'text-blue-100 hover:bg-blue-700/50'}`}>
+                        <CalendarDays className="w-4 h-4" /> Kalender & Analisis
+                    </button>
+                    <button onClick={() => setCurrentView('history')} className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all cursor-pointer ${currentView === 'history' ? 'bg-white text-blue-700 shadow-xs' : 'text-blue-100 hover:bg-blue-700/50'}`}>
                         <History className="w-4 h-4" /> Riwayat ({activities.length})
                     </button>
                 </div>
@@ -3004,20 +4074,18 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                         
                         <button 
                             onClick={() => {
-                                const currentKey = localStorage.getItem('prota_custom_api_key') || '';
-                                const newKey = prompt('Masukkan API Key Gemini Anda:', currentKey);
-                                if (newKey !== null) {
-                                    localStorage.setItem('prota_custom_api_key', newKey.trim());
-                                    setApiKeyInput(newKey.trim());
-                                    alert('API Key berhasil disimpan!');
-                                    window.location.reload();
-                                }
+                                setApiKeyInput(localStorage.getItem('prota_custom_api_key') || '');
+                                setApiKeyMessage(null);
+                                setShowApiKeyModal(true);
                             }}
-                            className="p-2 bg-blue-800 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
-                            title="Pengaturan API Key"
+                            className="p-2 bg-blue-800 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 relative cursor-pointer shadow-xs"
+                            title="Pengaturan API Key Gemini"
                         >
-                            <Settings className="w-5 h-5" />
+                            <Key className="w-5 h-5 text-blue-200" />
                             <span className="hidden md:inline text-sm font-medium">API Key</span>
+                            {localStorage.getItem('prota_custom_api_key') ? (
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse border border-blue-900" title="Custom Key Aktif"></span>
+                            ) : null}
                         </button>
                         <button 
                             onClick={handleLogout}
@@ -3035,7 +4103,30 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
       </header>
 
       <main className="flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full">
-        {currentView === 'modul_ajar' && modulContext ? (
+        {currentView === 'calendar' ? (
+            <CalendarPageView 
+                selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
+                availableClasses={selectedFase.classes}
+                availableSubjects={SUBJECTS}
+                classSchedules={classSchedules}
+                toggleScheduleDay={toggleScheduleDay}
+                classDailyJP={classDailyJP}
+                updateDailyJP={updateDailyJP}
+                calendarEvents={calendarEvents}
+                onDateClick={(dateStr, ev) => setEditingCalendarEvent({ dateStr, ev })}
+                academicYearStart={academicYearStart}
+                setAcademicYearStart={setAcademicYearStart}
+                schoolDaysCount={schoolDaysCount}
+                setSchoolDaysCount={setSchoolDaysCount}
+                calculateCalendarAnalysis={calculateCalendarAnalysis}
+                activeTab={calendarPageTab}
+                setActiveTab={setCalendarPageTab}
+                onBackToGenerator={() => setCurrentView('generator')}
+            />
+        ) : currentView === 'modul_ajar' && modulContext ? (
             <ModulAjarGenerator 
                 context={modulContext} 
                 userIdentity={userIdentity}
@@ -3161,59 +4252,202 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                 </div>
             </div>
         ) : (
-            <div className="space-y-6 animate-in fade-in">
-                {/* Generator Controls */}
-                <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-lg font-semibold flex items-center gap-2"><Settings className="w-5 h-5 text-blue-600" /> Konfigurasi Awal</h2>
-                        <div className="flex gap-2">
-                            <button onClick={() => setShowJpReference(true)} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg"><Table className="w-4 h-4" /> Tabel JP</button>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div>
-                            <label className="text-sm font-medium text-gray-700 block mb-2">Fase & Kelas</label>
-                            <select value={selectedFase.id} onChange={(e) => setSelectedFase(FASES.find(f => f.id === e.target.value) || FASES[0])} className="w-full p-2.5 bg-gray-50 border rounded-lg">
-                                {FASES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-sm font-medium text-gray-700 block mb-2">Mata Pelajaran</label>
-                            <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full p-2.5 bg-gray-50 border rounded-lg">
-                                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex items-end">
-                            <button onClick={generateContent} disabled={loading} className="w-full p-2.5 bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50">
-                                {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />} 1. Generate CP & TP
+            <div className="flex flex-col lg:flex-row gap-6 items-start relative">
+                {/* Modern animated Sidebar */}
+                {isSidebarOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, x: -50 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -50 }}
+                        className="w-full lg:w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden sticky top-24 max-h-[calc(100vh-120px)] flex flex-col"
+                    >
+                        {/* Sidebar Header */}
+                        <div className="p-4 bg-gradient-to-r from-blue-700 to-indigo-700 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Settings className="w-5 h-5" />
+                                <h2 className="font-bold text-md">Konfigurasi & Analisis</h2>
+                            </div>
+                            <button 
+                                onClick={() => setIsSidebarOpen(false)}
+                                className="p-1 hover:bg-white/20 rounded-full transition-colors text-white"
+                                title="Tutup Sidebar"
+                            >
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
-                    </div>
 
-                    <div className="bg-blue-50/50 p-6 rounded-lg border border-blue-100 flex items-center justify-between">
-                         <div className="flex flex-col">
-                             <div className="flex items-center gap-2 text-blue-800 font-semibold mb-1">
-                                 <SlidersHorizontal className="w-5 h-5" /> Konfigurasi Kalender Akademik
-                             </div>
-                             <p className="text-sm text-gray-600">Sesuaikan jadwal libur, ujian, dan kegiatan non-efektif per-tanggal.</p>
-                         </div>
-                         <button onClick={() => setShowCalendar(true)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors flex items-center gap-2 shadow-sm">
-                             <CalendarDays className="w-5 h-5" /> Atur Kalender Master
-                         </button>
-                    </div>
-                </section>
 
-                {/* Results */}
-                {error && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
-                        <p className="font-medium">Terjadi Kesalahan</p>
-                        <p className="text-sm">{error}</p>
-                        <p className="text-xs mt-2 text-red-500">Debug: API Key is {getApiKey() ? 'Set' : 'Not Set'}</p>
-                    </div>
+                        {/* Sidebar Content Area */}
+                        <div className="p-5 space-y-5 overflow-y-auto max-h-[calc(100vh-250px)]">
+                            <div className="space-y-5 animate-in fade-in duration-200">
+                                    {/* Fase & Mapel */}
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">Fase & Kelas</label>
+                                            <select 
+                                                value={selectedFase.id} 
+                                                onChange={(e) => setSelectedFase(FASES.find(f => f.id === e.target.value) || FASES[0])} 
+                                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            >
+                                                {FASES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">Mata Pelajaran</label>
+                                            <select 
+                                                value={selectedSubject} 
+                                                onChange={(e) => setSelectedSubject(e.target.value)} 
+                                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            >
+                                                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                        </div>
+                                        <button 
+                                            onClick={generateContent} 
+                                            disabled={loading} 
+                                            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-md transition-all disabled:opacity-50"
+                                        >
+                                            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
+                                            Generate CP & TP
+                                        </button>
+                                    </div>
+
+                                    <hr className="border-gray-100" />
+
+                                    {/* Academic Calendar Control */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase block">Kalender Akademik</label>
+                                        <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
+                                            <p className="text-xs text-blue-800">Atur hari libur, jadwal ujian, dan kegiatan non-efektif sekolah.</p>
+                                            <button 
+                                                onClick={() => {
+                                                    setCalendarPageTab('master');
+                                                    setCurrentView('calendar');
+                                                }} 
+                                                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                            >
+                                                <CalendarDays className="w-4 h-4" /> Buka Halaman Kalender Master
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <hr className="border-gray-100" />
+
+                                    {/* Class Selector & Schedule Configuration */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-bold text-gray-500 uppercase">Jadwal & JP</label>
+                                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-bold">Pilih Kelas:</span>
+                                        </div>
+                                        
+                                        <div className="flex bg-gray-100 p-1 rounded-lg gap-1">
+                                            {selectedFase.classes.map(cls => (
+                                                <button
+                                                    key={cls}
+                                                    onClick={() => setSelectedClass(cls)}
+                                                    className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${selectedClass === cls ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
+                                                >
+                                                    {cls}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-2 pt-1">
+                                            {DAYS_OF_WEEK.filter(day => schoolDaysCount === 6 || day !== 'Sabtu').map(day => {
+                                                const isSelected = (classSchedules[selectedClass] || []).includes(day);
+                                                return (
+                                                    <div key={day} className="flex flex-col items-center p-2 rounded-xl border border-gray-100 bg-gray-50/50">
+                                                        <button 
+                                                            onClick={() => toggleScheduleDay(selectedClass, day)} 
+                                                            className={`w-full py-1 text-[10px] font-bold rounded transition-all ${isSelected ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}`}
+                                                        >
+                                                            {day}
+                                                        </button>
+                                                        {isSelected && (
+                                                            <div className="flex items-center gap-0.5 mt-1.5 bg-white border border-blue-200 rounded px-1 w-full justify-center">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="1" 
+                                                                    max="10"
+                                                                    value={(classDailyJP[selectedClass] || {})[day] || 3}
+                                                                    onChange={(e) => updateDailyJP(selectedClass, day, parseInt(e.target.value) || 0)}
+                                                                    className="w-7 text-[10px] font-bold text-blue-700 text-center focus:outline-none bg-transparent"
+                                                                />
+                                                                <span className="text-[8px] text-blue-400 font-bold">JP</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </motion.div>
                 )}
-                {data && selectedFase.classes.map((className) => {
-                    const hasATP = (data.elements || []).some(el => (el.allocations || []).find(a => a.className === className)?.structuredAtp);
+
+                {/* Main Workspace (CP & TP + ATP Tables) */}
+                <div className="flex-1 min-w-0 w-full space-y-6">
+                    {/* Upper controls & Selector tabs for ease of use */}
+                    <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            {!isSidebarOpen && (
+                                <button 
+                                    onClick={() => setIsSidebarOpen(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all text-sm animate-bounce"
+                                    title="Buka Menu Konfigurasi"
+                                >
+                                    <SlidersHorizontal className="w-4 h-4" /> Buka Konfigurasi
+                                </button>
+                            )}
+                            <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
+                                {selectedFase.classes.map(cls => (
+                                    <button
+                                        key={cls}
+                                        onClick={() => setSelectedClass(cls)}
+                                        className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${selectedClass === cls ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
+                                    >
+                                        {cls}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2.5 py-1 rounded-lg">Fase {selectedFase.name}</span>
+                            <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-lg">{selectedSubject}</span>
+                            <button onClick={() => setShowJpReference(true)} className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100"><Table className="w-3.5 h-3.5" /> Tabel JP</button>
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+                            <p className="font-medium">Terjadi Kesalahan</p>
+                            <p className="text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    {!data ? (
+                        <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                                <SlidersHorizontal className="w-8 h-8 animate-pulse" />
+                            </div>
+                            <div className="max-w-md mx-auto">
+                                <h3 className="text-lg font-bold text-gray-800">Perangkat Ajar Belum Digenerate</h3>
+                                <p className="text-gray-500 text-sm mt-1.5">Atur Fase, Mata Pelajaran, dan Parameter pada panel konfigurasi, lalu klik "Generate CP & TP" untuk memulai penyusunan otomatis AI.</p>
+                            </div>
+                            {!isSidebarOpen && (
+                                <button 
+                                    onClick={() => setIsSidebarOpen(true)}
+                                    className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all flex items-center gap-2 mx-auto"
+                                >
+                                    <SlidersHorizontal className="w-5 h-5" /> Mulai Konfigurasi
+                                </button>
+                            )}
+                        </div>
+                    ) : (() => {
+                        const className = selectedClass;
+                    const hasATP = (data.elements || []).some(el => (el.allocations || []).find(a => isSameClass(a.className, className))?.structuredAtp);
                     return (
                         <div key={className} className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
                             <div className="p-4 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-4">
@@ -3269,7 +4503,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                                                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none"
                                             >
                                                 {bulkGenerationStatus[className]?.active ? <Loader2 className="animate-spin w-4 h-4" /> : <FilePlus className="w-4 h-4" />} 
-                                                {bulkGenerationStatus[className]?.active ? 'Sedang Membuat Modul...' : '3. Buat Semua Modul Ajar Sekaligus'}
+                                                {bulkGenerationStatus[className]?.active ? 'Sedang Membuat Modul...' : 'Buat Modul Ajar'}
                                             </button>
                                             {bulkGenerationStatus[className]?.active && (
                                                 <button 
@@ -3330,89 +4564,6 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                             )}
 
                             <div className="overflow-x-auto">
-                                {(classSchedules[className] && classSchedules[className].length > 0) && (() => {
-                                    const result = calculateCalendarAnalysis(className, data.subject);
-                                    if (!result) return null;
-                                    return (
-                                        <div className="p-6 bg-indigo-50/20 border-b border-gray-200 animate-in fade-in duration-300">
-                                            <div className="flex items-center gap-2 mb-4">
-                                                <BarChart3 className="w-5 h-5 text-indigo-600" />
-                                                <h3 className="text-md font-bold text-gray-800">Analisis Hari Efektif Belajar & Alokasi Waktu ({className})</h3>
-                                            </div>
-                                            <div className="flex flex-col lg:flex-row gap-6">
-                                                <div className="w-full lg:w-1/3 flex flex-col gap-4">
-                                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                                                        <h4 className="text-xs font-bold text-gray-700 uppercase mb-3 flex items-center gap-2"><Target className="w-3 h-3 text-indigo-600"/> Perhitungan Alokasi</h4>
-                                                        <div className="space-y-3">
-                                                            <div className="flex justify-between items-center p-2 bg-indigo-50 rounded-lg">
-                                                                <span className="text-xs font-medium text-gray-600">Total Hari Efektif</span>
-                                                                <span className="text-sm font-bold text-indigo-700">{result.totalAvailableSlots} Hari</span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center p-2 bg-green-50 rounded-lg">
-                                                                <span className="text-xs font-medium text-gray-600">Total Pekan Efektif</span>
-                                                                <span className="text-sm font-bold text-green-700">{result.totalEffectiveWeeks} Pekan</span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center p-2 bg-blue-50 rounded-lg border border-blue-100">
-                                                                <span className="text-xs font-medium text-gray-600">Target Kurikulum</span>
-                                                                <span className="text-sm font-bold text-blue-700">{result.totalTargetJP} JP/Thn</span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center p-2 bg-amber-50 rounded-lg border border-amber-100">
-                                                                <span className="text-xs font-medium text-gray-600">Alokasi per Minggu</span>
-                                                                <span className="text-sm font-bold text-amber-700">{result.weeklyTargetJP} JP/Mg</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                                                        <h4 className="text-xs font-bold text-gray-700 uppercase mb-3 flex items-center gap-2"><Table className="w-3 h-3 text-gray-500"/> Alokasi Waktu Semester</h4>
-                                                        <table className="w-full text-xs text-left">
-                                                            <thead className="bg-gray-100 text-gray-700 font-bold uppercase">
-                                                                <tr>
-                                                                    <th className="p-2">Uraian</th>
-                                                                    <th className="p-2 text-center">Jadwal</th>
-                                                                    <th className="p-2 text-center">Jml HBE</th>
-                                                                    <th className="p-2 text-center">Jam Pel</th>
-                                                                    <th className="p-2 text-center">Total JP</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody className="divide-y text-gray-600">
-                                                                <tr>
-                                                                    <td className="p-2 font-bold text-blue-800">Semester 1</td>
-                                                                    <td className="p-2 text-center">{(classSchedules[className] || []).join(', ')}</td>
-                                                                    <td className="p-2 text-center font-bold">{result.semester1.effectiveDays}</td>
-                                                                    <td className="p-2 text-center font-bold">{(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
-                                                                    <td className="p-2 text-center font-bold text-blue-700">{result.semester1.availableJP}</td>
-                                                                </tr>
-                                                                <tr>
-                                                                    <td className="p-2 font-bold text-indigo-800">Semester 2</td>
-                                                                    <td className="p-2 text-center">{(classSchedules[className] || []).join(', ')}</td>
-                                                                    <td className="p-2 text-center font-bold">{result.semester2.effectiveDays}</td>
-                                                                    <td className="p-2 text-center font-bold">{(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
-                                                                    <td className="p-2 text-center font-bold text-indigo-700">{result.semester2.availableJP}</td>
-                                                                </tr>
-                                                                <tr className="bg-blue-50/50 font-bold border-t-2 border-blue-100">
-                                                                    <td className="p-2 text-blue-900 uppercase text-[10px]">Total Setahun</td>
-                                                                    <td className="p-2 text-center">-</td>
-                                                                    <td className="p-2 text-center text-blue-900">{result.semester1.effectiveDays + result.semester2.effectiveDays} Hari</td>
-                                                                    <td className="p-2 text-center">-</td>
-                                                                    <td className="p-2 text-center text-blue-900 font-extrabold">{result.semester1.availableJP + result.semester2.availableJP} JP</td>
-                                                                </tr>
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                </div>
-
-                                                <div className="w-full lg:w-2/3 space-y-4">
-                                                    <h4 className="text-sm font-bold text-gray-800 flex items-center justify-between">
-                                                        <span className="flex items-center gap-2"><CalendarDays className="w-4 h-4 text-gray-500" /> Visualisasi Kalender</span>
-                                                        <span className="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Gerakkan kursor pada tanggal untuk detail</span>
-                                                    </h4>
-                                                    <VisualCalendar scheduledDays={classSchedules[className] || []} calendarEvents={calendarEvents} academicYearStart={academicYearStart} schoolDaysCount={schoolDaysCount} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-gray-100 text-gray-700 uppercase">
                                         <tr>
@@ -3429,7 +4580,8 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
               const newSelection = {};
               if (!allChecked) {
                   (data.elements || []).forEach((el, elIdx) => {
-                      const allocIdx = (el.allocations || []).findIndex(a => a.className === className);
+                      let allocIdx = (el.allocations || []).findIndex(a => isSameClass(a.className, className));
+                      if (allocIdx < 0 && (el.allocations || []).length === 1) allocIdx = 0;
                       const alloc = (el.allocations || [])[allocIdx];
                       if (!alloc) return;
                       const groups = alloc.structuredAtp || [];
@@ -3455,7 +4607,8 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                                     </thead>
                                     <tbody className="divide-y">
                                         {(data.elements || []).map((el, elIdx) => {
-                                            const allocIdx = (el.allocations || []).findIndex(a => a.className === className);
+                                            let allocIdx = (el.allocations || []).findIndex(a => isSameClass(a.className, className));
+                                            if (allocIdx < 0 && (el.allocations || []).length === 1) allocIdx = 0;
                                             const alloc = (el.allocations || [])[allocIdx];
                                             if (!alloc) return null;
 
@@ -3527,15 +4680,6 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                                                                             {item.planDate && <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{getDayName(new Date(item.planDate))}</span>}
                                                                         </div>
                                                                         {nonEffective && <div className="text-[10px] text-red-600 bg-red-100 p-1 rounded flex gap-1"><AlertCircle className="w-3 h-3"/> {nonEffective.description}</div>}
-                                                                        {item.planDate && (
-                                                                            <button 
-                                                                                onClick={() => openModulGenerator(className, el, grp.tp, item)}
-                                                                                className="group flex items-center justify-center gap-2 w-full py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[10px] font-bold rounded shadow hover:shadow-lg hover:scale-105 transition-all animate-in zoom-in duration-300"
-                                                                            >
-                                                                                <FilePlus className="w-3 h-3 group-hover:rotate-12 transition-transform" />
-                                                                                Buat Modul Ajar
-                                                                            </button>
-                                                                        )}
                                                                     </div>
                                                                 ) : '-'}
                                                             </td>
@@ -3549,7 +4693,8 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
                             </div>
                         </div>
                     );
-                })}
+                })()}
+                </div>
             </div>
         )}
       </main>

@@ -1,0 +1,144 @@
+  1836	          const ai = new GoogleGenAI({ apiKey });
+  1837	          for (let i = 0; i < maxModules; i++) {
+  1838	              if ((window as any).bulkAbortedMap?.[className]) {
+  1839	                  setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}));
+  1840	                  return;
+  1841	              }
+  1842	              
+  1843	              setBulkGenerationStatus(prev => ({
+  1844	                  ...prev,
+  1845	                  [className]: { ...prev[className], statusText: `Memproses modul ${i + 1} dari ${maxModules}...` }
+  1846	              }));
+  1847	
+  1848	              const { el, tp, atpItem } = itemsToGenerateFinal[i];
+  1849	              const topic = atpItem.alur;
+  1850	              const allocation = atpItem.alokasiWaktu;
+  1851	              const date = atpItem.planDate || formatDateLocal(new Date());
+  1852	
+  1853	              try {
+  1854	                  // Phase 1: Model Selection
+  1855	                  setBulkGenerationStatus(prev => ({
+  1856	                      ...prev,
+  1857	                      [className]: { ...prev[className], statusText: `Memilih model pembelajaran AI terbaik untuk: ${topic}...` }
+  1858	                  }));
+  1859	
+  1860	                  const modelPrompt = `Pilih 1 model pembelajaran yang paling efektif (misalnya: PjBL, PBL, Inkuiri, Discovery, TaRL, dll) untuk Kelas ${className}, Fase ${data?.fase}, Topik: ${topic}. Jawablah hanya dengan format: "Nama Model: [Nama Model]"`;
+  1861	                  
+  1862	                  let modelResponseText = "Tidak ditentukan";
+  1863	                  try {
+  1864	                    const modelRec = await ai.models.generateContent({
+  1865	                        model: 'gemini-3-flash-preview',
+  1866	                        contents: modelPrompt,
+  1867	                    });
+  1868	                     modelResponseText = modelRec.text || "Tidak ditentukan";
+  1869	                  } catch (e) {
+  1870	                    console.error("Model rec failed, fallback:", e);
+  1871	                  }
+  1872	                  
+  1873	                  setBulkGenerationStatus(prev => ({
+  1874	                      ...prev,
+  1875	                      [className]: { ...prev[className], statusText: `Model dipilih: ${modelResponseText}. Membuat konten modul...` }
+  1876	                  }));
+  1877	                  await new Promise(res => setTimeout(res, 1000));
+  1878	
+  1879	                  // Phase 2: Content Generation
+  1880	                  const prompt = `
+  1881	                      Bertindaklah sebagai Guru Profesional ahli Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
+  1882	                      Buatlah MODUL AJAR lengkap dan komprehensif.
+  1883	                      SANGAT PENTING: 
+  1884	                      - Gunakan Model Pembelajaran berikut: ${modelResponseText}
+  1885	                      - Modul Ajar harus secara eksplisit mengintegrasikan 3 prinsip utama BSKAP 032 HKR 2025 yaitu Mindful Learning (Pembelajaran Berkesadaran Penuh), Joyful Learning (Pembelajaran Menyenangkan/Sukacita), dan Meaningful Learning (Pembelajaran Bermakna) pada setiap tahapan kegiatan.
+  1886	                      
+  1887	                      INFORMASI UMUM:
+  1888	                      - Penyusun: ${userIdentity.authorName}
+  1889	                      - Instansi: ${userIdentity.institutionName}
+  1890	                      - Jenjang/Kelas: SD / ${className} (${data?.fase})
+  1891	                      - Mapel: ${data?.subject}
+  1892	                      - Alokasi Waktu: ${allocation}
+  1893	                      - Tanggal: ${date}
+  1894	                      - Topik/Materi: ${topic}
+  1895	                      
+  1896	                      KOMPONEN INTI:
+  1897	                      - Capaian Pembelajaran (CP): ${el.capaianPembelajaran}
+  1898	                      - Tujuan Pembelajaran (TP): ${tp}
+  1899	                      - Pemahaman Bermakna
+  1900	                      - Pertanyaan Pemantik
+  1901	                      - Kegiatan Pembelajaran (Pendahuluan, Inti, Penutup) terpadu dengan 3 prinsip di atas.
+  1902	                      
+  1903	                      LAMPIRAN (Sajikan dalam format tabel HTML modern jika memungkinkan):
+  1904	                      - Materi Ajar (Ringkasan/Bahan Ajar)
+  1905	                      - Lembar Kerja Peserta Didik (LKPD) - Buatkan instruksi detail.
+  1906	                      - Instrumen Penilaian (Rubrik/Soal)
+  1907	                      - Jurnal Mengajar/Sikap (Disajikan dalam bentuk tabel format pengisian).
+  1908	                      
+  1909	                      OUTPUT FORMAT:
+  1910	                      Berikan output dalam format HTML (tanpa tag <html>/<body>, hanya konten div) yang siap di-render. Gunakan styling inline CSS minimalis untuk tabel (border-collapse, padding: 5px, border: 1px solid black, width: 100%).
+  1911	                      Gunakan tag <h3> untuk judul bagian.
+  1912	                   `;
+  1913	
+  1914	                  let response;
+  1915	                  let retries = 6;
+  1916	                  let success = false;
+  1917	                  let delayMs = 20000;
+  1918	                  let isRateLimited = false;
+  1919	                  
+  1920	                  while (retries > 0 && !success) {
+  1921	                      try {
+  1922	                          response = await ai.models.generateContent({
+  1923	                              model: 'gemini-3-flash-preview',
+  1924	                              contents: prompt,
+  1925	                          });
+  1926	                          success = true;
+  1927	                      } catch (e: any) {
+  1928	                          const errorString = JSON.stringify(e) + (e?.message || String(e)) + (e?.error?.status || '');
+  1929	                          const isRateLimit = errorString.includes('429') || errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('rate limit') || errorString.includes('RESOURCE_EXHAUSTED');
+  1930	                          if (isRateLimit && retries > 1) {
+  1931	                              isRateLimited = true;
+  1932	                              let waitTime = Math.max(delayMs, 60000);
+  1933	                              console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s... (${retries - 1} retries left)`);
+  1934	                              setBulkGenerationStatus(prev => ({
+  1935	                                  ...prev,
+  1936	                                  [className]: { ...prev[className], statusText: `Mencegah limit server. Jeda pendinginan ${waitTime / 1000} detik... (${retries - 1} percobaan tersisa)` }
+  1937	                              }));
+  1938	                              await new Promise(res => setTimeout(res, waitTime));
+  1939	                              delayMs = waitTime + 15000;
+  1940	                              retries--;
+  1941	                          } else {
+  1942	                              throw e;
+  1943	                          }
+  1944	                      }
+  1945	                  }
+  1946	
+  1947	                  if (!success) {
+  1948	                       throw new Error(`Gagal memproses setelah percobaan berulang: ${topic}`);
+  1949	                  }
+  1950	
+  1951	                  const html = response?.text || "<p>Gagal membuat konten.</p>";
+  1952	
+  1953	                  collectedHtml += html + `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
+  1954	                  collectedModulesData.push({ topic, html });
+  1955	
+  1956	                  setBulkGenerationStatus(prev => ({
+  1957	                      ...prev,
+  1958	                      [className]: { 
+  1959	                          current: i + 1, 
+  1960	                          total: itemsToGenerateFinal.length, 
+  1961	                          percent: Math.round(((i + 1) / itemsToGenerateFinal.length) * 100), 
+  1962	                          active: true,
+  1963	                          statusText: `Modul ${i + 1} selesai. Menjeda untuk modul berikutnya...`
+  1964	                      }
+  1965	                  }));
+  1966	                  
+  1967	                  const nextDelay = isRateLimited ? 60000 : 20000;
+  1968	                  if (i < itemsToGenerateFinal.length - 1) {
+  1969	                       setBulkGenerationStatus(prev => ({
+  1970	                           ...prev,
+  1971	                           [className]: { ...prev[className], statusText: `Modul selesai. Menyiapkan modul berikutnya dalam ${nextDelay/1000} detik...` }
+  1972	                       }));
+  1973	                       await new Promise(res => setTimeout(res, nextDelay));
+  1974	                  }
+  1975	              } catch (err: any) {
+  1976	                  console.error(`Error generating module ${i+1}: ${err}`);
+  1977	              }
+  1978	          }
+  1979	
