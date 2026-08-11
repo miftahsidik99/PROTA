@@ -1587,13 +1587,19 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       const querySnapshot = await getDocs(collection(db, 'users'));
       const fbUsers: any[] = [];
       querySnapshot.forEach((doc) => {
-        fbUsers.push({ id: doc.id, email: doc.id, ...doc.data() });
+        const data = doc.data() || {};
+        fbUsers.push({ 
+          id: doc.id, 
+          email: typeof data.email === 'string' ? data.email : doc.id, 
+          ...data 
+        });
       });
 
       const localKeys = await usersDB.keys();
       for (const key of localKeys) {
+        if (!key || typeof key !== 'string') continue;
         const localUser = await usersDB.getItem<any>(key);
-        if (localUser && !fbUsers.find(u => u.email.toLowerCase() === key.toLowerCase())) {
+        if (localUser && !fbUsers.find(u => u.email && typeof u.email === 'string' && u.email.toLowerCase() === key.toLowerCase())) {
           const emailNormalized = key.toLowerCase();
           const userDocRef = doc(db, 'users', emailNormalized);
           const newUserData = {
@@ -1620,7 +1626,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   }, []);
 
   const handleSaveEdit = async () => {
-    if (!editingUser) return;
+    if (!editingUser || !editingUser.email || typeof editingUser.email !== 'string') return;
     try {
       const emailNormalized = editingUser.email.toLowerCase().trim();
       const userDocRef = doc(db, 'users', emailNormalized);
@@ -1644,7 +1650,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   };
 
   const handleDeleteUser = async () => {
-    if (!deletingUser) return;
+    if (!deletingUser || !deletingUser.email || typeof deletingUser.email !== 'string') return;
     try {
       const emailNormalized = deletingUser.email.toLowerCase().trim();
       await deleteDoc(doc(db, 'users', emailNormalized));
@@ -1658,6 +1664,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   };
 
   const handleForceLogout = async (userEmail: string) => {
+    if (!userEmail || typeof userEmail !== 'string') return;
     try {
       const emailNormalized = userEmail.toLowerCase().trim();
       const userDocRef = doc(db, 'users', emailNormalized);
@@ -1677,10 +1684,12 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   };
 
   const filteredUsers = useMemo(() => {
-    return users.filter(u => 
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    return users.filter(u => {
+      const email = typeof u.email === 'string' ? u.email : '';
+      const name = typeof u.name === 'string' ? u.name : '';
+      return email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+             name.toLowerCase().includes(searchTerm.toLowerCase());
+    });
   }, [users, searchTerm]);
 
   const togglePasswordVisibility = (email: string) => {
@@ -1940,7 +1949,15 @@ const App = () => {
   useEffect(() => {
     const savedUser = localStorage.getItem('prota_user');
     if (savedUser) {
-        setUser(JSON.parse(savedUser));
+        try {
+            const parsed = JSON.parse(savedUser);
+            if (parsed && !parsed.email) {
+                parsed.email = 'guru@example.com';
+            }
+            setUser(parsed);
+        } catch (e) {
+            console.error('Failed to parse saved user', e);
+        }
     }
   }, []);
 
@@ -1995,7 +2012,7 @@ const App = () => {
 
   // --- Single Active Session Checker ---
   useEffect(() => {
-    if (!user || appStage === 'login' || appStage === 'register' || appStage === 'admin') return;
+    if (!user || !user.email || appStage === 'login' || appStage === 'register' || appStage === 'admin') return;
 
     const checkSession = async () => {
       try {
@@ -2170,10 +2187,10 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
       if (!subjectName) return null;
       if (JP_STANDARDS[subjectName]) return subjectName;
       const keys = Object.keys(JP_STANDARDS);
-      const lower = subjectName.toLowerCase().trim();
-      const directKey = keys.find(k => k.toLowerCase() === lower);
+      const lower = String(subjectName).toLowerCase().trim();
+      const directKey = keys.find(k => String(k).toLowerCase() === lower);
       if (directKey) return directKey;
-      const fuzzyKey = keys.find(k => lower.includes(k.toLowerCase()) || k.toLowerCase().includes(lower));
+      const fuzzyKey = keys.find(k => lower.includes(String(k).toLowerCase()) || String(k).toLowerCase().includes(lower));
       return fuzzyKey || null;
   };
 
@@ -2456,7 +2473,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
         };
   };const normalizeClassStr = (str: string): string => {
     if (!str) return '';
-    let s = str.toLowerCase().trim().replace(/\s+/g, '');
+    let s = String(str).toLowerCase().trim().replace(/\s+/g, '');
     s = s.replace(/kelas/g, '').replace(/kls/g, '').replace(/sd/g, '');
     const romanMap: Record<string, string> = {
         'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6'
@@ -2653,23 +2670,18 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
     console.log(`Target JP untuk ${className}: ${targetJP}`);
 
     let selectedDays = classSchedules[className] || [];
-    const effectiveWeeks = className.includes('6') ? 32 : 36;
-    const weeklyLoad = Math.ceil(targetJP / effectiveWeeks);
-    const MAX_JP_PER_DAY = 3; 
-    
-    // Auto-select days if not enough
-    const minDaysNeeded = Math.ceil(weeklyLoad / MAX_JP_PER_DAY);
-    if (selectedDays.length < minDaysNeeded) {
-        console.log(`Menambah hari jadwal otomatis karena kurang (butuh ${minDaysNeeded}, ada ${selectedDays.length})`);
-        let candidateDays = ["Senin", "Rabu", "Jumat", "Selasa", "Kamis", "Sabtu"];
-        if (schoolDaysCount === 5) {
-            candidateDays = candidateDays.filter(d => d !== "Sabtu");
-        }
-        const needed = minDaysNeeded - selectedDays.length;
-        const available = candidateDays.filter(d => !selectedDays.includes(d));
-        selectedDays = [...selectedDays, ...available.slice(0, needed)];
-        selectedDays.sort((a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b));
+    if (selectedDays.length === 0) {
+        selectedDays = ["Senin"];
         setClassSchedules(prev => ({ ...prev, [className]: selectedDays }));
+        if (!(classDailyJP[className]?.["Senin"])) {
+            setClassDailyJP(prev => ({
+                ...prev,
+                [className]: {
+                    ...(prev[className] || {}),
+                    "Senin": 3
+                }
+            }));
+        }
     }
 
     try {
@@ -3466,8 +3478,9 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
       
       (data.elements || []).forEach((el) => {
           const alloc = (el.allocations || []).find(a => {
-              const normalizedAllocClass = a.className.toLowerCase().replace(/\s+/g, '');
-              const normalizedTargetClass = className.toLowerCase().replace(/\s+/g, '');
+              if (!a || !a.className || !className) return false;
+              const normalizedAllocClass = String(a.className).toLowerCase().replace(/\s+/g, '');
+              const normalizedTargetClass = String(className).toLowerCase().replace(/\s+/g, '');
               return normalizedAllocClass === normalizedTargetClass;
           });
           if (!alloc || !alloc.structuredAtp) return;
@@ -4931,38 +4944,6 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                             <div className="p-4 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-4">
                                 <div>
                                     <h3 className="font-bold text-lg border-l-4 border-blue-600 pl-3">{className}</h3>
-                                    <div className="flex flex-wrap items-center gap-2 mt-2 ml-4">
-                                        <span className="text-xs font-medium text-gray-600">Jadwal & JP:</span>
-                                        <div className="flex flex-wrap gap-2">
-                                            {DAYS_OF_WEEK.filter(day => schoolDaysCount === 6 || day !== 'Sabtu').map(day => {
-                                                const isSelected = (classSchedules[className] || []).includes(day);
-                                                return (
-                                                    <div key={day} className="flex flex-col items-center gap-1">
-                                                        <button 
-                                                            onClick={() => toggleScheduleDay(className, day)} 
-                                                            className={`px-2 py-1 text-[10px] rounded border transition-all ${isSelected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                                                        >
-                                                            {day}
-                                                        </button>
-                                                        {isSelected && (
-                                                            <div className="flex items-center gap-1 bg-white border border-blue-200 rounded px-1 group shadow-sm animate-in zoom-in-95 duration-200">
-                                                                <input 
-                                                                    type="number" 
-                                                                    min="1" 
-                                                                    max="10"
-                                                                    value={(classDailyJP[className] || {})[day] || 3}
-                                                                    onChange={(e) => updateDailyJP(className, day, parseInt(e.target.value) || 0)}
-                                                                    className="w-6 text-[9px] font-bold text-blue-700 text-center focus:outline-none bg-transparent"
-                                                                    title="Tentukan JP untuk hari ini"
-                                                                />
-                                                                <span className="text-[8px] text-blue-400 font-bold pr-0.5">JP</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
                                 </div>
                                 <div className="flex gap-2">
                                     {!hasATP && (
