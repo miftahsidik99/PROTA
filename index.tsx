@@ -2,10 +2,16 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, EyeOff, Key, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2 } from 'lucide-react';
+import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, EyeOff, Key, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2, Search, Lock } from 'lucide-react';
 
 
 import localforage from 'localforage';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import firebaseConfig from './firebase-applet-config.json';
+
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 
 
@@ -1562,6 +1568,356 @@ Hasil akhir:
     );
 };
 
+// --- Admin Dashboard Component ---
+const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editName, setEditName] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  
+  const [deletingUser, setDeletingUser] = useState<any>(null);
+  const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, 'users'));
+      const fbUsers: any[] = [];
+      querySnapshot.forEach((doc) => {
+        fbUsers.push({ id: doc.id, email: doc.id, ...doc.data() });
+      });
+
+      const localKeys = await usersDB.keys();
+      for (const key of localKeys) {
+        const localUser = await usersDB.getItem<any>(key);
+        if (localUser && !fbUsers.find(u => u.email.toLowerCase() === key.toLowerCase())) {
+          const emailNormalized = key.toLowerCase();
+          const userDocRef = doc(db, 'users', emailNormalized);
+          const newUserData = {
+            email: emailNormalized,
+            name: localUser.name || emailNormalized.split('@')[0],
+            password: localUser.password || '',
+            activeSessionId: localUser.activeSessionId || '',
+            lastActive: Date.now()
+          };
+          await setDoc(userDocRef, newUserData);
+          fbUsers.push(newUserData);
+        }
+      }
+      setUsers(fbUsers);
+    } catch (e) {
+      console.error("Gagal mengambil data user", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleSaveEdit = async () => {
+    if (!editingUser) return;
+    try {
+      const emailNormalized = editingUser.email.toLowerCase().trim();
+      const userDocRef = doc(db, 'users', emailNormalized);
+      await updateDoc(userDocRef, {
+        name: editName,
+        password: editPassword,
+        activeSessionId: ''
+      });
+      await usersDB.setItem(emailNormalized, {
+        email: emailNormalized,
+        name: editName,
+        password: editPassword,
+        activeSessionId: ''
+      });
+      setEditingUser(null);
+      fetchUsers();
+    } catch (e) {
+      console.error("Gagal memperbarui user", e);
+      alert("Gagal memperbarui user: " + (e as Error).message);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return;
+    try {
+      const emailNormalized = deletingUser.email.toLowerCase().trim();
+      await deleteDoc(doc(db, 'users', emailNormalized));
+      await usersDB.removeItem(emailNormalized);
+      setDeletingUser(null);
+      fetchUsers();
+    } catch (e) {
+      console.error("Gagal menghapus user", e);
+      alert("Gagal menghapus user: " + (e as Error).message);
+    }
+  };
+
+  const handleForceLogout = async (userEmail: string) => {
+    try {
+      const emailNormalized = userEmail.toLowerCase().trim();
+      const userDocRef = doc(db, 'users', emailNormalized);
+      await updateDoc(userDocRef, {
+        activeSessionId: ''
+      });
+      const localData = await usersDB.getItem<any>(emailNormalized);
+      if (localData) {
+        await usersDB.setItem(emailNormalized, { ...localData, activeSessionId: '' });
+      }
+      fetchUsers();
+      alert("Sesi pengguna berhasil diputus secara paksa!");
+    } catch (e) {
+      console.error("Gagal mengeluarkan user", e);
+      alert("Gagal mengeluarkan user: " + (e as Error).message);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => 
+      u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [users, searchTerm]);
+
+  const togglePasswordVisibility = (email: string) => {
+    setShowPasswordMap(prev => ({ ...prev, [email]: !prev[email] }));
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col p-4 md:p-8 animate-in fade-in duration-300">
+      <div className="max-w-6xl mx-auto w-full space-y-6">
+        {/* Header Panel */}
+        <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-xl transition-all border border-slate-200 text-slate-600">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-extrabold text-slate-900">Panel Admin</h1>
+                <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Berdaulat
+                </span>
+              </div>
+              <p className="text-slate-500 text-xs sm:text-sm">Kelola pengguna terdaftar dan sesi login perangkat aktif</p>
+            </div>
+          </div>
+          <button onClick={fetchUsers} disabled={loading} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 text-slate-700 disabled:opacity-50">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh Data
+          </button>
+        </div>
+
+        {/* Dashboard Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-4 shadow-xs">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+              <User className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Pengguna</p>
+              <h3 className="text-2xl font-black text-slate-800">{users.length}</h3>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-4 shadow-xs">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+              <CheckCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Sesi Terkoneksi</p>
+              <h3 className="text-2xl font-black text-slate-800">{users.filter(u => !!u.activeSessionId).length}</h3>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-4 shadow-xs">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+              <Key className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Database Terhubung</p>
+              <h3 className="text-2xl font-black text-slate-800">Firestore Cloud</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* Users List Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50">
+            <h3 className="font-extrabold text-slate-800 text-lg">Daftar Pengguna Terdaftar</h3>
+            {/* Search Input */}
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nama atau email..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-300 bg-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+              <p className="text-sm font-semibold">Mengambil data dari server...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
+              <User className="w-12 h-12 text-slate-300" />
+              <p className="text-sm font-semibold">Tidak ada pengguna yang cocok dengan kriteria pencarian.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 text-xs font-bold border-b border-slate-100 uppercase tracking-wider">
+                    <th className="px-6 py-4">Nama Lengkap</th>
+                    <th className="px-6 py-4">Alamat Email</th>
+                    <th className="px-6 py-4">Kata Sandi</th>
+                    <th className="px-6 py-4">Sesi Aktif</th>
+                    <th className="px-6 py-4 text-right">Aksi & Kontrol</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {filteredUsers.map(u => (
+                    <tr key={u.email} className="hover:bg-slate-50/40 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-slate-800">{u.name}</td>
+                      <td className="px-6 py-4 text-slate-600 font-mono text-xs">{u.email}</td>
+                      <td className="px-6 py-4 text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">
+                            {showPasswordMap[u.email] ? u.password : '••••••••'}
+                          </span>
+                          <button onClick={() => togglePasswordVisibility(u.email)} className="p-1 hover:bg-slate-200 rounded transition-all text-slate-400 hover:text-slate-600 cursor-pointer">
+                            {showPasswordMap[u.email] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {u.activeSessionId ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span className="text-xs font-mono text-slate-500 truncate max-w-[120px]" title={u.activeSessionId}>
+                              {u.activeSessionId.substring(0, 12)}...
+                            </span>
+                            <button onClick={() => handleForceLogout(u.email)} className="text-[10px] bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 px-2 py-0.5 rounded transition-all cursor-pointer font-bold ml-1">
+                              Putus Sesi
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-medium">Offline</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingUser(u);
+                              setEditName(u.name || '');
+                              setEditPassword(u.password || '');
+                            }}
+                            className="p-2 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded-xl text-blue-600 transition-all cursor-pointer"
+                            title="Edit Pengguna"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeletingUser(u)}
+                            className="p-2 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-xl text-red-600 transition-all cursor-pointer"
+                            title="Hapus Pengguna"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Edit Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 animate-in zoom-in-95">
+            <div className="p-5 bg-gradient-to-r from-blue-700 to-indigo-700 text-white flex justify-between items-center">
+              <h3 className="font-bold text-lg">Perbarui Akun Pengguna</h3>
+              <button onClick={() => setEditingUser(null)} className="p-1.5 hover:bg-white/20 rounded-full transition-colors text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Nama Lengkap</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Kata Sandi Baru</label>
+                <input
+                  type="text"
+                  value={editPassword}
+                  onChange={e => setEditPassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all font-mono"
+                />
+              </div>
+              <p className="text-[10px] text-amber-600 font-bold leading-relaxed flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                Catatan: Memperbarui profil akan secara otomatis memutuskan sesi aktif pengguna ini agar mereka harus login kembali.
+              </p>
+              <div className="pt-4 border-t flex justify-end gap-2">
+                <button onClick={() => setEditingUser(null)} className="px-4 py-2 border border-slate-300 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors cursor-pointer">
+                  Batal
+                </button>
+                <button onClick={handleSaveEdit} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer">
+                  Simpan Perubahan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-100 animate-in zoom-in-95">
+            <div className="p-5 bg-red-600 text-white flex justify-between items-center">
+              <h3 className="font-bold text-lg">Hapus Akun Pengguna?</h3>
+              <button onClick={() => setDeletingUser(null)} className="p-1.5 hover:bg-white/20 rounded-full transition-colors text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-slate-600 text-sm leading-relaxed">
+                Apakah Anda yakin ingin menghapus akun milik <strong className="text-slate-800">{deletingUser.name || deletingUser.email}</strong>? Tindakan ini bersifat permanen dan tidak dapat dibatalkan.
+              </p>
+              <div className="pt-4 border-t flex justify-end gap-2">
+                <button onClick={() => setDeletingUser(null)} className="px-4 py-2 border border-slate-300 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors cursor-pointer">
+                  Batal
+                </button>
+                <button onClick={handleDeleteUser} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md shadow-red-600/20 transition-all cursor-pointer">
+                  Ya, Hapus Permanen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- App Component ---
 
 interface CustomHoliday {
@@ -1588,10 +1944,86 @@ const App = () => {
     }
   }, []);
 
-  const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'identity' | 'generator'>(() => {
+  const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'identity' | 'generator' | 'admin'>(() => {
     return localStorage.getItem('prota_user') ? 'generator' : 'login';
   });
   const [user, setUser] = useState<{ name: string, email: string } | null>(null);
+
+  // --- Admin Bypass (Shortcut & Taps) ---
+  const [loginTaps, setLoginTaps] = useState(0);
+  const tapTimeoutRef = useRef<any>(null);
+  const handleLoginTap = () => {
+    if (tapTimeoutRef.current) {
+      clearTimeout(tapTimeoutRef.current);
+    }
+    tapTimeoutRef.current = setTimeout(() => {
+      setLoginTaps(0);
+    }, 3000);
+
+    setLoginTaps(prev => {
+      const next = prev + 1;
+      if (next >= 7) {
+        setAppStage('admin');
+        return 0;
+      }
+      return next;
+    });
+  };
+
+  const keySequence = useRef<string[]>([]);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (appStage !== 'login' && appStage !== 'register') return;
+      const key = e.key.toLowerCase();
+      if (e.ctrlKey && e.altKey) {
+        if (key === 'i' || key === 'p') {
+          keySequence.current.push(key);
+          if (keySequence.current.length > 2) {
+            keySequence.current.shift();
+          }
+          if (keySequence.current.join('') === 'ip') {
+            setAppStage('admin');
+          }
+        }
+      } else {
+        keySequence.current = [];
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [appStage]);
+
+  // --- Single Active Session Checker ---
+  useEffect(() => {
+    if (!user || appStage === 'login' || appStage === 'register' || appStage === 'admin') return;
+
+    const checkSession = async () => {
+      try {
+        const emailNormalized = user.email.toLowerCase().trim();
+        const userDocRef = doc(db, 'users', emailNormalized);
+        const userSnap = await getDoc(userDocRef);
+        
+        if (userSnap.exists()) {
+          const dbSessionId = userSnap.data()?.activeSessionId;
+          const localSessionId = localStorage.getItem('prota_session_id');
+          if (dbSessionId && localSessionId && dbSessionId !== localSessionId) {
+            alert('Akun Anda telah masuk di perangkat atau sesi aktif lain. Sesi saat ini akan ditutup secara otomatis.');
+            handleLogout();
+          }
+        } else {
+          // If deleted by admin
+          alert('Akun Anda telah dihapus oleh Administrator.');
+          handleLogout();
+        }
+      } catch (e) {
+        console.error('Failed to verify active session', e);
+      }
+    };
+
+    checkSession();
+    const interval = setInterval(checkSession, 10000);
+    return () => clearInterval(interval);
+  }, [user, appStage]);
 
   const handleBackup = async () => {
     try {
@@ -1729,6 +2161,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
 
   const handleLogout = () => {
     localStorage.removeItem('prota_user');
+    localStorage.removeItem('prota_session_id');
     setUser(null);
     setAppStage('login');
   };
@@ -3177,10 +3610,17 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
 
   // --- Render ---
 
+  if (appStage === 'admin') {
+      return <AdminDashboard onBack={() => setAppStage('login')} />;
+  }
+
   if (appStage === 'login' || appStage === 'register') {
     const isLogin = appStage === 'login';
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div 
+            onClick={handleLoginTap}
+            className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4 relative overflow-hidden cursor-pointer"
+        >
             {/* Background Decorations */}
             <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
             <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob" style={{ animationDelay: '2s' }}></div>
@@ -3214,26 +3654,64 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
           const password = formData.get('password') as string;
           const name = formData.get('name') as string || email.split('@')[0];
           
+          const emailNormalized = email.toLowerCase().trim();
+          
           try {
               if (isLogin) {
-                  const storedUser = await usersDB.getItem<{password: string, name: string, email: string}>(email);
-                  if (storedUser && storedUser.password === password) {
-                      const userData = { name: storedUser.name, email };
-                      localStorage.setItem('prota_user', JSON.stringify(userData));
-                      setUser(userData);
-                      setAppStage('generator');
+                  const userDocRef = doc(db, 'users', emailNormalized);
+                  const userSnap = await getDoc(userDocRef);
+                  
+                  if (userSnap.exists()) {
+                      const dbData = userSnap.data();
+                      if (dbData && dbData.password === password) {
+                          const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
+                          await updateDoc(userDocRef, { activeSessionId, lastActive: Date.now() });
+                          
+                          const userData = { email: emailNormalized, name: dbData.name || emailNormalized.split('@')[0] };
+                          await usersDB.setItem(emailNormalized, { ...dbData, activeSessionId, lastActive: Date.now() });
+                          
+                          localStorage.setItem('prota_user', JSON.stringify(userData));
+                          localStorage.setItem('prota_session_id', activeSessionId);
+                          setUser(userData);
+                          setAppStage('generator');
+                      } else {
+                          alert('Email atau Password salah.');
+                      }
                   } else {
-                      alert('Email atau Password salah.');
+                      // Fallback & migration from local database
+                      const storedUser = await usersDB.getItem<{password: string, name: string, email: string}>(emailNormalized);
+                      if (storedUser && storedUser.password === password) {
+                          const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
+                          const userData = { email: emailNormalized, name: storedUser.name, password: storedUser.password, activeSessionId, lastActive: Date.now() };
+                          
+                          await setDoc(userDocRef, userData);
+                          await usersDB.setItem(emailNormalized, userData);
+                          
+                          localStorage.setItem('prota_user', JSON.stringify({ email: emailNormalized, name: storedUser.name }));
+                          localStorage.setItem('prota_session_id', activeSessionId);
+                          setUser({ email: emailNormalized, name: storedUser.name });
+                          setAppStage('generator');
+                      } else {
+                          alert('Email atau Password salah.');
+                      }
                   }
               } else {
-                  const storedUser = await usersDB.getItem(email);
-                  if (storedUser) {
+                  const userDocRef = doc(db, 'users', emailNormalized);
+                  const userSnap = await getDoc(userDocRef);
+                  const storedUser = await usersDB.getItem(emailNormalized);
+                  
+                  if (userSnap.exists() || storedUser) {
                       alert('Akun dengan email ini sudah ada.');
                   } else {
-                      const userData = { password, name, email };
-                      await usersDB.setItem(email, userData);
-                      localStorage.setItem('prota_user', JSON.stringify({ name, email }));
-                      setUser({ name, email });
+                      const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
+                      const userData = { email: emailNormalized, password, name, activeSessionId, lastActive: Date.now() };
+                      
+                      await setDoc(userDocRef, userData);
+                      await usersDB.setItem(emailNormalized, userData);
+                      
+                      localStorage.setItem('prota_user', JSON.stringify({ name, email: emailNormalized }));
+                      localStorage.setItem('prota_session_id', activeSessionId);
+                      setUser({ name, email: emailNormalized });
                       setAppStage('tutorial');
                   }
               }
