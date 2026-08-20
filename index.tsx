@@ -2,7 +2,17 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, Eye, EyeOff, Key, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2, Search, Lock } from 'lucide-react';
+import { 
+    BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, 
+    ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, 
+    Eye, EyeOff, Key, FileDown, ArrowLeft, Home, Calendar, AlertCircle, ArrowRight, 
+    Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, 
+    Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, 
+    ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, 
+    Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2, Search, Lock, 
+    Plus, Menu, Users, ClipboardCheck, BookMarked, CalendarRange, Award, CheckSquare, 
+    Layers, PenLine, CheckCheck, Upload
+} from 'lucide-react';
 
 
 import localforage from 'localforage';
@@ -118,11 +128,11 @@ interface CurriculumData {
 interface ActivityLog {
   id: string;
   timestamp: Date;
-  type: 'CP_TP' | 'ATP_JP' | 'MODUL_AJAR';
+  type: 'CP_TP' | 'ATP_JP' | 'MODUL_AJAR' | 'KALENDER_AKADEMIK';
   subject: string;
   details: string;
-  dataSnapshot: any; // Flexible to store CurriculumData or ModulAjarData
-  paperSizeSnapshot: 'A4' | 'Letter' | 'F4';
+  dataSnapshot?: any; // Flexible to store CurriculumData or ModulAjarData
+  paperSizeSnapshot?: 'A4' | 'Letter' | 'F4';
 }
 
 export interface CalendarEvent {
@@ -210,14 +220,65 @@ const SUBJECTS = [
   "Seni Teater",
   "PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan)",
   "Bahasa Inggris",
-  "Muatan Lokal"
+  "Koding & Kecerdasan Artifisial",
+  "Muatan Lokal (Bahasa Daerah)",
+  "Muatan Lokal (Guru Mengaji)",
+  "Kokurikuler 7 Kebiasaan Indonesia Hebat"
 ];
+
+const isExcludedSubject = (subjName: string): boolean => {
+    if (!subjName) return true;
+    const s = subjName.toLowerCase().trim();
+    return s.includes('kokurikuler') ||
+           s.includes('7 kebiasaan') ||
+           s.includes('kebiasaan') ||
+           s.includes('pramuka') ||
+           s.includes('mengaji') ||
+           s.includes('upacara') ||
+           s.includes('istirahat') ||
+           s.includes('ekstrakurikuler') ||
+           s.includes('pembiasaan');
+};
 
 const FASES = [
   { id: 'A', name: 'Fase A (Kelas 1 - 2)', classes: ['Kelas 1', 'Kelas 2'] },
   { id: 'B', name: 'Fase B (Kelas 3 - 4)', classes: ['Kelas 3', 'Kelas 4'] },
   { id: 'C', name: 'Fase C (Kelas 5 - 6)', classes: ['Kelas 5', 'Kelas 6'] },
 ];
+
+export const ALL_AVAILABLE_CLASSES = [
+  { id: 'Kelas 1', faseId: 'A', faseName: 'Fase A (Kelas 1 - 2)' },
+  { id: 'Kelas 2', faseId: 'A', faseName: 'Fase A (Kelas 1 - 2)' },
+  { id: 'Kelas 3', faseId: 'B', faseName: 'Fase B (Kelas 3 - 4)' },
+  { id: 'Kelas 4', faseId: 'B', faseName: 'Fase B (Kelas 3 - 4)' },
+  { id: 'Kelas 5', faseId: 'C', faseName: 'Fase C (Kelas 5 - 6)' },
+  { id: 'Kelas 6', faseId: 'C', faseName: 'Fase C (Kelas 5 - 6)' },
+];
+
+export const normalizeClassStr = (str: string): string => {
+    if (!str) return '';
+    let s = String(str).toLowerCase().trim().replace(/\s+/g, '');
+    s = s.replace(/kelas/g, '').replace(/kls/g, '').replace(/sd/g, '');
+    const romanMap: Record<string, string> = {
+        'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6'
+    };
+    if (romanMap[s]) return romanMap[s];
+    const numMatch = s.match(/\d/);
+    if (numMatch) return numMatch[0];
+    return s;
+};
+
+export const isSameClass = (classA: string, classB: string): boolean => {
+    if (!classA || !classB) return false;
+    const normA = normalizeClassStr(classA);
+    const normB = normalizeClassStr(classB);
+    return normA !== '' && normA === normB;
+};
+
+export const getFaseForClass = (className: string) => {
+    const found = FASES.find(f => f.classes.some(c => isSameClass(c, className)));
+    return found || FASES[0];
+};
 
 const DAYS_OF_WEEK = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
@@ -274,6 +335,8 @@ const JP_STANDARDS: Record<string, Record<string, number>> = {
     "Pendidikan Agama Hindu": { "Kelas 1": 108, "Kelas 2": 108, "Kelas 3": 108, "Kelas 4": 108, "Kelas 5": 108, "Kelas 6": 96 },
     "Pendidikan Agama Buddha": { "Kelas 1": 108, "Kelas 2": 108, "Kelas 3": 108, "Kelas 4": 108, "Kelas 5": 108, "Kelas 6": 96 },
     "Pendidikan Agama Khonghucu": { "Kelas 1": 108, "Kelas 2": 108, "Kelas 3": 108, "Kelas 4": 108, "Kelas 5": 108, "Kelas 6": 96 },
+    "Koding & Kecerdasan Artifisial": { "Kelas 1": 72, "Kelas 2": 72, "Kelas 3": 72, "Kelas 4": 72, "Kelas 5": 72, "Kelas 6": 64 },
+    "Koding kecerdasan artifisial": { "Kelas 1": 72, "Kelas 2": 72, "Kelas 3": 72, "Kelas 4": 72, "Kelas 5": 72, "Kelas 6": 64 },
     "Muatan Lokal": { "Kelas 1": 72, "Kelas 2": 72, "Kelas 3": 72, "Kelas 4": 72, "Kelas 5": 72, "Kelas 6": 64 }
 };
 
@@ -404,22 +467,377 @@ const VisualCalendar = ({
     );
 };
 
-// --- Master Calendar Config ---
+// --- Helpers for Academic Calendar Events & Word Document Export ---
+const getMonthEvents = (year: number, month: number, calendarEvents: CalendarEvent[]): CalendarEvent[] => {
+    const monthStartStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const monthEndStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    return calendarEvents.filter(ev => {
+        return ev.start <= monthEndStr && ev.end >= monthStartStr;
+    }).sort((a, b) => a.start.localeCompare(b.start));
+};
+
+const formatEventDateRange = (ev: CalendarEvent): string => {
+    const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+    const sParts = ev.start.split('-');
+    const eParts = ev.end.split('-');
+    if (sParts.length < 3 || eParts.length < 3) return ev.start;
+    
+    const sYear = parseInt(sParts[0], 10);
+    const sMonth = parseInt(sParts[1], 10) - 1;
+    const sDay = parseInt(sParts[2], 10);
+    const eYear = parseInt(eParts[0], 10);
+    const eMonth = parseInt(eParts[1], 10) - 1;
+    const eDay = parseInt(eParts[2], 10);
+
+    if (ev.start === ev.end) {
+        return `${sDay} ${monthNamesShort[sMonth] || ''} ${sYear}`;
+    }
+
+    if (sMonth === eMonth && sYear === eYear) {
+        return `${sDay} - ${eDay} ${monthNamesShort[sMonth] || ''} ${sYear}`;
+    }
+
+    return `${sDay} ${monthNamesShort[sMonth] || ''} - ${eDay} ${monthNamesShort[eMonth] || ''} ${eYear}`;
+};
+
+const generateCalendarDocHtml = (
+    academicYearStart: number,
+    schoolDaysCount: 5 | 6,
+    calendarEvents: CalendarEvent[],
+    userIdentity: UserIdentity,
+    selectedClass: string
+) => {
+    const months = Array.from({ length: 12 }, (_, i) => {
+        const date = new Date(academicYearStart, 6 + i, 1);
+        return { y: date.getFullYear(), m: date.getMonth(), date };
+    });
+
+    const getDaysInMonth = (year: number, month: number) => {
+        const date = new Date(year, month, 1);
+        const days: Date[] = [];
+        while (date.getMonth() === month) {
+            days.push(new Date(date));
+            date.setDate(date.getDate() + 1);
+        }
+        return days;
+    };
+
+    const getEventForDate = (dateStr: string) => {
+        return calendarEvents.find(ev => dateStr >= ev.start && dateStr <= ev.end);
+    };
+
+    const padDays = (firstDay: Date) => {
+        let start = firstDay.getDay();
+        if (start === 0) start = 7;
+        return Array.from({ length: start - 1 }, (_, i) => i);
+    };
+
+    const dayHeaders = ['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'];
+
+    const renderMonthCard = (item: { y: number; m: number; date: Date }) => {
+        const days = getDaysInMonth(item.y, item.m);
+        const firstDay = days[0];
+        const monthTitle = firstDay.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+        const monthEvents = getMonthEvents(item.y, item.m, calendarEvents);
+        
+        const padCount = padDays(firstDay).length;
+        let cellsHtml = '';
+        let currentCol = 0;
+
+        cellsHtml += '<tr>';
+        for (let p = 0; p < padCount; p++) {
+            cellsHtml += '<td style="border: 1px solid #e2e8f0; padding: 4px; background-color: #f8fafc; color: transparent; font-size: 8pt;">-</td>';
+            currentCol++;
+        }
+
+        days.forEach(d => {
+            if (currentCol === 7) {
+                cellsHtml += '</tr><tr>';
+                currentCol = 0;
+            }
+
+            const dateStr = formatDateLocal(d);
+            const ev = getEventForDate(dateStr);
+            const isSunday = d.getDay() === 0;
+            const isSaturday = d.getDay() === 6;
+            const isWeekend = isSunday || (schoolDaysCount === 5 && isSaturday);
+
+            let bgColor = '#ffffff';
+            let textColor = '#1e293b';
+            let fontWeight = 'normal';
+
+            if (ev) {
+                fontWeight = 'bold';
+                if (ev.color.includes('red')) {
+                    bgColor = '#ffe4e6';
+                    textColor = '#be123c';
+                } else if (ev.color.includes('green')) {
+                    bgColor = '#dcfce7';
+                    textColor = '#15803d';
+                } else if (ev.color.includes('orange')) {
+                    bgColor = '#ffedd5';
+                    textColor = '#c2410c';
+                } else if (ev.color.includes('blue')) {
+                    bgColor = '#dbeafe';
+                    textColor = '#1d4ed8';
+                } else if (ev.color.includes('purple')) {
+                    bgColor = '#f3e8ff';
+                    textColor = '#7e22ce';
+                } else if (ev.color.includes('pink')) {
+                    bgColor = '#fce7f3';
+                    textColor = '#be185d';
+                } else {
+                    bgColor = '#fee2e2';
+                    textColor = '#b91c1c';
+                }
+            } else if (isWeekend) {
+                bgColor = '#fff1f2';
+                textColor = '#e11d48';
+                fontWeight = 'bold';
+            }
+
+            cellsHtml += `<td style="border: 1px solid #cbd5e1; padding: 4px 2px; text-align: center; font-size: 8.5pt; font-weight: ${fontWeight}; background-color: ${bgColor}; color: ${textColor};">${d.getDate()}</td>`;
+            currentCol++;
+        });
+
+        while (currentCol > 0 && currentCol < 7) {
+            cellsHtml += '<td style="border: 1px solid #e2e8f0; padding: 4px; background-color: #f8fafc; color: transparent; font-size: 8pt;">-</td>';
+            currentCol++;
+        }
+        cellsHtml += '</tr>';
+
+        let eventListHtml = '';
+        if (monthEvents.length > 0) {
+            eventListHtml += `
+                <div style="margin-top: 6px; padding-top: 5px; border-top: 1px dashed #94a3b8; font-size: 7.5pt; text-align: left;">
+                    <div style="font-weight: bold; color: #334155; margin-bottom: 2px; font-size: 8pt;">Keterangan / Hari Libur:</div>
+                    <ol style="margin: 0; padding-left: 14px; color: #0f172a; line-height: 1.35;">
+                        ${monthEvents.map(ev => {
+                            const dateLabel = formatEventDateRange(ev);
+                            return `<li style="margin-bottom: 2px;"><b>${dateLabel}</b>: ${ev.description}</li>`;
+                        }).join('')}
+                    </ol>
+                </div>
+            `;
+        } else {
+            eventListHtml += `
+                <div style="margin-top: 6px; padding-top: 5px; border-top: 1px dashed #cbd5e1; font-size: 7.5pt; text-align: center; color: #94a3b8; font-style: italic;">
+                    - Tidak ada agenda libur/khusus -
+                </div>
+            `;
+        }
+
+        return `
+            <td style="width: 33.33%; vertical-align: top; border: 1px solid #94a3b8; padding: 6px; background-color: #ffffff; border-radius: 4px;">
+                <div style="background-color: #eff6ff; color: #1e3a8a; font-weight: bold; font-size: 9.5pt; text-align: center; padding: 4px; border: 1px solid #bfdbfe; margin-bottom: 6px; text-transform: uppercase;">
+                    ${monthTitle}
+                </div>
+                <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 8pt; margin-bottom: 4px;">
+                    <thead>
+                        <tr style="background-color: #f1f5f9;">
+                            ${dayHeaders.map((dh, di) => {
+                                const isRed = di === 6 || (schoolDaysCount === 5 && di === 5);
+                                return `<th style="border: 1px solid #cbd5e1; padding: 3px 1px; font-size: 7.5pt; color: ${isRed ? '#e11d48' : '#475569'};">${dh}</th>`;
+                            }).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${cellsHtml}
+                    </tbody>
+                </table>
+                ${eventListHtml}
+            </td>
+        `;
+    };
+
+    const s1Months = months.slice(0, 6);
+    const s2Months = months.slice(6, 12);
+
+    const s1Rows = `
+        <tr>
+            ${renderMonthCard(s1Months[0])}
+            ${renderMonthCard(s1Months[1])}
+            ${renderMonthCard(s1Months[2])}
+        </tr>
+        <tr>
+            ${renderMonthCard(s1Months[3])}
+            ${renderMonthCard(s1Months[4])}
+            ${renderMonthCard(s1Months[5])}
+        </tr>
+    `;
+
+    const s2Rows = `
+        <tr>
+            ${renderMonthCard(s2Months[0])}
+            ${renderMonthCard(s2Months[1])}
+            ${renderMonthCard(s2Months[2])}
+        </tr>
+        <tr>
+            ${renderMonthCard(s2Months[3])}
+            ${renderMonthCard(s2Months[4])}
+            ${renderMonthCard(s2Months[5])}
+        </tr>
+    `;
+
+    const todayStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    return `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>Kalender Akademik ${academicYearStart}/${academicYearStart + 1}</title>
+          <!--[if gte mso 9]>
+          <xml>
+            <w:WordDocument>
+              <w:View>Print</w:View>
+              <w:Zoom>100</w:Zoom>
+              <w:DoNotOptimizeForBrowser/>
+            </w:WordDocument>
+          </xml>
+          <![endif]-->
+          <style>
+            @page {
+                size: A4 landscape;
+                margin: 0.8cm 0.8cm 0.8cm 0.8cm;
+                mso-page-orientation: landscape;
+            }
+            body {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 9pt;
+                color: #0f172a;
+                line-height: 1.2;
+                background-color: #ffffff;
+            }
+            h2, h3, h4 { margin: 0; padding: 0; }
+            table { border-collapse: collapse; }
+            .page-break { page-break-before: always; }
+          </style>
+        </head>
+        <body>
+          <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px;">
+            <h2 style="font-size: 15pt; color: #1e3a8a; font-weight: bold; letter-spacing: 0.5px;">KALENDER AKADEMIK</h2>
+            <h3 style="font-size: 12pt; color: #334155; font-weight: bold; margin-top: 3px;">TAHUN AJARAN ${academicYearStart}/${academicYearStart + 1}</h3>
+            <div style="font-size: 10pt; color: #475569; margin-top: 2px;">${userIdentity.institutionName || 'Sekolah Dasar'}</div>
+          </div>
+
+          <table style="width: 100%; border: none; margin-bottom: 12px; font-size: 8.5pt;">
+            <tr>
+              <td style="width: 50%; border: none; vertical-align: top;">
+                <table style="border: none; width: 100%;">
+                  <tr><td style="border: none; width: 120px; font-weight: bold; color: #475569;">Satuan Pendidikan</td><td style="border: none;">: ${userIdentity.institutionName || '-'}</td></tr>
+                  <tr><td style="border: none; font-weight: bold; color: #475569;">Kelas Terampu</td><td style="border: none;">: ${selectedClass || '-'}</td></tr>
+                </table>
+              </td>
+              <td style="width: 50%; border: none; vertical-align: top;">
+                <table style="border: none; width: 100%;">
+                  <tr><td style="border: none; width: 120px; font-weight: bold; color: #475569;">Guru Kelas / Pengampu</td><td style="border: none;">: ${userIdentity.authorName || '-'}</td></tr>
+                  <tr><td style="border: none; font-weight: bold; color: #475569;">Sistem Pembelajaran</td><td style="border: none;">: ${schoolDaysCount} Hari Belajar (Senin - ${schoolDaysCount === 5 ? 'Jumat' : 'Sabtu'})</td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- SEMESTER 1 -->
+          <div style="background-color: #1e3a8a; color: #ffffff; padding: 6px 12px; font-size: 10.5pt; font-weight: bold; border-radius: 4px; margin-bottom: 8px;">
+            SEMESTER 1 (GANJIL) • JULI - DESEMBER ${academicYearStart}
+          </div>
+          <table style="width: 100%; border-collapse: separate; border-spacing: 8px; margin-bottom: 15px;">
+            ${s1Rows}
+          </table>
+
+          <div style="page-break-before: always; margin-top: 15px;"></div>
+
+          <!-- SEMESTER 2 -->
+          <div style="background-color: #3730a3; color: #ffffff; padding: 6px 12px; font-size: 10.5pt; font-weight: bold; border-radius: 4px; margin-bottom: 8px;">
+            SEMESTER 2 (GENAP) • JANUARI - JUNI ${academicYearStart + 1}
+          </div>
+          <table style="width: 100%; border-collapse: separate; border-spacing: 8px; margin-bottom: 20px;">
+            ${s2Rows}
+          </table>
+
+          <!-- Signatures -->
+          <table style="width: 100%; border: none; margin-top: 30px; font-size: 9pt;">
+            <tr>
+              <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                Mengetahui,<br/>
+                <b>Kepala ${userIdentity.institutionName || 'Sekolah'}</b>
+                <br/><br/><br/><br/><br/>
+                <u><b>${(userIdentity as any).kepalaSekolah || '...........................................'}</b></u><br/>
+                NIP. ${(userIdentity as any).nipKepalaSekolah || '...........................................'}
+              </td>
+              <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                ${(userIdentity as any).city || '................'}, ${todayStr}<br/>
+                <b>Guru Kelas / Pengampu</b>
+                <br/><br/><br/><br/><br/>
+                <u><b>${userIdentity.authorName || '...........................................'}</b></u><br/>
+                NIP. ${(userIdentity as any).nip || '...........................................'}
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+    `;
+};
+
+const handleDownloadCalendarDoc = (
+    academicYearStart: number,
+    schoolDaysCount: 5 | 6,
+    calendarEvents: CalendarEvent[],
+    userIdentity: UserIdentity,
+    selectedClass: string
+) => {
+    const htmlContent = generateCalendarDocHtml(
+        academicYearStart,
+        schoolDaysCount,
+        calendarEvents,
+        userIdentity,
+        selectedClass
+    );
+    const blob = new Blob(['\ufeff', htmlContent], {
+        type: 'application/msword;charset=utf-8'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeInst = (userIdentity.institutionName || 'Sekolah').replace(/[^a-zA-Z0-9]/g, '_');
+    a.download = `Kalender_Akademik_${academicYearStart}_${academicYearStart + 1}_${safeInst}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+// --- Master Calendar Config with Drag-to-Select & Per-Month Details ---
 const MasterCalendarConfig = ({ 
     calendarEvents, 
     onDateClick,
+    onDateRangeClick,
     academicYearStart,
     setAcademicYearStart,
     schoolDaysCount,
-    setSchoolDaysCount
+    setSchoolDaysCount,
+    onAddNewEvent,
+    onSaveCalendar,
+    onDownloadDoc
 }: { 
     calendarEvents: CalendarEvent[], 
     onDateClick: (dateStr: string, ev: CalendarEvent | undefined) => void,
+    onDateRangeClick?: (startDateStr: string, endDateStr: string, ev?: CalendarEvent) => void,
     academicYearStart: number,
     setAcademicYearStart: (year: number) => void,
     schoolDaysCount: 5 | 6,
-    setSchoolDaysCount: (count: 5 | 6) => void
+    setSchoolDaysCount: (count: 5 | 6) => void,
+    onAddNewEvent?: () => void,
+    onSaveCalendar?: () => void,
+    onDownloadDoc?: () => void
 }) => {
+    // Drag-to-select state
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState<string | null>(null);
+    const [dragCurrent, setDragCurrent] = useState<string | null>(null);
+
     const months = Array.from({ length: 12 }, (_, i) => {
         const date = new Date(academicYearStart, 6 + i, 1);
         return { y: date.getFullYear(), m: date.getMonth() };
@@ -445,56 +863,158 @@ const MasterCalendarConfig = ({
         return Array.from({ length: start - 1 }, (_, i) => i);
     };
 
+    // Calculate selection bounds
+    const dragRange = useMemo(() => {
+        if (!isDragging || !dragStart || !dragCurrent) return null;
+        const min = dragStart < dragCurrent ? dragStart : dragCurrent;
+        const max = dragStart < dragCurrent ? dragCurrent : dragStart;
+        return { min, max };
+    }, [isDragging, dragStart, dragCurrent]);
+
+    const isDateInDragRange = (dateStr: string) => {
+        if (!dragRange) return false;
+        return dateStr >= dragRange.min && dateStr <= dragRange.max;
+    };
+
+    const handleCellMouseDown = (dateStr: string) => {
+        setIsDragging(true);
+        setDragStart(dateStr);
+        setDragCurrent(dateStr);
+    };
+
+    const handleCellMouseEnter = (dateStr: string) => {
+        if (isDragging) {
+            setDragCurrent(dateStr);
+        }
+    };
+
+    const handleCellMouseUp = (dateStr: string) => {
+        if (isDragging && dragStart) {
+            const min = dragStart < dateStr ? dragStart : dateStr;
+            const max = dragStart < dateStr ? dateStr : dragStart;
+            setIsDragging(false);
+            setDragStart(null);
+            setDragCurrent(null);
+
+            if (min !== max && onDateRangeClick) {
+                const existingEv = getEventForDate(min);
+                onDateRangeClick(min, max, existingEv);
+            } else {
+                const existingEv = getEventForDate(min);
+                onDateClick(min, existingEv);
+            }
+        }
+    };
+
+    useEffect(() => {
+        const handleGlobalMouseUp = () => {
+            if (isDragging) {
+                if (dragStart && dragCurrent && dragStart !== dragCurrent && onDateRangeClick) {
+                    const min = dragStart < dragCurrent ? dragStart : dragCurrent;
+                    const max = dragStart < dragCurrent ? dragCurrent : dragStart;
+                    const existingEv = getEventForDate(min);
+                    onDateRangeClick(min, max, existingEv);
+                }
+                setIsDragging(false);
+                setDragStart(null);
+                setDragCurrent(null);
+            }
+        };
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+        return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+    }, [isDragging, dragStart, dragCurrent, onDateRangeClick]);
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row justify-between items-center bg-gray-100 p-4 rounded-lg gap-4">
-                <div className="flex items-center gap-4">
-                    <h3 className="font-bold text-gray-800">Tahun Ajaran</h3>
-                    <select 
-                        value={academicYearStart} 
-                        onChange={(e) => setAcademicYearStart(Number(e.target.value))}
-                        className="p-2 border border-gray-300 rounded font-semibold text-gray-700 focus:ring-blue-500 bg-white"
-                    >
-                        {[2024, 2025, 2026, 2027, 2028].map(y => (
-                            <option key={y} value={y}>{y}/{y+1}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="flex items-center gap-4">
-                    <h3 className="font-bold text-gray-800">Sistem Hari</h3>
-                    <div className="flex bg-white rounded-lg border border-gray-300 overflow-hidden">
-                        <button 
-                            onClick={() => setSchoolDaysCount(5)} 
-                            className={`px-4 py-2 text-sm font-semibold transition-colors ${schoolDaysCount === 5 ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+        <div className="space-y-8 animate-in fade-in duration-500 select-none">
+            {/* Top Toolbar & Quick Actions */}
+            <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center bg-gray-50 border border-gray-200 p-4 rounded-xl gap-4">
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-700">Tahun Ajaran:</span>
+                        <select 
+                            value={academicYearStart} 
+                            onChange={(e) => setAcademicYearStart(Number(e.target.value))}
+                            className="p-1.5 border border-gray-300 rounded-lg text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
                         >
-                            5 Hari (Sen-Jum)
-                        </button>
-                        <button 
-                            onClick={() => setSchoolDaysCount(6)} 
-                            className={`px-4 py-2 text-sm font-semibold transition-colors ${schoolDaysCount === 6 ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-                        >
-                            6 Hari (Sen-Sab)
-                        </button>
+                            {[2024, 2025, 2026, 2027, 2028].map(y => (
+                                <option key={y} value={y}>{y}/{y+1}</option>
+                            ))}
+                        </select>
                     </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-700">Sistem Hari:</span>
+                        <div className="flex bg-white rounded-lg border border-gray-300 overflow-hidden shadow-2xs">
+                            <button 
+                                onClick={() => setSchoolDaysCount(5)} 
+                                className={`px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer ${schoolDaysCount === 5 ? 'bg-blue-600 text-white shadow-xs' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                5 Hari (Sen-Jum)
+                            </button>
+                            <button 
+                                onClick={() => setSchoolDaysCount(6)} 
+                                className={`px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer ${schoolDaysCount === 6 ? 'bg-blue-600 text-white shadow-xs' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                6 Hari (Sen-Sab)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Direct Action Buttons: Download Word */}
+                <div className="flex flex-wrap items-center gap-2">
+                    {onDownloadDoc && (
+                        <button
+                            onClick={onDownloadDoc}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                            title="Unduh file dokumen Word kalender akademik beserta rincian kegiatannya"
+                        >
+                            <FileDown className="w-4 h-4" />
+                            Unduh Kalender (Word)
+                        </button>
+                    )}
                 </div>
             </div>
 
+            {/* Instruction Tip for Cursor Blocking / Drag */}
+            <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3.5 flex items-start gap-3 text-xs text-blue-900">
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                    <p className="font-bold">Tips Pengaturan Agenda & Libur:</p>
+                    <p className="text-blue-800">
+                        • <b>Klik 1 tanggal</b> atau <b>tahan dan seret (blok) kursor</b> melintasi beberapa tanggal untuk menentukan rentang kegiatan/libur sekaligus.
+                    </p>
+                    <p className="text-blue-800">
+                        • Klik daftar keterangan di bawah setiap bulan untuk mengubah atau menghapus agenda.
+                    </p>
+                </div>
+            </div>
+
+            {/* SEMESTER 1 */}
             <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
-                    <CalendarDays className="w-5 h-5 text-blue-600"/> SEMESTER 1 (Juli - Des {academicYearStart})
-                </h3>
+                <div className="flex items-center justify-between border-b pb-2 mb-4">
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                        <CalendarDays className="w-5 h-5 text-blue-600"/> SEMESTER 1 (Ganjil) • Juli - Desember {academicYearStart}
+                    </h3>
+                    <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                        6 Bulan
+                    </span>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {months.slice(0, 6).map((item, idx) => {
                         const days = getDaysInMonth(item.y, item.m);
                         const firstDay = days[0];
+                        const monthEvents = getMonthEvents(item.y, item.m, calendarEvents);
+
                         return (
-                            <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden group">
-                                <div className="bg-blue-50/80 px-4 py-2 font-bold text-blue-900 border-b border-blue-100 text-center uppercase tracking-wider text-sm">
+                            <div key={idx} className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden flex flex-col hover:border-blue-300 transition-colors">
+                                <div className="bg-blue-50/90 px-4 py-2 font-bold text-blue-900 border-b border-blue-100 text-center uppercase tracking-wider text-xs">
                                     {firstDay.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}
                                 </div>
                                 <div className="p-3">
                                     <div className="grid grid-cols-7 gap-1 text-center mb-1">
-                                        {['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'].map((d, i) => <div key={i} className={`text-[10px] font-bold ${d==='Mg' || (schoolDaysCount === 5 && d==='Sb') ? 'text-red-500' : 'text-gray-500'}`}>{d}</div>)}
+                                        {['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'].map((d, i) => (
+                                            <div key={i} className={`text-[10px] font-bold ${d==='Mg' || (schoolDaysCount === 5 && d==='Sb') ? 'text-red-500' : 'text-gray-500'}`}>{d}</div>
+                                        ))}
                                     </div>
                                     <div className="grid grid-cols-7 gap-1 text-center">
                                         {padDays(firstDay).map(p => <div key={'pad'+p} className="p-1"></div>)}
@@ -502,44 +1022,105 @@ const MasterCalendarConfig = ({
                                             const dateStr = formatDateLocal(d);
                                             const ev = getEventForDate(dateStr);
                                             const isWeekend = d.getDay() === 0 || (schoolDaysCount === 5 && d.getDay() === 6);
-                                            const bgClass = ev ? ev.color : (isWeekend ? 'bg-red-50 text-red-600' : 'hover:bg-gray-100');
-                                            const textClass = ev ? 'text-white' : (isWeekend ? 'text-red-500 font-bold' : 'text-gray-700');
+                                            const isSelectedInRange = isDateInDragRange(dateStr);
+
+                                            let bgClass = 'hover:bg-gray-100';
+                                            let textClass = 'text-gray-700';
+
+                                            if (isSelectedInRange) {
+                                                bgClass = 'bg-blue-600 text-white font-bold ring-2 ring-blue-400 scale-105 z-20 shadow-xs';
+                                                textClass = 'text-white';
+                                            } else if (ev) {
+                                                bgClass = `${ev.color} text-white shadow-2xs font-bold hover:brightness-110`;
+                                                textClass = 'text-white';
+                                            } else if (isWeekend) {
+                                                bgClass = 'bg-red-50 text-red-600 hover:bg-red-100 font-bold';
+                                                textClass = 'text-red-600';
+                                            }
                                             
                                             return (
                                                 <button 
                                                     key={d.getDate()} 
-                                                    onClick={() => onDateClick(dateStr, ev)}
-                                                    className={`p-1.5 text-xs rounded transition-all ${bgClass} ${textClass} relative ${ev ? 'shadow-sm transform hover:scale-110 z-10 font-bold' : 'hover:bg-gray-200'}`}
-                                                    title={ev ? ev.description : 'Kosong'}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        handleCellMouseDown(dateStr);
+                                                    }}
+                                                    onMouseEnter={() => handleCellMouseEnter(dateStr)}
+                                                    onMouseUp={() => handleCellMouseUp(dateStr)}
+                                                    className={`p-1.5 text-xs rounded-md transition-all ${bgClass} ${textClass} relative cursor-pointer active:scale-95`}
+                                                    title={ev ? `${dateStr}: ${ev.description}` : dateStr}
                                                 >
                                                     {d.getDate()}
                                                 </button>
-                                            )
+                                            );
                                         })}
                                     </div>
                                 </div>
+
+                                {/* Month Details / Keterangan List under each month */}
+                                <div className="mt-auto border-t border-gray-100 bg-gray-50/70 p-3 text-xs">
+                                    <div className="font-bold text-gray-700 text-[11px] mb-1.5 flex items-center justify-between">
+                                        <span>Keterangan / Hari Libur:</span>
+                                        <span className="text-[10px] text-gray-500 font-normal">{monthEvents.length} agenda</span>
+                                    </div>
+                                    {monthEvents.length > 0 ? (
+                                        <ul className="space-y-1.5">
+                                            {monthEvents.map((ev, eIdx) => {
+                                                const dateLabel = formatEventDateRange(ev);
+                                                return (
+                                                    <li 
+                                                        key={ev.id || eIdx}
+                                                        onClick={() => onDateClick(ev.start, ev)}
+                                                        className="flex items-start gap-1.5 p-1 rounded hover:bg-white hover:shadow-2xs cursor-pointer transition-all group"
+                                                        title="Klik untuk ubah/hapus agenda ini"
+                                                    >
+                                                        <span className="text-[10px] font-bold text-gray-400 group-hover:text-blue-600 mt-0.5">{eIdx + 1}.</span>
+                                                        <span className={`w-2 h-2 rounded-full ${ev.color} mt-1.5 shrink-0`} />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-[11px] font-bold text-gray-800 leading-tight">
+                                                                {dateLabel}: <span className="font-normal text-gray-600">{ev.description}</span>
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-[11px] text-gray-400 italic py-1 text-center">Tidak ada agenda libur/khusus</p>
+                                    )}
+                                </div>
                             </div>
-                        )
+                        );
                     })}
                 </div>
             </div>
 
+            {/* SEMESTER 2 */}
             <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
-                    <CalendarDays className="w-5 h-5 text-indigo-600"/> SEMESTER 2 (Jan - Jun {academicYearStart + 1})
-                </h3>
+                <div className="flex items-center justify-between border-b pb-2 mb-4">
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                        <CalendarDays className="w-5 h-5 text-indigo-600"/> SEMESTER 2 (Genap) • Januari - Juni {academicYearStart + 1}
+                    </h3>
+                    <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                        6 Bulan
+                    </span>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {months.slice(6, 12).map((item, idx) => {
                         const days = getDaysInMonth(item.y, item.m);
                         const firstDay = days[0];
+                        const monthEvents = getMonthEvents(item.y, item.m, calendarEvents);
+
                         return (
-                            <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden group">
-                                <div className="bg-indigo-50/80 px-4 py-2 font-bold text-indigo-900 border-b border-indigo-100 text-center uppercase tracking-wider text-sm">
+                            <div key={idx} className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden flex flex-col hover:border-indigo-300 transition-colors">
+                                <div className="bg-indigo-50/90 px-4 py-2 font-bold text-indigo-900 border-b border-indigo-100 text-center uppercase tracking-wider text-xs">
                                     {firstDay.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}
                                 </div>
                                 <div className="p-3">
                                     <div className="grid grid-cols-7 gap-1 text-center mb-1">
-                                        {['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'].map((d, i) => <div key={i} className={`text-[10px] font-bold ${d==='Mg' || (schoolDaysCount === 5 && d==='Sb') ? 'text-red-500' : 'text-gray-500'}`}>{d}</div>)}
+                                        {['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'].map((d, i) => (
+                                            <div key={i} className={`text-[10px] font-bold ${d==='Mg' || (schoolDaysCount === 5 && d==='Sb') ? 'text-red-500' : 'text-gray-500'}`}>{d}</div>
+                                        ))}
                                     </div>
                                     <div className="grid grid-cols-7 gap-1 text-center">
                                         {padDays(firstDay).map(p => <div key={'pad'+p} className="p-1"></div>)}
@@ -547,24 +1128,75 @@ const MasterCalendarConfig = ({
                                             const dateStr = formatDateLocal(d);
                                             const ev = getEventForDate(dateStr);
                                             const isWeekend = d.getDay() === 0 || (schoolDaysCount === 5 && d.getDay() === 6);
-                                            const bgClass = ev ? ev.color : (isWeekend ? 'bg-red-50 text-red-600' : 'hover:bg-gray-100');
-                                            const textClass = ev ? 'text-white' : (isWeekend ? 'text-red-500 font-bold' : 'text-gray-700');
+                                            const isSelectedInRange = isDateInDragRange(dateStr);
+
+                                            let bgClass = 'hover:bg-gray-100';
+                                            let textClass = 'text-gray-700';
+
+                                            if (isSelectedInRange) {
+                                                bgClass = 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-400 scale-105 z-20 shadow-xs';
+                                                textClass = 'text-white';
+                                            } else if (ev) {
+                                                bgClass = `${ev.color} text-white shadow-2xs font-bold hover:brightness-110`;
+                                                textClass = 'text-white';
+                                            } else if (isWeekend) {
+                                                bgClass = 'bg-red-50 text-red-600 hover:bg-red-100 font-bold';
+                                                textClass = 'text-red-600';
+                                            }
                                             
                                             return (
                                                 <button 
                                                     key={d.getDate()} 
-                                                    onClick={() => onDateClick(dateStr, ev)}
-                                                    className={`p-1.5 text-xs rounded transition-all ${bgClass} ${textClass} relative ${ev ? 'shadow-sm transform hover:scale-110 z-10 font-bold' : 'hover:bg-gray-200'}`}
-                                                    title={ev ? ev.description : 'Kosong'}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        handleCellMouseDown(dateStr);
+                                                    }}
+                                                    onMouseEnter={() => handleCellMouseEnter(dateStr)}
+                                                    onMouseUp={() => handleCellMouseUp(dateStr)}
+                                                    className={`p-1.5 text-xs rounded-md transition-all ${bgClass} ${textClass} relative cursor-pointer active:scale-95`}
+                                                    title={ev ? `${dateStr}: ${ev.description}` : dateStr}
                                                 >
                                                     {d.getDate()}
                                                 </button>
-                                            )
+                                            );
                                         })}
                                     </div>
                                 </div>
+
+                                {/* Month Details / Keterangan List under each month */}
+                                <div className="mt-auto border-t border-gray-100 bg-gray-50/70 p-3 text-xs">
+                                    <div className="font-bold text-gray-700 text-[11px] mb-1.5 flex items-center justify-between">
+                                        <span>Keterangan / Hari Libur:</span>
+                                        <span className="text-[10px] text-gray-500 font-normal">{monthEvents.length} agenda</span>
+                                    </div>
+                                    {monthEvents.length > 0 ? (
+                                        <ul className="space-y-1.5">
+                                            {monthEvents.map((ev, eIdx) => {
+                                                const dateLabel = formatEventDateRange(ev);
+                                                return (
+                                                    <li 
+                                                        key={ev.id || eIdx}
+                                                        onClick={() => onDateClick(ev.start, ev)}
+                                                        className="flex items-start gap-1.5 p-1 rounded hover:bg-white hover:shadow-2xs cursor-pointer transition-all group"
+                                                        title="Klik untuk ubah/hapus agenda ini"
+                                                    >
+                                                        <span className="text-[10px] font-bold text-gray-400 group-hover:text-indigo-600 mt-0.5">{eIdx + 1}.</span>
+                                                        <span className={`w-2 h-2 rounded-full ${ev.color} mt-1.5 shrink-0`} />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-[11px] font-bold text-gray-800 leading-tight">
+                                                                {dateLabel}: <span className="font-normal text-gray-600">{ev.description}</span>
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-[11px] text-gray-400 italic py-1 text-center">Tidak ada agenda libur/khusus</p>
+                                    )}
+                                </div>
                             </div>
-                        )
+                        );
                     })}
                 </div>
             </div>
@@ -585,15 +1217,19 @@ interface CalendarPageViewProps {
     classDailyJP: Record<string, Record<string, number>>;
     updateDailyJP: (className: string, day: string, jp: number) => void;
     calendarEvents: CalendarEvent[];
+    setCalendarEvents: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
     onDateClick: (dateStr: string, ev: CalendarEvent | undefined) => void;
+    onDateRangeClick: (startDateStr: string, endDateStr: string, ev?: CalendarEvent) => void;
     academicYearStart: number;
     setAcademicYearStart: (year: number) => void;
     schoolDaysCount: 5 | 6;
     setSchoolDaysCount: (count: 5 | 6) => void;
     calculateCalendarAnalysis: (className: string, subject: string) => AnalysisResult | null;
-    activeTab: 'all' | 'master' | 'visual' | 'analysis';
-    setActiveTab: (tab: 'all' | 'master' | 'visual' | 'analysis') => void;
+    activeTab: 'all' | 'master' | 'analysis';
+    setActiveTab: (tab: 'all' | 'master' | 'analysis') => void;
     onBackToGenerator: () => void;
+    userIdentity: UserIdentity;
+    saveActivityLog: (log: ActivityLog) => void;
 }
 
 const CalendarPageView = ({
@@ -608,7 +1244,9 @@ const CalendarPageView = ({
     classDailyJP,
     updateDailyJP,
     calendarEvents,
+    setCalendarEvents,
     onDateClick,
+    onDateRangeClick,
     academicYearStart,
     setAcademicYearStart,
     schoolDaysCount,
@@ -616,384 +1254,124 @@ const CalendarPageView = ({
     calculateCalendarAnalysis,
     activeTab,
     setActiveTab,
-    onBackToGenerator
+    onBackToGenerator,
+    userIdentity,
+    saveActivityLog
 }: CalendarPageViewProps) => {
+    const [saveToast, setSaveToast] = useState<string | null>(null);
+
     const analysisResult = useMemo(() => {
         return calculateCalendarAnalysis(selectedClass, selectedSubject);
     }, [selectedClass, selectedSubject, classSchedules, classDailyJP, calendarEvents, academicYearStart, schoolDaysCount]);
 
+    const handleSaveCalendar = () => {
+        try {
+            localStorage.setItem('prota_calendar_events', JSON.stringify(calendarEvents));
+            localStorage.setItem('prota_school_days_count', schoolDaysCount.toString());
+            localStorage.setItem('prota_class_schedules', JSON.stringify(classSchedules));
+            localStorage.setItem('prota_class_daily_jp', JSON.stringify(classDailyJP));
+
+            saveActivityLog({
+                id: `cal-save-${Date.now()}`,
+                timestamp: new Date(),
+                type: 'KALENDER_AKADEMIK',
+                subject: selectedSubject || 'Kalender Akademik',
+                details: `Simpan Kalender Akademik TA ${academicYearStart}/${academicYearStart + 1} (${calendarEvents.length} agenda/libur aktif)`,
+                dataSnapshot: { calendarEvents, schoolDaysCount, classSchedules, classDailyJP },
+                paperSizeSnapshot: 'A4'
+            });
+
+            setSaveToast('Data Kalender Akademik berhasil disimpan dengan sukses!');
+            setTimeout(() => {
+                setSaveToast(null);
+            }, 3500);
+        } catch(e) {
+            alert('Gagal menyimpan data kalender.');
+        }
+    };
+
+    const handleDownloadWord = () => {
+        handleDownloadCalendarDoc(
+            academicYearStart,
+            schoolDaysCount,
+            calendarEvents,
+            userIdentity,
+            selectedClass
+        );
+    };
+
+    const handleAddNewEventDirect = () => {
+        const defaultDate = `${academicYearStart}-07-15`;
+        onDateRangeClick(defaultDate, defaultDate, undefined);
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Page Header */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-100">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
-                                <CalendarDays className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-bold text-gray-900 font-display">Kalender Akademik & Analisis Belajar</h2>
-                                <p className="text-sm text-gray-500">
-                                    Pengaturan Kalender Master, Analisis Alokasi JP, dan Visualisasi Hari Efektif Belajar ({academicYearStart}/{academicYearStart + 1})
-                                </p>
-                            </div>
-                        </div>
+            {/* Save Notification Toast */}
+            {saveToast && (
+                <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-2 text-sm font-bold">
+                        <CheckCircle className="w-5 h-5 text-emerald-100" />
+                        <span>{saveToast}</span>
                     </div>
-                    <button 
-                        onClick={onBackToGenerator}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl transition-colors self-start md:self-auto cursor-pointer"
-                    >
-                        <ArrowLeft className="w-4 h-4" /> Kembali ke Generator
+                    <button onClick={() => setSaveToast(null)} className="text-emerald-100 hover:text-white p-1">
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
+            )}
 
-                {/* Main Navigation Tabs */}
-                <div className="flex flex-wrap items-center justify-between gap-4 pt-4">
-                    <div className="flex bg-gray-100 p-1.5 rounded-xl gap-1">
-                        <button
-                            onClick={() => setActiveTab('all')}
-                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'all' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-                        >
-                            <Layout className="w-4 h-4" /> Semua (Terpadu)
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('master')}
-                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'master' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-                        >
-                            <CalendarDays className="w-4 h-4" /> Kalender Master
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('analysis')}
-                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'analysis' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-                        >
-                            <BarChart3 className="w-4 h-4" /> Analisis & Beban JP
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('visual')}
-                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'visual' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-                        >
-                            <CalendarCheck className="w-4 h-4" /> Visual Kalender
-                        </button>
-                    </div>
-
-                    {/* Class & Subject Selector Controls */}
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2 bg-blue-50/80 border border-blue-100 p-1 rounded-xl">
-                            <span className="text-xs font-bold text-blue-900 px-2">Kelas:</span>
-                            {availableClasses.map(cls => (
-                                <button
-                                    key={cls}
-                                    onClick={() => setSelectedClass(cls)}
-                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${selectedClass === cls ? 'bg-blue-600 text-white shadow-xs' : 'text-blue-700 hover:bg-blue-100'}`}
-                                >
-                                    {cls}
-                                </button>
-                            ))}
+            {/* SECTION 1: KALENDER MASTER AKADEMIK */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                            <CalendarDays className="w-5 h-5" />
                         </div>
-
-                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 p-1.5 rounded-xl">
-                            <span className="text-xs font-bold text-gray-500 pl-1">Mapel:</span>
-                            <select
-                                value={selectedSubject}
-                                onChange={(e) => setSelectedSubject(e.target.value)}
-                                className="text-xs font-bold text-gray-800 bg-transparent focus:outline-none pr-1 cursor-pointer"
-                            >
-                                {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">Kalender Master Akademik</h3>
+                            <p className="text-xs text-gray-500">Klik tanggal atau blok beberapa tanggal dengan kursor untuk menetapkan hari libur / kegiatan khusus.</p>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            {/* SECTION 1: KALENDER MASTER */}
-            {(activeTab === 'all' || activeTab === 'master') && (
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
-                    <div className="flex items-center justify-between border-b pb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                                <CalendarDays className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900">Kalender Master Akademik</h3>
-                                <p className="text-xs text-gray-500">Klik pada tanggal untuk menetapkan hari libur, kegiatan sekolah, atau jadwal ujian.</p>
-                            </div>
-                        </div>
-                        <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full border border-indigo-100">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={handleSaveCalendar}
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-green-600 text-white hover:bg-green-700 font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all active:scale-95"
+                        >
+                            <Save className="w-3.5 h-3.5" /> Simpan Data
+                        </button>
+                        <button 
+                            onClick={handleDownloadWord}
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                            title="Unduh Kalender Akademik format Microsoft Word (.doc)"
+                        >
+                            <FileDown className="w-3.5 h-3.5" /> Unduh Word (.doc)
+                        </button>
+                        <button 
+                            onClick={onBackToGenerator}
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                        >
+                            <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Generator
+                        </button>
+                        <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl border border-indigo-100">
                             TA {academicYearStart}/{academicYearStart + 1} • {schoolDaysCount} Hari Sekolah
                         </span>
                     </div>
-
-                    {/* Quick Schedule & JP Allocator for Active Class */}
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-2">
-                                <SlidersHorizontal className="w-4 h-4 text-blue-600" /> Setting Jadwal & JP Rutin ({selectedClass})
-                            </h4>
-                            <span className="text-[11px] text-blue-700 font-medium">Klik hari untuk mengaktifkan & atur Jam Pelajaran (JP) per hari</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-1">
-                            {DAYS_OF_WEEK.filter(day => schoolDaysCount === 6 || day !== 'Sabtu').map(day => {
-                                const isSelected = (classSchedules[selectedClass] || []).includes(day);
-                                return (
-                                    <div key={day} className="flex flex-col items-center p-2.5 rounded-xl border border-blue-200/60 bg-white shadow-2xs">
-                                        <button 
-                                            onClick={() => toggleScheduleDay(selectedClass, day)} 
-                                            className={`w-full py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
-                                        >
-                                            {day}
-                                        </button>
-                                        {isSelected && (
-                                            <div className="flex items-center gap-1 mt-2 bg-blue-50 border border-blue-200 rounded-lg px-2 py-0.5 w-full justify-center">
-                                                <input 
-                                                    type="number" 
-                                                    min="1" 
-                                                    max="10"
-                                                    value={(classDailyJP[selectedClass] || {})[day] || 3}
-                                                    onChange={(e) => updateDailyJP(selectedClass, day, parseInt(e.target.value) || 0)}
-                                                    className="w-8 text-xs font-extrabold text-blue-700 text-center focus:outline-none bg-transparent"
-                                                />
-                                                <span className="text-[10px] text-blue-600 font-bold">JP</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Master Calendar Config Grid */}
-                    <MasterCalendarConfig 
-                        calendarEvents={calendarEvents} 
-                        onDateClick={onDateClick} 
-                        academicYearStart={academicYearStart}
-                        setAcademicYearStart={setAcademicYearStart}
-                        schoolDaysCount={schoolDaysCount}
-                        setSchoolDaysCount={setSchoolDaysCount}
-                    />
                 </div>
-            )}
 
-            {/* SECTION 2: ANALISIS KALENDER & BEBAN JP */}
-            {(activeTab === 'all' || activeTab === 'analysis') && (
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
-                    <div className="flex items-center justify-between border-b pb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                                <BarChart3 className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900">Analisis Hari Efektif & Alokasi Beban JP</h3>
-                                <p className="text-xs text-gray-500">Perhitungan matematis akurat hari belajar efektif, pekan efektif, dan pemetaan JP mata pelajaran {selectedSubject} ({selectedClass}).</p>
-                            </div>
-                        </div>
-                        <span className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-100">
-                            Target Permendikdasmen No. 13 Tahun 2025
-                        </span>
-                    </div>
-
-                    {!analysisResult ? (
-                        <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                            <CalendarDays className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-gray-600 font-bold">Jadwal Belajar Belum Dipilih</p>
-                            <p className="text-gray-400 text-xs mt-1">Aktifkan minimal 1 hari jadwal pembelajaran di atas untuk menghitung analisis efektif.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {/* KPI Cards */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 p-5 rounded-xl border border-blue-100 flex items-center justify-between">
-                                    <div>
-                                        <div className="text-xs font-bold text-blue-600 uppercase tracking-wider">Total Hari Efektif</div>
-                                        <div className="text-2xl font-black text-blue-900 mt-1">{analysisResult.totalAvailableSlots} <span className="text-sm font-bold text-blue-700">Hari</span></div>
-                                        <div className="text-[10px] text-blue-600 mt-1">Hari Pertemuan Pembelajaran</div>
-                                    </div>
-                                    <div className="p-3 bg-blue-600 text-white rounded-xl shadow-xs">
-                                        <CalendarCheck className="w-6 h-6" />
-                                    </div>
-                                </div>
-
-                                <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-100 flex items-center justify-between">
-                                    <div>
-                                        <div className="text-xs font-bold text-green-600 uppercase tracking-wider">Total Pekan Efektif</div>
-                                        <div className="text-2xl font-black text-green-900 mt-1">{analysisResult.totalEffectiveWeeks} <span className="text-sm font-bold text-green-700">Pekan</span></div>
-                                        <div className="text-[10px] text-green-600 mt-1">Standar ISO-8601 Akademik</div>
-                                    </div>
-                                    <div className="p-3 bg-green-600 text-white rounded-xl shadow-xs">
-                                        <Target className="w-6 h-6" />
-                                    </div>
-                                </div>
-
-                                <div className="bg-gradient-to-br from-indigo-50 to-purple-50/50 p-5 rounded-xl border border-indigo-100 flex items-center justify-between">
-                                    <div>
-                                        <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Target Kurikulum</div>
-                                        <div className="text-2xl font-black text-indigo-900 mt-1">{analysisResult.totalTargetJP} <span className="text-sm font-bold text-indigo-700">JP/Thn</span></div>
-                                        <div className="text-[10px] text-indigo-600 mt-1">Beban {selectedSubject} ({selectedClass})</div>
-                                    </div>
-                                    <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-xs">
-                                        <BookOpen className="w-6 h-6" />
-                                    </div>
-                                </div>
-
-                                <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 p-5 rounded-xl border border-amber-100 flex items-center justify-between">
-                                    <div>
-                                        <div className="text-xs font-bold text-amber-600 uppercase tracking-wider">Alokasi Per Pekan</div>
-                                        <div className="text-2xl font-black text-amber-900 mt-1">{analysisResult.weeklyTargetJP} <span className="text-sm font-bold text-amber-700">JP/Minggu</span></div>
-                                        <div className="text-[10px] text-amber-600 mt-1">Rata-rata Alokasi Efektif</div>
-                                    </div>
-                                    <div className="p-3 bg-amber-600 text-white rounded-xl shadow-xs">
-                                        <Zap className="w-6 h-6" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Semester Table & Day Distribution */}
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-gray-200 shadow-2xs space-y-4">
-                                    <h4 className="font-bold text-gray-800 text-sm flex items-center justify-between">
-                                        <span className="flex items-center gap-2"><Table className="w-4 h-4 text-blue-600" /> Ringkasan Alokasi Semester 1 & 2</span>
-                                        <span className="text-xs text-gray-500 font-normal">Tahun Ajaran {academicYearStart}/{academicYearStart + 1}</span>
-                                    </h4>
-                                    <div className="overflow-x-auto border border-gray-200 rounded-xl">
-                                        <table className="w-full text-xs text-left">
-                                            <thead className="bg-gray-100 text-gray-700 font-bold uppercase">
-                                                <tr>
-                                                    <th className="p-3 border-b">Uraian Komponen</th>
-                                                    <th className="p-3 text-center border-b border-l bg-blue-50/50 text-blue-800">Semester 1 (Ganjil)</th>
-                                                    <th className="p-3 text-center border-b border-l bg-indigo-50/50 text-indigo-800">Semester 2 (Genap)</th>
-                                                    <th className="p-3 text-center border-b border-l bg-gray-50 text-gray-900 font-extrabold">Total Setahun</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y text-gray-700">
-                                                <tr>
-                                                    <td className="p-3 font-medium">Hari Efektif Belajar (HEB)</td>
-                                                    <td className="p-3 text-center border-l font-bold text-blue-700">{analysisResult.semester1.effectiveDays} Hari</td>
-                                                    <td className="p-3 text-center border-l font-bold text-indigo-700">{analysisResult.semester2.effectiveDays} Hari</td>
-                                                    <td className="p-3 text-center border-l font-black text-gray-900 bg-gray-50">{analysisResult.semester1.effectiveDays + analysisResult.semester2.effectiveDays} Hari</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="p-3 font-medium">Pekan Efektif Belajar (PEB)</td>
-                                                    <td className="p-3 text-center border-l font-bold text-blue-700">{analysisResult.semester1.effectiveWeeks} Pekan</td>
-                                                    <td className="p-3 text-center border-l font-bold text-indigo-700">{analysisResult.semester2.effectiveWeeks} Pekan</td>
-                                                    <td className="p-3 text-center border-l font-black text-gray-900 bg-gray-50">{analysisResult.totalEffectiveWeeks} Pekan</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="p-3 font-medium text-red-600">Hari Libur / Non-Efektif</td>
-                                                    <td className="p-3 text-center border-l font-bold text-red-600">{analysisResult.semester1.nonEffectiveDays} Hari</td>
-                                                    <td className="p-3 text-center border-l font-bold text-red-600">{analysisResult.semester2.nonEffectiveDays} Hari</td>
-                                                    <td className="p-3 text-center border-l font-bold text-red-700 bg-red-50">{analysisResult.semester1.nonEffectiveDays + analysisResult.semester2.nonEffectiveDays} Hari</td>
-                                                </tr>
-                                                <tr className="bg-blue-50/30 font-bold">
-                                                    <td className="p-3 font-extrabold text-blue-900 uppercase">Jam Pelajaran Efektif (JP)</td>
-                                                    <td className="p-3 text-center border-l font-extrabold text-blue-800 text-sm">{analysisResult.semester1.availableJP} JP</td>
-                                                    <td className="p-3 text-center border-l font-extrabold text-indigo-800 text-sm">{analysisResult.semester2.availableJP} JP</td>
-                                                    <td className="p-3 text-center border-l font-black text-blue-900 text-base bg-blue-100/60">{analysisResult.semester1.availableJP + analysisResult.semester2.availableJP} JP</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-2xs space-y-4">
-                                    <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                                        <CalendarCheck className="w-4 h-4 text-green-600" /> Distribusi Hari Mengajar ({selectedClass})
-                                    </h4>
-                                    <p className="text-xs text-gray-500">Jumlah total hari tatap muka efektif berdasarkan hari mengajar:</p>
-                                    <div className="space-y-3 pt-2">
-                                        {Object.entries(analysisResult.dayDistribution).length === 0 ? (
-                                            <div className="text-xs text-gray-400 text-center py-6">Tidak ada jadwal aktif</div>
-                                        ) : (
-                                            Object.entries(analysisResult.dayDistribution).map(([day, count]) => (
-                                                <div key={day} className="space-y-1">
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="font-bold text-gray-700">{day}</span>
-                                                        <span className="font-extrabold text-blue-700">{count} Pertemuan</span>
-                                                    </div>
-                                                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (Number(count) / 40) * 100)}%` }}></div>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Detailed Monthly Analysis Table */}
-                            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-2xs space-y-4">
-                                <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                                    <CalendarDays className="w-4 h-4 text-purple-600" /> Rincian Hari Efektif & Tidak Efektif Per Bulan (Juli - Juni)
-                                </h4>
-                                <div className="overflow-x-auto border border-gray-200 rounded-xl">
-                                    <table className="w-full text-xs text-left">
-                                        <thead className="bg-gray-100 text-gray-700 font-bold uppercase">
-                                            <tr>
-                                                <th className="p-3 border-b">Bulan & Tahun</th>
-                                                <th className="p-3 text-center border-b border-l">Semester</th>
-                                                <th className="p-3 text-center border-b border-l">Hari Efektif</th>
-                                                <th className="p-3 border-b border-l">Detail Keterangan Libur / Non-Efektif</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y text-gray-700">
-                                            {analysisResult.details.map((m, idx) => (
-                                                <tr key={idx} className={m.semester === 1 ? 'hover:bg-blue-50/20' : 'hover:bg-indigo-50/20'}>
-                                                    <td className="p-3 font-bold text-gray-900 border-r">{m.monthName}</td>
-                                                    <td className="p-3 text-center border-r">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.semester === 1 ? 'bg-blue-100 text-blue-800' : 'bg-indigo-100 text-indigo-800'}`}>
-                                                            Sem {m.semester}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-3 text-center font-extrabold text-green-700 border-r">{m.effectiveDays} Hari</td>
-                                                    <td className="p-3">
-                                                        {m.nonEffectiveDetails.length === 0 ? (
-                                                            <span className="text-gray-400 italic">Tidak ada hari libur terjadwal</span>
-                                                        ) : (
-                                                            <div className="flex flex-wrap gap-1.5">
-                                                                {m.nonEffectiveDetails.map((ne, nIdx) => (
-                                                                    <span key={nIdx} className="bg-red-50 text-red-700 border border-red-200 text-[10px] px-2 py-0.5 rounded font-medium flex items-center gap-1">
-                                                                        <span className="font-bold">{ne.date.split('-').slice(1).reverse().join('/')}:</span> {ne.reason}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* SECTION 3: VISUAL KALENDER */}
-            {(activeTab === 'all' || activeTab === 'visual') && (
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
-                    <div className="flex items-center justify-between border-b pb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-green-50 text-green-600 rounded-xl">
-                                <CalendarCheck className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900">Visualisasi Kalender Bulanan ({selectedClass})</h3>
-                                <p className="text-xs text-gray-500">Tampilan kalender interaktif per bulan dengan penandaan warna hari efektif, libur, dan jadwal mengajar.</p>
-                            </div>
-                        </div>
-                        <span className="text-xs font-bold bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-100">
-                            Navigasi Bulan Interaktif
-                        </span>
-                    </div>
-
-                    <VisualCalendar 
-                        scheduledDays={classSchedules[selectedClass] || []} 
-                        calendarEvents={calendarEvents} 
-                        academicYearStart={academicYearStart} 
-                        schoolDaysCount={schoolDaysCount} 
-                    />
-                </div>
-            )}
+                {/* Master Calendar Config Grid with Drag Selection & Details */}
+                <MasterCalendarConfig 
+                    calendarEvents={calendarEvents} 
+                    onDateClick={onDateClick} 
+                    onDateRangeClick={onDateRangeClick}
+                    academicYearStart={academicYearStart}
+                    setAcademicYearStart={setAcademicYearStart}
+                    schoolDaysCount={schoolDaysCount}
+                    setSchoolDaysCount={setSchoolDaysCount}
+                    onAddNewEvent={handleAddNewEventDirect}
+                    onSaveCalendar={handleSaveCalendar}
+                    onDownloadDoc={handleDownloadWord}
+                />
+            </div>
         </div>
     );
 };
@@ -1047,29 +1425,29 @@ const ModulAjarGenerator = ({
             const ai = new GoogleGenAI({ apiKey });
 
             const prompt = `
-                Bertindaklah sebagai Konsultan Kurikulum Merdeka (Sesuai Permendikdasmen No. 13 Tahun 2025).
-                Berikan 3 REKOMENDASI Model Pembelajaran beserta METODE/TEKNIK Pembelajaran yang spesifik, efektif, dan mengintegrasikan prinsip Mindful Learning, Joyful Learning, serta Meaningful Learning untuk materi berikut.
+                Bertindaklah sebagai Konsultan Kurikulum Merdeka & Pembelajaran Mendalam (Deep Learning) sesuai Permendikdasmen No. 13 Tahun 2025.
+                Berikan 3 REKOMENDASI Model Pembelajaran beserta METODE/TEKNIK Pembelajaran yang spesifik, efektif, dan mengintegrasikan 3 Prinsip Pembelajaran Mendalam (Mindful/Berkesadaran, Meaningful/Bermakna, Joyful/Menggembirakan) serta 3 Pengalaman Belajar (Memahami, Mengaplikasi, Merefleksi) untuk materi berikut.
                 
                 KONTEKS:
-                - Jenjang: SD
+                - Jenjang: SD/MI
                 - Kelas: ${context.className} (${context.fase})
                 - Mapel: ${context.subject}
                 - Topik/ATP: ${context.atpItem.alur}
                 - CP: ${context.cp}
 
                 INSTRUKSI:
-                1. Analisis kesesuaian materi dengan model pembelajaran.
-                2. Berikan 3 opsi model berbeda.
-                3. Untuk setiap model, tentukan METODE/TEKNIK konkret yang mendukung sintaks model tersebut (contoh: jika Model PBL, metodenya bisa Diskusi Kelompok & Presentasi Karya).
-                4. Berikan skor kecocokan (0-100) dan alasan singkat.
+                1. Analisis kesesuaian materi dengan model Pembelajaran Mendalam (misalnya: Problem Based Learning, Project Based Learning, Discovery Learning, Inquiry Learning, Contextual Teaching and Learning, Cooperative Learning).
+                2. Berikan 3 opsi model berbeda dengan sintaks yang jelas.
+                3. Untuk setiap model, tentukan METODE/TEKNIK konkret yang mendukung pengalaman belajar Memahami-Mengaplikasi-Merefleksi (contoh: Diskusi Terarah, Eksperimen Nyata, Studi Kasus Kontekstual, Simulasi Peran, Gallery Walk, Presentasi Karya).
+                4. Berikan skor kecocokan (0-100) dan alasan pedagogis singkat.
 
                 OUTPUT JSON Format:
                 {
                   "recommendations": [
                     {
-                      "name": "Nama Model (contoh: Project Based Learning)",
-                      "methods": "Daftar Metode Konkret (contoh: Diskusi, Eksperimen Sederhana, Gallery Walk)",
-                      "reason": "Alasan singkat mengapa kombinasi model dan metode ini tepat.",
+                      "name": "Nama Model (contoh: Problem Based Learning)",
+                      "methods": "Daftar Metode Konkret (contoh: Diskusi Kelompok, Analisis Masalah Nyata, Presentasi & Refleksi)",
+                      "reason": "Alasan pedagogis mengapa kombinasi model dan metode ini tepat untuk pembelajaran mendalam.",
                       "score": 95
                     },
                     ... (2 opsi lainnya)
@@ -1109,33 +1487,38 @@ const ModulAjarGenerator = ({
             const ai = new GoogleGenAI({ apiKey });
 
             const prompt = `
-Bertindaklah sebagai **Tim Ahli Kurikulum Pendidikan Indonesia**, yang terdiri atas:
-* Ahli Kurikulum Kemendikdasmen
-* Pengembang Modul Ajar
-* Pengembang Kurikulum Merdeka
-* Pengembang Pembelajaran Mendalam (Deep Learning)
-* Pengawas Sekolah
-* Asesor Akreditasi Sekolah
-* Guru Inti Nasional
-* Editor Bahasa Indonesia
-* Desainer Dokumen Pendidikan
+# MASTER PROMPT — GENERATOR RENCANA PEMBELAJARAN MENDALAM (RPM) BERBASIS ATP
 
-Anda memiliki pengalaman lebih dari 20 tahun dalam menyusun perangkat ajar SD.
-Seluruh dokumen HARUS menggunakan Bahasa Indonesia baku, profesional, mudah dipahami guru, serta siap digunakan sebagai dokumen resmi sekolah dan siap dicetak tanpa perlu ditambah lagi.
+## PERAN ANDA
+Anda adalah **AI Generator Rencana Pembelajaran Mendalam (RPM)** untuk guru SD/MI profesional. Anda menyusun dokumen perangkat ajar resmi yang utuh, konkret, aplikatif, dan menyeluruh, siap pakai dan siap dicetak ke Microsoft Word tanpa teks placeholder atau kerangka kosong.
 
-# TUJUAN
-Hasilkan **Modul Ajar Lengkap** (bukan ringkasan), utuh dan menyeluruh. Dokumen harus siap dicetak dan dipindahkan ke Microsoft Word tanpa perlu ditambah lagi.
+## LANDASAN PENYUSUNAN & REGULASI
+- **Permendikdasmen Nomor 13 Tahun 2025**
+- Pendekatan: **PEMBELAJARAN MENDALAM (DEEP LEARNING)**
+- **8 Dimensi Profil Lulusan**:
+  1. Keimanan dan Ketakwaan terhadap Tuhan Yang Maha Esa
+  2. Kewargaan
+  3. Penalaran Kritis
+  4. Kreativitas
+  5. Kolaborasi
+  6. Kemandirian
+  7. Kesehatan
+  8. Komunikasi
+- **3 Prinsip Pembelajaran Mendalam**:
+  1. Berkesadaran (Mindful)
+  2. Bermakna (Meaningful)
+  3. Menggembirakan (Joyful)
+- **3 Pengalaman Belajar (Wajib di Setiap Pertemuan)**:
+  1. Memahami (Acquiring & constructing understanding)
+  2. Mengaplikasi (Applying knowledge in real contexts)
+  3. Merefleksi (Evaluating process, difficulties, and self-growth)
+- **4 Kerangka Pembelajaran**:
+  1. Praktik Pedagogis (Model terpilih, sintaks lengkap, metode, alasan)
+  2. Kemitraan Pembelajaran (Guru-murid, antar-murid, orang tua, komunitas)
+  3. Lingkungan Pembelajaran (Fisik, sosial, psikologis/emosional)
+  4. Pemanfaatan Digital (Media & teknologi fungsional)
 
-# LANDASAN PENYUSUNAN
-* Permendikdasmen Nomor 13 Tahun 2025
-* Capaian Pembelajaran (CP) yang berlaku untuk mata pelajaran dan fase yang diminta
-* Prinsip Pembelajaran Mendalam (Deep Learning)
-* Delapan Dimensi Profil Lulusan
-* Prinsip 8,3,3,4
-* Kurikulum yang berlaku
-Jangan mengutip atau mengklaim isi regulasi yang tidak diketahui. Bila informasi spesifik belum diberikan pengguna (misalnya NIP atau data spesifik), gunakan placeholder **[DIISI OLEH GURU]**.
-
-# INFORMASI UTAMA:
+## INFORMASI SUMBER DARI PENGGUNA & ATP:
 - Nama Guru / Penyusun: ${userIdentity.authorName}
 - NIP: [DIISI OLEH GURU]
 - Sekolah / Instansi: ${userIdentity.institutionName}
@@ -1143,129 +1526,116 @@ Jangan mengutip atau mengklaim isi regulasi yang tidak diketahui. Bila informasi
 - Jenjang / Kelas: SD / ${formData.className} (${formData.fase})
 - Semester: ${userIdentity.semester || '1'}
 - Mata Pelajaran: ${formData.subject}
-- Elemen: ${context.elementName}
+- Elemen CP: ${context.elementName}
 - Capaian Pembelajaran (CP): ${context.cp}
-- Tujuan Pembelajaran (TP): ${context.tp}
+- Tujuan Pembelajaran (TP) Utama dari ATP: ${context.tp}
 - Materi / Topik / Alur (ATP): ${formData.topic}
 - Alokasi Waktu & Beban JP: ${formData.allocation}
 - Tanggal Pelaksanaan: ${formData.date}
-- Model Pembelajaran: ${formData.modelMethod || 'Problem Based Learning (PBL) / Teaching at the Right Level (TaRL)'}
+- Model Pembelajaran: ${formData.modelMethod || 'Problem Based Learning (PBL)'}
 - Karakteristik Peserta Didik: ${selectedCharacteristic || 'Beragam (Visual, Auditori, Kinestetik)'}
 
-# PRINSIP PEMBELAJARAN (DEEP LEARNING 8,3,3,4) WAJIB DIURAIKAN KONTEKSUAL:
-A. 8 Dimensi Profil Lulusan (Uraikan implementasi konkret setiap dimensi pada materi):
-   1. Beriman, Bertakwa kepada Tuhan YME, dan Berakhlak Mulia
-   2. Berkebinekaan Global
-   3. Gotong Royong
-   4. Mandiri
-   5. Bernalar Kritis
-   6. Kreatif
-   7. Jasmani dan Rohani yang Sehat
-   8. Pemahaman Literasi-Numerasi / Komunikasi
-B. 3 Prinsip Pembelajaran (Jelaskan implementasi nyata pada materi):
-   1. Mindful Learning (Pembelajaran Bermakna & Kesadaran Diri)
-   2. Meaningful Learning (Pembelajaran Relevan dengan Kehidupan Nyata)
-   3. Joyful Learning (Pembelajaran Menyenangkan & Menggugah Semangat)
-C. 3 Pengalaman Belajar (Lengkapi aktivitas peserta didik pada setiap bagian):
-   1. Memahami
-   2. Mengaplikasi
-   3. Merefleksi
-D. 4 Kerangka Pembelajaran (Jelaskan implementasinya secara nyata sesuai materi):
-   1. Praktik Pedagogis
-   2. Kemitraan Pembelajaran
-   3. Lingkungan Pembelajaran
-   4. Pemanfaatan Teknologi Digital
+## ATURAN WAJIB GENERASI KONTEN:
+1. **JANGAN MEMBUAT PLACEHOLDER / KERANGKA KOSONG**: Dilarang menggunakan "[isi materi]", "[masukkan soal]", "...", "dan lain-lain", teks dummy. Seluruh materi, soal, kunci jawaban, rubrik, dan LKPD wajib ditulis lengkap dan siap digunakan mengajar.
+2. **ATURAN TANGGAL & JP**: Gunakan tanggal dan JP persis dari ATP (${formData.date}, ${formData.allocation}). Hitung: 1 JP = 35 menit SD.
+3. **BREAKDOWN TUJUAN PEMBELAJARAN**: Analisis TP utama dari ATP dan pecah menjadi TP Turunan operasional terukur dengan pola: *Peserta didik + kata kerja operasional + kompetensi + kondisi/konteks + kriteria keberhasilan* (Kode: TP X.1.a, TP X.1.b, dst.).
 
-# STRUKTUR MODUL AJAR (WAJIB BERURUTAN & LENGKAP):
-Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontainer utama) dengan komponen wajib berurutan berikut:
+## STRUKTUR LENGKAP DOKUMEN RPM (WAJIB BERURUTAN DALAM HTML MURNI):
 
-1. **COVER**:
-   - Judul Modul Ajar: MODUL AJAR ${formData.subject.toUpperCase()} (H1, center, bold, 16pt, uppercase)
-   - Landasan Subtitle: BERBASIS PERMENDIKDASMEN NOMOR 13 TAHUN 2025 (italic, 11pt, color: #374151, center)
-   - Logo Sekolah Placeholder: [ LOGO SEKOLAH / INSTANSI ] (border dashed, padding 10px, text-align center)
-   - Blok Identitas Cover: Nama Guru (${userIdentity.authorName}), NIP ([DIISI OLEH GURU]), Sekolah (${userIdentity.institutionName}), Tahun Pelajaran (${userIdentity.academicYear || '2025/2026'}), Fase (${formData.fase}), Kelas (${formData.className}), Semester (${userIdentity.semester || '1'}), Mata Pelajaran (${formData.subject}).
+Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan struktur rapi berikut:
 
-2. **IDENTITAS MODUL**:
-   - Tabel HTML 2-kolom rapi (style: width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10.5pt;).
-   - Tampilkan: Nama Guru, Sekolah, NIP [DIISI OLEH GURU], Fase, Kelas, Semester, Mapel, Elemen, Materi, Alokasi Waktu (beban JP), Tanggal Pelaksanaan (<span style="color: #dc2626; font-weight: bold;">Jadwal: ${formData.date}</span>), Model Pembelajaran, Pendekatan, Metode, Media, Sumber Belajar, Karakteristik Peserta Didik, Target Peserta Didik, Sarana Prasarana.
+1. **COVER & HEADER RPM**:
+   - Judul: <h1 style="font-family: 'Yu Gothic UI', Arial, sans-serif; font-size: 16pt; font-weight: bold; text-align: center; color: #111827; margin: 0 0 4pt 0; text-transform: uppercase;">RENCANA PEMBELAJARAN MENDALAM (RPM) / MODUL AJAR</h1>
+   - Subjudul: <div style="text-align: center; font-style: italic; font-size: 11pt; color: #374151; margin-bottom: 12pt;">BERBASIS ATP & PERMENDIKDASMEN NOMOR 13 TAHUN 2025 (DEEP LEARNING)</div>
+   - Blok Identitas Cover: Sekolah (${userIdentity.institutionName}), Mata Pelajaran (${formData.subject}), Kelas (${formData.className}), Semester (${userIdentity.semester || '1'}), Penyusun (${userIdentity.authorName}).
 
-3. **CAPAIAN PEMBELAJARAN (CP)**: CP lengkap sesuai mata pelajaran dan fase.
+2. **I. IDENTIFIKASI RPM / IDENTITAS UMUM**:
+   - Tabel HTML 2-kolom rapi (Nama Sekolah, Nama Guru, NIP [DIISI OLEH GURU], Mata Pelajaran, Kelas / Fase, Semester / Tahun Pelajaran, BAB / Topik, Pertemuan, Tanggal Pelaksanaan: <span style="color: #dc2626; font-weight: bold;">${formData.date}</span>, Alokasi Waktu: ${formData.allocation}, Total JP).
 
-4. **TUJUAN PEMBELAJARAN (TP)**: Memuat tujuan pembelajaran spesifik dengan kata kerja operasional (KKO) yang terukur.
+3. **II. IDENTIFIKASI PESERTA DIDIK**:
+   - Tabel HTML 2-kolom:
+     | Aspek | Deskripsi Nyata |
+     | Pengetahuan Awal | (Uraikan kondisi awal dan prasyarat belajar yang relevan dengan ATP) |
+     | Minat Belajar | (Uraikan variasi minat peserta didik yang relevan dengan materi) |
+     | Kebutuhan Belajar & Diferensiasi | (Uraikan strategi scaffolding, diferensiasi konten/proses/produk) |
 
-5. **ALUR TUJUAN PEMBELAJARAN (ATP)**: Rangkaian ATP yang berurutan, logis, dan berkesinambungan.
+4. **III. MATERI PEMBELAJARAN (4 DIMENSI MATERI)**:
+   - Tabel HTML:
+     | Dimensi Materi | Uraian Materi Konkret |
+     | Faktual | (Fakta-fakta nyata terkait materi) |
+     | Konseptual | (Konsep, teori, prinsip utama) |
+     | Prosedural | (Langkah-langkah kerja/metode) |
+     | Metakognitif | (Kesadaran strategi berpikir & refleksi penerapan diri) |
 
-6. **PEMAHAMAN BERMAKNA**: Manfaat konkret pembelajaran bagi kehidupan nyata peserta didik sesuai level kelas.
+5. **IV. 8 DIMENSI PROFIL LULUSAN**:
+   - Tabel HTML:
+     | Dimensi Profil Lulusan | Penerapan Konkret dalam Pembelajaran |
+     Pilih dan uraikan dimensi yang relevan secara nyata:
+     - Keimanan dan Ketakwaan terhadap Tuhan YME
+     - Kewargaan
+     - Penalaran Kritis
+     - Kreativitas
+     - Kolaborasi
+     - Kemandirian
+     - Kesehatan
+     - Komunikasi
 
-7. **PERTANYAAN PEMANTIK**: Minimal 5 pertanyaan pemantik yang mengaktifkan berpikir kritis dan rasa ingin tahu.
+6. **V. DESAIN PEMBELAJARAN**:
+   - **A. Tujuan Pembelajaran**: Tabel (Pertemuan | Kode TP | Tujuan Pembelajaran - mencakup TP Utama dan TP Turunan operasional terukur).
+   - **B. Lintas Disiplin Ilmu**: Tabel (Mata Pelajaran Terkait | Keterkaitan Konkret).
+   - **C. Praktik Pedagogis**: Tabel (Pendekatan: Pembelajaran Mendalam | Model Terpilih | Sintaks Model Lengkap | Metode | Alasan Pedagogis).
+   - **D. Kemitraan Pembelajaran**: Tabel (Jenis Kemitraan [Guru-Murid, Murid-Murid, Orang Tua, Lingkungan] | Bentuk Kerja Sama Konkret).
+   - **E. Lingkungan Pembelajaran**: Tabel (Aspek Fisik, Sosial, Psikologis/Emosional | Kondisi & Penerapan Mendukung).
+   - **F. Pemanfaatan Digital**: Tabel (Media / Perangkat Digital | Cara Penggunaan Fungsional).
 
-8. **DIAGNOSTIK**:
-   - Diagnostik Kognitif & Diagnostik Non-Kognitif lengkap beserta instrumen dan kriteria tindak lanjut.
+7. **VI. LANGKAH-LANGKAH PEMBELAJARAN SETIAP PERTEMUAN**:
+   Buat rincian lengkap untuk SETIAP PERTEMUAN dengan struktur:
+   - Header Pertemuan: **PERTEMUAN X** (Kode TP, Tanggal Pelaksanaan ${formData.date}, Alokasi Waktu, Level Kognitif, TP, Model Pembelajaran, Sintaks).
+   - **KEGIATAN AWAL (15 menit)**: Salam, doa, presensi, apersepsi kontekstual, pertanyaan pemantik berpikir tingkat tinggi, motivasi, penyampaian tujuan belajar & aktivitas, pembuka menggembirakan. Disertai label: *(Berkesadaran)*, *(Bermakna)*, *(Menggembirakan)*, *(Penalaran Kritis)*, *(Komunikasi)*.
+   - **KEGIATAN INTI**: Wajib menggunakan Tabel HTML 3 Kolom:
+     | Pengalaman Belajar | Sintaks & Aktivitas Pembelajaran | Dimensi Profil Lulusan |
+     Terbagi menjadi 3 Pengalaman Belajar Pembelajaran Mendalam:
+     1. **MEMAHAMI**: Aktivitas nyata murid mengamati, membaca, menyimak, mengidentifikasi, mengajukan pertanyaan, menganalisis informasi secara mendalam.
+     2. **MENGAPLIKASI**: Aktivitas nyata murid memecahkan masalah kontekstual, berdiskusi kelompok, melakukan eksperimen/simulasi, menghasilkan produk/karya nyata.
+     3. **MEREFLEKSI**: Aktivitas nyata murid mengevaluasi proses belajar, menilai hasil, menyadari kesulitan, merumuskan strategi perbaikan diri.
+   - **KEGIATAN AKHIR (10 menit)**: Kesimpulan pembelajaran bersama murid, umpan balik konstruktif guru, refleksi pengalaman belajar, tindak lanjut, penyampaian materi berikutnya, doa penutup.
 
-9. **PEMBELAJARAN MENDALAM (DEEP LEARNING 8,3,3,4)**:
-   - Uraian kontekstual implementasi 8 Dimensi Profil Lulusan, 3 Prinsip Pembelajaran (Mindful, Meaningful, Joyful), 3 Pengalaman Belajar (Memahami, Mengaplikasi, Merefleksi), dan 4 Kerangka Pembelajaran (Praktik Pedagogis, Kemitraan, Lingkungan, Teknologi Digital).
+8. **VII. ASESMEN PEMBELAJARAN SETIAP PERTEMUAN**:
+   - Tabel HTML:
+     | Jenis Asesmen | Bentuk & Teknik | Instrumen & Bukti Belajar |
+     | Asesmen Diagnostik (Awal) | Pertanyaan lisan / kuis diagnostik | Instrumen pertanyaan awal & pedoman tindak lanjut |
+     | Asesmen Formatif (Proses) | Observasi partisipasi, diskusi LKPD, unjuk kerja | Lembar observasi & checklist indikator kinerja |
+     | Asesmen Sumatif (Akhir) | Tes tertulis / produk / presentasi | Butir soal sumatif atau rubrik penilaian produk |
 
-10. **LANGKAH PEMBELAJARAN**:
-    - Dibuat sangat rinci untuk setiap pertemuan.
-    - Menggunakan TABEL HTML rapi.
-    - Minimal terdiri atas: Pendahuluan, Kegiatan Inti, Penutup.
-    - Cantumkan estimasi waktu JP dan tanggal pelaksanaan dari ATP.
-    - Pada Kegiatan Inti, jelaskan aktivitas guru dan peserta didik secara rinci sesuai sintaks model pembelajaran yang dipilih.
+9. **VIII. LAMPIRAN MODUL AJAR (LENGKAP & TANPA PLACEHOLDER)**:
+   - **LAMPIRAN 1 — RINGKASAN MATERI / BAHAN AJAR**: Materi lengkap, sistematis, dan aplikatif untuk guru dan peserta didik.
+   - **LAMPIRAN 2 — SOAL ASESMEN AWAL (DIAGNOSTIK)**: Minimal 5 soal nyata lengkap dengan kunci jawaban dan pedoman penskoran.
+   - **LAMPIRAN 3 — MEDIA PEMBELAJARAN**: Tabel (No | Nama Media | Deskripsi & Cara Penggunaan dalam Pembelajaran).
+   - **LAMPIRAN 4 — SOAL ASESMEN FORMATIF**: Tabel (Pertemuan/TP | Butir Soal Formatif | Bentuk & Kunci Jawaban).
+   - **LAMPIRAN 5 — RUBRIK PENILAIAN LENGKAP**:
+     * A. Rubrik Sikap / Profil Lulusan (Skala 1 - 4: Perlu Bimbingan, Cukup, Baik, Sangat Baik beserta deskriptor jelas).
+     * B. Rubrik Pengetahuan (Kriteria & rentang skor).
+     * C. Rubrik Keterampilan / Kinerja Produk (Aspek, kriteria, dan deskripsi capaian).
+   - **LAMPIRAN 6 — LEMBAR KERJA MURID (LKM / LKPD) PER PERTEMUAN**:
+     * Header LKPD: LKPD [MAPEL] | KELAS [X] | TOPIK: [MATERI]
+     * Identitas Murid: Nama, Kelas, Tanggal.
+     * A. Tujuan Pembelajaran
+     * B. Petunjuk Pengerjaan
+     * C. Aktivitas / Tugas / Tabel Pengamatan / Ruang Kerja
+     * D. Kesimpulan
+     * E. **REFLEKSIKU** (Pertanyaan refleksi pengalaman belajar bermakna dan menggembirakan).
 
-11. **ASESMEN**:
-    - Diagnostik, Formatif, Sumatif (Lengkap).
-    - Pilih salah satu instrumen asesmen yang PALING RELEVAN berdasarkan tujuan pembelajaran, karakteristik materi, model, pendekatan, metode, aktivitas, dan bukti belajar. Jangan memaksakan seluruh jenis asesmen. Setiap asesmen yang dipilih harus memiliki keterkaitan langsung dengan TP.
+10. **IX. TABEL VALIDASI OTOMATIS & SUMMARY RPM**:
+    - Tabel Validasi HTML (3 kolom: ASPEK VALIDASI | STATUS [LENGKAP / SESUAI / KONSISTEN] | CATATAN KEPATUHAN PERMENDIKDASMEN NO. 13 TAHUN 2025).
+    - Ringkasan Checklist Pemenuhan Komponen RPM Pembelajaran Mendalam.
 
-12. **INSTRUMEN PENILAIAN**:
-    - Pilih salah satu instrumen penilaian yang PALING RELEVAN (Observasi / Kinerja / Produk / Tes Tertulis / Tes Lisan / Praktik / Portofolio). Jangan memaksakan seluruh instrumen. Setiap instrumen dilengkapi kriteria dan bukti belajar.
-
-13. **RUBRIK PENILAIAN**:
-    - Gunakan skala yang konsisten (contoh: Skor 4 = Sangat Baik, 3 = Baik, 2 = Cukup, 1 = Perlu Bimbingan). Sertakan indikator dan deskripsi jelas untuk tiap tingkat capaian.
-
-14. **PENGAYAAN**: Rencana & materi pengayaan lengkap untuk peserta didik yang mencapai KTPM.
-
-15. **REMEDIAL**: Rencana & pendampingan remedial lengkap untuk peserta didik yang belum mencapai KTPM.
-
-16. **REFLEKSI GURU**: Minimal 10 pertanyaan refleksi mendalam untuk evaluasi diri guru.
-
-17. **REFLEKSI PESERTA DIDIK**: Minimal 10 pertanyaan refleksi sederhana dan ramah anak sesuai usia peserta didik.
-
-18. **LEMBAR KERJA PESERTA DIDIK (LKPD)**:
-    - Format SIAP CETAK.
-    - Memiliki: Judul, Tujuan, Petunjuk, Alat & Bahan, Langkah Kerja, Tugas, Soal, Ruang Jawaban.
-
-19. **BAHAN BACAAN**: Bahan Bacaan Guru dan Bahan Bacaan Peserta Didik.
-
-20. **GLOSARIUM**: Definisi lengkap seluruh istilah penting dalam materi.
-
-21. **DAFTAR PUSTAKA**: Disusun sesuai sumber referensi yang benar-benar digunakan. Jangan mengarang referensi.
-
-22. **LAMPIRAN**:
-    - Cantumkan lampiran relevan: Lembar Observasi, Rubrik Sikap, Rubrik Pengetahuan, Rubrik Keterampilan, Daftar Hadir, Jurnal Mengajar, Jurnal Refleksi, Instrumen Diagnostik, Bank Soal, Kunci Jawaban, Pedoman Penskoran, Media Pembelajaran, Bahan Presentasi, Daftar Alat dan Bahan, Rencana Pengayaan, Rencana Remedial.
-
-23. **TABEL VALIDASI OTOMATIS**:
-    - Lakukan pemeriksaan mandiri dan tampilkan TABEL VALIDASI OTOMATIS HTML (3 kolom: ASPEK OTOMATIS | STATUS [LENGKAP/SESUAI/KONSISTEN] | CATATAN VALIDASI) yang memuat:
-      * Kelengkapan komponen modul
-      * Kesesuaian dengan data pengguna
-      * Bagian yang menggunakan placeholder [DIISI OLEH GURU]
-      * Bagian yang perlu disesuaikan sekolah
-      * Konsistensi tujuan, kegiatan, dan asesmen
-
-24. **OUTPUT RINGKASAN & CATATAN PENYEMPURNAAN**:
-    - Sertakan ringkasan di bagian paling bawah:
-      1. Modul Ajar Lengkap Status: SUDAH DIPENUHI
-      2. Tabel Validasi: TERSEDIA
-      3. Daftar Komponen yang Telah Dipenuhi
-      4. Daftar Placeholder yang Perlu Dilengkapi Guru (jika ada)
-      5. Saran Penyempurnaan Modul Ajar
-
-# FORMAT PENULISAN & STYLING HTML:
-- Gunakan tag <h2 style="color: #059669; font-size: 13pt; font-weight: bold; margin-top: 22px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #059669; padding-bottom: 3px; font-family: Arial, sans-serif;"> untuk Judul Bagian Utama (Menggunakan Angka Romawi I sampai XXIV).
-- Gunakan <h3 style="color: #111827; font-size: 11pt; font-weight: bold; margin-top: 12px; margin-bottom: 4px; font-family: Arial, sans-serif;"> untuk Sub-Bagian.
-- Semua TABEL HTML wajib menggunakan style: border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; margin-top: 8px; margin-bottom: 14px; font-size: 10.5pt;.
-- Tabel header <th>: background-color: #f1f5f9; font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left;.
-- Tabel cell <td>: padding: 6px 8px; border: 1px solid #cbd5e1; vertical-align: top;.
-- Berikan output HANYA berupa kode HTML div murni (tanpa tag <html>/<body>, tanpa markdown triple backticks).
+## ATURAN STYLING HTML:
+- Judul Bab Utama: <h2 style="color: #059669; font-size: 13pt; font-weight: bold; margin-top: 22px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #059669; padding-bottom: 3px; font-family: 'Yu Gothic UI', Arial, sans-serif;">
+- Sub-Judul: <h3 style="color: #111827; font-size: 11pt; font-weight: bold; margin-top: 12px; margin-bottom: 4px; font-family: 'Yu Gothic UI', Arial, sans-serif;">
+- Seluruh TABEL HTML wajib berformat: border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; margin-top: 8px; margin-bottom: 14px; font-size: 10.5pt; font-family: 'Yu Gothic UI', Arial, sans-serif;
+- Header tabel (th): background-color: #f1f5f9; font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; color: #0f172a;
+- Sel tabel (td): padding: 6px 8px; border: 1px solid #cbd5e1; vertical-align: top;
+- Output HANYA berupa kode HTML div murni (tanpa tag <html>/<body>, tanpa triple backticks).
 `;
 
             const response = await ai.models.generateContent({
@@ -1354,7 +1724,7 @@ Hasil akhir:
                 timestamp: new Date(),
                 type: 'MODUL_AJAR',
                 subject: formData.subject,
-                details: `Modul Ajar: ${formData.topic}`,
+                details: `RPM Modul Ajar: ${formData.topic}`,
                 dataSnapshot: { ...formData, semester: userIdentity.semester, content: html, generatedImages: imgData ? [imgData] : [] },
                 paperSizeSnapshot: paperSize
             });
@@ -1370,31 +1740,31 @@ Hasil akhir:
     const handleDownloadDoc = () => {
         if (!resultContent) return;
         const size = PAPER_SIZES[paperSize];
-        const footerText = `Modul Ajar - ${formData.subject} - ${formData.className} | Disusun oleh: ${userIdentity.authorName}`;
+        const footerText = `RPM Modul Ajar (Deep Learning) - ${formData.subject} - ${formData.className} | Disusun oleh: ${userIdentity.authorName}`;
 
         const htmlContent = `
           <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
           <head>
             <meta charset='utf-8'>
-            <title>Modul Ajar ${formData.subject}</title>
+            <title>RPM Modul Ajar ${formData.subject}</title>
             <style>
               @page {
                 size: ${size.width} ${size.height};
                 mso-page-orientation: portrait;
-                margin: 2.54cm 2.54cm 2.54cm 2.54cm;
+                margin: 2cm 2cm 2cm 2cm;
                 mso-header-margin: 36pt;
                 mso-footer-margin: 36pt;
                 mso-paper-source: 0;
               }
               body {
-                font-family: Arial, 'Helvetica Neue', sans-serif;
+                font-family: 'Yu Gothic UI', 'Segoe UI', Arial, 'Helvetica Neue', sans-serif;
                 font-size: 11pt;
-                line-height: 1.4;
+                line-height: 1.45;
                 color: #1f2937;
               }
               h1 {
-                font-family: Arial, sans-serif;
-                font-size: 16pt;
+                font-family: 'Yu Gothic UI', Arial, sans-serif;
+                font-size: 15pt;
                 font-weight: bold;
                 text-align: center;
                 color: #111827;
@@ -1402,39 +1772,39 @@ Hasil akhir:
                 text-transform: uppercase;
               }
               h2 {
-                font-family: Arial, sans-serif;
-                font-size: 13pt;
+                font-family: 'Yu Gothic UI', Arial, sans-serif;
+                font-size: 12.5pt;
                 font-weight: bold;
                 color: #059669;
                 text-transform: uppercase;
-                margin-top: 18pt;
-                margin-bottom: 8pt;
+                margin-top: 16pt;
+                margin-bottom: 6pt;
                 border-bottom: 2px solid #059669;
                 padding-bottom: 2pt;
               }
               h3 {
-                font-family: Arial, sans-serif;
+                font-family: 'Yu Gothic UI', Arial, sans-serif;
                 font-size: 11pt;
                 font-weight: bold;
                 color: #111827;
-                margin-top: 12pt;
+                margin-top: 10pt;
                 margin-bottom: 4pt;
               }
               p, li {
                 margin-top: 3pt;
-                margin-bottom: 5pt;
-                line-height: 1.4;
+                margin-bottom: 4pt;
+                line-height: 1.45;
               }
               table {
                 border-collapse: collapse;
                 width: 100%;
                 margin-top: 6pt;
-                margin-bottom: 12pt;
+                margin-bottom: 10pt;
                 font-size: 10.5pt;
               }
               td, th {
                 border: 1px solid #cbd5e1;
-                padding: 6pt 8pt;
+                padding: 5pt 7pt;
                 vertical-align: top;
               }
               th {
@@ -1444,9 +1814,9 @@ Hasil akhir:
                 text-align: left;
               }
               ul, ol {
-                margin-top: 4pt;
-                margin-bottom: 6pt;
-                padding-left: 20pt;
+                margin-top: 3pt;
+                margin-bottom: 5pt;
+                padding-left: 18pt;
               }
               img {
                 max-width: 100%;
@@ -1472,11 +1842,15 @@ Hasil akhir:
           </html>
         `;
 
+        const cleanTopic = formData.topic.replace(/[\\/:*?"<>|\r\n]+/g, '_').substring(0, 25);
+        const cleanDate = (formData.date || '').replace(/[\/\s,]+/g, '-');
+        const fileName = `RPM_${formData.subject}_${formData.className}_${cleanTopic}_${cleanDate}.doc`;
+
         const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `Modul_Ajar_${formData.subject}_${formData.topic.substring(0,20).replace(/\s+/g, '_')}.doc`;
+        link.download = fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1577,6 +1951,8 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editName, setEditName] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [editAssignedClass, setEditAssignedClass] = useState('Kelas 1');
+  const [editInstitution, setEditInstitution] = useState('');
   
   const [deletingUser, setDeletingUser] = useState<any>(null);
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
@@ -1599,13 +1975,15 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       for (const key of localKeys) {
         if (!key || typeof key !== 'string') continue;
         const localUser = await usersDB.getItem<any>(key);
-        if (localUser && !fbUsers.find(u => u.email && typeof u.email === 'string' && u.email.toLowerCase() === key.toLowerCase())) {
-          const emailNormalized = key.toLowerCase();
+        if (localUser && !fbUsers.find(u => u && u.email && typeof u.email === 'string' && String(u.email).toLowerCase() === String(key).toLowerCase())) {
+          const emailNormalized = String(key).toLowerCase();
           const userDocRef = doc(db, 'users', emailNormalized);
           const newUserData = {
             email: emailNormalized,
             name: localUser.name || emailNormalized.split('@')[0],
             password: localUser.password || '',
+            assignedClass: localUser.assignedClass || 'Kelas 1',
+            institutionName: localUser.institutionName || 'Sekolah Dasar',
             activeSessionId: localUser.activeSessionId || '',
             lastActive: Date.now()
           };
@@ -1630,16 +2008,19 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     try {
       const emailNormalized = editingUser.email.toLowerCase().trim();
       const userDocRef = doc(db, 'users', emailNormalized);
-      await updateDoc(userDocRef, {
+      const updateData = {
         name: editName,
         password: editPassword,
+        assignedClass: editAssignedClass,
+        institutionName: editInstitution,
         activeSessionId: ''
-      });
+      };
+      await updateDoc(userDocRef, updateData);
+      const prevLocal = await usersDB.getItem<any>(emailNormalized) || {};
       await usersDB.setItem(emailNormalized, {
+        ...prevLocal,
         email: emailNormalized,
-        name: editName,
-        password: editPassword,
-        activeSessionId: ''
+        ...updateData
       });
       setEditingUser(null);
       fetchUsers();
@@ -1684,11 +2065,17 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   };
 
   const filteredUsers = useMemo(() => {
+    const q = String(searchTerm || '').toLowerCase();
     return users.filter(u => {
+      if (!u) return false;
       const email = typeof u.email === 'string' ? u.email : '';
       const name = typeof u.name === 'string' ? u.name : '';
-      return email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-             name.toLowerCase().includes(searchTerm.toLowerCase());
+      const assignedClass = typeof u.assignedClass === 'string' ? u.assignedClass : '';
+      const inst = typeof u.institutionName === 'string' ? u.institutionName : '';
+      return String(email).toLowerCase().includes(q) || 
+             String(name).toLowerCase().includes(q) ||
+             String(assignedClass).toLowerCase().includes(q) ||
+             String(inst).toLowerCase().includes(q);
     });
   }, [users, searchTerm]);
 
@@ -1712,7 +2099,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                   <ShieldCheck className="w-3.5 h-3.5" /> Berdaulat
                 </span>
               </div>
-              <p className="text-slate-500 text-xs sm:text-sm">Kelola pengguna terdaftar dan sesi login perangkat aktif</p>
+              <p className="text-slate-500 text-xs sm:text-sm">Kelola pengguna terdaftar, kelas yang diampu, dan sesi perangkat aktif</p>
             </div>
           </div>
           <button onClick={fetchUsers} disabled={loading} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 text-slate-700 disabled:opacity-50">
@@ -1760,7 +2147,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Cari nama atau email..."
+                placeholder="Cari nama, email, kelas..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-300 bg-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
@@ -1784,6 +2171,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 text-xs font-bold border-b border-slate-100 uppercase tracking-wider">
                     <th className="px-6 py-4">Nama Lengkap</th>
+                    <th className="px-6 py-4">Kelas Diampu</th>
                     <th className="px-6 py-4">Alamat Email</th>
                     <th className="px-6 py-4">Kata Sandi</th>
                     <th className="px-6 py-4">Sesi Aktif</th>
@@ -1793,7 +2181,15 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {filteredUsers.map(u => (
                     <tr key={u.email} className="hover:bg-slate-50/40 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-slate-800">{u.name}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-800">{u.name}</div>
+                        {u.institutionName && <div className="text-xs text-slate-400 font-normal">{u.institutionName}</div>}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                          {u.assignedClass || 'Kelas 1'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-slate-600 font-mono text-xs">{u.email}</td>
                       <td className="px-6 py-4 text-slate-600">
                         <div className="flex items-center gap-2">
@@ -1827,6 +2223,8 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                               setEditingUser(u);
                               setEditName(u.name || '');
                               setEditPassword(u.password || '');
+                              setEditAssignedClass(u.assignedClass || 'Kelas 1');
+                              setEditInstitution(u.institutionName || '');
                             }}
                             className="p-2 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded-xl text-blue-600 transition-all cursor-pointer"
                             title="Edit Pengguna"
@@ -1868,6 +2266,28 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                   type="text"
                   value={editName}
                   onChange={e => setEditName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Kelas yang Diampu</label>
+                <select
+                  value={editAssignedClass}
+                  onChange={e => setEditAssignedClass(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all font-semibold"
+                >
+                  {['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'].map(cls => (
+                    <option key={cls} value={cls}>{cls}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Nama Sekolah / Instansi</label>
+                <input
+                  type="text"
+                  value={editInstitution}
+                  onChange={e => setEditInstitution(e.target.value)}
+                  placeholder="Contoh: SD Negeri 1 Merdeka"
                   className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
                 />
               </div>
@@ -1938,11 +2358,3594 @@ interface CustomHoliday {
 
 interface UserIdentity {
     authorName: string;
+    nip?: string;
     institutionName: string;
+    npsn?: string;
+    kepalaSekolah?: string;
+    nipKepalaSekolah?: string;
     academicYear: string;
     semester: string;
+    assignedClass: string;
+    employmentStatus?: string;
     customApiKey?: string;
 }
+
+interface StudentRecord {
+    id: string;
+    nisn: string;
+    nis: string;
+    name: string;
+    gender: 'L' | 'P';
+    notes?: string;
+}
+
+interface JournalRecord {
+    id: string;
+    date: string;
+    timeSlot: string;
+    subject: string;
+    topic: string;
+    activity: string;
+    notes: string;
+}
+
+// --- Edit Profile Modal ---
+const EditProfileModal: React.FC<{
+    identity: UserIdentity;
+    onSave: (updated: UserIdentity) => void;
+    onClose: () => void;
+}> = ({ identity, onSave, onClose }) => {
+    const [form, setForm] = useState<UserIdentity>({
+        authorName: identity.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.',
+        nip: identity.nip || '199602152025211094',
+        institutionName: identity.institutionName || 'SDN SUKATINGGAL',
+        npsn: identity.npsn || '20206022',
+        kepalaSekolah: identity.kepalaSekolah || 'Yuni Sri Rahayu, S.Pd.',
+        nipKepalaSekolah: identity.nipKepalaSekolah || '198706162019032007',
+        academicYear: identity.academicYear || '2026-2027',
+        semester: identity.semester || 'Ganjil (Semester 1)',
+        assignedClass: identity.assignedClass || 'Kelas 1',
+        employmentStatus: identity.employmentStatus || 'Full Time',
+        customApiKey: identity.customApiKey || ''
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave(form);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 space-y-6 my-8 animate-in fade-in zoom-in duration-200">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                            <User className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900">Perbarui Profil Pengguna</h3>
+                            <p className="text-xs text-slate-500">Sesuaikan data identitas guru dan sekolah Anda</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">Nama Guru & Gelar</label>
+                            <input 
+                                type="text" 
+                                required
+                                value={form.authorName} 
+                                onChange={e => setForm({...form, authorName: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                                placeholder="Acep Miftah Hilah Ash-shidiq, S.Pd."
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">NIP Guru</label>
+                            <input 
+                                type="text" 
+                                value={form.nip || ''} 
+                                onChange={e => setForm({...form, nip: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                                placeholder="199602152025211094"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">Nama Sekolah / Instansi</label>
+                            <input 
+                                type="text" 
+                                required
+                                value={form.institutionName} 
+                                onChange={e => setForm({...form, institutionName: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                                placeholder="SDN SUKATINGGAL"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">NPSN Sekolah</label>
+                            <input 
+                                type="text" 
+                                value={form.npsn || ''} 
+                                onChange={e => setForm({...form, npsn: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                                placeholder="20206022"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">Nama Kepala Sekolah</label>
+                            <input 
+                                type="text" 
+                                value={form.kepalaSekolah || ''} 
+                                onChange={e => setForm({...form, kepalaSekolah: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                                placeholder="Yuni Sri Rahayu, S.Pd."
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">NIP Kepala Sekolah</label>
+                            <input 
+                                type="text" 
+                                value={form.nipKepalaSekolah || ''} 
+                                onChange={e => setForm({...form, nipKepalaSekolah: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                                placeholder="198706162019032007"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">Tahun Pelajaran</label>
+                            <input 
+                                type="text" 
+                                value={form.academicYear} 
+                                onChange={e => setForm({...form, academicYear: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                                placeholder="2026-2027"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">Semester</label>
+                            <select
+                                value={form.semester}
+                                onChange={e => setForm({...form, semester: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                            >
+                                <option value="Ganjil (Semester 1)">Ganjil (Semester 1)</option>
+                                <option value="Genap (Semester 2)">Genap (Semester 2)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">Kelas yang Diampu</label>
+                            <select
+                                value={form.assignedClass}
+                                onChange={e => setForm({...form, assignedClass: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                            >
+                                {['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'].map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block font-bold text-slate-700 mb-1">Status Kepegawaian</label>
+                            <select
+                                value={form.employmentStatus || 'Full Time'}
+                                onChange={e => setForm({...form, employmentStatus: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                            >
+                                <option value="Full Time">Full Time</option>
+                                <option value="PNS">PNS</option>
+                                <option value="PPPK">PPPK</option>
+                                <option value="Guru Honorer">Guru Honorer</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all cursor-pointer"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                            <Check className="w-4 h-4" /> Simpan Perubahan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// --- Dashboard View Component ---
+const DashboardView: React.FC<{
+    identity: UserIdentity;
+    onEditProfile: () => void;
+    onNavigate: (view: any) => void;
+}> = ({ identity, onEditProfile, onNavigate }) => {
+    return (
+        <div className="max-w-5xl mx-auto w-full space-y-8 animate-in fade-in duration-300">
+            {/* Main Profile Card (Mirroring screenshot) */}
+            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs p-6 md:p-8 relative overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-6">
+                    <div>
+                        <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight">Ikhtisar Profil</h2>
+                        <p className="text-xs md:text-sm text-slate-500 mt-0.5">Informasi data diri dan sekolah Anda.</p>
+                    </div>
+                    <button
+                        onClick={onEditProfile}
+                        className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs flex items-center gap-2 transition-all cursor-pointer hover:border-slate-300"
+                    >
+                        <Edit className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Perbarui Profil</span>
+                    </button>
+                </div>
+
+                {/* 2-Column Info Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 md:gap-4 mt-6">
+                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 transition-all hover:bg-slate-50">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NAMA GURU</div>
+                        <div className="text-sm font-bold text-slate-800 mt-1">{identity.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.'}</div>
+                    </div>
+
+                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 transition-all hover:bg-slate-50">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NIP GURU</div>
+                        <div className="text-sm font-bold text-slate-800 mt-1">{identity.nip || '199602152025211094'}</div>
+                    </div>
+
+                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 transition-all hover:bg-slate-50">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SEKOLAH</div>
+                        <div className="text-sm font-bold text-slate-800 mt-1">{identity.institutionName || 'SDN SUKATINGGAL'}</div>
+                    </div>
+
+                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 transition-all hover:bg-slate-50">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NPSN</div>
+                        <div className="text-sm font-bold text-slate-800 mt-1">{identity.npsn || '20206022'}</div>
+                    </div>
+
+                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 transition-all hover:bg-slate-50">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">KEPALA SEKOLAH</div>
+                        <div className="text-sm font-bold text-slate-800 mt-1">{identity.kepalaSekolah || 'Yuni Sri Rahayu, S.Pd.'}</div>
+                    </div>
+
+                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 transition-all hover:bg-slate-50">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NIP KEPALA SEKOLAH</div>
+                        <div className="text-sm font-bold text-slate-800 mt-1">{identity.nipKepalaSekolah || '198706162019032007'}</div>
+                    </div>
+
+                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 md:col-span-2 transition-all hover:bg-slate-50">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TAHUN PELAJARAN & KELAS AMPU</div>
+                        <div className="text-sm font-bold text-slate-800 mt-1 flex items-center justify-between">
+                            <span>{identity.academicYear || '2026-2027'} • {identity.semester || 'Ganjil (Semester 1)'}</span>
+                            <span className="text-xs bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full font-extrabold">{identity.assignedClass || 'Kelas 1'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Access Feature Grid */}
+            <div className="space-y-4">
+                <h3 className="text-base font-bold text-slate-800 px-1 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Akses Cepat Modul & Fitur Utama</span>
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div 
+                        onClick={() => onNavigate('generator')}
+                        className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                        <div>
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                <FileText className="w-5 h-5" />
+                            </div>
+                            <h4 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-sm">Program Tahunan (Prota)</h4>
+                            <p className="text-xs text-slate-500 mt-1">Generasi otomatis CP, TP, ATP, dan Prota Kurikulum Merdeka.</p>
+                        </div>
+                        <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-blue-600">Buka Menu <ChevronRight className="w-3.5 h-3.5" /></span>
+                    </div>
+
+                    <div 
+                        onClick={() => onNavigate('modul_ajar')}
+                        className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-purple-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                        <div>
+                            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-3 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                <Sparkles className="w-5 h-5" />
+                            </div>
+                            <h4 className="font-bold text-slate-900 group-hover:text-purple-600 transition-colors text-sm">Modul Ajar RPM</h4>
+                            <p className="text-xs text-slate-500 mt-1">Rencana Pembelajaran Mendalam (Permendikdasmen No. 13/2025).</p>
+                        </div>
+                        <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-purple-600">Buka Modul <ChevronRight className="w-3.5 h-3.5" /></span>
+                    </div>
+
+                    <div 
+                        onClick={() => onNavigate('calendar')}
+                        className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-amber-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                        <div>
+                            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                <Calendar className="w-5 h-5" />
+                            </div>
+                            <h4 className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors text-sm">Kalender Akademik</h4>
+                            <p className="text-xs text-slate-500 mt-1">Perhitungan Pekan/Hari Efektif Belajar & Agenda Sekolah.</p>
+                        </div>
+                        <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-amber-600">Lihat Kalender <ChevronRight className="w-3.5 h-3.5" /></span>
+                    </div>
+
+                    <div 
+                        onClick={() => onNavigate('daftar_siswa')}
+                        className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                        <div>
+                            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                <Users className="w-5 h-5" />
+                            </div>
+                            <h4 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors text-sm">Daftar Siswa & Presensi</h4>
+                            <p className="text-xs text-slate-500 mt-1">Manajemen roster siswa dan pencatatan presensi kelas.</p>
+                        </div>
+                        <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-emerald-600">Kelola Siswa <ChevronRight className="w-3.5 h-3.5" /></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Daftar Siswa View Component ---
+const DaftarSiswaView: React.FC<{
+    selectedClass: string;
+    identity: UserIdentity;
+}> = ({ selectedClass, identity }) => {
+    const [students, setStudents] = useState<StudentRecord[]>(() => {
+        try {
+            const saved = localStorage.getItem(`prota_students_${selectedClass}`);
+            if (saved) return JSON.parse(saved);
+        } catch(e) {}
+        return [
+            { id: '1', nisn: '0123456701', nis: '1001', name: 'Ahmad Rizky Pratama', gender: 'L', notes: 'Aktif' },
+            { id: '2', nisn: '0123456702', nis: '1002', name: 'Aisyah Nur Syafiqah', gender: 'P', notes: 'Aktif' },
+            { id: '3', nisn: '0123456703', nis: '1003', name: 'Bagas Aditya Putra', gender: 'L', notes: 'Aktif' },
+            { id: '4', nisn: '0123456704', nis: '1004', name: 'Citra Dewi Kirana', gender: 'P', notes: 'Aktif' },
+            { id: '5', nisn: '0123456705', nis: '1005', name: 'Dafa Alamsyah', gender: 'L', notes: 'Aktif' },
+        ];
+    });
+
+    useEffect(() => {
+        localStorage.setItem(`prota_students_${selectedClass}`, JSON.stringify(students));
+    }, [students, selectedClass]);
+
+    const [newName, setNewName] = useState('');
+    const [newNisn, setNewNisn] = useState('');
+    const [newNis, setNewNis] = useState('');
+    const [newGender, setNewGender] = useState<'L' | 'P'>('L');
+    const [search, setSearch] = useState('');
+
+    const handleAddStudent = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newName.trim()) return;
+        const newStudent: StudentRecord = {
+            id: Date.now().toString(),
+            nisn: newNisn || `012345${Math.floor(1000+Math.random()*9000)}`,
+            nis: newNis || `${1000 + students.length + 1}`,
+            name: newName,
+            gender: newGender,
+            notes: 'Aktif'
+        };
+        setStudents([...students, newStudent]);
+        setNewName('');
+        setNewNisn('');
+        setNewNis('');
+    };
+
+    const handleDelete = (id: string) => {
+        setStudents(students.filter(s => s.id !== id));
+    };
+
+    const filtered = students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.nisn.includes(search));
+
+    const handleDownloadDoc = () => {
+        const rows = students.map((s, idx) => `
+            <tr>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${idx+1}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${s.nisn}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${s.nis}</td>
+                <td style="border: 1px solid #000; padding: 6px;">${s.name}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${s.gender}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${s.notes || 'Aktif'}</td>
+            </tr>
+        `).join('');
+
+        const html = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
+            <head><meta charset='utf-8'><title>Daftar Siswa - ${selectedClass}</title>
+            <style>
+                @page { size: A4 portrait; margin: 2cm; }
+                body { font-family: 'Arial', sans-serif; font-size: 11pt; }
+                table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+                th { border: 1px solid #000; background: #e2e8f0; padding: 8px; text-align: center; }
+            </style>
+            </head>
+            <body>
+                <h2 style="text-align: center; font-size: 14pt; margin-bottom: 4px;">DAFTAR SISWA AMPU ${selectedClass.toUpperCase()}</h2>
+                <h3 style="text-align: center; font-size: 12pt; margin-top: 0; font-weight: normal;">${identity.institutionName || 'SDN SUKATINGGAL'} - TAHUN PELAJARAN ${identity.academicYear}</h3>
+                <p><b>Wali Kelas / Guru:</b> ${identity.authorName} | <b>NIP:</b> ${identity.nip || '-'}</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th width="5%">NO</th>
+                            <th width="20%">NISN</th>
+                            <th width="15%">NIS</th>
+                            <th>NAMA LENGKAP SISWA</th>
+                            <th width="12%">L/P</th>
+                            <th width="15%">KETERANGAN</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Daftar_Siswa_${selectedClass.replace(/\s+/g, '_')}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <Users className="w-5 h-5 text-emerald-600" />
+                        <span>Daftar Siswa ({selectedClass})</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Data roster siswa terdaftar untuk kelas ampu aktif Anda.</p>
+                </div>
+                <button
+                    onClick={handleDownloadDoc}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                >
+                    <Download className="w-4 h-4" /> Unduh Format Word
+                </button>
+            </div>
+
+            {/* Quick Add Form */}
+            <form onSubmit={handleAddStudent} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+                <input 
+                    type="text" 
+                    placeholder="Nama Lengkap Siswa"
+                    value={newName} 
+                    onChange={e => setNewName(e.target.value)} 
+                    className="p-2.5 bg-white border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500 md:col-span-2"
+                />
+                <input 
+                    type="text" 
+                    placeholder="NISN"
+                    value={newNisn} 
+                    onChange={e => setNewNisn(e.target.value)} 
+                    className="p-2.5 bg-white border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <select 
+                    value={newGender} 
+                    onChange={e => setNewGender(e.target.value as 'L' | 'P')}
+                    className="p-2.5 bg-white border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                    <option value="L">Laki-Laki (L)</option>
+                    <option value="P">Perempuan (P)</option>
+                </select>
+                <button 
+                    type="submit" 
+                    className="p-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                    <Plus className="w-4 h-4" /> Tambah
+                </button>
+            </form>
+
+            {/* Filter Search */}
+            <div className="flex items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-xs">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input 
+                        type="text" 
+                        placeholder="Cari siswa..." 
+                        value={search} 
+                        onChange={e => setSearch(e.target.value)} 
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                </div>
+                <div className="text-xs font-bold text-slate-500 flex gap-3">
+                    <span>Total: <strong className="text-slate-800">{students.length}</strong></span>
+                    <span>L: <strong className="text-blue-600">{students.filter(s => s.gender === 'L').length}</strong></span>
+                    <span>P: <strong className="text-pink-600">{students.filter(s => s.gender === 'P').length}</strong></span>
+                </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+                        <tr>
+                            <th className="p-3 text-center w-12">No</th>
+                            <th className="p-3">NISN</th>
+                            <th className="p-3">NIS</th>
+                            <th className="p-3">Nama Lengkap</th>
+                            <th className="p-3 text-center w-20">L/P</th>
+                            <th className="p-3 text-center w-24">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                        {filtered.map((s, idx) => (
+                            <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                                <td className="p-3 font-mono text-slate-600">{s.nisn}</td>
+                                <td className="p-3 font-mono text-slate-600">{s.nis}</td>
+                                <td className="p-3 font-bold text-slate-800">{s.name}</td>
+                                <td className="p-3 text-center">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${s.gender === 'L' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                                        {s.gender}
+                                    </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                    <button onClick={() => handleDelete(s.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer" title="Hapus">
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        {filtered.length === 0 && (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-slate-400">Belum ada data siswa untuk kelas ini.</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+// --- Presensi View Component ---
+const PresensiView: React.FC<{
+    selectedClass: string;
+    identity: UserIdentity;
+}> = ({ selectedClass, identity }) => {
+    const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [attendance, setAttendance] = useState<Record<string, 'H' | 'S' | 'I' | 'A'>>({});
+
+    const sampleStudents = [
+        { id: '1', name: 'Ahmad Rizky Pratama' },
+        { id: '2', name: 'Aisyah Nur Syafiqah' },
+        { id: '3', name: 'Bagas Aditya Putra' },
+        { id: '4', name: 'Citra Dewi Kirana' },
+        { id: '5', name: 'Dafa Alamsyah' },
+    ];
+
+    const toggleStatus = (id: string, status: 'H' | 'S' | 'I' | 'A') => {
+        setAttendance(prev => ({ ...prev, [id]: status }));
+    };
+
+    const countStatus = (s: 'H' | 'S' | 'I' | 'A') => Object.values(attendance).filter(v => v === s).length;
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <ClipboardCheck className="w-5 h-5 text-emerald-600" />
+                        <span>Presensi Kehadiran Siswa ({selectedClass})</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Pencatatan rekapitulasi kehadiran harian peserta didik.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <input 
+                        type="date" 
+                        value={date} 
+                        onChange={e => setDate(e.target.value)} 
+                        className="p-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                    />
+                </div>
+            </div>
+
+            {/* Summary Counters */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
+                    <div className="font-extrabold text-emerald-700 text-lg">{countStatus('H')}</div>
+                    <div className="text-[10px] font-bold text-emerald-600 uppercase">Hadir (H)</div>
+                </div>
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-center">
+                    <div className="font-extrabold text-blue-700 text-lg">{countStatus('S')}</div>
+                    <div className="text-[10px] font-bold text-blue-600 uppercase">Sakit (S)</div>
+                </div>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-center">
+                    <div className="font-extrabold text-amber-700 text-lg">{countStatus('I')}</div>
+                    <div className="text-[10px] font-bold text-amber-600 uppercase">Izin (I)</div>
+                </div>
+                <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-center">
+                    <div className="font-extrabold text-red-700 text-lg">{countStatus('A')}</div>
+                    <div className="text-[10px] font-bold text-red-600 uppercase">Alpa (A)</div>
+                </div>
+            </div>
+
+            {/* Attendance Table */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+                        <tr>
+                            <th className="p-3 text-center w-12">No</th>
+                            <th className="p-3">Nama Siswa</th>
+                            <th className="p-3 text-center">Status Kehadiran</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                        {sampleStudents.map((s, idx) => {
+                            const status = attendance[s.id] || 'H';
+                            return (
+                                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                                    <td className="p-3 font-bold text-slate-800">{s.name}</td>
+                                    <td className="p-3 text-center">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            {(['H', 'S', 'I', 'A'] as const).map(st => (
+                                                <button
+                                                    key={st}
+                                                    onClick={() => toggleStatus(s.id, st)}
+                                                    className={`w-8 h-8 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                                                        status === st 
+                                                            ? st === 'H' ? 'bg-emerald-600 text-white shadow-xs' 
+                                                            : st === 'S' ? 'bg-blue-600 text-white shadow-xs' 
+                                                            : st === 'I' ? 'bg-amber-600 text-white shadow-xs' 
+                                                            : 'bg-red-600 text-white shadow-xs' 
+                                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                    }`}
+                                                >
+                                                    {st}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+// --- Jadwal Mengajar View Component ---
+interface ScheduleSlot {
+    id: string;
+    jamKe: string;
+    time: string;
+    subject: string;
+    jp: number;
+    notes?: string;
+}
+
+export const MAPEL_CATEGORIES = [
+    {
+        category: "Mata Pelajaran Umum & Agama",
+        options: [
+            "Pendidikan Agama Islam dan Budi Pekerti",
+            "Pendidikan Agama Kristen dan Budi Pekerti",
+            "Pendidikan Agama Katolik dan Budi Pekerti",
+            "Pendidikan Agama Hindu dan Budi Pekerti",
+            "Pendidikan Agama Buddha dan Budi Pekerti",
+            "Pendidikan Agama Khonghucu dan Budi Pekerti",
+            "Pendidikan Pancasila",
+            "Bahasa Indonesia",
+            "Matematika",
+            "IPAS (Ilmu Pengetahuan Alam dan Sosial)",
+            "PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan)",
+            "Seni Rupa",
+            "Seni Musik",
+            "Seni Tari",
+            "Seni Teater",
+            "Bahasa Inggris",
+            "Koding & Kecerdasan Artifisial"
+        ]
+    },
+    {
+        category: "Muatan Lokal (Mulok)",
+        options: [
+            "Muatan Lokal (Bahasa Daerah / Bahasa Sunda / Jawa)",
+            "Muatan Lokal (Guru Mengaji)"
+        ]
+    },
+    {
+        category: "Kokurikuler Gerakan 7 Kebiasaan Indonesia Hebat",
+        options: [
+            "Kokurikuler 7 Kebiasaan Indonesia Hebat: Bangun Pagi",
+            "Kokurikuler 7 Kebiasaan Indonesia Hebat: Tidur Cepat",
+            "Kokurikuler 7 Kebiasaan Indonesia Hebat: Beribadah",
+            "Kokurikuler 7 Kebiasaan Indonesia Hebat: Gemar Belajar",
+            "Kokurikuler 7 Kebiasaan Indonesia Hebat: Berolahraga",
+            "Kokurikuler 7 Kebiasaan Indonesia Hebat: Makan Sehat dan Bergizi",
+            "Kokurikuler 7 Kebiasaan Indonesia Hebat: Bermasyarakat"
+        ]
+    },
+    {
+        category: "Projek, Ekstrakurikuler & Pembiasaan",
+        options: [
+            "P5 (Projek Penguatan Profil Pelajar Pancasila)",
+            "Ekstrakurikuler / Pembiasaan",
+            "Istirahat / Upacara"
+        ]
+    }
+];
+
+const ALL_MAPEL_OPTIONS = MAPEL_CATEGORIES.flatMap(cat => cat.options);
+
+const getDefaultScheduleForClass = (workingDays: number): Record<string, ScheduleSlot[]> => {
+    const days = workingDays === 5 ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const defaultData: Record<string, ScheduleSlot[]> = {
+        'Senin': [
+            { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Istirahat / Upacara', jp: 1, notes: 'Lapangan Sekolah' },
+            { id: '2', jamKe: '2', time: '07.40 - 08.15', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Bangun Pagi', jp: 1, notes: 'Ruang Kelas' },
+            { id: '3', jamKe: '3 - 5', time: '08.15 - 10.00', subject: 'PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan)', jp: 3, notes: 'Lapangan Sekolah' },
+            { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
+            { id: '5', jamKe: '7 - 10', time: '10.45 - 13.05', subject: 'Bahasa Indonesia', jp: 4, notes: 'Ruang Kelas' },
+            { id: '6', jamKe: '11', time: '13.05 - 13.40', subject: 'Koding & Kecerdasan Artifisial', jp: 1, notes: 'Lab Komputer' }
+        ],
+        'Selasa': [
+            { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Gemar Belajar', jp: 1, notes: 'Ruang Kelas' },
+            { id: '2', jamKe: '2 - 5', time: '07.40 - 10.00', subject: 'Pendidikan Pancasila', jp: 4, notes: 'Ruang Kelas' },
+            { id: '3', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
+            { id: '4', jamKe: '7 - 10', time: '10.45 - 13.05', subject: 'Matematika', jp: 4, notes: 'Ruang Kelas' }
+        ],
+        'Rabu': [
+            { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Berolahraga', jp: 1, notes: 'Lapangan' },
+            { id: '2', jamKe: '2', time: '07.40 - 08.15', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Bermasyarakat', jp: 1, notes: 'Ruang Kelas' },
+            { id: '3', jamKe: '3 - 4', time: '08.15 - 09.25', subject: 'IPAS (Ilmu Pengetahuan Alam dan Sosial)', jp: 2, notes: 'Ruang Kelas / Lab' },
+            { id: '4', jamKe: '5', time: '09.25 - 10.00', subject: 'Seni Rupa', jp: 1, notes: 'Ruang Kelas' },
+            { id: '5', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
+            { id: '6', jamKe: '7', time: '10.45 - 11.20', subject: 'IPAS (Ilmu Pengetahuan Alam dan Sosial)', jp: 1, notes: 'Ruang Kelas' },
+            { id: '7', jamKe: '8 - 9', time: '11.20 - 12.30', subject: 'Seni Rupa', jp: 2, notes: 'Ruang Kelas' },
+            { id: '8', jamKe: '10 - 12', time: '12.30 - 14.15', subject: 'Bahasa Indonesia', jp: 3, notes: 'Ruang Kelas' }
+        ],
+        'Kamis': [
+            { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Makan Sehat dan Bergizi', jp: 1, notes: 'Ruang Kelas' },
+            { id: '2', jamKe: '2 - 3', time: '07.40 - 08.50', subject: 'Bahasa Inggris', jp: 2, notes: 'Ruang Kelas' },
+            { id: '3', jamKe: '4 - 5', time: '08.50 - 10.00', subject: 'Muatan Lokal (Bahasa Daerah / Bahasa Sunda / Jawa)', jp: 2, notes: 'Ruang Kelas' },
+            { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
+            { id: '5', jamKe: '7 - 9', time: '10.45 - 12.30', subject: 'Pendidikan Agama Islam dan Budi Pekerti', jp: 3, notes: 'Musholla / Kelas' },
+            { id: '6', jamKe: '10 - 11', time: '12.30 - 13.40', subject: 'Ekstrakurikuler / Pembiasaan', jp: 2, notes: 'Pramuka / Lapangan' }
+        ],
+        'Jumat': [
+            { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Beribadah', jp: 1, notes: 'Musholla' },
+            { id: '2', jamKe: '2 - 3', time: '07.40 - 08.50', subject: 'Muatan Lokal (Guru Mengaji)', jp: 2, notes: 'Musholla' },
+            { id: '3', jamKe: '4 - 5', time: '08.50 - 10.00', subject: 'IPAS (Ilmu Pengetahuan Alam dan Sosial)', jp: 2, notes: 'Ruang Kelas' },
+            { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
+            { id: '5', jamKe: '7', time: '10.45 - 11.20', subject: 'Pendidikan Pancasila', jp: 1, notes: 'Ruang Kelas' }
+        ],
+        'Sabtu': [
+            { id: '1', jamKe: '1 - 3', time: '07.00 - 08.45', subject: 'Ekstrakurikuler / Pembiasaan', jp: 3, notes: 'Pramuka / Kebersihan' },
+            { id: '2', jamKe: '4 - 5', time: '09.00 - 10.10', subject: 'Muatan Lokal (Bahasa Daerah / Bahasa Sunda / Jawa)', jp: 2, notes: 'Ruang Kelas' }
+        ]
+    };
+
+    const res: Record<string, ScheduleSlot[]> = {};
+    days.forEach(day => {
+        res[day] = defaultData[day] || [];
+    });
+    return res;
+};
+
+// --- Time Calculation Helpers (1 JP = 35 Menit) ---
+const parseTimeToMinutes = (timeStr: string, defaultMinutes: number = 450): number => {
+    if (!timeStr) return defaultMinutes;
+    const clean = timeStr.trim().replace(':', '.');
+    const parts = clean.split('.');
+    if (parts.length >= 2) {
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (!isNaN(h) && !isNaN(m)) return h * 60 + m;
+    }
+    return defaultMinutes;
+};
+
+const formatMinutesToTime = (totalMinutes: number): string => {
+    const h = Math.floor(totalMinutes / 60) % 24;
+    const m = totalMinutes % 60;
+    const hStr = h < 10 ? `0${h}` : `${h}`;
+    const mStr = m < 10 ? `0${m}` : `${m}`;
+    return `${hStr}.${mStr}`;
+};
+
+const autoRecalculateDaySlots = (
+    slots: ScheduleSlot[],
+    startTimeStr: string = "07.30"
+): ScheduleSlot[] => {
+    let currentMinutes = parseTimeToMinutes(startTimeStr, 450);
+    let currentJamKe = 1;
+
+    return slots.map((slot) => {
+        const jpVal = Math.max(1, Number(slot.jp) || 1);
+        const durationMinutes = jpVal * 35; // 1 JP = 35 Menit SD/MI
+        
+        const startFormatted = formatMinutesToTime(currentMinutes);
+        const endMinutes = currentMinutes + durationMinutes;
+        const endFormatted = formatMinutesToTime(endMinutes);
+
+        let jamKeStr = `${currentJamKe}`;
+        if (jpVal > 1) {
+            jamKeStr = `${currentJamKe} - ${currentJamKe + jpVal - 1}`;
+            currentJamKe += jpVal;
+        } else {
+            currentJamKe += 1;
+        }
+
+        currentMinutes = endMinutes;
+
+        return {
+            ...slot,
+            jp: jpVal,
+            jamKe: jamKeStr,
+            time: `${startFormatted} - ${endFormatted}`
+        };
+    });
+};
+
+const JadwalMengajarView: React.FC<{
+    selectedClass: string;
+    classSchedules: Record<string, string[]>;
+    toggleScheduleDay: (cls: string, day: string) => void;
+    classDailyJP: Record<string, Record<string, number>>;
+    updateDailyJP: (cls: string, day: string, jp: number) => void;
+    schoolDaysCount: number;
+    setSchoolDaysCount?: (days: number) => void;
+    identity?: UserIdentity;
+}> = ({ selectedClass, classSchedules, toggleScheduleDay, classDailyJP, updateDailyJP, schoolDaysCount, setSchoolDaysCount, identity }) => {
+    const storageKey = `prota_weekly_roster_${selectedClass}`;
+    const [weeklySchedule, setWeeklySchedule] = useState<Record<string, ScheduleSlot[]>>(() => {
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return getDefaultScheduleForClass(schoolDaysCount);
+    });
+
+    const [dayStartTimes, setDayStartTimes] = useState<Record<string, string>>({
+        'Senin': '07.00',
+        'Selasa': '07.30',
+        'Rabu': '07.30',
+        'Kamis': '07.30',
+        'Jumat': '07.00',
+        'Sabtu': '07.00'
+    });
+
+    const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+
+    // Export Options Modal States
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportPaperSize, setExportPaperSize] = useState<'A4' | 'F4'>('A4');
+    const [exportOrientation, setExportOrientation] = useState<'landscape' | 'portrait'>('landscape');
+    const [includeSignature, setIncludeSignature] = useState(false);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                setWeeklySchedule(JSON.parse(saved));
+                return;
+            }
+        } catch (e) {}
+        setWeeklySchedule(getDefaultScheduleForClass(schoolDaysCount));
+    }, [selectedClass, schoolDaysCount]);
+
+    const saveSchedule = (newSched: Record<string, ScheduleSlot[]>) => {
+        setWeeklySchedule(newSched);
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(newSched));
+        } catch (e) {}
+    };
+
+    const handleExplicitSave = () => {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(weeklySchedule));
+            activeDaysList.forEach(day => {
+                const totalJp = getDailyTotalJP(day);
+                if (updateDailyJP) {
+                    updateDailyJP(selectedClass, day, totalJp);
+                }
+            });
+            setSaveSuccessMessage(`Jadwal pelajaran ${selectedClass} berhasil disimpan!`);
+            setTimeout(() => {
+                setSaveSuccessMessage(null);
+            }, 4000);
+        } catch (e) {
+            console.error('Failed to save schedule:', e);
+            alert('Gagal menyimpan jadwal pelajaran. Silakan coba lagi.');
+        }
+    };
+
+    const activeDaysList = schoolDaysCount === 5 
+        ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+        : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+    const handleUpdateDayStartTime = (day: string, newStartTime: string) => {
+        setDayStartTimes(prev => ({ ...prev, [day]: newStartTime }));
+        const currentSlots = weeklySchedule[day] || [];
+        if (currentSlots.length > 0) {
+            const updatedSlots = autoRecalculateDaySlots(currentSlots, newStartTime);
+            saveSchedule({ ...weeklySchedule, [day]: updatedSlots });
+        }
+    };
+
+    const handleAutoRecalculateDay = (day: string) => {
+        const currentSlots = weeklySchedule[day] || [];
+        if (currentSlots.length === 0) return;
+        const startTime = dayStartTimes[day] || '07.30';
+        const updatedSlots = autoRecalculateDaySlots(currentSlots, startTime);
+        saveSchedule({ ...weeklySchedule, [day]: updatedSlots });
+    };
+
+    const handleAutoRecalculateAllDays = () => {
+        const newSched: Record<string, ScheduleSlot[]> = {};
+        activeDaysList.forEach(day => {
+            const currentSlots = weeklySchedule[day] || [];
+            const startTime = dayStartTimes[day] || '07.30';
+            newSched[day] = autoRecalculateDaySlots(currentSlots, startTime);
+        });
+        saveSchedule(newSched);
+        setSaveSuccessMessage('Seluruh alokasi waktu jam pelajaran berhasil dihitung ulang otomatis (1 JP = 35 Menit)!');
+        setTimeout(() => setSaveSuccessMessage(null), 4000);
+    };
+
+    const handleAddSlot = (day: string) => {
+        const currentSlots = weeklySchedule[day] || [];
+        const newSlot: ScheduleSlot = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+            jamKe: '1',
+            time: '07.30 - 08.40',
+            subject: ALL_MAPEL_OPTIONS[0],
+            jp: 2,
+            notes: 'Ruang Kelas'
+        };
+        const startTime = dayStartTimes[day] || '07.30';
+        const updatedSlots = autoRecalculateDaySlots([...currentSlots, newSlot], startTime);
+        saveSchedule({ ...weeklySchedule, [day]: updatedSlots });
+    };
+
+    const handleUpdateSlot = (day: string, slotId: string, field: keyof ScheduleSlot, value: any) => {
+        const currentSlots = weeklySchedule[day] || [];
+        let updatedSlots = currentSlots.map(s => s.id === slotId ? { ...s, [field]: value } : s);
+        if (field === 'jp') {
+            const startTime = dayStartTimes[day] || '07.30';
+            updatedSlots = autoRecalculateDaySlots(updatedSlots, startTime);
+        }
+        saveSchedule({ ...weeklySchedule, [day]: updatedSlots });
+    };
+
+    const handleDeleteSlot = (day: string, slotId: string) => {
+        const currentSlots = weeklySchedule[day] || [];
+        const updatedSlots = currentSlots.filter(s => s.id !== slotId);
+        const startTime = dayStartTimes[day] || '07.30';
+        const recalculated = autoRecalculateDaySlots(updatedSlots, startTime);
+        saveSchedule({ ...weeklySchedule, [day]: recalculated });
+    };
+
+    const handleResetSchedule = () => {
+        if (confirm(`Apakah Anda yakin ingin meriset jadwal pelajaran ${selectedClass} ke pengaturan awal?`)) {
+            const def = getDefaultScheduleForClass(schoolDaysCount);
+            saveSchedule(def);
+        }
+    };
+
+    const getDailyTotalJP = (day: string) => {
+        return (weeklySchedule[day] || []).reduce((acc, s) => acc + (Number(s.jp) || 0), 0);
+    };
+
+    const totalWeeklyJp = activeDaysList.reduce((acc, day) => acc + getDailyTotalJP(day), 0);
+
+    const subjectJpSummary = useMemo(() => {
+        const map: Record<string, { totalJp: number; days: string[] }> = {};
+        activeDaysList.forEach(day => {
+            (weeklySchedule[day] || []).forEach(slot => {
+                if (!slot.subject || slot.subject.includes('Istirahat')) return;
+                if (!map[slot.subject]) {
+                    map[slot.subject] = { totalJp: 0, days: [] };
+                }
+                map[slot.subject].totalJp += Number(slot.jp) || 0;
+                if (!map[slot.subject].days.includes(day)) {
+                    map[slot.subject].days.push(day);
+                }
+            });
+        });
+        return map;
+    }, [weeklySchedule, activeDaysList]);
+
+    const handleExportPdf = (
+        paperSize: 'A4' | 'F4' = exportPaperSize,
+        orientation: 'landscape' | 'portrait' = exportOrientation,
+        includeExtra: boolean = includeSignature
+    ) => {
+        try {
+            const teacherName = identity?.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.';
+            const nip = identity?.nip || '199602152025211094';
+            const schoolName = identity?.institutionName || 'SDN SUKATINGGAL';
+            const schoolAddress = identity?.schoolAddress || 'Desa Santosa, Kecamatan Kertasari, Kabupaten Bandung';
+            const headmaster = identity?.headmasterName || 'Kepala Sekolah S.Pd., M.Pd.';
+            const headmasterNip = identity?.headmasterNip || '-';
+            const academicYear = identity?.academicYear || '2025/2026';
+
+            // Determine Fase based on selectedClass
+            let faseName = "Fase A";
+            let subFaseText = "Kelas 1 & 2";
+            if (selectedClass.includes("3") || selectedClass.includes("4")) {
+                faseName = "Fase B";
+                subFaseText = "Kelas 3 & 4";
+            } else if (selectedClass.includes("5") || selectedClass.includes("6")) {
+                faseName = "Fase C";
+                subFaseText = "Kelas 5 & 6";
+            } else if (selectedClass.includes("1") || selectedClass.includes("2")) {
+                faseName = "Fase A";
+                subFaseText = "Kelas 1 & 2";
+            }
+
+            const days = activeDaysList;
+
+            // Map day headers with icons matching JADWAL FASE C.png
+            const dayHeadersMap: Record<string, string> = {
+                'Senin': '📘 SENIN',
+                'Selasa': '📙 SELASA',
+                'Rabu': '🧑‍🤝‍🧑 RABU',
+                'Kamis': '💛 KAMIS',
+                'Jumat': '⭐ JUMAT',
+                'Sabtu': '🚩 SABTU'
+            };
+
+            const isLandscape = orientation === 'landscape';
+            const cellPadding = isLandscape ? '4px 6px' : '3px 4px';
+            const cellFontSize = isLandscape ? '8.5pt' : '8pt';
+            const headerFontSize = isLandscape ? '9.5pt' : '8.5pt';
+
+            const dayHeadersHtml = days.map(d => `
+                <th style="padding: ${cellPadding}; text-align: center; border: 1.5px solid #1E3A8A; background-color: #0F172A; color: #FFFFFF; font-weight: 900; font-size: ${headerFontSize}; text-transform: uppercase;">
+                    ${dayHeadersMap[d] || d.toUpperCase()}
+                </th>
+            `).join('');
+
+            // Build Expanded 1-JP Cell Matrix for each active day
+            interface ExpandedCell {
+                subject: string;
+                notes?: string;
+                jamKeStr: string;
+                timeRange: string;
+                isBreak: boolean;
+                isRedSpecial: boolean;
+            }
+
+            const expandedDaysMap: Record<string, ExpandedCell[]> = {};
+            let maxRows = 0;
+
+            days.forEach(day => {
+                const slots = weeklySchedule[day] || [];
+                const expanded: ExpandedCell[] = [];
+
+                slots.forEach(slot => {
+                    const jpCount = Math.max(1, Number(slot.jp) || 1);
+                    const subj = slot.subject || '';
+                    const lowerSubj = subj.toLowerCase();
+                    const isBreak = lowerSubj.includes('istirahat');
+                    const isRedSpecial = lowerSubj.includes('upacara') ||
+                                         lowerSubj.includes('gemar belajar') ||
+                                         lowerSubj.includes('berolahraga') ||
+                                         lowerSubj.includes('makan sehat') ||
+                                         lowerSubj.includes('beribadah') ||
+                                         lowerSubj.includes('bermasyarakat') ||
+                                         lowerSubj.includes('bangun pagi') ||
+                                         lowerSubj.includes('pramuka') ||
+                                         lowerSubj.includes('ekstrakurikuler') ||
+                                         lowerSubj.includes('kokurikuler') ||
+                                         lowerSubj.includes('matematika');
+
+                    let startM = 7 * 60;
+                    let endM = startM + jpCount * 35;
+                    if (slot.time && slot.time.includes('-')) {
+                        const parts = slot.time.split('-');
+                        startM = parseTimeToMinutes(parts[0], startM);
+                        endM = parseTimeToMinutes(parts[1], startM + jpCount * 35);
+                    }
+
+                    let startJamNum = 1;
+                    if (slot.jamKe) {
+                        const match = slot.jamKe.match(/\d+/);
+                        if (match) {
+                            startJamNum = parseInt(match[0], 10);
+                        }
+                    }
+
+                    const totalSlotMinutes = endM - startM;
+                    const durPerJp = totalSlotMinutes > 0 ? (totalSlotMinutes / jpCount) : 35;
+
+                    for (let j = 0; j < jpCount; j++) {
+                        const uStart = startM + Math.round(j * durPerJp);
+                        const uEnd = startM + Math.round((j + 1) * durPerJp);
+                        const uTimeRange = `${formatMinutesToTime(uStart)} - ${formatMinutesToTime(uEnd)}`;
+                        const uJamNum = startJamNum + j;
+
+                        expanded.push({
+                            subject: subj,
+                            notes: slot.notes,
+                            jamKeStr: `Jam ${uJamNum}`,
+                            timeRange: uTimeRange,
+                            isBreak,
+                            isRedSpecial
+                        });
+                    }
+                });
+
+                expandedDaysMap[day] = expanded;
+                if (expanded.length > maxRows) {
+                    maxRows = expanded.length;
+                }
+            });
+
+            // Date formatting
+            const todayStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            const cityStr = schoolAddress.split(',')[0].replace(/Desa|Kelurahan|Kecamatan/gi, '').trim() || 'Kertasari';
+
+            // Determine Paper Dimensions and CSS Size based on paperSize and orientation
+            const targetWidth = paperSize === 'A4'
+                ? (orientation === 'landscape' ? '297mm' : '210mm')
+                : (orientation === 'landscape' ? '330mm' : '215mm');
+
+            const targetHeight = paperSize === 'A4'
+                ? (orientation === 'landscape' ? '210mm' : '297mm')
+                : (orientation === 'landscape' ? '215mm' : '330mm');
+
+            const paperCssSize = paperSize === 'A4'
+                ? (orientation === 'landscape' ? '297mm 210mm' : '210mm 297mm')
+                : (orientation === 'landscape' ? '330mm 215mm' : '215mm 330mm');
+
+            // Calculate exact row time strings based on configured slot times
+            const rowTimes: string[] = [];
+            for (let r = 0; r < maxRows; r++) {
+                let cellSample: ExpandedCell | undefined = undefined;
+                for (const d of days) {
+                    if (expandedDaysMap[d]?.[r]) {
+                        cellSample = expandedDaysMap[d][r];
+                        break;
+                    }
+                }
+                if (cellSample) {
+                    rowTimes.push(`🕒 ${cellSample.jamKeStr}<br/><span style="font-size: 7.5pt; font-weight: 800; color: #78350F;">${cellSample.timeRange}</span>`);
+                } else {
+                    rowTimes.push(`🕒 Jam ${r + 1}`);
+                }
+            }
+
+            // Build Detailed Daily Schedule Table HTML (Strictly aligned with user-configured Jam Ke & Waktu)
+            let detailedScheduleRowsHtml = '';
+            days.forEach(day => {
+                const slots = weeklySchedule[day] || [];
+                if (slots.length === 0) return;
+                slots.forEach((slot, idx) => {
+                    const isFirst = idx === 0;
+                    detailedScheduleRowsHtml += `
+                        <tr>
+                            ${isFirst ? `<td rowspan="${slots.length}" style="border: 1px solid #CBD5E1; padding: 6px 8px; font-weight: 900; background-color: #F8FAFC; text-align: center; vertical-align: middle; color: #1E3A8A;">${day.toUpperCase()}</td>` : ''}
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 8px; text-align: center; font-weight: 800; color: #0F172A; white-space: nowrap;">${slot.jamKe || '-'}</td>
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 8px; text-align: center; font-weight: 900; color: #0369A1; white-space: nowrap; background-color: #F0F9FF;">${slot.time || '-'}</td>
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 10px; font-weight: 700; color: #0F172A;">${slot.subject || '-'}</td>
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 8px; text-align: center; font-weight: 800; color: #D97706;">${slot.jp || 1} JP</td>
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 10px; color: #475569; font-size: 8.5pt;">${slot.notes || '-'}</td>
+                        </tr>
+                    `;
+                });
+            });
+
+            // Build Matrix Rows
+            let tableRowsHtml = '';
+            for (let r = 0; r < maxRows; r++) {
+                let dayCellsHtml = '';
+                days.forEach(day => {
+                    const cell = expandedDaysMap[day]?.[r];
+                    if (!cell || !cell.subject) {
+                        dayCellsHtml += `<td style="padding: ${cellPadding}; text-align: center; border: 1px solid #CBD5E1; color: #94A3B8; font-size: ${cellFontSize};">-</td>`;
+                    } else if (cell.isBreak) {
+                        dayCellsHtml += `
+                            <td style="padding: ${cellPadding}; text-align: center; border: 1px solid #7DD3FC; background-color: #E0F2FE; color: #0284C7; font-weight: 900; font-size: ${cellFontSize};">
+                                ISTIRAHAT ☕
+                            </td>`;
+                    } else if (cell.isRedSpecial) {
+                        dayCellsHtml += `
+                            <td style="padding: ${cellPadding}; text-align: center; border: 1px solid #CBD5E1; background-color: #FEF2F2; color: #DC2626; font-weight: 800; font-size: ${cellFontSize}; line-height: 1.2;">
+                                ${cell.subject}
+                            </td>`;
+                    } else {
+                        dayCellsHtml += `
+                            <td style="padding: ${cellPadding}; text-align: center; border: 1px solid #CBD5E1; color: #0F172A; font-weight: 700; font-size: ${cellFontSize}; line-height: 1.2;">
+                                ${cell.subject}
+                            </td>`;
+                    }
+                });
+
+                tableRowsHtml += `
+                    <tr>
+                        <td style="padding: ${cellPadding}; text-align: center; border: 1px solid #F59E0B; background-color: #FEF3C7; color: #78350F; font-weight: 900; font-size: ${cellFontSize}; white-space: nowrap;">
+                            ${rowTimes[r]}
+                        </td>
+                        ${dayCellsHtml}
+                    </tr>
+                `;
+            }
+
+            // Subject Summary Rows for Page 2
+            let subjectSummaryRowsHtml = '';
+            Object.entries(subjectJpSummary).forEach(([sub, info]: [string, any], idx) => {
+                subjectSummaryRowsHtml += `
+                    <tr>
+                        <td style="text-align: center; border: 1px solid #CBD5E1; padding: 8px; font-weight: bold;">${idx + 1}</td>
+                        <td style="border: 1px solid #CBD5E1; padding: 8px 12px; font-weight: bold; color: #0F172A;">${sub}</td>
+                        <td style="border: 1px solid #CBD5E1; padding: 8px 12px; color: #334155;">${info.days.join(', ')}</td>
+                        <td style="text-align: center; border: 1px solid #CBD5E1; padding: 8px; font-weight: bold; color: #0369A1;">${info.totalJp} JP / Pekan</td>
+                    </tr>
+                `;
+            });
+
+            // Build Page 2 HTML (Rincian Jadwal Harian & Rekapitulasi Alokasi Beban JP Mingguan)
+            let page2Html = '';
+            if (includeExtra) {
+                page2Html = `
+                    <div class="pdf-page page-2">
+                        <div class="page2-header">
+                            <div class="school-tag">🏫 ${schoolName}</div>
+                            <h2 class="page2-title">RINCIAN JADWAL PELAJARAN HARIAN & REKAPITULASI JP (${selectedClass.toUpperCase()})</h2>
+                            <div class="page2-sub">Tahun Pelajaran ${academicYear} &bull; Kurikulum Merdeka (${faseName})</div>
+                        </div>
+
+                        <div style="margin-bottom: 16px;">
+                            <h3 style="font-size: 10pt; font-weight: 900; color: #1E3A8A; margin: 0 0 6px 0; text-transform: uppercase;">
+                                📋 TABEL RINCIAN JADWAL PELAJARAN HARIAN (AKURAT DENGAN PENGATURAN WAKTU & JAM KE)
+                            </h3>
+                            <table class="summary-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 12%;">HARI</th>
+                                        <th style="width: 12%;">JAM KE-</th>
+                                        <th style="width: 18%;">WAKTU</th>
+                                        <th>MATA PELAJARAN / KEGIATAN</th>
+                                        <th style="width: 12%;">BEBAN JP</th>
+                                        <th style="width: 22%;">KETERANGAN / RUANG</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${detailedScheduleRowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="font-size: 10pt; font-weight: 900; color: #1E3A8A; margin: 0 0 6px 0; text-transform: uppercase;">
+                                📊 REKAPITULASI ALOKASI BEBAN JP MENGAJAR KELAS
+                            </h3>
+                            <table class="summary-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 8%;">NO</th>
+                                        <th style="width: 38%;">MATA PELAJARAN / KEGIATAN</th>
+                                        <th>HARI PELAKSANAAN</th>
+                                        <th style="width: 22%;">TOTAL BEBAN JP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${subjectSummaryRowsHtml}
+                                    <tr class="total-row">
+                                        <td colspan="3" style="text-align: right; padding: 10px 14px;">TOTAL BEBAN MENGAJAR MINGGUAN KELAS:</td>
+                                        <td style="text-align: center; padding: 10px; font-size: 11pt;">${totalWeeklyJp} JP / Pekan</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="signature-container">
+                            <table class="signature-table">
+                                <tr>
+                                    <td style="width: 50%; text-align: center; vertical-align: top;">
+                                        Mengetahui,<br/>
+                                        <strong>Kepala ${schoolName}</strong><br/><br/><br/><br/><br/>
+                                        <strong><u>${headmaster}</u></strong><br/>
+                                        NIP. ${headmasterNip}
+                                    </td>
+                                    <td style="width: 50%; text-align: center; vertical-align: top;">
+                                        ${cityStr}, ${todayStr}<br/>
+                                        <strong>Wali Kelas ${selectedClass}</strong><br/><br/><br/><br/><br/>
+                                        <strong><u>${teacherName}</u></strong><br/>
+                                        NIP. ${nip}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const pdfHtml = `
+                <!DOCTYPE html>
+                <html lang="id">
+                <head>
+                    <meta charset="utf-8">
+                    <title>Jadwal_Pelajaran_${selectedClass.replace(/\s+/g, '_')}_PDF</title>
+                    <style>
+                        @page {
+                            size: ${paperCssSize};
+                            margin: 0;
+                        }
+                        * {
+                            box-sizing: border-box;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        body {
+                            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+                            color: #0F172A;
+                            background-color: #F8FAFC;
+                            margin: 0;
+                            padding: 0;
+                        }
+
+                        /* Floating Non-Print Action Bar */
+                        .no-print-bar {
+                            position: fixed;
+                            top: 0;
+                            left: 0;
+                            right: 0;
+                            background: #0F172A;
+                            color: #FFFFFF;
+                            padding: 12px 24px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            z-index: 9999;
+                            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                        }
+                        .no-print-bar button {
+                            cursor: pointer;
+                            border: none;
+                            padding: 8px 18px;
+                            border-radius: 8px;
+                            font-weight: 800;
+                            font-size: 13px;
+                            transition: all 0.2s;
+                        }
+                        .btn-print {
+                            background: #2563EB;
+                            color: #FFFFFF;
+                        }
+                        .btn-print:hover {
+                            background: #1D4ED8;
+                        }
+                        .btn-close {
+                            background: #334155;
+                            color: #94A3B8;
+                        }
+
+                        /* Page Wrapper */
+                        .pdf-page {
+                            width: ${targetWidth};
+                            min-height: ${targetHeight};
+                            background: #FFFFFF;
+                            padding: 8mm 10mm;
+                            margin: 20px auto;
+                            position: relative;
+                            box-sizing: border-box;
+                            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+                        }
+
+                        /* Page 1 Specific Layout for strict 1-page fit */
+                        .page-1 {
+                            height: ${targetHeight};
+                            max-height: ${targetHeight};
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: space-between;
+                            page-break-after: always;
+                            break-after: page;
+                        }
+
+                        /* Header Banner */
+                        .header-banner {
+                            width: 100%;
+                            border: 2px solid #1E3A8A;
+                            background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
+                            border-radius: 12px;
+                            padding: 8px 14px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            margin-bottom: 8px;
+                        }
+                        .school-box {
+                            width: 30%;
+                        }
+                        .school-name {
+                            font-size: 13pt;
+                            font-weight: 900;
+                            color: #1E3A8A;
+                            text-transform: uppercase;
+                            line-height: 1.1;
+                        }
+                        .school-addr {
+                            font-size: 8pt;
+                            color: #475569;
+                            margin-top: 3px;
+                        }
+                        .title-box {
+                            width: 40%;
+                            text-align: center;
+                        }
+                        .main-title {
+                            font-size: 18pt;
+                            font-weight: 900;
+                            color: #0F172A;
+                            letter-spacing: 0.5px;
+                            text-transform: uppercase;
+                            line-height: 1;
+                        }
+                        .badge-class {
+                            background: #F59E0B;
+                            color: #0F172A;
+                            font-size: 9.5pt;
+                            font-weight: 900;
+                            padding: 2px 14px;
+                            border-radius: 12px;
+                            display: inline-block;
+                            margin-top: 4px;
+                        }
+                        .badge-year {
+                            background: #1E3A8A;
+                            color: #FFFFFF;
+                            font-size: 8pt;
+                            font-weight: 800;
+                            padding: 2px 10px;
+                            border-radius: 10px;
+                            display: inline-block;
+                            margin-top: 3px;
+                        }
+                        .fase-box {
+                            width: 25%;
+                            text-align: right;
+                        }
+                        .fase-badge {
+                            background: #E0F2FE;
+                            border: 1.5px solid #38BDF8;
+                            padding: 4px 12px;
+                            border-radius: 12px;
+                            display: inline-block;
+                            text-align: center;
+                        }
+                        .fase-name {
+                            font-size: 11pt;
+                            font-weight: 900;
+                            color: #0369A1;
+                        }
+                        .fase-sub {
+                            font-size: 8pt;
+                            font-weight: 800;
+                            color: #0284C7;
+                        }
+
+                        /* Matrix Table */
+                        .matrix-table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            border: 1.5px solid #0F172A;
+                            margin-bottom: 8px;
+                        }
+                        .matrix-table th {
+                            border: 1.5px solid #1E3A8A;
+                        }
+                        .matrix-table td {
+                            border: 1px solid #CBD5E1;
+                        }
+
+                        /* Footer Cards (3 Boxes) */
+                        .footer-cards {
+                            display: flex;
+                            gap: 10px;
+                            margin-bottom: 2px;
+                        }
+                        .card-box {
+                            flex: 1;
+                            border-radius: 10px;
+                            padding: 8px 12px;
+                        }
+                        .card-notes {
+                            background: #F0F9FF;
+                            border: 1.5px solid #7DD3FC;
+                        }
+                        .card-teacher {
+                            background: #F8FAFC;
+                            border: 1.5px solid #94A3B8;
+                            text-align: center;
+                        }
+                        .card-motto {
+                            background: #FEFCE8;
+                            border: 1.5px solid #FDE047;
+                            text-align: center;
+                        }
+                        .card-title {
+                            font-size: 8.5pt;
+                            font-weight: 900;
+                            color: #0369A1;
+                            text-transform: uppercase;
+                            margin-bottom: 4px;
+                            border-bottom: 1px solid #BAE6FD;
+                            padding-bottom: 2px;
+                        }
+                        .card-desc {
+                            font-size: 7.5pt;
+                            color: #334155;
+                            line-height: 1.3;
+                        }
+
+                        /* Page 2 Styling */
+                        .page-2 {
+                            min-height: 100vh;
+                            padding-top: 15mm;
+                            page-break-before: always;
+                            break-before: page;
+                        }
+                        .page2-header {
+                            text-align: center;
+                            margin-bottom: 20px;
+                            border-bottom: 2px solid #0F172A;
+                            padding-bottom: 12px;
+                        }
+                        .school-tag {
+                            font-size: 11pt;
+                            font-weight: 900;
+                            color: #1E3A8A;
+                            text-transform: uppercase;
+                        }
+                        .page2-title {
+                            font-size: 16pt;
+                            font-weight: 900;
+                            color: #0F172A;
+                            margin: 6px 0 2px 0;
+                        }
+                        .page2-sub {
+                            font-size: 9.5pt;
+                            color: #475569;
+                        }
+                        .summary-table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            border: 1.5px solid #0F172A;
+                            margin-bottom: 30px;
+                            font-size: 9pt;
+                        }
+                        .summary-table th {
+                            background: #0F172A;
+                            color: #FFFFFF;
+                            padding: 10px;
+                            border: 1px solid #334155;
+                            text-align: center;
+                            font-weight: 900;
+                        }
+                        .summary-table td {
+                            border: 1px solid #CBD5E1;
+                            padding: 8px 12px;
+                        }
+                        .total-row {
+                            background: #E2E8F0;
+                            font-weight: 900;
+                            color: #0F172A;
+                        }
+                        .signature-container {
+                            margin-top: 40px;
+                        }
+                        .signature-table {
+                            width: 100%;
+                            border: none;
+                            font-size: 10pt;
+                            color: #0F172A;
+                        }
+                        .signature-table td {
+                            border: none;
+                            padding: 0;
+                        }
+
+                        @media print {
+                            .no-print-bar {
+                                display: none !important;
+                            }
+                            body {
+                                background: #FFFFFF !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                            }
+                            .pdf-page {
+                                width: ${targetWidth} !important;
+                                height: ${targetHeight} !important;
+                                padding: 8mm 10mm !important;
+                                margin: 0 !important;
+                                box-shadow: none !important;
+                            }
+                            .page-1 {
+                                height: ${targetHeight} !important;
+                                max-height: ${targetHeight} !important;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="no-print-bar">
+                        <div style="font-weight: 800; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+                            <span>📄 Pratinjau Dokumen PDF - Jadwal Pelajaran (${selectedClass})</span>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn-print" onclick="window.print();">🖨️ Simpan / Cetak PDF</button>
+                            <button class="btn-close" onclick="window.close();">Tutup</button>
+                        </div>
+                    </div>
+
+                    <!-- HALAMAN 1: JADWAL PELAJARAN ( STRICT 1 PAGE FIT ) -->
+                    <div class="pdf-page page-1">
+                        <div class="header-banner">
+                            <div class="school-box">
+                                <div class="school-name">🏫 ${schoolName}</div>
+                                <div class="school-addr">${schoolAddress}</div>
+                            </div>
+                            <div class="title-box">
+                                <div class="main-title">JADWAL PELAJARAN</div>
+                                <div>
+                                    <span class="badge-class">${selectedClass.toUpperCase()} (${faseName.toUpperCase()})</span>
+                                </div>
+                                <div>
+                                    <span class="badge-year">TAHUN PELAJARAN ${academicYear}</span>
+                                </div>
+                            </div>
+                            <div class="fase-box">
+                                <div class="fase-badge">
+                                    <div class="fase-name">${faseName}</div>
+                                    <div class="fase-sub">${subFaseText}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <table class="matrix-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 15%; padding: ${cellPadding}; text-align: center; background-color: #FBBF24; color: #0F172A; font-weight: 900; font-size: ${headerFontSize}; text-transform: uppercase;">
+                                        ⏱️ WAKTU
+                                    </th>
+                                    ${dayHeadersHtml}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRowsHtml}
+                            </tbody>
+                        </table>
+
+                        <div class="footer-cards">
+                            <div class="card-box card-notes">
+                                <div class="card-title">📌 Catatan:</div>
+                                <div class="card-desc">
+                                    <div>⭐ <strong>Disiplin waktu:</strong> Kunci keberhasilan belajar.</div>
+                                    <div>❤️ <strong>Kesehatan & Kebersihan:</strong> Saling menghargai & menjaga kebersihan.</div>
+                                    <div>📚 <strong>Semangat Belajar:</strong> Raih masa depan gemilang!</div>
+                                </div>
+                            </div>
+
+                            <div class="card-box card-teacher">
+                                <div style="background-color: #1E3A8A; color: #FFFFFF; font-size: 8pt; font-weight: 800; padding: 1px 10px; border-radius: 8px; display: inline-block; margin-bottom: 4px;">
+                                    WALI KELAS
+                                </div>
+                                <div style="font-size: 9.5pt; font-weight: 900; color: #0F172A; margin-top: 2px;">
+                                    ${teacherName}
+                                </div>
+                                <div style="font-size: 7.5pt; color: #475569; margin-top: 1px;">
+                                    NIP. ${nip}
+                                </div>
+                            </div>
+
+                            <div class="card-box card-motto">
+                                <div style="background-color: #CA8A04; color: #FFFFFF; font-size: 8pt; font-weight: 800; padding: 1px 10px; border-radius: 8px; display: inline-block; margin-bottom: 4px;">
+                                    MOTTO
+                                </div>
+                                <div style="font-size: 8.5pt; font-style: italic; font-weight: 800; color: #854D0E; line-height: 1.3; margin-top: 2px;">
+                                    "Berakhlak Mulia, Berprestasi, Berbudaya, dan Peduli Lingkungan"
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- HALAMAN 2: REKAPITULASI ALOKASI BEBAN JP MINGGUAN -->
+                    ${page2Html}
+
+                    <script>
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                            }, 500);
+                        };
+                    </script>
+                </body>
+                </html>
+            `;
+
+            const printWin = window.open('', '_blank');
+            if (printWin) {
+                printWin.document.write(pdfHtml);
+                printWin.document.close();
+                printWin.focus();
+            } else {
+                alert('Gagal membuka jendela pratinjau PDF. Mohon izinkan popup di peramban Anda.');
+            }
+        } catch (e) {
+            console.error('Gagal mengekspor PDF Jadwal Pelajaran:', e);
+            alert('Gagal mengekspor PDF Jadwal Pelajaran. Silakan coba lagi.');
+        }
+    };
+
+    const handleExportWord = (
+        paperSize: 'A4' | 'F4' = exportPaperSize,
+        orientation: 'landscape' | 'portrait' = exportOrientation,
+        includeExtra: boolean = includeSignature
+    ) => {
+        try {
+            const teacherName = identity?.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.';
+            const nip = identity?.nip || '199602152025211094';
+            const schoolName = identity?.institutionName || 'SDN SUKATINGGAL';
+            const schoolAddress = identity?.schoolAddress || 'Desa Santosa, Kecamatan Kertasari, Kabupaten Bandung';
+            const headmaster = identity?.headmasterName || 'Kepala Sekolah S.Pd., M.Pd.';
+            const headmasterNip = identity?.headmasterNip || '-';
+            const academicYear = identity?.academicYear || '2025/2026';
+
+            let faseName = "Fase A";
+            let subFaseText = "Kelas 1 & 2";
+            if (selectedClass.includes("3") || selectedClass.includes("4")) {
+                faseName = "Fase B";
+                subFaseText = "Kelas 3 & 4";
+            } else if (selectedClass.includes("5") || selectedClass.includes("6")) {
+                faseName = "Fase C";
+                subFaseText = "Kelas 5 & 6";
+            } else if (selectedClass.includes("1") || selectedClass.includes("2")) {
+                faseName = "Fase A";
+                subFaseText = "Kelas 1 & 2";
+            }
+
+            const days = activeDaysList;
+
+            const dayHeadersMap: Record<string, string> = {
+                'Senin': '📘 SENIN',
+                'Selasa': '📙 SELASA',
+                'Rabu': '🧑‍🤝‍🧑 RABU',
+                'Kamis': '💛 KAMIS',
+                'Jumat': '⭐ JUMAT',
+                'Sabtu': '🚩 SABTU'
+            };
+
+            const isLandscape = orientation === 'landscape';
+            const cellPadding = isLandscape ? '6px 8px' : '4px 6px';
+            const cellFontSize = isLandscape ? '9.5pt' : '8.5pt';
+            const headerFontSize = isLandscape ? '10pt' : '9pt';
+
+            const dayHeadersHtml = days.map(d => `
+                <th style="padding: ${cellPadding}; text-align: center; border: 1.5px solid #1E3A8A; background-color: #0F172A; color: #FFFFFF; font-weight: 900; font-size: ${headerFontSize}; text-transform: uppercase;">
+                    ${dayHeadersMap[d] || d.toUpperCase()}
+                </th>
+            `).join('');
+
+            interface ExpandedCell {
+                subject: string;
+                notes?: string;
+                jamKeStr: string;
+                timeRange: string;
+                isBreak: boolean;
+                isRedSpecial: boolean;
+            }
+
+            const expandedDaysMap: Record<string, ExpandedCell[]> = {};
+            let maxRows = 0;
+
+            days.forEach(day => {
+                const slots = weeklySchedule[day] || [];
+                const expanded: ExpandedCell[] = [];
+
+                slots.forEach(slot => {
+                    const jpCount = Math.max(1, Number(slot.jp) || 1);
+                    const subj = slot.subject || '';
+                    const lowerSubj = subj.toLowerCase();
+                    const isBreak = lowerSubj.includes('istirahat');
+                    const isRedSpecial = lowerSubj.includes('upacara') ||
+                                         lowerSubj.includes('gemar belajar') ||
+                                         lowerSubj.includes('berolahraga') ||
+                                         lowerSubj.includes('makan sehat') ||
+                                         lowerSubj.includes('beribadah') ||
+                                         lowerSubj.includes('bermasyarakat') ||
+                                         lowerSubj.includes('bangun pagi') ||
+                                         lowerSubj.includes('pramuka') ||
+                                         lowerSubj.includes('ekstrakurikuler') ||
+                                         lowerSubj.includes('kokurikuler') ||
+                                         lowerSubj.includes('matematika');
+
+                    let startM = 7 * 60;
+                    let endM = startM + jpCount * 35;
+                    if (slot.time && slot.time.includes('-')) {
+                        const parts = slot.time.split('-');
+                        startM = parseTimeToMinutes(parts[0], startM);
+                        endM = parseTimeToMinutes(parts[1], startM + jpCount * 35);
+                    }
+
+                    let startJamNum = 1;
+                    if (slot.jamKe) {
+                        const match = slot.jamKe.match(/\d+/);
+                        if (match) {
+                            startJamNum = parseInt(match[0], 10);
+                        }
+                    }
+
+                    const totalSlotMinutes = endM - startM;
+                    const durPerJp = totalSlotMinutes > 0 ? (totalSlotMinutes / jpCount) : 35;
+
+                    for (let j = 0; j < jpCount; j++) {
+                        const uStart = startM + Math.round(j * durPerJp);
+                        const uEnd = startM + Math.round((j + 1) * durPerJp);
+                        const uTimeRange = `${formatMinutesToTime(uStart)} - ${formatMinutesToTime(uEnd)}`;
+                        const uJamNum = startJamNum + j;
+
+                        expanded.push({
+                            subject: subj,
+                            notes: slot.notes,
+                            jamKeStr: `Jam ${uJamNum}`,
+                            timeRange: uTimeRange,
+                            isBreak,
+                            isRedSpecial
+                        });
+                    }
+                });
+
+                expandedDaysMap[day] = expanded;
+                if (expanded.length > maxRows) {
+                    maxRows = expanded.length;
+                }
+            });
+
+            const todayStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            const cityStr = schoolAddress.split(',')[0].replace(/Desa|Kelurahan|Kecamatan/gi, '').trim() || 'Kertasari';
+
+            const rowTimes: string[] = [];
+            for (let r = 0; r < maxRows; r++) {
+                let cellSample: ExpandedCell | undefined = undefined;
+                for (const d of days) {
+                    if (expandedDaysMap[d]?.[r]) {
+                        cellSample = expandedDaysMap[d][r];
+                        break;
+                    }
+                }
+                if (cellSample) {
+                    rowTimes.push(`🕒 ${cellSample.jamKeStr}<br/><span style="font-size: 7.5pt; font-weight: 800; color: #78350F;">${cellSample.timeRange}</span>`);
+                } else {
+                    rowTimes.push(`🕒 Jam ${r + 1}`);
+                }
+            }
+
+            let detailedScheduleRowsHtml = '';
+            days.forEach(day => {
+                const slots = weeklySchedule[day] || [];
+                if (slots.length === 0) return;
+                slots.forEach((slot, idx) => {
+                    const isFirst = idx === 0;
+                    detailedScheduleRowsHtml += `
+                        <tr>
+                            ${isFirst ? `<td rowspan="${slots.length}" style="border: 1px solid #CBD5E1; padding: 6px 8px; font-weight: 900; background-color: #F8FAFC; text-align: center; vertical-align: middle; color: #1E3A8A;">${day.toUpperCase()}</td>` : ''}
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 8px; text-align: center; font-weight: 800; color: #0F172A; white-space: nowrap;">${slot.jamKe || '-'}</td>
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 8px; text-align: center; font-weight: 900; color: #0369A1; white-space: nowrap; background-color: #F0F9FF;">${slot.time || '-'}</td>
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 10px; font-weight: 700; color: #0F172A;">${slot.subject || '-'}</td>
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 8px; text-align: center; font-weight: 800; color: #D97706;">${slot.jp || 1} JP</td>
+                            <td style="border: 1px solid #CBD5E1; padding: 6px 10px; color: #475569; font-size: 8.5pt;">${slot.notes || '-'}</td>
+                        </tr>
+                    `;
+                });
+            });
+
+            let tableRowsHtml = '';
+            for (let r = 0; r < maxRows; r++) {
+                let dayCellsHtml = '';
+                days.forEach(day => {
+                    const cell = expandedDaysMap[day]?.[r];
+                    if (!cell || !cell.subject) {
+                        dayCellsHtml += `<td style="padding: ${cellPadding}; text-align: center; border: 1px solid #CBD5E1; color: #94A3B8; font-size: ${cellFontSize};">-</td>`;
+                    } else if (cell.isBreak) {
+                        dayCellsHtml += `
+                            <td style="padding: ${cellPadding}; text-align: center; border: 1px solid #7DD3FC; background-color: #E0F2FE; color: #0284C7; font-weight: 900; font-size: ${cellFontSize};">
+                                ISTIRAHAT ☕
+                            </td>`;
+                    } else if (cell.isRedSpecial) {
+                        dayCellsHtml += `
+                            <td style="padding: ${cellPadding}; text-align: center; border: 1px solid #CBD5E1; background-color: #FEF2F2; color: #DC2626; font-weight: 800; font-size: ${cellFontSize}; line-height: 1.2;">
+                                ${cell.subject}
+                            </td>`;
+                    } else {
+                        dayCellsHtml += `
+                            <td style="padding: ${cellPadding}; text-align: center; border: 1px solid #CBD5E1; color: #0F172A; font-weight: 700; font-size: ${cellFontSize}; line-height: 1.2;">
+                                ${cell.subject}
+                            </td>`;
+                    }
+                });
+
+                tableRowsHtml += `
+                    <tr>
+                        <td style="padding: ${cellPadding}; text-align: center; border: 1px solid #F59E0B; background-color: #FEF3C7; color: #78350F; font-weight: 900; font-size: ${cellFontSize}; white-space: nowrap;">
+                            ${rowTimes[r]}
+                        </td>
+                        ${dayCellsHtml}
+                    </tr>
+                `;
+            }
+
+            let subjectSummaryRowsHtml = '';
+            Object.entries(subjectJpSummary).forEach(([sub, info]: [string, any], idx) => {
+                subjectSummaryRowsHtml += `
+                    <tr>
+                        <td style="text-align: center; border: 1px solid #CBD5E1; padding: 8px; font-weight: bold;">${idx + 1}</td>
+                        <td style="border: 1px solid #CBD5E1; padding: 8px 12px; font-weight: bold; color: #0F172A;">${sub}</td>
+                        <td style="border: 1px solid #CBD5E1; padding: 8px 12px; color: #334155;">${info.days.join(', ')}</td>
+                        <td style="text-align: center; border: 1px solid #CBD5E1; padding: 8px; font-weight: bold; color: #0369A1;">${info.totalJp} JP / Pekan</td>
+                    </tr>
+                `;
+            });
+
+            let page2Html = '';
+            if (includeExtra) {
+                page2Html = `
+                    <br clear="all" style="page-break-before:always" />
+                    <div style="margin-top: 20px;">
+                        <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0F172A; padding-bottom: 12px;">
+                            <div style="font-size: 11pt; font-weight: 900; color: #1E3A8A; text-transform: uppercase;">🏫 ${schoolName}</div>
+                            <h2 style="font-size: 15pt; font-weight: 900; color: #0F172A; margin: 6px 0 2px 0;">RINCIAN JADWAL PELAJARAN HARIAN & REKAPITULASI JP (${selectedClass.toUpperCase()})</h2>
+                            <div style="font-size: 9.5pt; color: #475569;">Tahun Pelajaran ${academicYear} &bull; Kurikulum Merdeka (${faseName})</div>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="font-size: 10pt; font-weight: 900; color: #1E3A8A; margin: 10px 0 6px 0;">📋 TABEL RINCIAN JADWAL PELAJARAN HARIAN (JAM KE & WAKTU)</h3>
+                            <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #0F172A; margin-bottom: 20px; font-size: 8.5pt;">
+                                <thead>
+                                    <tr style="background-color: #0F172A; color: #FFFFFF;">
+                                        <th style="width: 12%; padding: 8px; border: 1px solid #334155; text-align: center; font-weight: 900;">HARI</th>
+                                        <th style="width: 12%; padding: 8px; border: 1px solid #334155; text-align: center; font-weight: 900;">JAM KE-</th>
+                                        <th style="width: 18%; padding: 8px; border: 1px solid #334155; text-align: center; font-weight: 900;">WAKTU</th>
+                                        <th style="padding: 8px; border: 1px solid #334155; text-align: center; font-weight: 900;">MATA PELAJARAN / KEGIATAN</th>
+                                        <th style="width: 12%; padding: 8px; border: 1px solid #334155; text-align: center; font-weight: 900;">BEBAN JP</th>
+                                        <th style="width: 20%; padding: 8px; border: 1px solid #334155; text-align: center; font-weight: 900;">KETERANGAN / RUANG</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${detailedScheduleRowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="font-size: 10pt; font-weight: 900; color: #1E3A8A; margin: 10px 0 6px 0;">📊 REKAPITULASI ALOKASI BEBAN JP MINGGUAN</h3>
+                            <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #0F172A; margin-bottom: 30px; font-size: 9pt;">
+                                <thead>
+                                    <tr style="background-color: #0F172A; color: #FFFFFF;">
+                                        <th style="width: 8%; padding: 10px; border: 1px solid #334155; text-align: center; font-weight: 900;">NO</th>
+                                        <th style="width: 38%; padding: 10px; border: 1px solid #334155; text-align: center; font-weight: 900;">MATA PELAJARAN / KEGIATAN</th>
+                                        <th style="padding: 10px; border: 1px solid #334155; text-align: center; font-weight: 900;">HARI PELAKSANAAN</th>
+                                        <th style="width: 22%; padding: 10px; border: 1px solid #334155; text-align: center; font-weight: 900;">TOTAL BEBAN JP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${subjectSummaryRowsHtml}
+                                    <tr style="background: #E2E8F0; font-weight: 900; color: #0F172A;">
+                                        <td colspan="3" style="text-align: right; padding: 10px 14px; border: 1px solid #CBD5E1;">TOTAL BEBAN MENGAJAR MINGGUAN KELAS:</td>
+                                        <td style="text-align: center; padding: 10px; font-size: 11pt; border: 1px solid #CBD5E1;">${totalWeeklyJp} JP / Pekan</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style="margin-top: 40px;">
+                            <table style="width: 100%; border: none; font-size: 10pt; color: #0F172A;">
+                                <tr>
+                                    <td style="width: 50%; text-align: center; vertical-align: top; border: none;">
+                                        Mengetahui,<br/>
+                                        <strong>Kepala ${schoolName}</strong><br/><br/><br/><br/><br/>
+                                        <strong><u>${headmaster}</u></strong><br/>
+                                        NIP. ${headmasterNip}
+                                    </td>
+                                    <td style="width: 50%; text-align: center; vertical-align: top; border: none;">
+                                        ${cityStr}, ${todayStr}<br/>
+                                        <strong>Wali Kelas ${selectedClass}</strong><br/><br/><br/><br/><br/>
+                                        <strong><u>${teacherName}</u></strong><br/>
+                                        NIP. ${nip}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const paperWidthCm = paperSize === 'A4'
+                ? (orientation === 'landscape' ? '29.7' : '21.0')
+                : (orientation === 'landscape' ? '33.0' : '21.5');
+
+            const paperHeightCm = paperSize === 'A4'
+                ? (orientation === 'landscape' ? '21.0' : '29.7')
+                : (orientation === 'landscape' ? '21.5' : '33.0');
+
+            const wordHtml = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office'
+                      xmlns:w='urn:schemas-microsoft-com:office:word'
+                      xmlns='http://www.w3.org/TR/REC-html40'>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Jadwal_Pelajaran_${selectedClass.replace(/\s+/g, '_')}</title>
+                    <!--[if gte mso 9]>
+                    <xml>
+                    <w:WordDocument>
+                        <w:View>Print</w:View>
+                        <w:Zoom>100</w:Zoom>
+                        <w:DoNotOptimizeForCustomXLS/>
+                    </w:WordDocument>
+                    </xml>
+                    <![endif]-->
+                    <style>
+                        @page {
+                            size: ${paperWidthCm}cm ${paperHeightCm}cm;
+                            mso-page-orientation: ${orientation};
+                            margin: 1.0cm 1.2cm 1.0cm 1.2cm;
+                        }
+                        @page Section1 {
+                            size: ${paperWidthCm}cm ${paperHeightCm}cm;
+                            mso-page-orientation: ${orientation};
+                            margin: 1.0cm 1.2cm 1.0cm 1.2cm;
+                        }
+                        div.Section1 {
+                            page: Section1;
+                        }
+                        body {
+                            font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+                            color: #0F172A;
+                            margin: 0;
+                            padding: 0;
+                        }
+                        table {
+                            border-collapse: collapse;
+                            mso-table-lspace: 0pt;
+                            mso-table-rspace: 0pt;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="Section1">
+                    <!-- HEADER BANNER -->
+                    <table style="width: 100%; border: 2px solid #1E3A8A; background-color: #EFF6FF; border-radius: 8px; margin-bottom: 12px; padding: 10px;">
+                        <tr>
+                            <td style="width: 30%; border: none; vertical-align: middle;">
+                                <div style="font-size: 13pt; font-weight: 900; color: #1E3A8A; text-transform: uppercase;">🏫 ${schoolName}</div>
+                                <div style="font-size: 8.5pt; color: #475569; margin-top: 3px;">${schoolAddress}</div>
+                            </td>
+                            <td style="width: 40%; text-align: center; border: none; vertical-align: middle;">
+                                <div style="font-size: 18pt; font-weight: 900; color: #0F172A; text-transform: uppercase;">JADWAL PELAJARAN</div>
+                                <div style="margin-top: 4px;">
+                                    <span style="background-color: #F59E0B; color: #0F172A; font-size: 9.5pt; font-weight: 900; padding: 2px 14px; border-radius: 12px; display: inline-block;">
+                                        ${selectedClass.toUpperCase()} (${faseName.toUpperCase()})
+                                    </span>
+                                </div>
+                                <div style="margin-top: 3px;">
+                                    <span style="background-color: #1E3A8A; color: #FFFFFF; font-size: 8pt; font-weight: 800; padding: 2px 10px; border-radius: 10px; display: inline-block;">
+                                        TAHUN PELAJARAN ${academicYear}
+                                    </span>
+                                </div>
+                            </td>
+                            <td style="width: 25%; text-align: right; border: none; vertical-align: middle;">
+                                <div style="background-color: #E0F2FE; border: 1.5px solid #38BDF8; padding: 6px 14px; border-radius: 12px; display: inline-block; text-align: center;">
+                                    <div style="font-size: 11pt; font-weight: 900; color: #0369A1;">${faseName}</div>
+                                    <div style="font-size: 8pt; font-weight: 800; color: #0284C7;">${subFaseText}</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- MATRIX TABLE -->
+                    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #0F172A; margin-bottom: 12px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 15%; padding: ${cellPadding}; text-align: center; border: 1.5px solid #1E3A8A; background-color: #FBBF24; color: #0F172A; font-weight: 900; font-size: ${headerFontSize}; text-transform: uppercase;">
+                                    ⏱️ WAKTU
+                                </th>
+                                ${dayHeadersHtml}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRowsHtml}
+                        </tbody>
+                    </table>
+
+                    <!-- FOOTER CARDS -->
+                    <table style="width: 100%; border-collapse: collapse; border: none; margin-bottom: 10px;">
+                        <tr>
+                            <td style="width: 33%; padding: 4px; border: none; vertical-align: top;">
+                                <div style="background-color: #F0F9FF; border: 1.5px solid #7DD3FC; border-radius: 8px; padding: 8px 10px;">
+                                    <div style="font-size: 8.5pt; font-weight: 900; color: #0369A1; text-transform: uppercase; margin-bottom: 4px; border-bottom: 1px solid #BAE6FD; padding-bottom: 2px;">
+                                        📌 Catatan:
+                                    </div>
+                                    <div style="font-size: 7.5pt; color: #334155; line-height: 1.3;">
+                                        <div>⭐ <strong>Disiplin waktu:</strong> Kunci keberhasilan belajar.</div>
+                                        <div>❤️ <strong>Kesehatan & Kebersihan:</strong> Saling menghargai.</div>
+                                        <div>📚 <strong>Semangat Belajar:</strong> Raih masa depan gemilang!</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="width: 33%; padding: 4px; border: none; vertical-align: top;">
+                                <div style="background-color: #F8FAFC; border: 1.5px solid #94A3B8; border-radius: 8px; padding: 8px 10px; text-align: center;">
+                                    <div style="background-color: #1E3A8A; color: #FFFFFF; font-size: 8pt; font-weight: 800; padding: 1px 10px; border-radius: 8px; display: inline-block; margin-bottom: 4px;">
+                                        WALI KELAS
+                                    </div>
+                                    <div style="font-size: 9.5pt; font-weight: 900; color: #0F172A; margin-top: 2px;">
+                                        ${teacherName}
+                                    </div>
+                                    <div style="font-size: 7.5pt; color: #475569; margin-top: 1px;">
+                                        NIP. ${nip}
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="width: 34%; padding: 4px; border: none; vertical-align: top;">
+                                <div style="background-color: #FEFCE8; border: 1.5px solid #FDE047; border-radius: 8px; padding: 8px 10px; text-align: center;">
+                                    <div style="background-color: #CA8A04; color: #FFFFFF; font-size: 8pt; font-weight: 800; padding: 1px 10px; border-radius: 8px; display: inline-block; margin-bottom: 4px;">
+                                        MOTTO
+                                    </div>
+                                    <div style="font-size: 8.5pt; font-style: italic; font-weight: 800; color: #854D0E; line-height: 1.3; margin-top: 2px;">
+                                        "Berakhlak Mulia, Berprestasi, Berbudaya, dan Peduli Lingkungan"
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- PAGE 2 REKAPITULASI & TANDA TANGAN -->
+                    ${page2Html}
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob(['\ufeff' + wordHtml], {
+                type: 'application/msword;charset=utf-8'
+            });
+            const fileName = `Jadwal_Pelajaran_${selectedClass.replace(/\s+/g, '_')}_${academicYear.replace(/\//g, '-')}.doc`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('Gagal mengekspor Word Jadwal Pelajaran:', e);
+            alert('Gagal mengekspor Dokumen Word Jadwal Pelajaran. Silakan coba lagi.');
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-6xl mx-auto space-y-6">
+            {/* Header Title & Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                    <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2.5">
+                        <CalendarCheck className="w-6 h-6 text-emerald-600" />
+                        <span>Jadwal Pelajaran & Alokasi Mengajar ({selectedClass})</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Pilih alokasi hari kerja, tetapkan mata pelajaran lengkap, serta tentukan beban JP harian.</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={handleAutoRecalculateAllDays}
+                        className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        title="Hitung ulang otomatis alokasi waktu seluruh hari berdasarkan 1 JP = 35 Menit"
+                    >
+                        <Clock className="w-4 h-4 text-amber-600" /> Hitung Otomatis (1 JP = 35 m)
+                    </button>
+                    <button
+                        onClick={handleExplicitSave}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                        title="Simpan Jadwal Pelajaran"
+                    >
+                        <Save className="w-4 h-4" /> Simpan
+                    </button>
+                    <button
+                        onClick={handleResetSchedule}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        title="Riset ke jadwal default"
+                    >
+                        Reset Jadwal
+                    </button>
+                    <button
+                        onClick={() => setShowExportModal(true)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                        title="Unduh Jadwal Pelajaran Output Word Modern & Rapi"
+                    >
+                        <FileDown className="w-4 h-4" /> Unduh Jadwal Pelajaran
+                    </button>
+                </div>
+            </div>
+
+            {/* Success Notification Banner */}
+            {saveSuccessMessage && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-bold flex items-center justify-between animate-in fade-in duration-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                        <span>{saveSuccessMessage}</span>
+                    </div>
+                    <button 
+                        onClick={() => setSaveSuccessMessage(null)}
+                        className="p-1 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors cursor-pointer"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
+            {/* Auto Time Allocation Banner & Settings Bar */}
+            <div className="p-4 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl shrink-0">
+                        <Clock className="w-5 h-5 text-emerald-700" />
+                    </div>
+                    <div>
+                        <span className="text-xs font-extrabold text-slate-900 block flex items-center gap-2">
+                            <span>Pengaturan Alokasi Waktu Otomatis (1 JP = 35 Menit SD/MI)</span>
+                            <span className="px-2 py-0.5 bg-emerald-600 text-white text-[10px] rounded-full uppercase">Otomatis Active</span>
+                        </span>
+                        <span className="text-[11px] text-slate-600">
+                            Mengatur alokasi waktu (`Waktu`) dan urutan jam ke- (`Jam Ke-`) secara otomatis begitu Beban JP dipilih.
+                        </span>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleAutoRecalculateAllDays}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    >
+                        <Clock className="w-4 h-4" /> Alokasikan Semua Hari
+                    </button>
+                </div>
+            </div>
+
+            {/* School Days Selection Bar */}
+            <div className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <span className="text-xs font-bold text-slate-700 block">Pilihan Jadwal Hari Kerja:</span>
+                    <span className="text-[11px] text-slate-500">Tentukan apakah sekolah menerapkan 5 hari kerja (Senin-Jumat) atau 6 hari kerja (Senin-Sabtu).</span>
+                </div>
+                <div className="inline-flex rounded-xl p-1 bg-slate-200/80 border border-slate-300/60">
+                    <button
+                        onClick={() => {
+                            if (setSchoolDaysCount) setSchoolDaysCount(5);
+                        }}
+                        className={`px-4 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                            schoolDaysCount === 5 
+                                ? 'bg-emerald-600 text-white shadow-xs' 
+                                : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                        🗓️ 5 Hari Kerja (Senin - Jumat)
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (setSchoolDaysCount) setSchoolDaysCount(6);
+                        }}
+                        className={`px-4 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                            schoolDaysCount === 6 
+                                ? 'bg-emerald-600 text-white shadow-xs' 
+                                : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                        🗓️ 6 Hari Kerja (Senin - Sabtu)
+                    </button>
+                </div>
+            </div>
+
+            {/* Schedule Cards for Each Active Day */}
+            <div className="space-y-6">
+                <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-emerald-600" />
+                    <span>Tabel Jadwal Pelajaran Harian ({selectedClass})</span>
+                </h3>
+
+                <div className="grid grid-cols-1 gap-5">
+                    {activeDaysList.map(day => {
+                        const slots = weeklySchedule[day] || [];
+                        const dailyJp = getDailyTotalJP(day);
+                        const startTime = dayStartTimes[day] || '07.30';
+
+                        return (
+                            <div key={day} className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 md:p-5 space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+                                        <h4 className="font-extrabold text-sm text-slate-900">{day}</h4>
+                                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                                            {dailyJp} JP
+                                        </span>
+
+                                        {/* Input Jam Mulai KBM per Hari */}
+                                        <div className="flex items-center gap-1.5 ml-2 bg-white border border-slate-200 px-2 py-1 rounded-xl">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase">Jam Mulai:</span>
+                                            <input 
+                                                type="text" 
+                                                value={startTime}
+                                                onChange={e => handleUpdateDayStartTime(day, e.target.value)}
+                                                className="w-14 text-xs font-extrabold text-emerald-800 bg-transparent text-center outline-none"
+                                                placeholder="07.30"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleAutoRecalculateDay(day)}
+                                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                                            title="Hitung ulang alokasi waktu hari ini (1 JP = 35m)"
+                                        >
+                                            <Clock className="w-3.5 h-3.5 text-amber-600" /> Auto Waktu (35m)
+                                        </button>
+                                        <button
+                                            onClick={() => handleAddSlot(day)}
+                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" /> Tambah Sesi
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {slots.length === 0 ? (
+                                    <div className="p-6 text-center text-xs text-slate-400 italic bg-white rounded-xl border border-dashed border-slate-200">
+                                        Belum ada jadwal pelajaran untuk hari {day}. Klik "Tambah Sesi Pelajaran" di atas.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {slots.map((slot) => (
+                                            <div key={slot.id} className="bg-white border border-slate-200 rounded-2xl p-3.5 grid grid-cols-1 md:grid-cols-12 gap-3 items-center shadow-2xs">
+                                                {/* Jam Ke & Time */}
+                                                <div className="md:col-span-3 grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Jam Ke-</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={slot.jamKe} 
+                                                            onChange={e => handleUpdateSlot(day, slot.id, 'jamKe', e.target.value)}
+                                                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                                                            placeholder="1 - 2"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Waktu</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={slot.time} 
+                                                            onChange={e => handleUpdateSlot(day, slot.id, 'time', e.target.value)}
+                                                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                                                            placeholder="07.30 - 08.40"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Dropdown Mata Pelajaran Lengkap */}
+                                                <div className="md:col-span-4">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Mata Pelajaran (Dropdown)</label>
+                                                    <select
+                                                        value={slot.subject}
+                                                        onChange={e => handleUpdateSlot(day, slot.id, 'subject', e.target.value)}
+                                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                                                    >
+                                                        {MAPEL_CATEGORIES.map(cat => (
+                                                            <optgroup key={cat.category} label={cat.category}>
+                                                                {cat.options.map(mapel => (
+                                                                    <option key={mapel} value={mapel}>{mapel}</option>
+                                                                ))}
+                                                            </optgroup>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Beban JP Dropdown */}
+                                                <div className="md:col-span-2">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Beban JP</label>
+                                                    <select
+                                                        value={slot.jp}
+                                                        onChange={e => handleUpdateSlot(day, slot.id, 'jp', parseInt(e.target.value) || 1)}
+                                                        className="w-full p-2 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-emerald-500"
+                                                    >
+                                                        {[1, 2, 3, 4, 5, 6].map(num => (
+                                                            <option key={num} value={num}>{num} JP</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Notes / Lokasi & Actions */}
+                                                <div className="md:col-span-3 flex items-center gap-2">
+                                                    <div className="flex-1">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Keterangan / Ruang</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={slot.notes || ''} 
+                                                            onChange={e => handleUpdateSlot(day, slot.id, 'notes', e.target.value)}
+                                                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                                                            placeholder="Ruang Kelas / Lapangan"
+                                                        />
+                                                    </div>
+                                                    <div className="pt-4">
+                                                        <button
+                                                            onClick={() => handleDeleteSlot(day, slot.id)}
+                                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                                                            title="Hapus Sesi Ini"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Summary Rekapitulasi Beban JP per Mata Pelajaran Table */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                        <Table className="w-4 h-4 text-emerald-600" />
+                        <span>Rekapitulasi Alokasi Beban JP Mingguan ({selectedClass})</span>
+                    </span>
+                    <span className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-bold">
+                        Total {totalWeeklyJp} JP / Pekan
+                    </span>
+                </h3>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                    <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+                            <tr>
+                                <th className="p-3 text-center w-12">No</th>
+                                <th className="p-3">Mata Pelajaran</th>
+                                <th className="p-3">Hari Pelaksanaan</th>
+                                <th className="p-3 text-center w-36">Total Beban JP</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                            {Object.keys(subjectJpSummary).length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="p-6 text-center text-slate-400 italic">Belum ada mata pelajaran yang dijadwalkan.</td>
+                                </tr>
+                            ) : (
+                                Object.entries(subjectJpSummary).map(([sub, info]: [string, any], idx) => (
+                                    <tr key={sub} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                                        <td className="p-3 font-bold text-slate-800">{sub}</td>
+                                        <td className="p-3 text-slate-600 font-semibold">{info.days.join(', ')}</td>
+                                        <td className="p-3 text-center">
+                                            <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs">
+                                                {info.totalJp} JP / Pekan
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                            <tr className="bg-slate-100/80 font-bold text-slate-900">
+                                <td colSpan={3} className="p-3 text-right">TOTAL BEBAN MENGAJAR MINGGUAN KELAS:</td>
+                                <td className="p-3 text-center text-emerald-800 font-extrabold text-sm">{totalWeeklyJp} JP / Pekan</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Bottom Action Card with Simpan Button */}
+            <div className="p-4 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-2xs">
+                <div className="flex items-center gap-3 text-xs text-emerald-950 font-medium">
+                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div>
+                        <span className="font-extrabold block text-slate-900 text-xs">Simpan Jadwal Pelajaran ({selectedClass})</span>
+                        <span className="text-[11px] text-slate-600">Klik tombol <strong>Simpan</strong> untuk menyimpan seluruh susunan jadwal dan alokasi JP ke penyimpanan lokal.</span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                    <button
+                        onClick={() => setShowExportModal(true)}
+                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                        title="Unduh Jadwal Pelajaran Output Word Modern & Rapi"
+                    >
+                        <FileDown className="w-4 h-4" /> Unduh Jadwal Pelajaran
+                    </button>
+                    <button
+                        onClick={handleExplicitSave}
+                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                    >
+                        <Save className="w-4 h-4" /> Simpan
+                    </button>
+                </div>
+            </div>
+
+            {/* Modal Pengaturan Unduh Jadwal Pelajaran (Word & PDF) */}
+            {showExportModal && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 md:p-7 space-y-6"
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl">
+                                    <FileText className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-extrabold text-slate-900">Unduh Jadwal Pelajaran (Word & PDF)</h3>
+                                    <p className="text-xs text-slate-500">Pilih format Dokumen Word (.doc), ukuran kertas, dan orientasi halaman.</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowExportModal(false)}
+                                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition-all cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Form Options */}
+                        <div className="space-y-4">
+                            {/* 1. Ukuran Kertas */}
+                            <div>
+                                <label className="text-xs font-extrabold text-slate-800 uppercase tracking-wider block mb-2">
+                                    Ukuran Kertas (Layout Paper Size):
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExportPaperSize('A4')}
+                                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between ${
+                                            exportPaperSize === 'A4'
+                                                ? 'border-blue-600 bg-blue-50/50 text-blue-900'
+                                                : 'border-slate-200 bg-slate-50/50 text-slate-700 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div className="text-xs font-extrabold">A4</div>
+                                            <div className="text-[10px] text-slate-500">21.0 x 29.7 cm</div>
+                                        </div>
+                                        {exportPaperSize === 'A4' && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setExportPaperSize('F4')}
+                                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between ${
+                                            exportPaperSize === 'F4'
+                                                ? 'border-blue-600 bg-blue-50/50 text-blue-900'
+                                                : 'border-slate-200 bg-slate-50/50 text-slate-700 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div className="text-xs font-extrabold">F4 / Folio</div>
+                                            <div className="text-[10px] text-slate-500">21.5 x 33.0 cm</div>
+                                        </div>
+                                        {exportPaperSize === 'F4' && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 2. Orientasi Halaman */}
+                            <div>
+                                <label className="text-xs font-extrabold text-slate-800 uppercase tracking-wider block mb-2">
+                                    Orientasi Halaman (Orientation):
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExportOrientation('landscape')}
+                                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between ${
+                                            exportOrientation === 'landscape'
+                                                ? 'border-blue-600 bg-blue-50/50 text-blue-900'
+                                                : 'border-slate-200 bg-slate-50/50 text-slate-700 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div className="text-xs font-extrabold flex items-center gap-1.5">
+                                                <span>Landscape</span>
+                                                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] rounded-md font-extrabold">Pas 1 Halaman</span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-500">Mendatar (Rekomendasi)</div>
+                                        </div>
+                                        {exportOrientation === 'landscape' && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setExportOrientation('portrait')}
+                                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between ${
+                                            exportOrientation === 'portrait'
+                                                ? 'border-blue-600 bg-blue-50/50 text-blue-900'
+                                                : 'border-slate-200 bg-slate-50/50 text-slate-700 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div className="text-xs font-extrabold">Portrait</div>
+                                            <div className="text-[10px] text-slate-500">Tegak (Vertikal)</div>
+                                        </div>
+                                        {exportOrientation === 'portrait' && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 3. Opsi Tambahan */}
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+                                <label className="flex items-center gap-2.5 cursor-pointer">
+                                    <input 
+                                        type="checkbox"
+                                        checked={includeSignature}
+                                        onChange={(e) => setIncludeSignature(e.target.checked)}
+                                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold text-slate-800">
+                                        Sertakan Halaman 2: Rekapitulasi JP & Tanda Tangan
+                                    </span>
+                                </label>
+                                <p className="text-[10px] text-slate-500 ml-6 mt-0.5">
+                                    {includeSignature ? 'Halaman 1 memuat poster Jadwal Pelajaran (1 halaman pas), Halaman 2 memuat Rekapitulasi Alokasi Beban JP Mingguan & Tanda Tangan Kepala Sekolah/Wali Kelas.' : 'Satu halaman pas hanya poster Jadwal Pelajaran.'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Modal Actions */}
+                        <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowExportModal(false)}
+                                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowExportModal(false);
+                                    handleExportPdf(exportPaperSize, exportOrientation, includeSignature);
+                                }}
+                                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                            >
+                                <FileDown className="w-4 h-4" /> Pratinjau / PDF
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowExportModal(false);
+                                    handleExportWord(exportPaperSize, exportOrientation, includeSignature);
+                                }}
+                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                            >
+                                <FileText className="w-4 h-4" /> Unduh Dokumen Word (.doc)
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Hari Efektif View Component ---
+interface HariEfektifViewProps {
+    selectedClass?: string;
+    setSelectedClass?: (cls: string) => void;
+    selectedSubject?: string;
+    setSelectedSubject?: (sub: string) => void;
+    classSchedules?: Record<string, string[]>;
+    classDailyJP?: Record<string, Record<string, number>>;
+    calendarEvents?: CalendarEvent[];
+    academicYearStart?: number;
+    schoolDaysCount?: number;
+    identity: UserIdentity;
+}
+
+const HariEfektifView: React.FC<HariEfektifViewProps> = ({
+    selectedClass = 'Kelas 1',
+    setSelectedClass,
+    selectedSubject = 'Bahasa Indonesia',
+    setSelectedSubject,
+    classSchedules = {},
+    classDailyJP = {},
+    calendarEvents = DEFAULT_CALENDAR_EVENTS,
+    academicYearStart = 2025,
+    schoolDaysCount = 5,
+    identity
+}) => {
+    const [activeSubject, setActiveSubject] = useState<string>(selectedSubject);
+
+    useEffect(() => {
+        if (selectedSubject) setActiveSubject(selectedSubject);
+    }, [selectedSubject]);
+
+    const handleSubjectChange = (newSubject: string) => {
+        setActiveSubject(newSubject);
+        if (setSelectedSubject) setSelectedSubject(newSubject);
+    };
+
+    // Calculate effective Days, Weeks, Meetings, and JP
+    const analysisData = useMemo(() => {
+        // Read weekly schedule from localStorage for selectedClass
+        let weeklyRoster: Record<string, ScheduleSlot[]> = {};
+        try {
+            const saved = localStorage.getItem(`prota_weekly_roster_${selectedClass}`);
+            if (saved) weeklyRoster = JSON.parse(saved);
+        } catch (e) {}
+
+        const daysList = schoolDaysCount === 5 
+            ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+            : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+        const subjectScheduledDays: string[] = [];
+        const subjectDailyJpMap: Record<string, number> = {};
+
+        // Find days and JP per day specifically for activeSubject in selectedClass
+        daysList.forEach(day => {
+            const slots = weeklyRoster[day] || [];
+            let dayJp = 0;
+            slots.forEach(slot => {
+                if (!slot.subject) return;
+                const slotSubjLower = slot.subject.toLowerCase().trim();
+                const targetSubjLower = activeSubject.toLowerCase().trim();
+                if (slotSubjLower === targetSubjLower ||
+                    slotSubjLower.includes(targetSubjLower) ||
+                    targetSubjLower.includes(slotSubjLower)) {
+                    dayJp += Number(slot.jp) || 1;
+                }
+            });
+            if (dayJp > 0) {
+                subjectScheduledDays.push(day);
+                subjectDailyJpMap[day] = dayJp;
+            }
+        });
+
+        // Use subject-specific schedule from weeklyRoster, or fallback to classSchedules & classDailyJP
+        const scheduledDays = subjectScheduledDays.length > 0 
+            ? subjectScheduledDays 
+            : (schoolDaysCount === 5 ? (classSchedules[selectedClass] || []).filter(d => d !== 'Sabtu') : (classSchedules[selectedClass] || []));
+
+        const dailyJpMap = subjectScheduledDays.length > 0 
+            ? subjectDailyJpMap 
+            : (classDailyJP[selectedClass] || {});
+
+        const getSubKey = (sub: string) => {
+            if (!sub) return null;
+            if (JP_STANDARDS[sub]) return sub;
+            const keys = Object.keys(JP_STANDARDS);
+            const lower = String(sub).toLowerCase().trim();
+            const direct = keys.find(k => k.toLowerCase() === lower);
+            if (direct) return direct;
+            return keys.find(k => lower.includes(k.toLowerCase()) || k.toLowerCase().includes(lower)) || null;
+        };
+
+        const subKey = getSubKey(activeSubject);
+        const annualTargetJp = subKey ? JP_STANDARDS[subKey]?.[selectedClass] || 180 : 180;
+
+        const checkEventConflict = (dateStr: string): CalendarEvent | null => {
+            return calendarEvents.find(range => dateStr >= range.start && dateStr <= range.end) || null;
+        };
+
+        const getDayNameLocal = (date: Date): string => {
+            const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+            return days[date.getDay()];
+        };
+
+        const getIsoWeekLocal = (d: Date) => {
+            const date = new Date(d.getTime());
+            date.setHours(0, 0, 0, 0);
+            date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+            const week1 = new Date(date.getFullYear(), 0, 4);
+            return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+        };
+
+        const startDate = new Date(academicYearStart, 6, 14); // 14 Juli academicYearStart
+        const endDate = new Date(academicYearStart + 1, 5, 27);  // 27 Juni academicYearStart + 1
+
+        interface MonthData {
+            monthKey: string;
+            monthName: string;
+            semester: 1 | 2;
+            totalDays: number;
+            schoolDays: number;
+            effectiveSchoolDays: number; // HEB
+            nonEffectiveSchoolDays: number;
+            effectiveWeeksCount: number; // PEB
+            subjectMeetingsCount: number; // Pertemuan Mapel
+            subjectJpTotal: number; // Total JP Mapel
+            subjectConflictDetails: { date: string; day: string; reason: string; lostJp: number }[];
+            subjectEffectiveDates?: Record<string, number[]>;
+        }
+
+        const monthMap: Record<string, MonthData> = {};
+
+        let current = new Date(startDate);
+        while (current <= endDate) {
+            const dateStr = formatDateLocal(current);
+            const monthName = current.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+            const semester: 1 | 2 = (current.getMonth() >= 6 && current.getFullYear() === academicYearStart) ? 1 : 2;
+            const dayName = getDayNameLocal(current);
+            const isWeekend = schoolDaysCount === 5 ? (dayName === 'Sabtu' || dayName === 'Minggu') : (dayName === 'Minggu');
+            const isSchoolWorkingDay = !isWeekend;
+
+            if (!monthMap[monthName]) {
+                monthMap[monthName] = {
+                    monthKey: monthName,
+                    monthName,
+                    semester,
+                    totalDays: 0,
+                    schoolDays: 0,
+                    effectiveSchoolDays: 0,
+                    nonEffectiveSchoolDays: 0,
+                    effectiveWeeksCount: 0,
+                    subjectMeetingsCount: 0,
+                    subjectJpTotal: 0,
+                    subjectConflictDetails: [],
+                    subjectEffectiveDates: {}
+                };
+            }
+
+            const mData = monthMap[monthName];
+            mData.totalDays++;
+
+            if (isSchoolWorkingDay) {
+                mData.schoolDays++;
+                const conflict = checkEventConflict(dateStr);
+                if (!conflict) {
+                    mData.effectiveSchoolDays++;
+                } else {
+                    mData.nonEffectiveSchoolDays++;
+                }
+
+                if (scheduledDays.includes(dayName)) {
+                    const dailyJpVal = dailyJpMap[dayName] || 3;
+                    if (!conflict) {
+                        mData.subjectMeetingsCount++;
+                        mData.subjectJpTotal += dailyJpVal;
+
+                        if (!mData.subjectEffectiveDates) {
+                            mData.subjectEffectiveDates = {};
+                        }
+                        if (!mData.subjectEffectiveDates[dayName]) {
+                            mData.subjectEffectiveDates[dayName] = [];
+                        }
+                        mData.subjectEffectiveDates[dayName].push(current.getDate());
+                    } else {
+                        mData.subjectConflictDetails.push({
+                            date: dateStr,
+                            day: dayName,
+                            reason: conflict.description,
+                            lostJp: dailyJpVal
+                        });
+                    }
+                }
+            }
+
+            current.setDate(current.getDate() + 1);
+        }
+
+        // Compute Pekan Efektif (PEB) per month based on unique ISO weeks with at least 1 effective day
+        Object.keys(monthMap).forEach(mKey => {
+            const mData = monthMap[mKey];
+            const [mName, yStr] = mKey.split(' ');
+            const yearNum = parseInt(yStr);
+            const monthIdx = new Date(Date.parse(`${mName} 1, ${yearNum}`)).getMonth();
+
+            const uniqueWeeksInMonth = new Set<number>();
+            let dIter = new Date(yearNum, monthIdx, 1);
+            while (dIter.getMonth() === monthIdx) {
+                const dayName = getDayNameLocal(dIter);
+                const isWeekend = schoolDaysCount === 5 ? (dayName === 'Sabtu' || dayName === 'Minggu') : (dayName === 'Minggu');
+                if (!isWeekend) {
+                    const dStr = formatDateLocal(dIter);
+                    if (!checkEventConflict(dStr)) {
+                        uniqueWeeksInMonth.add(getIsoWeekLocal(dIter));
+                    }
+                }
+                dIter.setDate(dIter.getDate() + 1);
+            }
+            mData.effectiveWeeksCount = uniqueWeeksInMonth.size;
+        });
+
+        const monthsList = Object.values(monthMap);
+
+        const sem1Months = monthsList.filter(m => m.semester === 1);
+        const sem2Months = monthsList.filter(m => m.semester === 2);
+
+        const sumSem = (list: MonthData[]) => ({
+            heb: list.reduce((a, b) => a + b.effectiveSchoolDays, 0),
+            peb: list.reduce((a, b) => a + b.effectiveWeeksCount, 0),
+            meetings: list.reduce((a, b) => a + b.subjectMeetingsCount, 0),
+            jp: list.reduce((a, b) => a + b.subjectJpTotal, 0),
+            conflicts: list.flatMap(b => b.subjectConflictDetails)
+        });
+
+        const sem1 = sumSem(sem1Months);
+        const sem2 = sumSem(sem2Months);
+
+        const totalHeb = sem1.heb + sem2.heb;
+        const totalPeb = sem1.peb + sem2.peb;
+        const totalMeetings = sem1.meetings + sem2.meetings;
+        const totalJp = sem1.jp + sem2.jp;
+        const allConflicts = [...sem1.conflicts, ...sem2.conflicts];
+
+        const weeklyMeetingsCount = scheduledDays.length;
+        const weeklyJpTotal = scheduledDays.reduce((acc, day) => acc + (dailyJpMap[day] || 3), 0);
+
+        return {
+            scheduledDays,
+            dailyJpMap,
+            weeklyMeetingsCount,
+            weeklyJpTotal,
+            annualTargetJp,
+            sem1Months,
+            sem2Months,
+            sem1,
+            sem2,
+            totalHeb,
+            totalPeb,
+            totalMeetings,
+            totalJp,
+            allConflicts
+        };
+    }, [selectedClass, activeSubject, classSchedules, classDailyJP, calendarEvents, academicYearStart, schoolDaysCount]);
+
+    const getSubjectMeetingsDetail = (mData: any) => {
+        const dayOrder = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+        const detailParts: string[] = [];
+        const datesObj = mData.subjectEffectiveDates || {};
+        dayOrder.forEach(day => {
+            const dates = datesObj[day];
+            if (dates && dates.length > 0) {
+                detailParts.push(`${day} ${dates.length} HEB (tgl ${dates.join(', ')})`);
+            }
+        });
+        return detailParts.join(', ');
+    };
+
+    // Export to Word Handler
+    const handleExportWord = () => {
+        const schoolName = identity.institutionName || 'SD Negeri 1 Merdeka';
+        const teacherName = identity.authorName || 'Guru Kelas';
+
+        let html = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+            <meta charset='utf-8'>
+            <title>Analisis Hari & Pekan Efektif - ${activeSubject} ${selectedClass}</title>
+            <style>
+                @page { size: A4 portrait; margin: 1.5cm; }
+                body { font-family: 'Arial', sans-serif; font-size: 10pt; line-height: 1.3; color: #1e293b; }
+                h1, h2, h3 { margin: 0; padding: 0; }
+                .text-center { text-align: center; }
+                .font-bold { font-weight: bold; }
+                .header-box { border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 16px; text-align: center; }
+                table { border-collapse: collapse; width: 100%; margin-top: 10px; margin-bottom: 16px; }
+                td, th { border: 1px solid #000; padding: 5px 8px; font-size: 9pt; vertical-align: middle; }
+                th { background-color: #f1f5f9; text-align: center; font-weight: bold; text-transform: uppercase; }
+                .bg-total { background-color: #e2e8f0; font-weight: bold; }
+                .sign-table { border: none; margin-top: 24px; }
+                .sign-table td { border: none; padding: 4px; text-align: center; }
+            </style>
+        </head>
+        <body>
+            <div class="header-box">
+                <h2 style="font-size: 13pt;">ANALISIS HARI EFEKTIF (HEB) & PEKAN EFEKTIF BELAJAR (PEB)</h2>
+                <h3 style="font-size: 11pt;">SATUAN PENDIDIKAN: ${schoolName.toUpperCase()}</h3>
+                <p style="font-size: 9pt; margin-top: 4px;">
+                    Mata Pelajaran: <b>${activeSubject}</b> | Kelas: <b>${selectedClass}</b> | Tahun Ajaran: <b>${identity.academicYear}</b>
+                </p>
+            </div>
+
+            <table style="margin-bottom: 12px;">
+                <tr>
+                    <td width="20%" class="font-bold">Mata Pelajaran</td><td width="30%">${activeSubject}</td>
+                    <td width="20%" class="font-bold">Beban Mingguan</td><td width="30%">${analysisData.weeklyMeetingsCount} Pertemuan (${analysisData.weeklyJpTotal} JP / Pekan)</td>
+                </tr>
+                <tr>
+                    <td class="font-bold">Kelas / Fase</td><td>${selectedClass} (${getFaseForClass(selectedClass).name})</td>
+                    <td class="font-bold">Jadwal Mengajar</td><td>${analysisData.scheduledDays.map(d => `${d}${analysisData.dailyJpMap[d] ? ` (${analysisData.dailyJpMap[d]} JP)` : ''}`).join(', ') || 'Belum diatur'}</td>
+                </tr>
+                <tr>
+                    <td class="font-bold">Nama Guru</td><td>${teacherName}</td>
+                    <td class="font-bold">Target Kurikulum</td><td><b>${analysisData.annualTargetJp} JP / Tahun</b></td>
+                </tr>
+            </table>
+
+            <h3 style="font-size: 10.5pt; margin-top: 12px; margin-bottom: 6px;">I. RINCIAN PERHITUNGAN EFEKTIF SEMESTER GANJIL (SEMESTER 1)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th width="5%">NO</th>
+                        <th>BULAN & TAHUN</th>
+                        <th width="15%">HARI KERJA</th>
+                        <th width="15%">HEB SEKOLAH</th>
+                        <th width="15%">PEB SEKOLAH</th>
+                        <th width="18%">PERTEMUAN MAPEL</th>
+                        <th width="15%">TOTAL JP MAPEL</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        analysisData.sem1Months.forEach((m, idx) => {
+            const detailStr = getSubjectMeetingsDetail(m);
+            html += `
+            <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td><b>${m.monthName}</b></td>
+                <td style="text-align:center;">${m.schoolDays} Hari</td>
+                <td style="text-align:center;">${m.effectiveSchoolDays} Hari</td>
+                <td style="text-align:center;">${m.effectiveWeeksCount} Pekan</td>
+                <td style="text-align:center; font-weight:bold;">
+                    ${m.subjectMeetingsCount} Pertemuan
+                    ${detailStr ? `<div style="font-size:8pt; font-weight:normal; color:#16a34a; margin-top:2px; text-align:center;">${detailStr}</div>` : ''}
+                </td>
+                <td style="text-align:center; font-weight:bold; color:#047857;">${m.subjectJpTotal} JP</td>
+            </tr>`;
+        });
+
+        html += `
+                <tr class="bg-total">
+                    <td colSpan="2" style="text-align:right;">SUBTOTAL SEMESTER GANJIL:</td>
+                    <td style="text-align:center;">${analysisData.sem1Months.reduce((a, b) => a + b.schoolDays, 0)} Hari</td>
+                    <td style="text-align:center;">${analysisData.sem1.heb} Hari</td>
+                    <td style="text-align:center;">${analysisData.sem1.peb} Pekan</td>
+                    <td style="text-align:center;">${analysisData.sem1.meetings} Pertemuan</td>
+                    <td style="text-align:center;">${analysisData.sem1.jp} JP</td>
+                </tr>
+                </tbody>
+            </table>
+
+            <h3 style="font-size: 10.5pt; margin-top: 16px; margin-bottom: 6px;">II. RINCIAN PERHITUNGAN EFEKTIF SEMESTER GENAP (SEMESTER 2)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th width="5%">NO</th>
+                        <th>BULAN & TAHUN</th>
+                        <th width="15%">HARI KERJA</th>
+                        <th width="15%">HEB SEKOLAH</th>
+                        <th width="15%">PEB SEKOLAH</th>
+                        <th width="18%">PERTEMUAN MAPEL</th>
+                        <th width="15%">TOTAL JP MAPEL</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        analysisData.sem2Months.forEach((m, idx) => {
+            const detailStr = getSubjectMeetingsDetail(m);
+            html += `
+            <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td><b>${m.monthName}</b></td>
+                <td style="text-align:center;">${m.schoolDays} Hari</td>
+                <td style="text-align:center;">${m.effectiveSchoolDays} Hari</td>
+                <td style="text-align:center;">${m.effectiveWeeksCount} Pekan</td>
+                <td style="text-align:center; font-weight:bold;">
+                    ${m.subjectMeetingsCount} Pertemuan
+                    ${detailStr ? `<div style="font-size:8pt; font-weight:normal; color:#1d4ed8; margin-top:2px; text-align:center;">${detailStr}</div>` : ''}
+                </td>
+                <td style="text-align:center; font-weight:bold; color:#1d4ed8;">${m.subjectJpTotal} JP</td>
+            </tr>`;
+        });
+
+        html += `
+                <tr class="bg-total">
+                    <td colSpan="2" style="text-align:right;">SUBTOTAL SEMESTER GENAP:</td>
+                    <td style="text-align:center;">${analysisData.sem2Months.reduce((a, b) => a + b.schoolDays, 0)} Hari</td>
+                    <td style="text-align:center;">${analysisData.sem2.heb} Hari</td>
+                    <td style="text-align:center;">${analysisData.sem2.peb} Pekan</td>
+                    <td style="text-align:center;">${analysisData.sem2.meetings} Pertemuan</td>
+                    <td style="text-align:center;">${analysisData.sem2.jp} JP</td>
+                </tr>
+                <tr style="background-color:#059669; color:#ffffff; font-weight:bold; font-size:10pt;">
+                    <td colSpan="2" style="text-align:right; padding:8px;">GRAND TOTAL 1 TAHUN AJARAN:</td>
+                    <td style="text-align:center;">${analysisData.sem1Months.reduce((a, b) => a + b.schoolDays, 0) + analysisData.sem2Months.reduce((a, b) => a + b.schoolDays, 0)} Hari</td>
+                    <td style="text-align:center;">${analysisData.totalHeb} Hari</td>
+                    <td style="text-align:center;">${analysisData.totalPeb} Pekan</td>
+                    <td style="text-align:center;">${analysisData.totalMeetings} Pertemuan</td>
+                    <td style="text-align:center;">${analysisData.totalJp} JP</td>
+                </tr>
+                </tbody>
+            </table>
+
+            <h3 style="font-size: 10.5pt; margin-top: 16px; margin-bottom: 6px;">III. REKAPITULASI KETERCAPAIAN BEBAN MENGAJAR</h3>
+            <table>
+                <tr>
+                    <td width="35%" class="font-bold">Standar Target Kurikulum Nasional</td>
+                    <td><b>${analysisData.annualTargetJp} JP / Tahun</b></td>
+                </tr>
+                <tr>
+                    <td class="font-bold">Realisasi Jam Pelajaran (JP) Efektif</td>
+                    <td><b>${analysisData.totalJp} JP / Tahun</b> (${analysisData.totalMeetings} Pertemuan)</td>
+                </tr>
+                <tr>
+                    <td class="font-bold">Status Ketercapaian Target</td>
+                    <td><b>${analysisData.totalJp >= analysisData.annualTargetJp ? 'MEMENUHI STANDAR KURIKULUM (' + Math.round((analysisData.totalJp / analysisData.annualTargetJp) * 100) + '%)' : 'PENYESUAIAN DIPERLUKAN (' + Math.round((analysisData.totalJp / analysisData.annualTargetJp) * 100) + '%)'}</b></td>
+                </tr>
+            </table>
+
+            <table class="sign-table" style="margin-top: 30px;">
+                <tr>
+                    <td width="50%">
+                        Mengetahui,<br/>
+                        Kepala ${schoolName}<br/><br/><br/><br/>
+                        <b><u>..........................................</u></b><br/>
+                        NIP. ..........................................
+                    </td>
+                    <td width="50%">
+                        ${schoolName.replace(/SDN|SD|Sekolah/gi, '').trim()}, .................... 2025<br/>
+                        Guru Mata Pelajaran / Kelas<br/><br/><br/><br/>
+                        <b><u>${teacherName}</u></b><br/>
+                        NIP. ..........................................
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>`;
+
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Analisis_Hari_Efektif_${activeSubject.replace(/\s+/g, '_')}_${selectedClass.replace(/\s+/g, '_')}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-6xl mx-auto space-y-6">
+            {/* Header Title & Navigation Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                    <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2.5">
+                        <CalendarDays className="w-6 h-6 text-emerald-600" />
+                        <span>Analisis Hari & Pekan Efektif Belajar ({selectedClass})</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Perhitungan otomatis ketersediaan Hari Efektif Belajar (HEB), Pekan Efektif (PEB), serta Alokasi Pertemuan & JP per Mata Pelajaran.</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleExportWord}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                    >
+                        <Download className="w-4 h-4" /> Unduh Analisis (.doc)
+                    </button>
+                </div>
+            </div>
+
+            {/* Filter Selection Bar (Subject Selector ONLY) */}
+            <div className="p-4 bg-slate-50/90 border border-slate-200 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4 text-xs items-center">
+                <div>
+                    <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1">Pilih Mata Pelajaran</label>
+                    <select
+                        value={activeSubject}
+                        onChange={e => handleSubjectChange(e.target.value)}
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+                    >
+                        {SUBJECTS.map(sub => (
+                            <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="p-2.5 bg-emerald-50/80 border border-emerald-200/80 rounded-xl">
+                    <span className="text-[10px] font-extrabold text-emerald-800 uppercase block">Jadwal Mengajar Mapel Ini ({selectedClass}):</span>
+                    <span className="text-xs font-extrabold text-emerald-950">
+                        {analysisData.scheduledDays.length > 0 
+                            ? `${analysisData.scheduledDays.join(', ')} (${analysisData.weeklyMeetingsCount}x / ${analysisData.weeklyJpTotal} JP seminggu)` 
+                            : 'Belum diatur di Jadwal Mengajar'}
+                    </span>
+                </div>
+            </div>
+
+            {/* KPI Summary Banner (4 Cards) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div className="p-4 bg-emerald-50 border border-emerald-200/80 rounded-2xl flex items-center justify-between">
+                    <div>
+                        <div className="text-[10px] font-extrabold text-emerald-800 uppercase">Pertemuan / Minggu</div>
+                        <div className="text-lg font-black text-emerald-950 mt-0.5">{analysisData.weeklyMeetingsCount} Pertemuan <span className="text-xs font-bold text-emerald-700">({analysisData.weeklyJpTotal} JP)</span></div>
+                        <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">Hari: {analysisData.scheduledDays.join(', ') || '-'}</div>
+                    </div>
+                    <Clock className="w-7 h-7 text-emerald-500/50" />
+                </div>
+
+                <div className="p-4 bg-blue-50 border border-blue-200/80 rounded-2xl flex items-center justify-between">
+                    <div>
+                        <div className="text-[10px] font-extrabold text-blue-800 uppercase">Pekan Efektif (PEB)</div>
+                        <div className="text-lg font-black text-blue-950 mt-0.5">{analysisData.totalPeb} Pekan <span className="text-xs font-bold text-blue-700">/ 1 Tahun</span></div>
+                        <div className="text-[10px] text-blue-700 font-semibold mt-0.5">Smt 1: {analysisData.sem1.peb} Pekan | Smt 2: {analysisData.sem2.peb} Pekan</div>
+                    </div>
+                    <Calendar className="w-7 h-7 text-blue-500/50" />
+                </div>
+
+                <div className="p-4 bg-purple-50 border border-purple-200/80 rounded-2xl flex items-center justify-between">
+                    <div>
+                        <div className="text-[10px] font-extrabold text-purple-800 uppercase">Hari Efektif Belajar (HEB)</div>
+                        <div className="text-lg font-black text-purple-950 mt-0.5">{analysisData.totalHeb} Hari <span className="text-xs font-bold text-purple-700">Sekolah</span></div>
+                        <div className="text-[10px] text-purple-700 font-semibold mt-0.5">Smt 1: {analysisData.sem1.heb} Hari | Smt 2: {analysisData.sem2.heb} Hari</div>
+                    </div>
+                    <CalendarCheck className="w-7 h-7 text-purple-500/50" />
+                </div>
+
+                <div className="p-4 bg-amber-50 border border-amber-200/80 rounded-2xl flex items-center justify-between">
+                    <div>
+                        <div className="text-[10px] font-extrabold text-amber-800 uppercase">Total Pertemuan & JP Mapel</div>
+                        <div className="text-lg font-black text-amber-950 mt-0.5">{analysisData.totalMeetings} Sesi <span className="text-xs font-bold text-amber-700">({analysisData.totalJp} JP)</span></div>
+                        <div className="text-[10px] text-amber-700 font-semibold mt-0.5">Standar Target: {analysisData.annualTargetJp} JP / Thn</div>
+                    </div>
+                    <BarChart3 className="w-7 h-7 text-amber-500/50" />
+                </div>
+            </div>
+
+            {/* Tables for Semester 1 and Semester 2 */}
+            <div className="space-y-6">
+                {/* Semester 1 Table */}
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <span>I. Semester Ganjil (Juli - Desember {academicYearStart})</span>
+                        </h3>
+                        <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold">
+                            {analysisData.sem1.meetings} Pertemuan ({analysisData.sem1.jp} JP Efektif)
+                        </span>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                        <table className="w-full text-xs text-left">
+                            <thead className="bg-slate-100 text-slate-700 uppercase font-extrabold text-[10px]">
+                                <tr>
+                                    <th className="p-3 text-center border-b border-slate-200" width="4%">No</th>
+                                    <th className="p-3 border-b border-slate-200">Bulan & Tahun</th>
+                                    <th className="p-3 text-center border-b border-slate-200">Hari Kerja</th>
+                                    <th className="p-3 text-center border-b border-slate-200">HEB Sekolah</th>
+                                    <th className="p-3 text-center border-b border-slate-200">PEB Sekolah</th>
+                                    <th className="p-3 text-center border-b border-slate-200">Pertemuan ({activeSubject})</th>
+                                    <th className="p-3 text-center border-b border-slate-200">Total JP Efektif</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                                {analysisData.sem1Months.map((m, idx) => (
+                                    <tr key={m.monthKey} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 text-center text-slate-500">{idx + 1}</td>
+                                        <td className="p-3 font-bold text-slate-800">{m.monthName}</td>
+                                        <td className="p-3 text-center text-slate-600">{m.schoolDays} Hari</td>
+                                        <td className="p-3 text-center font-semibold text-slate-800">{m.effectiveSchoolDays} Hari</td>
+                                        <td className="p-3 text-center font-semibold text-slate-800">{m.effectiveWeeksCount} Pekan</td>
+                                        <td className="p-3 text-center">
+                                            <div className="font-extrabold text-slate-900">{m.subjectMeetingsCount} Pertemuan</div>
+                                            {getSubjectMeetingsDetail(m) && (
+                                                <div className="text-[10px] text-emerald-700 font-semibold mt-1 bg-emerald-50/50 rounded px-2 py-0.5 inline-block text-left max-w-xs leading-normal">
+                                                    {getSubjectMeetingsDetail(m)}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="p-3 text-center font-extrabold text-emerald-700 bg-emerald-50/50">{m.subjectJpTotal} JP</td>
+                                    </tr>
+                                ))}
+                                <tr className="bg-slate-100 font-black text-slate-900">
+                                    <td colSpan={2} className="p-3 text-right uppercase text-[10px] tracking-wider">Subtotal Semester Ganjil:</td>
+                                    <td className="p-3 text-center">{analysisData.sem1Months.reduce((a, b) => a + b.schoolDays, 0)} Hari</td>
+                                    <td className="p-3 text-center text-emerald-800">{analysisData.sem1.heb} Hari</td>
+                                    <td className="p-3 text-center text-blue-800">{analysisData.sem1.peb} Pekan</td>
+                                    <td className="p-3 text-center text-purple-800">{analysisData.sem1.meetings} Pertemuan</td>
+                                    <td className="p-3 text-center text-emerald-800 bg-emerald-100">{analysisData.sem1.jp} JP</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Semester 2 Table */}
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                            <span>II. Semester Genap (Januari - Juni {academicYearStart + 1})</span>
+                        </h3>
+                        <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-extrabold">
+                            {analysisData.sem2.meetings} Pertemuan ({analysisData.sem2.jp} JP Efektif)
+                        </span>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                        <table className="w-full text-xs text-left">
+                            <thead className="bg-slate-100 text-slate-700 uppercase font-extrabold text-[10px]">
+                                <tr>
+                                    <th className="p-3 text-center border-b border-slate-200" width="4%">No</th>
+                                    <th className="p-3 border-b border-slate-200">Bulan & Tahun</th>
+                                    <th className="p-3 text-center border-b border-slate-200">Hari Kerja</th>
+                                    <th className="p-3 text-center border-b border-slate-200">HEB Sekolah</th>
+                                    <th className="p-3 text-center border-b border-slate-200">PEB Sekolah</th>
+                                    <th className="p-3 text-center border-b border-slate-200">Pertemuan ({activeSubject})</th>
+                                    <th className="p-3 text-center border-b border-slate-200">Total JP Efektif</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                                {analysisData.sem2Months.map((m, idx) => (
+                                    <tr key={m.monthKey} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 text-center text-slate-500">{idx + 1}</td>
+                                        <td className="p-3 font-bold text-slate-800">{m.monthName}</td>
+                                        <td className="p-3 text-center text-slate-600">{m.schoolDays} Hari</td>
+                                        <td className="p-3 text-center font-semibold text-slate-800">{m.effectiveSchoolDays} Hari</td>
+                                        <td className="p-3 text-center font-semibold text-slate-800">{m.effectiveWeeksCount} Pekan</td>
+                                        <td className="p-3 text-center">
+                                            <div className="font-extrabold text-slate-900">{m.subjectMeetingsCount} Pertemuan</div>
+                                            {getSubjectMeetingsDetail(m) && (
+                                                <div className="text-[10px] text-blue-700 font-semibold mt-1 bg-blue-50/50 rounded px-2 py-0.5 inline-block text-left max-w-xs leading-normal">
+                                                    {getSubjectMeetingsDetail(m)}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="p-3 text-center font-extrabold text-blue-700 bg-blue-50/50">{m.subjectJpTotal} JP</td>
+                                    </tr>
+                                ))}
+                                <tr className="bg-slate-100 font-black text-slate-900">
+                                    <td colSpan={2} className="p-3 text-right uppercase text-[10px] tracking-wider">Subtotal Semester Genap:</td>
+                                    <td className="p-3 text-center">{analysisData.sem2Months.reduce((a, b) => a + b.schoolDays, 0)} Hari</td>
+                                    <td className="p-3 text-center text-emerald-800">{analysisData.sem2.heb} Hari</td>
+                                    <td className="p-3 text-center text-blue-800">{analysisData.sem2.peb} Pekan</td>
+                                    <td className="p-3 text-center text-purple-800">{analysisData.sem2.meetings} Pertemuan</td>
+                                    <td className="p-3 text-center text-blue-800 bg-blue-100">{analysisData.sem2.jp} JP</td>
+                                </tr>
+                                <tr className="bg-emerald-600 text-white font-black text-xs">
+                                    <td colSpan={2} className="p-3.5 text-right uppercase tracking-wider">GRAND TOTAL 1 TAHUN AJARAN:</td>
+                                    <td className="p-3.5 text-center">{analysisData.sem1Months.reduce((a, b) => a + b.schoolDays, 0) + analysisData.sem2Months.reduce((a, b) => a + b.schoolDays, 0)} Hari</td>
+                                    <td className="p-3.5 text-center">{analysisData.totalHeb} Hari</td>
+                                    <td className="p-3.5 text-center">{analysisData.totalPeb} Pekan</td>
+                                    <td className="p-3.5 text-center">{analysisData.totalMeetings} Pertemuan</td>
+                                    <td className="p-3.5 text-center text-emerald-100 bg-emerald-700">{analysisData.totalJp} JP</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {/* Evaluation & Holiday Impacts Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                {/* Target Curriculum Comparison Card */}
+                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        <span>Ketercapaian Standar Kurikulum</span>
+                    </h4>
+                    <div className="space-y-2">
+                        <div className="flex justify-between py-1.5 border-b border-slate-200">
+                            <span className="text-slate-600">Target Kurikulum Nasional:</span>
+                            <span className="font-bold text-slate-900">{analysisData.annualTargetJp} JP / Tahun</span>
+                        </div>
+                        <div className="flex justify-between py-1.5 border-b border-slate-200">
+                            <span className="text-slate-600">Realisasi JP Efektif Mengajar:</span>
+                            <span className="font-bold text-emerald-700">{analysisData.totalJp} JP ({analysisData.totalMeetings} Pertemuan)</span>
+                        </div>
+                        <div className="flex justify-between py-1.5 items-center">
+                            <span className="text-slate-600">Persentase Ketercapaian:</span>
+                            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-black text-xs">
+                                {Math.round((analysisData.totalJp / analysisData.annualTargetJp) * 100)}%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Holiday Conflicts Impact Card */}
+                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600" />
+                        <span>Daftar Hari Libur Memotong Jadwal ({analysisData.allConflicts.length} Hari)</span>
+                    </h4>
+
+                    {analysisData.allConflicts.length === 0 ? (
+                        <p className="text-slate-500 italic text-[11px]">Tidak ada hari libur atau kegiatan sekolah yang terpotong pada jadwal mata pelajaran ini.</p>
+                    ) : (
+                        <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                            {analysisData.allConflicts.map((c, i) => (
+                                <div key={i} className="p-2 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-[11px]">
+                                    <div>
+                                        <span className="font-bold text-slate-800">{c.day}, {c.date}</span>
+                                        <span className="text-slate-500 block text-[10px]">{c.reason}</span>
+                                    </div>
+                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md font-bold text-[10px]">
+                                        -{c.lostJp} JP
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- KKTP View Component ---
+const KKTPView: React.FC<{
+    selectedSubject: string;
+    selectedClass: string;
+    identity: UserIdentity;
+}> = ({ selectedSubject, selectedClass, identity }) => {
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <Target className="w-5 h-5 text-emerald-600" />
+                        <span>Kriteria Ketercapaian Tujuan Pembelajaran (KKTP)</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Rubrik interval ketuntasan belajar {selectedSubject} ({selectedClass}).</p>
+                </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 text-xs">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+                        <tr>
+                            <th className="p-3 w-1/3">Tujuan Pembelajaran (TP)</th>
+                            <th className="p-3 text-center bg-red-50 text-red-700">0 - 60%<br/><span className="text-[9px]">Perlu Bimbingan</span></th>
+                            <th className="p-3 text-center bg-amber-50 text-amber-700">61 - 70%<br/><span className="text-[9px]">Cukup</span></th>
+                            <th className="p-3 text-center bg-blue-50 text-blue-700">71 - 85%<br/><span className="text-[9px]">Baik</span></th>
+                            <th className="p-3 text-center bg-emerald-50 text-emerald-700">86 - 100%<br/><span className="text-[9px]">Sangat Baik</span></th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                        <tr>
+                            <td className="p-3 font-bold text-slate-800">Menjelaskan materi dasar dan menerapkan nilai karakter utama.</td>
+                            <td className="p-3 text-center text-slate-500">Remedial seluruh bagian</td>
+                            <td className="p-3 text-center text-slate-500">Remedial di bagian tertentu</td>
+                            <td className="p-3 text-center text-slate-500">Sudah mencapai ketuntasan</td>
+                            <td className="p-3 text-center text-slate-500">Perlu pengayaan / tantangan</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+// --- Jurnal View Component ---
+const JurnalView: React.FC<{
+    selectedSubject: string;
+    selectedClass: string;
+    identity: UserIdentity;
+}> = ({ selectedSubject, selectedClass, identity }) => {
+    const [journals, setJournals] = useState<JournalRecord[]>(() => [
+        {
+            id: '1',
+            date: new Date().toISOString().split('T')[0],
+            timeSlot: '07:30 - 09:00',
+            subject: selectedSubject,
+            topic: 'Mengenal Lingkungan Belajar dan Karakter Utama',
+            activity: 'Diskusi kelompok dan pemutaran video edukatif',
+            notes: 'Siswa antusias dan aktif berdiskusi'
+        }
+    ]);
+
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [topic, setTopic] = useState('');
+    const [activity, setActivity] = useState('');
+    const [notes, setNotes] = useState('');
+
+    const handleAdd = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!topic) return;
+        const newJ: JournalRecord = {
+            id: Date.now().toString(),
+            date,
+            timeSlot: '07:30 - 09:00',
+            subject: selectedSubject,
+            topic,
+            activity,
+            notes
+        };
+        setJournals([newJ, ...journals]);
+        setTopic('');
+        setActivity('');
+        setNotes('');
+    };
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <BookMarked className="w-5 h-5 text-emerald-600" />
+                        <span>Jurnal Pembelajaran Harian ({selectedClass})</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Catatan pelaksanaan KBM harian dan refleksi pembelajaran.</p>
+                </div>
+            </div>
+
+            <form onSubmit={handleAdd} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label className="block font-bold text-slate-700 mb-1">Tanggal</label>
+                        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none" />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block font-bold text-slate-700 mb-1">Materi Pokok / TP</label>
+                        <input type="text" placeholder="Topik pembelajaran hari ini" value={topic} onChange={e => setTopic(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label className="block font-bold text-slate-700 mb-1">Uraian Kegiatan</label>
+                        <input type="text" placeholder="Ringkasan kegiatan KBM" value={activity} onChange={e => setActivity(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none" />
+                    </div>
+                    <div>
+                        <label className="block font-bold text-slate-700 mb-1">Catatan / Refleksi</label>
+                        <input type="text" placeholder="Refleksi ketercapaian siswa" value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none" />
+                    </div>
+                </div>
+                <div className="flex justify-end">
+                    <button type="submit" className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-2 cursor-pointer">
+                        <Plus className="w-4 h-4" /> Simpan Jurnal
+                    </button>
+                </div>
+            </form>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 text-xs">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+                        <tr>
+                            <th className="p-3">Tanggal</th>
+                            <th className="p-3">Materi / TP</th>
+                            <th className="p-3">Uraian Kegiatan</th>
+                            <th className="p-3">Catatan / Refleksi</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                        {journals.map(j => (
+                            <tr key={j.id} className="hover:bg-slate-50">
+                                <td className="p-3 font-bold text-slate-600">{j.date}</td>
+                                <td className="p-3 font-bold text-slate-900">{j.topic}</td>
+                                <td className="p-3 text-slate-700">{j.activity}</td>
+                                <td className="p-3 text-emerald-700">{j.notes}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
 
 const App = () => {
   
@@ -1955,6 +5958,16 @@ const App = () => {
                 parsed.email = 'guru@example.com';
             }
             setUser(parsed);
+            if (parsed.assignedClass) {
+                setSelectedClass(parsed.assignedClass);
+                setSelectedFase(getFaseForClass(parsed.assignedClass));
+                setUserIdentity(prev => ({
+                    ...prev,
+                    assignedClass: parsed.assignedClass,
+                    authorName: parsed.name || prev.authorName,
+                    institutionName: parsed.institutionName || prev.institutionName
+                }));
+            }
         } catch (e) {
             console.error('Failed to parse saved user', e);
         }
@@ -1964,7 +5977,7 @@ const App = () => {
   const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'identity' | 'generator' | 'admin'>(() => {
     return localStorage.getItem('prota_user') ? 'generator' : 'login';
   });
-  const [user, setUser] = useState<{ name: string, email: string } | null>(null);
+  const [user, setUser] = useState<{ name: string, email: string, assignedClass?: string, institutionName?: string } | null>(null);
 
   // --- Admin Bypass (Shortcut & Taps) ---
   const [loginTaps, setLoginTaps] = useState(0);
@@ -1991,7 +6004,8 @@ const App = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (appStage !== 'login' && appStage !== 'register') return;
-      const key = e.key.toLowerCase();
+      if (!e || !e.key) return;
+      const key = String(e.key || '').toLowerCase();
       if (e.ctrlKey && e.altKey) {
         if (key === 'i' || key === 'p') {
           keySequence.current.push(key);
@@ -2016,7 +6030,8 @@ const App = () => {
 
     const checkSession = async () => {
       try {
-        const emailNormalized = user.email.toLowerCase().trim();
+        const emailNormalized = String(user?.email || '').toLowerCase().trim();
+        if (!emailNormalized) return;
         const userDocRef = doc(db, 'users', emailNormalized);
         const userSnap = await getDoc(userDocRef);
         
@@ -2084,12 +6099,14 @@ const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 const [showApiKeyText, setShowApiKeyText] = useState(false);
 const [apiKeyMessage, setApiKeyMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
 const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, boolean>>>({});
+const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
 
-  const [currentView, setCurrentView] = useState<'generator' | 'history' | 'modul_ajar' | 'calendar'>('generator');
-  const [calendarPageTab, setCalendarPageTab] = useState<'all' | 'master' | 'visual' | 'analysis'>('all');
-  const [selectedFase, setSelectedFase] = useState(FASES[0]);
+  const [currentView, setCurrentView] = useState<'dashboard' | 'generator' | 'history' | 'modul_ajar' | 'calendar' | 'daftar_siswa' | 'jadwal_mengajar' | 'hari_efektif' | 'presensi' | 'kktp' | 'jurnal'>('dashboard');
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [calendarPageTab, setCalendarPageTab] = useState<'all' | 'master' | 'analysis'>('all');
+  const [selectedClass, setSelectedClass] = useState<string>(() => localStorage.getItem('prota_assigned_class') || FASES[0].classes[0]);
+  const [selectedFase, setSelectedFase] = useState(() => getFaseForClass(localStorage.getItem('prota_assigned_class') || FASES[0].classes[0]));
   const [selectedSubject, setSelectedSubject] = useState(SUBJECTS[0]);
-  const [selectedClass, setSelectedClass] = useState<string>(FASES[0].classes[0]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<'config' | 'analysis' | 'calendar'>('config');
 
@@ -2111,6 +6128,14 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
   const [showCalendar, setShowCalendar] = useState(false);
   const [analysisModal, setAnalysisModal] = useState<string | null>(null);
   const [bulkGenerationStatus, setBulkGenerationStatus] = useState<Record<string, { current: number, total: number, percent: number, active: boolean, statusText?: string }>>({});
+  const [showSaveToast, setShowSaveToast] = useState(false);
+
+  useEffect(() => {
+      if (showSaveToast) {
+          const t = setTimeout(() => setShowSaveToast(false), 3000);
+          return () => clearTimeout(t);
+      }
+  }, [showSaveToast]);
   const [pendingSemesterSelection, setPendingSemesterSelection] = useState<string | null>(null);
   const [selectedCharacteristic, setSelectedCharacteristic] = useState("Beragam (Visual, Auditori, Kinestetik)");
   
@@ -2122,12 +6147,33 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
 
 
   const [userIdentity, setUserIdentity] = useState<UserIdentity>(() => ({
-      authorName: localStorage.getItem('prota_author_name') || '',
-      institutionName: localStorage.getItem('prota_institution_name') || '',
-      academicYear: localStorage.getItem('prota_academic_year') || '',
-      semester: localStorage.getItem('prota_semester') || '',
+      authorName: localStorage.getItem('prota_author_name') || 'Acep Miftah Hilah Ash-shidiq, S.Pd.',
+      nip: localStorage.getItem('prota_nip') || '199602152025211094',
+      institutionName: localStorage.getItem('prota_institution_name') || 'SDN SUKATINGGAL',
+      npsn: localStorage.getItem('prota_npsn') || '20206022',
+      kepalaSekolah: localStorage.getItem('prota_kepala_sekolah') || 'Yuni Sri Rahayu, S.Pd.',
+      nipKepalaSekolah: localStorage.getItem('prota_nip_kepala_sekolah') || '198706162019032007',
+      academicYear: localStorage.getItem('prota_academic_year') || '2026-2027',
+      semester: localStorage.getItem('prota_semester') || 'Ganjil (Semester 1)',
+      assignedClass: localStorage.getItem('prota_assigned_class') || 'Kelas 1',
+      employmentStatus: localStorage.getItem('prota_employment_status') || 'Full Time',
       customApiKey: localStorage.getItem('prota_custom_api_key') || ''
   }));
+
+  const handleSaveIdentity = (updated: UserIdentity) => {
+      setUserIdentity(updated);
+      localStorage.setItem('prota_author_name', updated.authorName);
+      if (updated.nip) localStorage.setItem('prota_nip', updated.nip);
+      localStorage.setItem('prota_institution_name', updated.institutionName);
+      if (updated.npsn) localStorage.setItem('prota_npsn', updated.npsn);
+      if (updated.kepalaSekolah) localStorage.setItem('prota_kepala_sekolah', updated.kepalaSekolah);
+      if (updated.nipKepalaSekolah) localStorage.setItem('prota_nip_kepala_sekolah', updated.nipKepalaSekolah);
+      localStorage.setItem('prota_academic_year', updated.academicYear);
+      localStorage.setItem('prota_semester', updated.semester);
+      localStorage.setItem('prota_assigned_class', updated.assignedClass);
+      if (updated.employmentStatus) localStorage.setItem('prota_employment_status', updated.employmentStatus);
+      setShowEditProfileModal(false);
+  };
 
   // Schedules & Config
   const [classSchedules, setClassSchedules] = useState<Record<string, string[]>>({});
@@ -2146,7 +6192,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
     } catch(e) {}
     return DEFAULT_CALENDAR_EVENTS;
   });
-  const [editingCalendarEvent, setEditingCalendarEvent] = useState<{dateStr: string, ev?: CalendarEvent} | null>(null);
+  const [editingCalendarEvent, setEditingCalendarEvent] = useState<{dateStr: string, endDateStr?: string, ev?: CalendarEvent} | null>(null);
   const [academicYearStart, setAcademicYearStart] = useState<number>(2025);
   const [schoolDaysCount, setSchoolDaysCount] = useState<5 | 6>(() => {
       const saved = localStorage.getItem('prota_school_days_count');
@@ -2175,6 +6221,51 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!activities || activities.length === 0) {
+        if (data) setData(null);
+        return;
+    }
+    const match = activities.find(act => 
+        (act.type === 'ATP_JP' || act.type === 'CP_TP') && 
+        act.subject.toLowerCase().trim() === selectedSubject.toLowerCase().trim()
+    );
+    if (match && match.dataSnapshot) {
+        if (JSON.stringify(data) !== JSON.stringify(match.dataSnapshot)) {
+            setData(match.dataSnapshot);
+        }
+    } else {
+        if (data !== null) setData(null);
+    }
+  }, [selectedSubject, activities]);
+
+  const getScheduledSubjects = (): string[] => {
+      let subjectsFromRoster: string[] = [];
+      try {
+          const saved = localStorage.getItem(`prota_weekly_roster_${selectedClass}`);
+          if (saved) {
+              const roster = JSON.parse(saved);
+              Object.values(roster).forEach((slots: any) => {
+                  if (Array.isArray(slots)) {
+                      slots.forEach(slot => {
+                          if (slot && slot.subject) {
+                              const trimmed = slot.subject.trim();
+                              if (trimmed && !isExcludedSubject(trimmed) && !subjectsFromRoster.includes(trimmed)) {
+                                  subjectsFromRoster.push(trimmed);
+                              }
+                          }
+                      });
+                  }
+              });
+          }
+      } catch (e) {}
+
+      if (subjectsFromRoster.length === 0) {
+          subjectsFromRoster = SUBJECTS.filter(s => !isExcludedSubject(s));
+      }
+      return subjectsFromRoster;
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('prota_user');
@@ -2312,9 +6403,47 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
       return days[date.getDay()];
   };
 
-  const getEffectiveDates = (className: string): { date: Date, jp: number }[] => {
-      const selectedDays = classSchedules[className] || [];
-      const dailyJP = classDailyJP[className] || {};
+  const getEffectiveDates = (className: string, subjectName: string = selectedSubject): { date: Date, jp: number }[] => {
+      let weeklyRoster: Record<string, any[]> = {};
+      try {
+          const saved = localStorage.getItem(`prota_weekly_roster_${className}`);
+          if (saved) weeklyRoster = JSON.parse(saved);
+      } catch (e) {}
+
+      const daysList = schoolDaysCount === 5 
+          ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+          : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+      const subjectScheduledDays: string[] = [];
+      const subjectDailyJpMap: Record<string, number> = {};
+
+      daysList.forEach(day => {
+          const slots = weeklyRoster[day] || [];
+          let dayJp = 0;
+          slots.forEach(slot => {
+              if (!slot || !slot.subject) return;
+              const slotSubjLower = slot.subject.toLowerCase().trim();
+              const targetSubjLower = subjectName.toLowerCase().trim();
+              if (slotSubjLower === targetSubjLower ||
+                  slotSubjLower.includes(targetSubjLower) ||
+                  targetSubjLower.includes(slotSubjLower)) {
+                  dayJp += Number(slot.jp) || 1;
+              }
+          });
+          if (dayJp > 0) {
+              subjectScheduledDays.push(day);
+              subjectDailyJpMap[day] = dayJp;
+          }
+      });
+
+      const selectedDays = subjectScheduledDays.length > 0 
+          ? subjectScheduledDays 
+          : (classSchedules[className] || []);
+
+      const dailyJP = subjectScheduledDays.length > 0 
+          ? subjectDailyJpMap 
+          : (classDailyJP[className] || {});
+
       const dates: { date: Date, jp: number }[] = [];
       const academicStartStr = `${academicYearStart}-07-14`;
       const academicEndStr = `${academicYearStart + 1}-06-27`;
@@ -2336,6 +6465,26 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
           }
           current.setDate(current.getDate() + 1);
       }
+
+      if (dates.length === 0) {
+          console.warn("No effective dates found for", className, subjectName, "using default fallback");
+          const fallbackDays = ["Senin"];
+          const fallbackDailyJP: Record<string, number> = { "Senin": 3 };
+          let currentFallback = new Date(startDate);
+          while (currentFallback <= endDate) {
+              const dayName = getDayName(currentFallback);
+              const dateStr = formatDateLocal(currentFallback);
+              const conflict = checkNonEffectiveDate(dateStr);
+              if (fallbackDays.includes(dayName) && (!conflict)) {
+                  const jp = fallbackDailyJP[dayName] || 3;
+                  if (jp > 0) {
+                    dates.push({ date: new Date(currentFallback), jp });
+                  }
+              }
+              currentFallback.setDate(currentFallback.getDate() + 1);
+          }
+      }
+
       return dates;
   };
 
@@ -2382,10 +6531,48 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
   };
 
   const calculateCalendarAnalysis = (className: string, subject: string): AnalysisResult | null => {
-        const rawSelectedDays = classSchedules[className] || [];
+        let weeklyRoster: Record<string, any[]> = {};
+        try {
+            const saved = localStorage.getItem(`prota_weekly_roster_${className}`);
+            if (saved) weeklyRoster = JSON.parse(saved);
+        } catch (e) {}
+
+        const daysList = schoolDaysCount === 5 
+            ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+            : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+        const subjectScheduledDays: string[] = [];
+        const subjectDailyJpMap: Record<string, number> = {};
+
+        daysList.forEach(day => {
+            const slots = weeklyRoster[day] || [];
+            let dayJp = 0;
+            slots.forEach(slot => {
+                if (!slot || !slot.subject) return;
+                const slotSubjLower = slot.subject.toLowerCase().trim();
+                const targetSubjLower = subject.toLowerCase().trim();
+                if (slotSubjLower === targetSubjLower ||
+                    slotSubjLower.includes(targetSubjLower) ||
+                    targetSubjLower.includes(slotSubjLower)) {
+                    dayJp += Number(slot.jp) || 1;
+                }
+            });
+            if (dayJp > 0) {
+                subjectScheduledDays.push(day);
+                subjectDailyJpMap[day] = dayJp;
+            }
+        });
+
+        const rawSelectedDays = subjectScheduledDays.length > 0 
+            ? subjectScheduledDays 
+            : (classSchedules[className] || []);
+
         const selectedDays = schoolDaysCount === 5 ? rawSelectedDays.filter(d => d !== 'Sabtu') : rawSelectedDays;
         
-        if (selectedDays.length === 0) return null;
+        const finalDays = selectedDays.length > 0 ? selectedDays : ["Senin"];
+        const dailyJpSource = subjectScheduledDays.length > 0 
+            ? subjectDailyJpMap 
+            : (classDailyJP[className] || {});
 
         const subjectKey = getSubjectKey(subject);
         const annualTargetJP = subjectKey ? JP_STANDARDS[subjectKey]?.[className] || 0 : 0;
@@ -2423,10 +6610,10 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
             const isSabtu = dayName === 'Sabtu';
             const isSabtuNonEffective = schoolDaysCount === 5 && isSabtu;
 
-            if (selectedDays.includes(dayName)) {
+            if (finalDays.includes(dayName)) {
                  const conflict = checkNonEffectiveDate(dateStr) || (isSabtuNonEffective ? { description: 'Libur Sabtu', type: 'holiday' } : null);
                  if (!conflict) {
-                     const dailyJPVal = (classDailyJP[className] || {})[dayName] || 3;
+                     const dailyJPVal = dailyJpSource[dayName] || 3;
                      totalAvailableSlots++;
                      monthDetails[monthKey].effectiveDays++;
                      dayDistribution[dayName] = (dayDistribution[dayName] || 0) + 1;
@@ -2471,25 +6658,7 @@ const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, b
             details: Object.values(monthDetails),
             dayDistribution
         };
-  };const normalizeClassStr = (str: string): string => {
-    if (!str) return '';
-    let s = String(str).toLowerCase().trim().replace(/\s+/g, '');
-    s = s.replace(/kelas/g, '').replace(/kls/g, '').replace(/sd/g, '');
-    const romanMap: Record<string, string> = {
-        'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6'
-    };
-    if (romanMap[s]) return romanMap[s];
-    const numMatch = s.match(/\d/);
-    if (numMatch) return numMatch[0];
-    return s;
-};
-
-const isSameClass = (classA: string, classB: string): boolean => {
-    if (!classA || !classB) return false;
-    const normA = normalizeClassStr(classA);
-    const normB = normalizeClassStr(classB);
-    return normA !== '' && normA === normB;
-};
+  };
 
 const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string) => {
     if (!currData || !currData.elements) return [];
@@ -2626,6 +6795,13 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
       
       setData(resultData);
       addActivity('CP_TP', subjectToUse, `Analisis CP & TP untuk ${faseToUse.name}`, resultData);
+      
+      try {
+          await generateATP(selectedClass, resultData);
+      } catch (atpErr) {
+          console.error("Gagal membuat ATP otomatis:", atpErr);
+      }
+
       return resultData;
 
     } catch (err: any) {
@@ -2637,15 +6813,20 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
     }
   };
 
-  const generateATP = async (className: string) => {
+  const generateATP = async (className: string, overrideData?: CurriculumData) => {
     console.log(`Memulai generateATP untuk ${className}...`);
     setAtpLoading(className);
     setError(null);
 
-    let activeData = data;
+    let activeData = overrideData || data;
     let flatTPs = extractFlatTPs(activeData, className);
 
     if (!activeData || flatTPs.length === 0) {
+        if (overrideData) {
+            setAtpLoading(null);
+            setError(`Data TP kosong.`);
+            return;
+        }
         console.log(`TP untuk ${className} tidak ditemukan dalam data saat ini. Otomatis membuat CP & TP...`);
         const targetFase = FASES.find(f => f.classes.some(c => isSameClass(c, className))) || selectedFase;
         const newData = await generateContent(targetFase, selectedSubject);
@@ -2689,8 +6870,8 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
         if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
         const ai = new GoogleGenAI({ apiKey });
 
-        // 2. TIMELINE GENERATION based on Calendar
-        const allEffectiveDates = getEffectiveDates(className);
+        // 2. TIMELINE GENERATION based on Calendar (using subject from activeData)
+        const allEffectiveDates = getEffectiveDates(className, activeData.subject);
         if (allEffectiveDates.length === 0) {
             throw new Error("Tidak ada hari efektif yang tersedia untuk jadwal yang dipilih. Silakan periksa kalender akademik atau pilih hari lain.");
         }
@@ -2793,37 +6974,39 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
              }
         });
 
-        const totalAIJP = flatTPs.reduce((sum, f) => {
-            const alloc = result.allocations?.find(a => a.tpId === f.id);
-            return sum + (alloc?.activities || []).reduce((s, a) => s + (a.jp || 2), 0);
-        }, 0) || 1;
+        const N = timelineSlots.length;
+        const M = flatTPs.length;
+        const slotsPerTP = new Array(M).fill(0);
 
-        let slotsRemaining = timelineSlots.length;
-        let aiJPRemaining = totalAIJP;
-        let slotCursor = 0;
-
-        // Iterate flatTPs to ensure every TP is handled
-        flatTPs.forEach((f, idx) => {
-            const aiAllocation = result.allocations?.find(a => a.tpId === f.id);
-            const activities = aiAllocation?.activities || [];
-            const tpAIJP = activities.reduce((s, a) => s + (a.jp || 2), 0) || 1;
-            
-            let slotsForThisTP = Math.round((tpAIJP / aiJPRemaining) * slotsRemaining);
-            
-            const remainingTPs = flatTPs.length - 1 - idx;
-            if (slotsForThisTP < 1) slotsForThisTP = 1;
-            if (slotsForThisTP > slotsRemaining - remainingTPs) {
-                slotsForThisTP = slotsRemaining - remainingTPs;
+        if (M <= N) {
+            const base = Math.floor(N / M);
+            const rem = N % M;
+            for (let i = 0; i < M; i++) {
+                slotsPerTP[i] = base + (i < rem ? 1 : 0);
             }
-            
-            aiJPRemaining -= tpAIJP;
-            slotsRemaining -= slotsForThisTP;
+        } else {
+            // M > N: Give 1 slot to every TP
+            for (let i = 0; i < M; i++) {
+                slotsPerTP[i] = 1;
+            }
+        }
 
+        const paddedSlots = [...timelineSlots];
+        while (paddedSlots.length < M) {
+            paddedSlots.push(timelineSlots[timelineSlots.length - 1]);
+        }
+
+        let slotCursor = 0;
+        flatTPs.forEach((f, idx) => {
+            const numSlots = slotsPerTP[idx];
             const processedItems: AtpItem[] = [];
 
-            if (slotsForThisTP > 0) {
-                const slots = timelineSlots.slice(slotCursor, slotCursor + slotsForThisTP);
-                slotCursor += slotsForThisTP;
+            if (numSlots > 0) {
+                const slots = paddedSlots.slice(slotCursor, slotCursor + numSlots);
+                slotCursor += numSlots;
+
+                const aiAllocation = result.allocations?.find(a => a.tpId === f.id);
+                const activities = aiAllocation?.activities || [];
 
                 if (activities.length > 0) {
                     slots.forEach((slot, slotIdx) => {
@@ -2834,9 +7017,9 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
                          const assignedActivities = activities.slice(startActIdx, endActIdx);
                          
                          processedItems.push({
-                               alur: assignedActivities.map(a => "- " + a.alur).join('\n'),
-                               alokasiWaktu: `${slot.allocatedJP} JP`,
-                               planDate: slot.date
+                                alur: assignedActivities.map(a => "- " + a.alur).join('\n'),
+                                alokasiWaktu: `${slot.allocatedJP} JP`,
+                                planDate: slot.date
                          });
                     });
                 } else {
@@ -3046,34 +7229,38 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
           }));
 
           const prompt = `
-Bertindaklah sebagai **Tim Ahli Kurikulum Pendidikan Indonesia**, yang terdiri atas:
-* Ahli Kurikulum Kemendikdasmen
-* Pengembang Modul Ajar
-* Pengembang Kurikulum Merdeka
-* Pengembang Pembelajaran Mendalam (Deep Learning)
-* Pengawas Sekolah
-* Asesor Akreditasi Sekolah
-* Guru Inti Nasional
-* Editor Bahasa Indonesia
-* Desainer Dokumen Pendidikan
+# MASTER PROMPT — GENERATOR RENCANA PEMBELAJARAN MENDALAM (RPM) GABUNGAN BERBASIS ATP
 
-Anda memiliki pengalaman lebih dari 20 tahun dalam menyusun perangkat ajar SD.
-Seluruh dokumen HARUS menggunakan Bahasa Indonesia baku, profesional, mudah dipahami guru, serta siap digunakan sebagai dokumen resmi sekolah dan siap dicetak tanpa perlu ditambah lagi.
+## PERAN ANDA
+Anda adalah **AI Generator Rencana Pembelajaran Mendalam (RPM)** untuk guru SD/MI profesional. Anda menyusun dokumen perangkat ajar resmi yang utuh, konkret, aplikatif, dan menyeluruh, siap pakai dan siap dicetak ke Microsoft Word tanpa teks placeholder atau kerangka kosong.
 
-# TUJUAN
-Anda akan menghasilkan **Modul Ajar Lengkap** (bukan ringkasan), utuh dan menyeluruh, yang mencakup beberapa Alur Tujuan Pembelajaran (ATP) sekaligus dalam satu dokumen modul ajar. 
-Dokumen harus siap dicetak dan dipindahkan ke Microsoft Word tanpa perlu ditambah lagi.
+## LANDASAN PENYUSUNAN & REGULASI
+- **Permendikdasmen Nomor 13 Tahun 2025**
+- Pendekatan: **PEMBELAJARAN MENDALAM (DEEP LEARNING)**
+- **8 Dimensi Profil Lulusan**:
+  1. Keimanan dan Ketakwaan terhadap Tuhan Yang Maha Esa
+  2. Kewargaan
+  3. Penalaran Kritis
+  4. Kreativitas
+  5. Kolaborasi
+  6. Kemandirian
+  7. Kesehatan
+  8. Komunikasi
+- **3 Prinsip Pembelajaran Mendalam**:
+  1. Berkesadaran (Mindful)
+  2. Bermakna (Meaningful)
+  3. Menggembirakan (Joyful)
+- **3 Pengalaman Belajar (Wajib di Setiap Pertemuan)**:
+  1. Memahami (Acquiring & constructing understanding)
+  2. Mengaplikasi (Applying knowledge in real contexts)
+  3. Merefleksi (Evaluating process, difficulties, and self-growth)
+- **4 Kerangka Pembelajaran**:
+  1. Praktik Pedagogis (Model terpilih, sintaks lengkap, metode, alasan)
+  2. Kemitraan Pembelajaran (Guru-murid, antar-murid, orang tua, komunitas)
+  3. Lingkungan Pembelajaran (Fisik, sosial, psikologis/emosional)
+  4. Pemanfaatan Digital (Media & teknologi fungsional)
 
-# LANDASAN PENYUSUNAN
-* Permendikdasmen Nomor 13 Tahun 2025
-* Capaian Pembelajaran (CP) yang berlaku untuk mata pelajaran dan fase yang diminta
-* Prinsip Pembelajaran Mendalam (Deep Learning)
-* Delapan Dimensi Profil Lulusan
-* Prinsip 8,3,3,4
-* Kurikulum yang berlaku
-Jangan mengutip atau mengklaim isi regulasi yang tidak diketahui. Bila informasi spesifik belum diberikan pengguna (misalnya NIP atau data spesifik), gunakan placeholder **[DIISI OLEH GURU]**.
-
-# INFORMASI UTAMA:
+## INFORMASI SUMBER DARI PENGGUNA & ATP:
 - Nama Guru / Penyusun: ${userIdentity.authorName}
 - NIP: [DIISI OLEH GURU]
 - Sekolah / Instansi: ${userIdentity.institutionName}
@@ -3092,120 +7279,107 @@ ${combinedTPs}
 - Model Pembelajaran: ${modelResponseText}
 - Karakteristik Peserta Didik: ${selectedCharacteristic || 'Beragam (Visual, Auditori, Kinestetik)'}
 
-# PRINSIP PEMBELAJARAN (DEEP LEARNING 8,3,3,4) WAJIB DIURAIKAN KONTEKSUAL:
-A. 8 Dimensi Profil Lulusan (Uraikan implementasi konkret setiap dimensi pada materi):
-   1. Beriman, Bertakwa kepada Tuhan YME, dan Berakhlak Mulia
-   2. Berkebinekaan Global
-   3. Gotong Royong
-   4. Mandiri
-   5. Bernalar Kritis
-   6. Kreatif
-   7. Jasmani dan Rohani yang Sehat
-   8. Pemahaman Literasi-Numerasi / Komunikasi
-B. 3 Prinsip Pembelajaran (Jelaskan implementasi nyata pada materi):
-   1. Mindful Learning (Pembelajaran Bermakna & Kesadaran Diri)
-   2. Meaningful Learning (Pembelajaran Relevan dengan Kehidupan Nyata)
-   3. Joyful Learning (Pembelajaran Menyenangkan & Menggugah Semangat)
-C. 3 Pengalaman Belajar (Lengkapi aktivitas peserta didik pada setiap bagian):
-   1. Memahami
-   2. Mengaplikasi
-   3. Merefleksi
-D. 4 Kerangka Pembelajaran (Jelaskan implementasinya secara nyata sesuai materi):
-   1. Praktik Pedagogis
-   2. Kemitraan Pembelajaran
-   3. Lingkungan Pembelajaran
-   4. Pemanfaatan Teknologi Digital
+## ATURAN WAJIB GENERASI KONTEN:
+1. **JANGAN MEMBUAT PLACEHOLDER / KERANGKA KOSONG**: Dilarang menggunakan "[isi materi]", "[masukkan soal]", "...", "dan lain-lain", teks dummy. Seluruh materi, soal, kunci jawaban, rubrik, dan LKPD wajib ditulis lengkap dan siap digunakan mengajar.
+2. **ATURAN TANGGAL & JP**: Gunakan tanggal dan total alokasi JP (${totalJP} JP, ${dateString}). 1 JP = 35 menit SD.
+3. **BREAKDOWN TUJUAN PEMBELAJARAN**: Analisis TP utama dari ATP dan pecah menjadi TP Turunan operasional terukur dengan pola: *Peserta didik + kata kerja operasional + kompetensi + kondisi/konteks + kriteria keberhasilan*.
 
-# STRUKTUR MODUL AJAR (WAJIB BERURUTAN & LENGKAP):
-Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontainer utama) dengan komponen wajib berurutan berikut:
+## STRUKTUR LENGKAP DOKUMEN RPM (WAJIB BERURUTAN DALAM HTML MURNI):
 
-1. **COVER**:
-   - Judul Modul Ajar: MODUL AJAR ${data?.subject ? data.subject.toUpperCase() : 'MAPEL'} (H1, center, bold, 16pt, uppercase)
-   - Landasan Subtitle: BERBASIS PERMENDIKDASMEN NOMOR 13 TAHUN 2025 (italic, 11pt, color: #374151, center)
-   - Logo Sekolah Placeholder: [ LOGO SEKOLAH / INSTANSI ] (border dashed, padding 10px, text-align center)
-   - Blok Identitas Cover: Nama Guru (${userIdentity.authorName}), NIP ([DIISI OLEH GURU]), Sekolah (${userIdentity.institutionName}), Tahun Pelajaran (${userIdentity.academicYear || '2025/2026'}), Fase (${data?.fase}), Kelas (${className}), Semester (${semChoice}), Mata Pelajaran (${data?.subject}).
+Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan struktur rapi berikut:
 
-2. **IDENTITAS MODUL**:
-   - Tabel HTML 2-kolom rapi (style: width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10.5pt;).
-   - Tampilkan: Nama Guru, Sekolah, NIP [DIISI OLEH GURU], Fase, Kelas, Semester, Mapel, Topik Gabungan, Total Alokasi Waktu (${totalJP} JP), Tanggal Pelaksanaan (<span style="color: #dc2626; font-weight: bold;">Jadwal: ${dateString}</span>), Model Pembelajaran, Pendekatan, Metode, Media, Sumber Belajar, Karakteristik Peserta Didik, Target Peserta Didik, Sarana Prasarana.
+1. **COVER & HEADER RPM**:
+   - Judul: <h1 style="font-family: 'Yu Gothic UI', Arial, sans-serif; font-size: 16pt; font-weight: bold; text-align: center; color: #111827; margin: 0 0 4pt 0; text-transform: uppercase;">RENCANA PEMBELAJARAN MENDALAM (RPM) / MODUL AJAR</h1>
+   - Subjudul: <div style="text-align: center; font-style: italic; font-size: 11pt; color: #374151; margin-bottom: 12pt;">BERBASIS ATP & PERMENDIKDASMEN NOMOR 13 TAHUN 2025 (DEEP LEARNING)</div>
+   - Blok Identitas Cover: Sekolah (${userIdentity.institutionName}), Mata Pelajaran (${data?.subject}), Kelas (${className}), Semester (${semChoice}), Penyusun (${userIdentity.authorName}).
 
-3. **CAPAIAN PEMBELAJARAN (CP)**: CP lengkap sesuai mata pelajaran dan fase.
+2. **I. IDENTIFIKASI RPM / IDENTITAS UMUM**:
+   - Tabel HTML 2-kolom rapi (Nama Sekolah, Nama Guru, NIP [DIISI OLEH GURU], Mata Pelajaran, Kelas / Fase, Semester / Tahun Pelajaran, Topik Gabungan, Pertemuan, Tanggal Pelaksanaan: <span style="color: #dc2626; font-weight: bold;">${dateString}</span>, Alokasi Waktu: ${totalJP} JP, Total JP).
 
-4. **TUJUAN PEMBELAJARAN (TP)**: Memuat tujuan pembelajaran spesifik dengan kata kerja operasional (KKO) yang terukur.
+3. **II. IDENTIFIKASI PESERTA DIDIK**:
+   - Tabel HTML 2-kolom:
+     | Aspek | Deskripsi Nyata |
+     | Pengetahuan Awal | (Uraikan kondisi awal dan prasyarat belajar yang relevan dengan ATP) |
+     | Minat Belajar | (Uraikan variasi minat peserta didik yang relevan dengan materi) |
+     | Kebutuhan Belajar & Diferensiasi | (Uraikan strategi scaffolding, diferensiasi konten/proses/produk) |
 
-5. **ALUR TUJUAN PEMBELAJARAN (ATP)**: Rangkaian ATP yang berurutan, logis, dan berkesinambungan.
+4. **III. MATERI PEMBELAJARAN (4 DIMENSI MATERI)**:
+   - Tabel HTML:
+     | Dimensi Materi | Uraian Materi Konkret |
+     | Faktual | (Fakta-fakta nyata terkait materi) |
+     | Konseptual | (Konsep, teori, prinsip utama) |
+     | Prosedural | (Langkah-langkah kerja/metode) |
+     | Metakognitif | (Kesadaran strategi berpikir & refleksi penerapan diri) |
 
-6. **PEMAHAMAN BERMAKNA**: Manfaat konkret pembelajaran bagi kehidupan nyata peserta didik sesuai level kelas.
+5. **IV. 8 DIMENSI PROFIL LULUSAN**:
+   - Tabel HTML:
+     | Dimensi Profil Lulusan | Penerapan Konkret dalam Pembelajaran |
+     Pilih dan uraikan dimensi yang relevan secara nyata:
+     - Keimanan dan Ketakwaan terhadap Tuhan YME
+     - Kewargaan
+     - Penalaran Kritis
+     - Kreativitas
+     - Kolaborasi
+     - Kemandirian
+     - Kesehatan
+     - Komunikasi
 
-7. **PERTANYAAN PEMANTIK**: Minimal 5 pertanyaan pemantik yang mengaktifkan berpikir kritis dan rasa ingin tahu.
+6. **V. DESAIN PEMBELAJARAN**:
+   - **A. Tujuan Pembelajaran**: Tabel (Pertemuan | Kode TP | Tujuan Pembelajaran - mencakup TP Utama dan TP Turunan operasional terukur).
+   - **B. Lintas Disiplin Ilmu**: Tabel (Mata Pelajaran Terkait | Keterkaitan Konkret).
+   - **C. Praktik Pedagogis**: Tabel (Pendekatan: Pembelajaran Mendalam | Model Terpilih | Sintaks Model Lengkap | Metode | Alasan Pedagogis).
+   - **D. Kemitraan Pembelajaran**: Tabel (Jenis Kemitraan [Guru-Murid, Murid-Murid, Orang Tua, Lingkungan] | Bentuk Kerja Sama Konkret).
+   - **E. Lingkungan Pembelajaran**: Tabel (Aspek Fisik, Sosial, Psikologis/Emosional | Kondisi & Penerapan Mendukung).
+   - **F. Pemanfaatan Digital**: Tabel (Media / Perangkat Digital | Cara Penggunaan Fungsional).
 
-8. **DIAGNOSTIK**:
-   - Diagnostik Kognitif & Diagnostik Non-Kognitif lengkap beserta instrumen dan kriteria tindak lanjut.
+7. **VI. LANGKAH-LANGKAH PEMBELAJARAN SETIAP PERTEMUAN**:
+   Buat rincian lengkap untuk SETIAP PERTEMUAN (mencakup seluruh rangkaian pertemuan dalam alokasi ${totalJP} JP dan tanggal ${dateString}):
+   - Header Pertemuan: **PERTEMUAN X** (Kode TP, Tanggal Pelaksanaan, Alokasi Waktu, Level Kognitif, TP, Model Pembelajaran, Sintaks).
+   - **KEGIATAN AWAL (15 menit)**: Salam, doa, presensi, apersepsi kontekstual, pertanyaan pemantik berpikir tingkat tinggi, motivasi, penyampaian tujuan belajar & aktivitas, pembuka menggembirakan. Disertai label: *(Berkesadaran)*, *(Bermakna)*, *(Menggembirakan)*, *(Penalaran Kritis)*, *(Komunikasi)*.
+   - **KEGIATAN INTI**: Wajib menggunakan Tabel HTML 3 Kolom:
+     | Pengalaman Belajar | Sintaks & Aktivitas Pembelajaran | Dimensi Profil Lulusan |
+     Terbagi menjadi 3 Pengalaman Belajar Pembelajaran Mendalam:
+     1. **MEMAHAMI**: Aktivitas nyata murid mengamati, membaca, menyimak, mengidentifikasi, mengajukan pertanyaan, menganalisis informasi secara mendalam.
+     2. **MENGAPLIKASI**: Aktivitas nyata murid memecahkan masalah kontekstual, berdiskusi kelompok, melakukan eksperimen/simulasi, menghasilkan produk/karya nyata.
+     3. **MEREFLEKSI**: Aktivitas nyata murid mengevaluasi proses belajar, menilai hasil, menyadari kesulitan, merumuskan strategi perbaikan diri.
+   - **KEGIATAN AKHIR (10 menit)**: Kesimpulan pembelajaran bersama murid, umpan balik konstruktif guru, refleksi pengalaman belajar, tindak lanjut, penyampaian materi berikutnya, doa penutup.
 
-9. **PEMBELAJARAN MENDALAM (DEEP LEARNING 8,3,3,4)**:
-   - Uraian kontekstual implementasi 8 Dimensi Profil Lulusan, 3 Prinsip Pembelajaran (Mindful, Meaningful, Joyful), 3 Pengalaman Belajar (Memahami, Mengaplikasi, Merefleksi), dan 4 Kerangka Pembelajaran (Praktik Pedagogis, Kemitraan, Lingkungan, Teknologi Digital).
+8. **VII. ASESMEN PEMBELAJARAN SETIAP PERTEMUAN**:
+   - Tabel HTML:
+     | Jenis Asesmen | Bentuk & Teknik | Instrumen & Bukti Belajar |
+     | Asesmen Diagnostik (Awal) | Pertanyaan lisan / kuis diagnostik | Instrumen pertanyaan awal & pedoman tindak lanjut |
+     | Asesmen Formatif (Proses) | Observasi partisipasi, diskusi LKPD, unjuk kerja | Lembar observasi & checklist indikator kinerja |
+     | Asesmen Sumatif (Akhir) | Tes tertulis / produk / presentasi | Butir soal sumatif atau rubrik penilaian produk |
 
-10. **LANGKAH PEMBELAJARAN**:
-    - Dibuat sangat rinci untuk setiap pertemuan (sesuai total beban ${totalJP} JP dan alokasi tanggal ${dateString}).
-    - Menggunakan TABEL HTML rapi.
-    - Minimal terdiri atas: Pendahuluan, Kegiatan Inti, Penutup.
-    - Cantumkan estimasi waktu JP dan tanggal pelaksanaan dari ATP.
-    - Pada Kegiatan Inti, jelaskan aktivitas guru dan peserta didik secara rinci sesuai sintaks model pembelajaran yang dipilih.
+9. **VIII. LAMPIRAN MODUL AJAR (LENGKAP & TANPA PLACEHOLDER)**:
+   - **LAMPIRAN 1 — RINGKASAN MATERI / BAHAN AJAR**: Materi lengkap, sistematis, dan aplikatif untuk guru dan peserta didik.
+   - **LAMPIRAN 2 — SOAL ASESMEN AWAL (DIAGNOSTIK)**: Minimal 5 soal nyata lengkap dengan kunci jawaban dan pedoman penskoran.
+   - **LAMPIRAN 3 — MEDIA PEMBELAJARAN**: Tabel (No | Nama Media | Deskripsi & Cara Penggunaan dalam Pembelajaran).
+   - **LAMPIRAN 4 — SOAL ASESMEN FORMATIF**: Tabel (Pertemuan/TP | Butir Soal Formatif | Bentuk & Kunci Jawaban).
+   - **LAMPIRAN 5 — RUBRIK PENILAIAN LENGKAP**:
+     * A. Rubrik Sikap / Profil Lulusan (Skala 1 - 4: Perlu Bimbingan, Cukup, Baik, Sangat Baik beserta deskriptor jelas).
+     * B. Rubrik Pengetahuan (Kriteria & rentang skor).
+     * C. Rubrik Keterampilan / Kinerja Produk (Aspek, kriteria, dan deskripsi capaian).
+   - **LAMPIRAN 6 — LEMBAR KERJA MURID (LKM / LKPD) PER PERTEMUAN**:
+     * Header LKPD: LKPD [MAPEL] | KELAS [X] | TOPIK: [MATERI]
+     * Identitas Murid: Nama, Kelas, Tanggal.
+     * A. Tujuan Pembelajaran
+     * B. Petunjuk Pengerjaan
+     * C. Aktivitas / Tugas / Tabel Pengamatan / Ruang Kerja
+     * D. Kesimpulan
+     * E. **REFLEKSIKU** (Pertanyaan refleksi pengalaman belajar bermakna dan menggembirakan).
 
-11. **ASESMEN**:
-    - Diagnostik, Formatif, Sumatif (Lengkap).
-    - Pilih salah satu instrumen asesmen yang PALING RELEVAN berdasarkan tujuan pembelajaran, karakteristik materi, model, pendekatan, metode, aktivitas, dan bukti belajar. Jangan memaksakan seluruh jenis asesmen. Setiap asesmen yang dipilih harus memiliki keterkaitan langsung dengan TP.
+10. **IX. TABEL VALIDASI OTOMATIS & SUMMARY RPM**:
+    - Tabel Validasi HTML (3 kolom: ASPEK VALIDASI | STATUS [LENGKAP / SESUAI / KONSISTEN] | CATATAN KEPATUHAN PERMENDIKDASMEN NO. 13 TAHUN 2025).
+    - Ringkasan Checklist Pemenuhan Komponen RPM Pembelajaran Mendalam.
 
-12. **INSTRUMEN PENILAIAN**:
-    - Pilih salah satu instrumen penilaian yang PALING RELEVAN (Observasi / Kinerja / Produk / Tes Tertulis / Tes Lisan / Praktik / Portofolio). Jangan memaksakan seluruh instrumen. Setiap instrumen dilengkapi kriteria dan bukti belajar.
-
-13. **RUBRIK PENILAIAN**:
-    - Gunakan skala yang konsisten (contoh: Skor 4 = Sangat Baik, 3 = Baik, 2 = Cukup, 1 = Perlu Bimbingan). Sertakan indikator dan deskripsi jelas untuk tiap tingkat capaian.
-
-14. **PENGAYAAN**: Rencana & materi pengayaan lengkap untuk peserta didik yang mencapai KTPM.
-
-15. **REMEDIAL**: Rencana & pendampingan remedial lengkap untuk peserta didik yang belum mencapai KTPM.
-
-16. **REFLEKSI GURU**: Minimal 10 pertanyaan refleksi mendalam untuk evaluasi diri guru.
-
-17. **REFLEKSI PESERTA DIDIK**: Minimal 10 pertanyaan refleksi sederhana dan ramah anak sesuai usia peserta didik.
-
-18. **LEMBAR KERJA PESERTA DIDIK (LKPD)**:
-    - Format SIAP CETAK.
-    - Memiliki: Judul, Tujuan, Petunjuk, Alat & Bahan, Langkah Kerja, Tugas, Soal, Ruang Jawaban.
-
-19. **BAHAN BACAAN**: Bahan Bacaan Guru dan Bahan Bacaan Peserta Didik.
-
-20. **GLOSARIUM**: Definisi lengkap seluruh istilah penting dalam materi.
-
-21. **DAFTAR PUSTAKA**: Disusun sesuai sumber referensi yang benar-benar digunakan. Jangan mengarang referensi.
-
-22. **LAMPIRAN**:
-    - Cantumkan lampiran relevan: Lembar Observasi, Rubrik Sikap, Rubrik Pengetahuan, Rubrik Keterampilan, Daftar Hadir, Jurnal Mengajar, Jurnal Refleksi, Instrumen Diagnostik, Bank Soal, Kunci Jawaban, Pedoman Penskoran, Media Pembelajaran, Bahan Presentasi, Daftar Alat dan Bahan, Rencana Pengayaan, Rencana Remedial.
-
-23. **TABEL VALIDASI OTOMATIS**:
-    - Lakukan pemeriksaan mandiri dan tampilkan TABEL VALIDASI OTOMATIS HTML (3 kolom: ASPEK OTOMATIS | STATUS [LENGKAP/SESUAI/KONSISTEN] | CATATAN VALIDASI) yang memuat:
-      * Kelengkapan komponen modul
-      * Kesesuaian dengan data pengguna
-      * Bagian yang menggunakan placeholder [DIISI OLEH GURU]
-      * Bagian yang perlu disesuaikan sekolah
-      * Konsistensi tujuan, kegiatan, dan asesmen
-
-24. **OUTPUT RINGKASAN & CATATAN PENYEMPURNAAN**:
-    - Sertakan ringkasan di bagian paling bawah:
-      1. Modul Ajar Lengkap Status: SUDAH DIPENUHI
-      2. Tabel Validasi: TERSEDIA
-      3. Daftar Komponen yang Telah Dipenuhi
-      4. Daftar Placeholder yang Perlu Dilengkapi Guru (jika ada)
-      5. Saran Penyempurnaan Modul Ajar
-
-# FORMAT PENULISAN & STYLING HTML:
-- Gunakan tag <h2 style="color: #059669; font-size: 13pt; font-weight: bold; margin-top: 22px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #059669; padding-bottom: 3px; font-family: Arial, sans-serif;"> untuk Judul Bagian Utama (Menggunakan Angka Romawi I sampai XXIV).
-- Gunakan <h3 style="color: #111827; font-size: 11pt; font-weight: bold; margin-top: 12px; margin-bottom: 4px; font-family: Arial, sans-serif;"> untuk Sub-Bagian.
-- Semua TABEL HTML wajib menggunakan style: border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; margin-top: 8px; margin-bottom: 14px; font-size: 10.5pt;.
-- Tabel header <th>: background-color: #f1f5f9; font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left;.
-- Tabel cell <td>: padding: 6px 8px; border: 1px solid #cbd5e1; vertical-align: top;.
-- Berikan output HANYA berupa kode HTML div murni (tanpa tag <html>/<body>, tanpa markdown triple backticks).
+## ATURAN STYLING HTML:
+- Judul Bab Utama: <h2 style="color: #059669; font-size: 13pt; font-weight: bold; margin-top: 22px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #059669; padding-bottom: 3px; font-family: 'Yu Gothic UI', Arial, sans-serif;">
+- Sub-Judul: <h3 style="color: #111827; font-size: 11pt; font-weight: bold; margin-top: 12px; margin-bottom: 4px; font-family: 'Yu Gothic UI', Arial, sans-serif;">
+- Seluruh TABEL HTML wajib berformat: border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; margin-top: 8px; margin-bottom: 14px; font-size: 10.5pt; font-family: 'Yu Gothic UI', Arial, sans-serif;
+- Header tabel (th): background-color: #f1f5f9; font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; color: #0f172a;
+- Sel tabel (td): padding: 6px 8px; border: 1px solid #cbd5e1; vertical-align: top;
+- Output HANYA berupa kode HTML div murni (tanpa tag <html>/<body>, tanpa triple backticks).
 `;
 
           let response;
@@ -3333,25 +7507,25 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
         <head>
           <meta charset='utf-8'>
-          <title>Kumpulan Modul Ajar ${className}</title>
+          <title>Kumpulan RPM Modul Ajar ${className}</title>
           <style>
             @page {
               size: ${size.width} ${size.height};
               mso-page-orientation: portrait;
-              margin: 2.54cm 2.54cm 2.54cm 2.54cm;
+              margin: 2cm 2cm 2cm 2cm;
               mso-header-margin: 36pt;
               mso-footer-margin: 36pt;
               mso-paper-source: 0;
             }
             body {
-              font-family: Arial, 'Helvetica Neue', sans-serif;
+              font-family: 'Yu Gothic UI', 'Segoe UI', Arial, 'Helvetica Neue', sans-serif;
               font-size: 11pt;
-              line-height: 1.4;
+              line-height: 1.45;
               color: #1f2937;
             }
             h1 {
-              font-family: Arial, sans-serif;
-              font-size: 16pt;
+              font-family: 'Yu Gothic UI', Arial, sans-serif;
+              font-size: 15pt;
               font-weight: bold;
               text-align: center;
               color: #111827;
@@ -3359,39 +7533,39 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
               text-transform: uppercase;
             }
             h2 {
-              font-family: Arial, sans-serif;
-              font-size: 13pt;
+              font-family: 'Yu Gothic UI', Arial, sans-serif;
+              font-size: 12.5pt;
               font-weight: bold;
               color: #059669;
               text-transform: uppercase;
-              margin-top: 18pt;
-              margin-bottom: 8pt;
+              margin-top: 16pt;
+              margin-bottom: 6pt;
               border-bottom: 2px solid #059669;
               padding-bottom: 2pt;
             }
             h3 {
-              font-family: Arial, sans-serif;
+              font-family: 'Yu Gothic UI', Arial, sans-serif;
               font-size: 11pt;
               font-weight: bold;
               color: #111827;
-              margin-top: 12pt;
+              margin-top: 10pt;
               margin-bottom: 4pt;
             }
             p, li {
               margin-top: 3pt;
-              margin-bottom: 5pt;
-              line-height: 1.4;
+              margin-bottom: 4pt;
+              line-height: 1.45;
             }
             table {
               border-collapse: collapse;
               width: 100%;
               margin-top: 6pt;
-              margin-bottom: 12pt;
+              margin-bottom: 10pt;
               font-size: 10.5pt;
             }
             td, th {
               border: 1px solid #cbd5e1;
-              padding: 6pt 8pt;
+              padding: 5pt 7pt;
               vertical-align: top;
             }
             th {
@@ -3401,9 +7575,9 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
               text-align: left;
             }
             ul, ol {
-              margin-top: 4pt;
-              margin-bottom: 6pt;
-              padding-left: 20pt;
+              margin-top: 3pt;
+              margin-bottom: 5pt;
+              padding-left: 18pt;
             }
             img {
               max-width: 100%;
@@ -3423,9 +7597,9 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
         </head>
         <body>
           <div style="text-align: center; margin-bottom: 20pt;">
-              <h1 style="margin: 0; color: #059669;">KUMPULAN MODUL AJAR KURIKULUM MERDEKA</h1>
+              <h1 style="margin: 0; color: #059669;">KUMPULAN RENCANA PEMBELAJARAN MENDALAM (RPM) / MODUL AJAR</h1>
               <h3 style="margin: 5pt 0; color: #374151;">${userIdentity.institutionName.toUpperCase()}</h3>
-              <p style="margin: 2pt 0; font-size: 10.5pt;">Mata Pelajaran: <b>${data?.subject || '-'}</b> | Kelas: <b>${className}</b></p>
+              <p style="margin: 2pt 0; font-size: 10.5pt;">Mata Pelajaran: <b>${data?.subject || '-'}</b> | Kelas: <b>${className}</b> | Semester: <b>${semester}</b></p>
           </div>
           <hr style="border: 0; border-top: 1.5px solid #059669; margin-bottom: 15pt;"/>
           ${combinedHtml}
@@ -3440,7 +7614,7 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Semua_Modul_Ajar_${(data?.subject || 'Mapel').replace(/\s+/g, '_')}_${className.replace(/\s+/g, '_')}.doc`;
+      link.download = `Kumpulan_RPM_Modul_Ajar_${(data?.subject || 'Mapel').replace(/\s+/g, '_')}_${className.replace(/\s+/g, '_')}_Sem${semester}.doc`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -3642,7 +7816,7 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 relative z-10"
+                className={`w-full ${isLogin ? 'max-w-md' : 'max-w-lg'} bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 relative z-10`}
             >
                 <div className="flex justify-center mb-6">
                     <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/30">
@@ -3651,10 +7825,10 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                 </div>
                 
                 <h2 className="font-display text-3xl font-extrabold text-center text-slate-800 mb-2">
-                    {isLogin ? 'Selamat Datang' : 'Buat Akun'}
+                    {isLogin ? 'Selamat Datang' : 'Pendaftaran Guru & Kelas'}
                 </h2>
-                <p className="text-center text-slate-500 mb-8">
-                    {isLogin ? 'Masuk untuk melanjutkan ke platform' : 'Daftar untuk menyimpan perangkat ajar Anda'}
+                <p className="text-center text-slate-500 mb-6 text-sm">
+                    {isLogin ? 'Masuk untuk mengakses ruang kerja kelas Anda' : 'Pilih kelas yang diampu untuk personalisasi otomatis Prota & Modul Ajar'}
                 </p>
 
                 
@@ -3663,11 +7837,19 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
           e.preventDefault();
           const form = e.currentTarget as HTMLFormElement;
           const formData = new FormData(form);
-          const email = formData.get('email') as string;
-          const password = formData.get('password') as string;
-          const name = formData.get('name') as string || email.split('@')[0];
+          const rawEmail = formData.get('email');
+          const email = typeof rawEmail === 'string' ? rawEmail : '';
+          const password = String(formData.get('password') || '');
+          const rawName = formData.get('name');
+          const name = (typeof rawName === 'string' && rawName.trim()) ? rawName.trim() : (email.includes('@') ? email.split('@')[0] : 'Guru');
+          const institution = String(formData.get('institution') || 'Sekolah Dasar');
+          const assignedClassToSave = registerClass || 'Kelas 1';
           
-          const emailNormalized = email.toLowerCase().trim();
+          const emailNormalized = String(email || '').toLowerCase().trim();
+          if (!emailNormalized) {
+              setError('Email tidak boleh kosong.');
+              return;
+          }
           
           try {
               if (isLogin) {
@@ -3675,34 +7857,80 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                   const userSnap = await getDoc(userDocRef);
                   
                   if (userSnap.exists()) {
-                      const dbData = userSnap.data();
+                      const dbData = userSnap.data() || {};
                       if (dbData && dbData.password === password) {
                           const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
                           await updateDoc(userDocRef, { activeSessionId, lastActive: Date.now() });
                           
-                          const userData = { email: emailNormalized, name: dbData.name || emailNormalized.split('@')[0] };
+                          const userClass = dbData.assignedClass || 'Kelas 1';
+                          const instName = dbData.institutionName || 'Sekolah Dasar';
+                          const userName = dbData.name || emailNormalized.split('@')[0];
+                          const acadYear = dbData.academicYear || '2025/2026';
+                          const sem = dbData.semester || 'Ganjil (Semester 1)';
+
+                          const userData = { email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName };
                           await usersDB.setItem(emailNormalized, { ...dbData, activeSessionId, lastActive: Date.now() });
                           
                           localStorage.setItem('prota_user', JSON.stringify(userData));
                           localStorage.setItem('prota_session_id', activeSessionId);
+                          localStorage.setItem('prota_assigned_class', userClass);
+                          localStorage.setItem('prota_author_name', userName);
+                          localStorage.setItem('prota_institution_name', instName);
+                          localStorage.setItem('prota_academic_year', acadYear);
+                          localStorage.setItem('prota_semester', sem);
+
                           setUser(userData);
+                          setSelectedClass(userClass);
+                          setSelectedFase(getFaseForClass(userClass));
+                          setUserIdentity(prev => ({
+                              ...prev,
+                              authorName: userName,
+                              institutionName: instName,
+                              academicYear: acadYear,
+                              semester: sem,
+                              assignedClass: userClass
+                          }));
                           setAppStage('generator');
                       } else {
                           alert('Email atau Password salah.');
                       }
                   } else {
                       // Fallback & migration from local database
-                      const storedUser = await usersDB.getItem<{password: string, name: string, email: string}>(emailNormalized);
+                      const storedUser = await usersDB.getItem<any>(emailNormalized);
                       if (storedUser && storedUser.password === password) {
                           const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
-                          const userData = { email: emailNormalized, name: storedUser.name, password: storedUser.password, activeSessionId, lastActive: Date.now() };
+                          const userClass = storedUser.assignedClass || 'Kelas 1';
+                          const instName = storedUser.institutionName || 'Sekolah Dasar';
+                          const userName = storedUser.name || emailNormalized.split('@')[0];
+
+                          const userData = { 
+                              email: emailNormalized, 
+                              name: userName, 
+                              password: storedUser.password, 
+                              assignedClass: userClass,
+                              institutionName: instName,
+                              activeSessionId, 
+                              lastActive: Date.now() 
+                          };
                           
                           await setDoc(userDocRef, userData);
                           await usersDB.setItem(emailNormalized, userData);
                           
-                          localStorage.setItem('prota_user', JSON.stringify({ email: emailNormalized, name: storedUser.name }));
+                          localStorage.setItem('prota_user', JSON.stringify({ email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName }));
                           localStorage.setItem('prota_session_id', activeSessionId);
-                          setUser({ email: emailNormalized, name: storedUser.name });
+                          localStorage.setItem('prota_assigned_class', userClass);
+                          localStorage.setItem('prota_author_name', userName);
+                          localStorage.setItem('prota_institution_name', instName);
+
+                          setUser({ email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName });
+                          setSelectedClass(userClass);
+                          setSelectedFase(getFaseForClass(userClass));
+                          setUserIdentity(prev => ({
+                              ...prev,
+                              authorName: userName,
+                              institutionName: instName,
+                              assignedClass: userClass
+                          }));
                           setAppStage('generator');
                       } else {
                           alert('Email atau Password salah.');
@@ -3717,14 +7945,40 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                       alert('Akun dengan email ini sudah ada.');
                   } else {
                       const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
-                      const userData = { email: emailNormalized, password, name, activeSessionId, lastActive: Date.now() };
+                      const userData = { 
+                          email: emailNormalized, 
+                          password, 
+                          name, 
+                          assignedClass: assignedClassToSave,
+                          institutionName: institution,
+                          academicYear: '2025/2026',
+                          semester: 'Ganjil (Semester 1)',
+                          activeSessionId, 
+                          lastActive: Date.now() 
+                      };
                       
                       await setDoc(userDocRef, userData);
                       await usersDB.setItem(emailNormalized, userData);
                       
-                      localStorage.setItem('prota_user', JSON.stringify({ name, email: emailNormalized }));
+                      localStorage.setItem('prota_user', JSON.stringify({ name, email: emailNormalized, assignedClass: assignedClassToSave, institutionName: institution }));
                       localStorage.setItem('prota_session_id', activeSessionId);
-                      setUser({ name, email: emailNormalized });
+                      localStorage.setItem('prota_assigned_class', assignedClassToSave);
+                      localStorage.setItem('prota_author_name', name);
+                      localStorage.setItem('prota_institution_name', institution);
+                      localStorage.setItem('prota_academic_year', '2025/2026');
+                      localStorage.setItem('prota_semester', 'Ganjil (Semester 1)');
+
+                      setUser({ name, email: emailNormalized, assignedClass: assignedClassToSave, institutionName: institution });
+                      setSelectedClass(assignedClassToSave);
+                      setSelectedFase(getFaseForClass(assignedClassToSave));
+                      setUserIdentity({
+                          authorName: name,
+                          institutionName: institution,
+                          academicYear: '2025/2026',
+                          semester: 'Ganjil (Semester 1)',
+                          assignedClass: assignedClassToSave,
+                          customApiKey: localStorage.getItem('prota_custom_api_key') || ''
+                      });
                       setAppStage('tutorial');
                   }
               }
@@ -3733,48 +7987,90 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
               alert('Terjadi kesalahan saat memproses akun');
           }
       }}
-      className="space-y-5"
+      className="space-y-4"
   >
 
                     {!isLogin && (
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap</label>
-                            <input 
-                                type="text" 
-                                name="name"
-                                required 
-                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
-                                placeholder="Masukkan nama Anda"
-                            />
-                        </div>
+                        <>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Nama Lengkap &amp; Gelar</label>
+                                <input 
+                                    type="text" 
+                                    name="name"
+                                    required 
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/70 text-sm"
+                                    placeholder="Contoh: Budi Santoso, S.Pd."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Nama Sekolah / Instansi</label>
+                                <input 
+                                    type="text" 
+                                    name="institution"
+                                    required 
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/70 text-sm"
+                                    placeholder="Contoh: SD Negeri 1 Merdeka"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
+                                    <span>Pilih Kelas yang Diampu</span>
+                                    <span className="text-blue-600 font-semibold normal-case text-xs">Fokus Ruang Kerja Guru</span>
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {ALL_AVAILABLE_CLASSES.map((cls) => {
+                                        const isSelected = registerClass === cls.id;
+                                        return (
+                                            <button
+                                                key={cls.id}
+                                                type="button"
+                                                onClick={() => setRegisterClass(cls.id)}
+                                                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                                    isSelected
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                                                        : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-700'
+                                                }`}
+                                            >
+                                                <div className="font-bold text-sm leading-tight">{cls.id}</div>
+                                                <div className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                                    Fase {cls.faseId}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>
                     )}
                     
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Email</label>
                         <input 
                             type="email" 
                             name="email"
                             required 
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
-                            placeholder="nama@email.com"
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/70 text-sm"
+                            placeholder="guru@sekolah.sch.id"
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Kata Sandi</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Kata Sandi</label>
                         <input 
                             type="password" 
                             name="password"
                             required 
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50"
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/70 text-sm"
                             placeholder="Masukkan kata sandi"
                         />
                     </div>
 
                     <button 
                         type="submit" 
-                        className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5"
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5 mt-2 cursor-pointer"
                     >
-                        {isLogin ? 'Masuk' : 'Daftar Sekarang'}
+                        {isLogin ? 'Masuk ke Ruang Kerja' : 'Daftar & Mulai Sekarang'}
                     </button>
                 </form>
 
@@ -4059,6 +8355,36 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                             onChange={(e) => setUserIdentity(prev => ({...prev, institutionName: e.target.value}))}
                         />
                     </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <span>Kelas yang Diampu</span>
+                            <span className="text-blue-600 font-semibold text-xs">Penetapan Otomatis Perangkat Ajar</span>
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {ALL_AVAILABLE_CLASSES.map((cls) => {
+                                const isSelected = userIdentity.assignedClass === cls.id;
+                                return (
+                                    <button
+                                        key={cls.id}
+                                        type="button"
+                                        onClick={() => setUserIdentity(prev => ({ ...prev, assignedClass: cls.id }))}
+                                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                            isSelected
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                                        }`}
+                                    >
+                                        <div className="font-bold text-sm leading-tight">{cls.id}</div>
+                                        <div className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                            Fase {cls.faseId}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-1">Tahun Pelajaran</label>
@@ -4096,33 +8422,66 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                     <div className="flex gap-3 pt-4">
                         <button 
                             onClick={() => {
-                                setUserIdentity({ authorName: '', institutionName: '', academicYear: '', semester: '', customApiKey: '' });
+                                setUserIdentity({ authorName: '', institutionName: '', academicYear: '', semester: '', assignedClass: 'Kelas 1', customApiKey: '' });
                                 localStorage.removeItem('prota_author_name');
                                 localStorage.removeItem('prota_institution_name');
                                 localStorage.removeItem('prota_academic_year');
                                 localStorage.removeItem('prota_semester');
                                 localStorage.removeItem('prota_custom_api_key');
                             }}
-                            className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                            className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
                         >
                             Bersihkan
                         </button>
                         <button 
-                            onClick={() => {
+                            onClick={async () => {
+                                const targetClass = userIdentity.assignedClass || 'Kelas 1';
                                 localStorage.setItem('prota_author_name', userIdentity.authorName);
                                 localStorage.setItem('prota_institution_name', userIdentity.institutionName);
                                 localStorage.setItem('prota_academic_year', userIdentity.academicYear);
                                 localStorage.setItem('prota_semester', userIdentity.semester);
+                                localStorage.setItem('prota_assigned_class', targetClass);
+                                
+                                setSelectedClass(targetClass);
+                                setSelectedFase(getFaseForClass(targetClass));
+
                                 if (userIdentity.customApiKey) {
                                     localStorage.setItem('prota_custom_api_key', userIdentity.customApiKey);
                                 } else {
                                     localStorage.removeItem('prota_custom_api_key');
                                 }
+
+                                if (user && user.email) {
+                                    try {
+                                        const emailNorm = String(user?.email || '').toLowerCase().trim();
+                                        if (!emailNorm) return;
+                                        const userDocRef = doc(db, 'users', emailNorm);
+                                        const updatePayload = {
+                                            name: userIdentity.authorName || user.name,
+                                            institutionName: userIdentity.institutionName,
+                                            assignedClass: targetClass,
+                                            academicYear: userIdentity.academicYear,
+                                            semester: userIdentity.semester,
+                                            lastActive: Date.now()
+                                        };
+                                        await updateDoc(userDocRef, updatePayload);
+                                        const localObj = await usersDB.getItem<any>(emailNorm);
+                                        if (localObj) {
+                                            await usersDB.setItem(emailNorm, { ...localObj, ...updatePayload });
+                                        }
+                                        const updatedUser = { ...user, name: userIdentity.authorName || user.name, assignedClass: targetClass, institutionName: userIdentity.institutionName };
+                                        setUser(updatedUser);
+                                        localStorage.setItem('prota_user', JSON.stringify(updatedUser));
+                                    } catch (err) {
+                                        console.error('Failed to sync updated identity to cloud', err);
+                                    }
+                                }
+
                                 setAppStage('generator');
                             }}
-                            className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                            className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer"
                         >
-                            Konfirmasi &amp; Lanjut <ArrowRight className="w-5 h-5"/>
+                            Konfirmasi &amp; Masuk Ruang Kerja <ArrowRight className="w-5 h-5"/>
                         </button>
                     </div>
                     
@@ -4320,6 +8679,7 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                    <MasterCalendarConfig 
                        calendarEvents={calendarEvents} 
                        onDateClick={(dateStr, ev) => setEditingCalendarEvent({ dateStr, ev })} 
+                       onDateRangeClick={(startDateStr, endDateStr, ev) => setEditingCalendarEvent({ dateStr: startDateStr, endDateStr, ev })}
                        academicYearStart={academicYearStart}
                        setAcademicYearStart={setAcademicYearStart}
                        schoolDaysCount={schoolDaysCount}
@@ -4334,7 +8694,7 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
       {editingCalendarEvent && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
               <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">{editingCalendarEvent.ev ? 'Ubah/Hapus Keterangan' : 'Tambah Keterangan Libur'}</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">{editingCalendarEvent.ev ? 'Ubah/Hapus Keterangan' : 'Tambah Keterangan Kalender'}</h3>
                   <div className="space-y-4">
                       <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Mulai</label>
@@ -4342,20 +8702,21 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                       </div>
                       <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Selesai</label>
-                          <input type="date" id="ev-end" defaultValue={editingCalendarEvent.ev?.end || editingCalendarEvent.dateStr} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
+                          <input type="date" id="ev-end" defaultValue={editingCalendarEvent.ev?.end || editingCalendarEvent.endDateStr || editingCalendarEvent.dateStr} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
                       </div>
                       <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-                          <input type="text" id="ev-desc" defaultValue={editingCalendarEvent.ev?.description || ''} placeholder="Contoh: Libur Nasional" className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Keterangan Kegiatan / Libur</label>
+                          <input type="text" id="ev-desc" defaultValue={editingCalendarEvent.ev?.description || ''} placeholder="Contoh: Libur Hari Raya, Penilaian Akhir Semester" className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
                       </div>
                       <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Warna / Tipe</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Warna / Kategori</label>
                           <select id="ev-color" defaultValue={editingCalendarEvent.ev?.color || 'bg-red-500'} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500">
-                              <option value="bg-red-500">Merah (Libur Nasional/Umum)</option>
-                              <option value="bg-orange-500">Oranye (Ujian/Asesmen)</option>
-                              <option value="bg-blue-500">Biru (Kegiatan Khusus)</option>
-                              <option value="bg-purple-500">Ungu (Pengolahan Nilai)</option>
-                              <option value="bg-green-500">Hijau (Awal Masuk/MPLS)</option>
+                              <option value="bg-red-500">Merah (Libur Nasional / Hari Besar)</option>
+                              <option value="bg-pink-500">Pink / Merah Muda (Libur Semester)</option>
+                              <option value="bg-orange-500">Oranye (Asesmen / Penilaian / Ujian)</option>
+                              <option value="bg-blue-500">Biru (Kegiatan Khusus / Classmeeting)</option>
+                              <option value="bg-purple-500">Ungu (Pengolahan Nilai & Pembagian Raport)</option>
+                              <option value="bg-green-500">Hijau (Awal Masuk Sekolah / MPLS)</option>
                           </select>
                       </div>
                   </div>
@@ -4535,66 +8896,308 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
         </div>
       )}
 
-      <header className="bg-blue-700 text-white shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                <BookOpen className="w-8 h-8" />
-                <div>
-                    <h1 className="font-display text-xl font-bold">Perangkat Ajar AI 2025</h1>
-                    <p className="text-blue-200 text-xs">Generator CP, TP, ATP & Modul Ajar</p>
-                </div>
-            </div>
-            <div className="flex items-center gap-4">
-                <div className="flex bg-blue-800/50 p-1 rounded-lg gap-1.5">
-                    <button onClick={() => setCurrentView('generator')} className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all cursor-pointer ${currentView === 'generator' ? 'bg-white text-blue-700 shadow-xs' : 'text-blue-100 hover:bg-blue-700/50'}`}>
-                        <Zap className="w-4 h-4" /> Generator
-                    </button>
-                    <button onClick={() => setCurrentView('calendar')} className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all cursor-pointer ${currentView === 'calendar' ? 'bg-white text-blue-700 shadow-xs' : 'text-blue-100 hover:bg-blue-700/50'}`}>
-                        <CalendarDays className="w-4 h-4" /> Kalender & Analisis
-                    </button>
-                    <button onClick={() => setCurrentView('history')} className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all cursor-pointer ${currentView === 'history' ? 'bg-white text-blue-700 shadow-xs' : 'text-blue-100 hover:bg-blue-700/50'}`}>
-                        <History className="w-4 h-4" /> Riwayat ({activities.length})
-                    </button>
-                </div>
-                {user && (
-                    <div className="flex items-center gap-3 pl-4 border-l border-blue-600">
-                        <div className="hidden md:block text-right">
-                            <div className="text-sm font-bold">{user.name}</div>
-                            <div className="text-xs text-blue-200">{user.email}</div>
-                        </div>
-                        
-                        <button 
-                            onClick={() => {
-                                setApiKeyInput(localStorage.getItem('prota_custom_api_key') || '');
-                                setApiKeyMessage(null);
-                                setShowApiKeyModal(true);
-                            }}
-                            className="p-2 bg-blue-800 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 relative cursor-pointer shadow-xs"
-                            title="Pengaturan API Key Gemini"
-                        >
-                            <Key className="w-5 h-5 text-blue-200" />
-                            <span className="hidden md:inline text-sm font-medium">API Key</span>
-                            {localStorage.getItem('prota_custom_api_key') ? (
-                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse border border-blue-900" title="Custom Key Aktif"></span>
-                            ) : null}
-                        </button>
-                        <button 
-                            onClick={handleLogout}
 
-                            className="p-2 bg-blue-800 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2"
-                            title="Keluar"
+
+      {/* Main Container with Collapsible App Sidebar */}
+      <div className="flex-1 flex max-w-7xl mx-auto w-full p-4 md:p-6 gap-6 relative">
+        {/* App Sidebar */}
+        {isSidebarOpen && (
+            <>
+                {/* Mobile backdrop */}
+                <div 
+                    onClick={() => setIsSidebarOpen(false)} 
+                    className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-xs" 
+                />
+
+                <aside className="fixed lg:static top-0 bottom-0 left-0 z-50 w-80 lg:w-[300px] bg-white border-r lg:border border-slate-200/90 shadow-2xl lg:shadow-xs lg:rounded-3xl shrink-0 flex flex-col max-h-[100vh] lg:max-h-[calc(100vh-100px)] sticky lg:top-20 overflow-hidden transition-all duration-300">
+                    {/* Sidebar Header (Matching screenshot style) */}
+                    <div className="p-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-emerald-600/20">
+                                <GraduationCap className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h2 className="font-extrabold text-slate-900 text-sm tracking-tight leading-tight">PERANGKAT AJAR</h2>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SD ASSISTANT</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => setIsSidebarOpen(false)}
+                            className="p-1.5 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
+                            title="Tutup Sidebar"
                         >
-                            <LogOut className="w-5 h-5" />
-                            <span className="hidden md:inline text-sm font-medium">Keluar</span>
+                            <ChevronLeft className="w-5 h-5" />
                         </button>
                     </div>
-                )}
-            </div>
-        </div>
-      </header>
 
-      <main className="flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full">
-        {currentView === 'calendar' ? (
+                    {/* Pengguna Card Badge */}
+                    <div className="p-4 border-b border-slate-100 shrink-0 bg-slate-50/50">
+                        <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">PENGGUNA</div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                <User className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 className="font-bold text-xs text-slate-900 truncate">{userIdentity.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.'}</h3>
+                                <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/60">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>{userIdentity.employmentStatus || 'Full Time'} • Guru {userIdentity.assignedClass || 'Kelas 1'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Navigation Items List */}
+                    <div className="flex-1 overflow-y-auto p-3 space-y-4">
+                        {/* Section 1: Menu Utama */}
+                        <div className="space-y-1">
+                            <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 mb-1.5">MENU UTAMA</div>
+
+                            {/* Menu 1: Dashboard */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('dashboard');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'dashboard' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Home className={`w-4 h-4 ${currentView === 'dashboard' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Dashboard</span>
+                            </button>
+
+                            {/* Menu 2: Daftar Siswa */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('daftar_siswa');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'daftar_siswa' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Users className={`w-4 h-4 ${currentView === 'daftar_siswa' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Daftar Siswa</span>
+                            </button>
+
+                            {/* Menu 3: Kalender Akademik */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('calendar');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'calendar' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Calendar className={`w-4 h-4 ${currentView === 'calendar' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Kalender Akademik</span>
+                            </button>
+
+                            {/* Menu 4: Jadwal Mengajar */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('jadwal_mengajar');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'jadwal_mengajar' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <CalendarCheck className={`w-4 h-4 ${currentView === 'jadwal_mengajar' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Jadwal Mengajar</span>
+                            </button>
+
+                            {/* Menu 5: Hari Efektif */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('hari_efektif');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'hari_efektif' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <BookOpen className={`w-4 h-4 ${currentView === 'hari_efektif' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Hari Efektif</span>
+                            </button>
+
+                            {/* Menu 6: Presensi */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('presensi');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'presensi' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <ClipboardCheck className={`w-4 h-4 ${currentView === 'presensi' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Presensi Siswa</span>
+                            </button>
+
+                            {/* Menu 7: Program Tahunan (Prota) */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('generator');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'generator' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <FileText className={`w-4 h-4 ${currentView === 'generator' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Program Tahunan</span>
+                            </button>
+
+                            {/* Menu 8: Modul Ajar (RPM) */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('modul_ajar');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'modul_ajar' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Sparkles className={`w-4 h-4 ${currentView === 'modul_ajar' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Modul Ajar RPM</span>
+                            </button>
+
+                            {/* Menu 9: KKTP */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('kktp');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'kktp' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Target className={`w-4 h-4 ${currentView === 'kktp' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>KKTP & Interval</span>
+                            </button>
+
+                            {/* Menu 10: Jurnal */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('jurnal');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'jurnal' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <BookMarked className={`w-4 h-4 ${currentView === 'jurnal' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Jurnal Mengajar</span>
+                            </button>
+
+
+                        </div>
+
+                        {/* Section 2: Data & Pencadangan */}
+                        <div className="space-y-1 pt-3 border-t border-slate-100">
+                            <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 mb-1.5">DATA & PENCADANGAN</div>
+                            
+                            <button
+                                onClick={handleBackup}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                                <Download className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Backup Data</span>
+                            </button>
+
+                            <label className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer">
+                                <Upload className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Restore Data</span>
+                                <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
+                            </label>
+
+                            <button
+                                onClick={() => {
+                                    setApiKeyInput(localStorage.getItem('prota_custom_api_key') || '');
+                                    setApiKeyMessage(null);
+                                    setShowApiKeyModal(true);
+                                }}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                                <Key className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Pengaturan API</span>
+                            </button>
+
+                            <button
+                                onClick={handleLogout}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors cursor-pointer mt-2"
+                            >
+                                <LogOut className="w-3.5 h-3.5 text-red-500" />
+                                <span>Keluar</span>
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+            </>
+        )}
+
+        {/* Main Content Workspace */}
+        <main className="flex-1 min-w-0 w-full space-y-6">
+            {showEditProfileModal && (
+                <EditProfileModal 
+                    identity={userIdentity} 
+                    onSave={handleSaveIdentity} 
+                    onClose={() => setShowEditProfileModal(false)} 
+                />
+            )}
+
+            {!isSidebarOpen && (
+                <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-2xl p-3 shadow-2xs">
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
+                    >
+                        <Menu className="w-4 h-4" /> Buka Menu Navigasi
+                    </button>
+                    <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+                        <span className="font-bold text-emerald-800">{userIdentity.authorName || 'Guru S.Pd.'}</span>
+                        <span>•</span>
+                        <span>{selectedClass}</span>
+                    </div>
+                </div>
+            )}
+
+        {currentView === 'dashboard' ? (
+            <DashboardView 
+                identity={userIdentity}
+                onEditProfile={() => setShowEditProfileModal(true)}
+                onNavigate={setCurrentView}
+            />
+        ) : currentView === 'daftar_siswa' ? (
+            <DaftarSiswaView 
+                selectedClass={selectedClass}
+                identity={userIdentity}
+            />
+        ) : currentView === 'presensi' ? (
+            <PresensiView 
+                selectedClass={selectedClass}
+                identity={userIdentity}
+            />
+        ) : currentView === 'jadwal_mengajar' ? (
+            <JadwalMengajarView 
+                selectedClass={selectedClass}
+                classSchedules={classSchedules}
+                toggleScheduleDay={toggleScheduleDay}
+                classDailyJP={classDailyJP}
+                updateDailyJP={updateDailyJP}
+                schoolDaysCount={schoolDaysCount}
+                setSchoolDaysCount={setSchoolDaysCount}
+                identity={userIdentity}
+            />
+        ) : currentView === 'hari_efektif' ? (
+            <HariEfektifView 
+                selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
+                classSchedules={classSchedules}
+                classDailyJP={classDailyJP}
+                calendarEvents={calendarEvents}
+                academicYearStart={academicYearStart}
+                schoolDaysCount={schoolDaysCount}
+                identity={userIdentity}
+            />
+        ) : currentView === 'kktp' ? (
+            <KKTPView 
+                selectedSubject={selectedSubject}
+                selectedClass={selectedClass}
+                identity={userIdentity}
+            />
+        ) : currentView === 'jurnal' ? (
+            <JurnalView 
+                selectedSubject={selectedSubject}
+                selectedClass={selectedClass}
+                identity={userIdentity}
+            />
+        ) : currentView === 'calendar' ? (
             <CalendarPageView 
                 selectedClass={selectedClass}
                 setSelectedClass={setSelectedClass}
@@ -4607,7 +9210,9 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                 classDailyJP={classDailyJP}
                 updateDailyJP={updateDailyJP}
                 calendarEvents={calendarEvents}
+                setCalendarEvents={setCalendarEvents}
                 onDateClick={(dateStr, ev) => setEditingCalendarEvent({ dateStr, ev })}
+                onDateRangeClick={(startDateStr, endDateStr, ev) => setEditingCalendarEvent({ dateStr: startDateStr, endDateStr, ev })}
                 academicYearStart={academicYearStart}
                 setAcademicYearStart={setAcademicYearStart}
                 schoolDaysCount={schoolDaysCount}
@@ -4616,12 +9221,17 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                 activeTab={calendarPageTab}
                 setActiveTab={setCalendarPageTab}
                 onBackToGenerator={() => setCurrentView('generator')}
+                userIdentity={userIdentity}
+                saveActivityLog={saveActivityLog}
             />
         ) : currentView === 'modul_ajar' && modulContext ? (
             <ModulAjarGenerator 
                 context={modulContext} 
                 userIdentity={userIdentity}
-                onBack={() => setCurrentView('generator')}
+                onBack={() => {
+                    setCurrentView('modul_ajar');
+                    setModulContext(null);
+                }}
                 onSave={saveActivityLog}
             />
         ) : currentView === 'history' ? (
@@ -4742,172 +9352,97 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
                     )}
                 </div>
             </div>
-        ) : (
-            <div className="flex flex-col lg:flex-row gap-6 items-start relative">
-                {/* Modern animated Sidebar */}
-                {isSidebarOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, x: -50 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -50 }}
-                        className="w-full lg:w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden sticky top-24 max-h-[calc(100vh-120px)] flex flex-col"
-                    >
-                        {/* Sidebar Header */}
-                        <div className="p-4 bg-gradient-to-r from-blue-700 to-indigo-700 text-white flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Settings className="w-5 h-5" />
-                                <h2 className="font-bold text-md">Konfigurasi & Analisis</h2>
-                            </div>
-                            <button 
-                                onClick={() => setIsSidebarOpen(false)}
-                                className="p-1 hover:bg-white/20 rounded-full transition-colors text-white"
-                                title="Tutup Sidebar"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
+                    ) : (
+                <div className="space-y-6">
+                    {/* Header Card matching the uploaded image */}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="space-y-1">
+                            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                                <Sparkles className="w-6 h-6 text-emerald-600 animate-pulse" />
+                                <span>{currentView === 'modul_ajar' ? 'Modul Ajar (RPM)' : 'Program Tahunan (Prota)'}</span>
+                            </h2>
+                            <p className="text-xs font-semibold text-slate-500">
+                                {currentView === 'modul_ajar' 
+                                    ? 'Pilih ATP Untuk membuat modul ajar RPM' 
+                                    : 'Buat Prota otomatis dengan AI berdasarkan referensi CP dan TP.'}
+                            </p>
                         </div>
 
-
-                        {/* Sidebar Content Area */}
-                        <div className="p-5 space-y-5 overflow-y-auto max-h-[calc(100vh-250px)]">
-                            <div className="space-y-5 animate-in fade-in duration-200">
-                                    {/* Fase & Mapel */}
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">Fase & Kelas</label>
-                                            <select 
-                                                value={selectedFase.id} 
-                                                onChange={(e) => setSelectedFase(FASES.find(f => f.id === e.target.value) || FASES[0])} 
-                                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            >
-                                                {FASES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">Mata Pelajaran</label>
-                                            <select 
-                                                value={selectedSubject} 
-                                                onChange={(e) => setSelectedSubject(e.target.value)} 
-                                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            >
-                                                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                                            </select>
-                                        </div>
-                                        <button 
-                                            onClick={generateContent} 
-                                            disabled={loading} 
-                                            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-md transition-all disabled:opacity-50"
-                                        >
-                                            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
-                                            Generate CP & TP
-                                        </button>
-                                    </div>
-
-                                    <hr className="border-gray-100" />
-
-                                    {/* Academic Calendar Control */}
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase block">Kalender Akademik</label>
-                                        <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
-                                            <p className="text-xs text-blue-800">Atur hari libur, jadwal ujian, dan kegiatan non-efektif sekolah.</p>
-                                            <button 
-                                                onClick={() => {
-                                                    setCalendarPageTab('master');
-                                                    setCurrentView('calendar');
-                                                }} 
-                                                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                                            >
-                                                <CalendarDays className="w-4 h-4" /> Buka Halaman Kalender Master
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <hr className="border-gray-100" />
-
-                                    {/* Class Selector & Schedule Configuration */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-xs font-bold text-gray-500 uppercase">Jadwal & JP</label>
-                                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-bold">Pilih Kelas:</span>
-                                        </div>
-                                        
-                                        <div className="flex bg-gray-100 p-1 rounded-lg gap-1">
-                                            {selectedFase.classes.map(cls => (
-                                                <button
-                                                    key={cls}
-                                                    onClick={() => setSelectedClass(cls)}
-                                                    className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${selectedClass === cls ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
-                                                >
-                                                    {cls}
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        <div className="grid grid-cols-3 gap-2 pt-1">
-                                            {DAYS_OF_WEEK.filter(day => schoolDaysCount === 6 || day !== 'Sabtu').map(day => {
-                                                const isSelected = (classSchedules[selectedClass] || []).includes(day);
-                                                return (
-                                                    <div key={day} className="flex flex-col items-center p-2 rounded-xl border border-gray-100 bg-gray-50/50">
-                                                        <button 
-                                                            onClick={() => toggleScheduleDay(selectedClass, day)} 
-                                                            className={`w-full py-1 text-[10px] font-bold rounded transition-all ${isSelected ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}`}
-                                                        >
-                                                            {day}
-                                                        </button>
-                                                        {isSelected && (
-                                                            <div className="flex items-center gap-0.5 mt-1.5 bg-white border border-blue-200 rounded px-1 w-full justify-center">
-                                                                <input 
-                                                                    type="number" 
-                                                                    min="1" 
-                                                                    max="10"
-                                                                    value={(classDailyJP[selectedClass] || {})[day] || 3}
-                                                                    onChange={(e) => updateDailyJP(selectedClass, day, parseInt(e.target.value) || 0)}
-                                                                    className="w-7 text-[10px] font-bold text-blue-700 text-center focus:outline-none bg-transparent"
-                                                                />
-                                                                <span className="text-[8px] text-blue-400 font-bold">JP</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                    </motion.div>
-                )}
-
-                {/* Main Workspace (CP & TP + ATP Tables) */}
-                <div className="flex-1 min-w-0 w-full space-y-6">
-                    {/* Upper controls & Selector tabs for ease of use */}
-                    <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                            {!isSidebarOpen && (
+                        {/* Right side controls matching the layout and labels */}
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Paper size toggle selector */}
+                            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/40">
                                 <button 
-                                    onClick={() => setIsSidebarOpen(true)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all text-sm animate-bounce"
-                                    title="Buka Menu Konfigurasi"
+                                    onClick={() => setPaperSize('A4')} 
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${paperSize === 'A4' ? 'bg-white text-emerald-800 shadow-2xs border border-slate-200' : 'text-slate-600 hover:bg-slate-50'}`}
                                 >
-                                    <SlidersHorizontal className="w-4 h-4" /> Buka Konfigurasi
+                                    A4
+                                </button>
+                                <button 
+                                    onClick={() => setPaperSize('F4')} 
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${paperSize === 'F4' ? 'bg-white text-emerald-800 shadow-2xs border border-slate-200' : 'text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    F4 (Folio)
+                                </button>
+                            </div>
+
+                            {/* Button: Hasilkan Prota / Hasilkan modul ajar */}
+                            {currentView !== 'modul_ajar' && (
+                                <button 
+                                    onClick={() => generateContent()} 
+                                    disabled={loading}
+                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-sm shadow-emerald-600/10"
+                                >
+                                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                                    <span>Hasilkan Prota</span>
                                 </button>
                             )}
-                            <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
-                                {selectedFase.classes.map(cls => (
-                                    <button
-                                        key={cls}
-                                        onClick={() => setSelectedClass(cls)}
-                                        className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${selectedClass === cls ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
-                                    >
-                                        {cls}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
 
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2.5 py-1 rounded-lg">Fase {selectedFase.name}</span>
-                            <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-lg">{selectedSubject}</span>
-                            <button onClick={() => setShowJpReference(true)} className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100"><Table className="w-3.5 h-3.5" /> Tabel JP</button>
+                            {/* Button: Simpan */}
+                            <button 
+                                onClick={() => setShowSaveToast(true)}
+                                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:scale-95 rounded-full transition-all cursor-pointer border border-emerald-100"
+                            >
+                                <span>Simpan</span>
+                            </button>
+
+                            {/* Button: Unduh Word */}
+                            {currentView !== 'modul_ajar' && (
+                                <button 
+                                    onClick={() => handleDownloadProta(selectedClass)} 
+                                    disabled={!data}
+                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 active:scale-95 rounded-full transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    <span>Unduh Word</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Horizontal Pill List of Mata Pelajaran (replacing Class buttons) */}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">PILIHAN MATA PELAJARAN ({selectedClass})</span>
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">Fase {selectedFase.name}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {getScheduledSubjects().map((sub) => {
+                                const isActive = selectedSubject === sub;
+                                return (
+                                    <button
+                                        key={sub}
+                                        onClick={() => setSelectedSubject(sub)}
+                                        className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer border ${
+                                            isActive
+                                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {sub}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -4920,246 +9455,262 @@ Hasilkan output berupa HTML murni (tanpa wrapper <html>/<body>, hanya div kontai
 
                     {!data ? (
                         <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto">
-                                <SlidersHorizontal className="w-8 h-8 animate-pulse" />
+                            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                                <Sparkles className="w-8 h-8 animate-pulse" />
                             </div>
                             <div className="max-w-md mx-auto">
-                                <h3 className="text-lg font-bold text-gray-800">Perangkat Ajar Belum Digenerate</h3>
-                                <p className="text-gray-500 text-sm mt-1.5">Atur Fase, Mata Pelajaran, dan Parameter pada panel konfigurasi, lalu klik "Generate CP & TP" untuk memulai penyusunan otomatis AI.</p>
+                                <h3 className="text-lg font-bold text-gray-800">Program Tahunan Belum Dihasilkan</h3>
+                                <p className="text-gray-500 text-sm mt-1.5">Pilih Mata Pelajaran pada tab di atas, lalu klik "Hasilkan Prota" untuk memulai penyusunan otomatis berbasis AI.</p>
                             </div>
-                            {!isSidebarOpen && (
-                                <button 
-                                    onClick={() => setIsSidebarOpen(true)}
-                                    className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all flex items-center gap-2 mx-auto"
-                                >
-                                    <SlidersHorizontal className="w-5 h-5" /> Mulai Konfigurasi
-                                </button>
-                            )}
+                            <button 
+                                onClick={() => generateContent()}
+                                disabled={loading}
+                                className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all flex items-center gap-2 mx-auto cursor-pointer"
+                            >
+                                {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                                Hasilkan Prota ({selectedSubject})
+                            </button>
                         </div>
                     ) : (() => {
                         const className = selectedClass;
-                    const hasATP = (data.elements || []).some(el => (el.allocations || []).find(a => isSameClass(a.className, className))?.structuredAtp);
-                    return (
-                        <div key={className} className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
-                            <div className="p-4 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-4">
-                                <div>
-                                    <h3 className="font-bold text-lg border-l-4 border-blue-600 pl-3">{className}</h3>
-                                </div>
-                                <div className="flex gap-2">
-                                    {!hasATP && (
-                                        <button onClick={() => generateATP(className)} disabled={atpLoading === className} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50">
-                                            {atpLoading === className ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />} 2. Susun ATP Otomatis
-                                        </button>
-                                    )}
-                                    {hasATP && (
-                                        <>
-                                            <button onClick={() => handleDownloadProta(className)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors">
-                                                <Download className="w-4 h-4" /> Unduh Prota
-                                            </button>
-                                            <button 
-                                                onClick={() => handleBulkGenerateModulForClass(className)} 
-                                                disabled={bulkGenerationStatus[className]?.active}
-                                                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none"
-                                            >
-                                                {bulkGenerationStatus[className]?.active ? <Loader2 className="animate-spin w-4 h-4" /> : <FilePlus className="w-4 h-4" />} 
-                                                {bulkGenerationStatus[className]?.active ? 'Sedang Membuat Modul...' : 'Buat Modul Ajar'}
-                                            </button>
-                                            {bulkGenerationStatus[className]?.active && (
+                        const hasATP = (data.elements || []).some(el => (el.allocations || []).find(a => isSameClass(a.className, className))?.structuredAtp);
+                        
+                        // Helper to label the semester dynamically
+                        const getSemesterLabel = (dateStr: string): string => {
+                            if (!dateStr) return '';
+                            const d = new Date(dateStr);
+                            const m = d.getMonth();
+                            return (m >= 6) ? 'Smt 1 (Ganjil)' : 'Smt 2 (Genap)';
+                        };
+
+                        return (
+                            <div key={className} className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
+                                <div className="p-4 bg-slate-50 border-b flex flex-wrap justify-between items-center gap-4">
+                                    <div>
+                                        <h3 className="font-bold text-lg border-l-4 border-emerald-600 pl-3 text-slate-800">{className} — {data.subject}</h3>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {currentView === 'modul_ajar' && hasATP && (
+                                            <>
                                                 <button 
-                                                    onClick={() => { (window as any).bulkAbortedMap = { ...((window as any).bulkAbortedMap || {}), [className]: true }; setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}))}}
-                                                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-red-700 transition-all border border-red-700 shadow-sm"
+                                                    onClick={() => handleBulkGenerateModulForClass(className)} 
+                                                    disabled={bulkGenerationStatus[className]?.active}
+                                                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none"
                                                 >
-                                                    <X className="w-4 h-4" /> Batal
+                                                    {bulkGenerationStatus[className]?.active ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />} 
+                                                    {bulkGenerationStatus[className]?.active ? 'Sedang Membuat Modul...' : 'Buat Modul Ajar'}
                                                 </button>
-                                            )}
-                                        </>
-                                    )}
-                                    {activities.some(a => a.type === 'MODUL_AJAR' && (a.dataSnapshot?.className === className || a.details.includes(className))) && (
-                                        <div className="flex flex-col gap-2">
-                                            {activities.filter(a => a.type === 'MODUL_AJAR' && a.dataSnapshot?.className === className && a.dataSnapshot?.semester === '1').length > 0 && (
-                                                <button 
-                                                    onClick={() => handleDownloadAllModulForClass(className, '1')} 
-                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all border border-indigo-700 shadow-sm"
-                                                >
-                                                    <Download className="w-4 h-4" /> Unduh Modul Sem 1
-                                                </button>
-                                            )}
-                                            {activities.filter(a => a.type === 'MODUL_AJAR' && a.dataSnapshot?.className === className && a.dataSnapshot?.semester === '2').length > 0 && (
-                                                <button 
-                                                    onClick={() => handleDownloadAllModulForClass(className, '2')} 
-                                                    className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-sky-700 transition-all border border-sky-700 shadow-sm"
-                                                >
-                                                    <Download className="w-4 h-4" /> Unduh Modul Sem 2
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            {bulkGenerationStatus[className]?.active && (
-                                <div className="p-6 bg-purple-50/50 border-b border-purple-200">
-                                    <div className="max-w-xl mx-auto space-y-3">
-                                        <div className="flex justify-between text-sm font-bold text-purple-900">
-                                            <span className="flex items-center gap-2">
-                                                <Loader2 className="animate-spin w-4 h-4" />
-                                                Memproses Modul Ajar ({bulkGenerationStatus[className].current} dari {bulkGenerationStatus[className].total} ATP)
-                                            </span>
-                                            <span>{bulkGenerationStatus[className].percent}%</span>
-                                        </div>
-                                        <div className="w-full bg-purple-200 rounded-full h-4 overflow-hidden shadow-inner">
-                                            <div 
-                                                className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-300 ease-out flex items-center justify-center relative overflow-hidden" 
-                                                style={{ width: `${bulkGenerationStatus[className].percent}%` }}
-                                            >
-                                                <div className="absolute inset-0 bg-white/20 animate-pulse w-full"></div>
+                                                {bulkGenerationStatus[className]?.active && (
+                                                    <button 
+                                                        onClick={() => { (window as any).bulkAbortedMap = { ...((window as any).bulkAbortedMap || {}), [className]: true }; setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}))}}
+                                                        className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-red-700 transition-all border border-red-700 shadow-sm"
+                                                    >
+                                                        <X className="w-4 h-4" /> Batal
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+
+                                        {activities.some(a => a.type === 'MODUL_AJAR' && (a.dataSnapshot?.className === className || a.details.includes(className))) && (
+                                            <div className="flex gap-2">
+                                                {activities.filter(a => a.type === 'MODUL_AJAR' && a.dataSnapshot?.className === className && a.dataSnapshot?.semester === '1').length > 0 && (
+                                                    <button 
+                                                        onClick={() => handleDownloadAllModulForClass(className, '1')} 
+                                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all border border-indigo-700 shadow-sm"
+                                                    >
+                                                        <Download className="w-4 h-4" /> Unduh Modul Sem 1
+                                                    </button>
+                                                )}
+                                                {activities.filter(a => a.type === 'MODUL_AJAR' && a.dataSnapshot?.className === className && a.dataSnapshot?.semester === '2').length > 0 && (
+                                                    <button 
+                                                        onClick={() => handleDownloadAllModulForClass(className, '2')} 
+                                                        className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-sky-700 transition-all border border-sky-700 shadow-sm"
+                                                    >
+                                                        <Download className="w-4 h-4" /> Unduh Modul Sem 2
+                                                    </button>
+                                                )}
                                             </div>
-                                        </div>
-                                        <p className="text-xs text-purple-700 italic text-center font-medium">
-                                            {bulkGenerationStatus[className].statusText || "Harap tunggu, proses ini dapat memakan waktu beberapa menit. Jangan menutup tab browser Anda."}
-                                        </p>
+                                        )}
                                     </div>
                                 </div>
-                            )}
+                                
+                                {bulkGenerationStatus[className]?.active && (
+                                    <div className="p-6 bg-purple-50/50 border-b border-purple-200">
+                                        <div className="max-w-xl mx-auto space-y-3">
+                                            <div className="flex justify-between text-sm font-bold text-purple-900">
+                                                <span className="flex items-center gap-2">
+                                                    <Loader2 className="animate-spin w-4 h-4" />
+                                                    Memproses Modul Ajar ({bulkGenerationStatus[className].current} dari {bulkGenerationStatus[className].total} ATP)
+                                                </span>
+                                                <span>{bulkGenerationStatus[className].percent}%</span>
+                                            </div>
+                                            <div className="w-full bg-purple-200 rounded-full h-4 overflow-hidden shadow-inner">
+                                                <div 
+                                                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-300 ease-out flex items-center justify-center relative overflow-hidden" 
+                                                    style={{ width: `${bulkGenerationStatus[className].percent}%` }}
+                                                >
+                                                    <div className="absolute inset-0 bg-white/20 animate-pulse w-full"></div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-purple-700 italic text-center font-medium">
+                                                {bulkGenerationStatus[className].statusText || "Harap tunggu, proses ini dapat memakan waktu beberapa menit. Jangan menutup tab browser Anda."}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
 
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-gray-100 text-gray-700 uppercase">
-                                        <tr>
-                                            <th className="px-4 py-3 border">Elemen & CP</th>
-                                            <th className="px-4 py-3 border w-1/4">Tujuan Pembelajaran (TP)</th>
-                                            
-<th className="px-4 py-3 border w-1/4">
-  <div className="flex items-center gap-2">
-      Alur Tujuan Pembelajaran (ATP)
-      <button 
-          onClick={() => {
-              const currentClass = selectedAtps[className] || {};
-              const allChecked = Object.keys(currentClass).length > 0 && Object.values(currentClass).every(v => v);
-              const newSelection = {};
-              if (!allChecked) {
-                  (data.elements || []).forEach((el, elIdx) => {
-                      let allocIdx = (el.allocations || []).findIndex(a => isSameClass(a.className, className));
-                      if (allocIdx < 0 && (el.allocations || []).length === 1) allocIdx = 0;
-                      const alloc = (el.allocations || [])[allocIdx];
-                      if (!alloc) return;
-                      const groups = alloc.structuredAtp || [];
-                      groups.forEach((grp, grpIdx) => {
-                          grp.atpItems.forEach((_, itemIdx) => {
-                              newSelection[`${elIdx}-${grpIdx}-${itemIdx}`] = true;
-                          });
-                      });
-                  });
-              }
-              setSelectedAtps(prev => ({...prev, [className]: newSelection}));
-          }}
-          className="text-[10px] bg-white border border-gray-300 px-2 py-0.5 rounded hover:bg-gray-50"
-      >
-          Pilih Semua
-      </button>
-  </div>
-</th>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left border-collapse border border-slate-200">
+                                        <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-4 py-3 text-center border-r border-b border-slate-200 text-xs w-12">No</th>
+                                                <th className="px-4 py-3 border-r border-b border-slate-200 text-xs w-1/6">Elemen</th>
+                                                <th className="px-4 py-3 border-r border-b border-slate-200 text-xs w-1/4">Capaian Pembelajaran (CP)</th>
+                                                <th className="px-4 py-3 border-r border-b border-slate-200 text-xs w-1/4">Tujuan Pembelajaran (TP)</th>
+                                                <th className="px-4 py-3 border-r border-b border-slate-200 text-xs w-1/4">Alur Tujuan Pembelajaran (ATP)</th>
+                                                <th className="px-4 py-3 text-center border-r border-b border-slate-200 text-xs w-20">Alokasi JP</th>
+                                                <th className="px-4 py-3 text-center border-b border-slate-200 text-xs w-52">Rencana Tanggal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {(data.elements || []).map((el, elIdx) => {
+                                                let allocIdx = (el.allocations || []).findIndex(a => isSameClass(a.className, className));
+                                                if (allocIdx < 0 && (el.allocations || []).length === 1) allocIdx = 0;
+                                                const alloc = (el.allocations || [])[allocIdx];
+                                                if (!alloc) return null;
 
-                                            <th className="px-4 py-3 border text-center">JP</th>
-                                            <th className="px-4 py-3 border w-48 text-center">Rencana Tanggal & Aksi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {(data.elements || []).map((el, elIdx) => {
-                                            let allocIdx = (el.allocations || []).findIndex(a => isSameClass(a.className, className));
-                                            if (allocIdx < 0 && (el.allocations || []).length === 1) allocIdx = 0;
-                                            const alloc = (el.allocations || [])[allocIdx];
-                                            if (!alloc) return null;
+                                                const groups = alloc.structuredAtp || (alloc.tujuanPembelajaran || []).map(tp => ({ tp, atpItems: [] }));
+                                                const rowSpan = groups.reduce((acc, g) => acc + Math.max(g.atpItems.length, 1), 0);
 
-                                            const groups = alloc.structuredAtp || (alloc.tujuanPembelajaran || []).map(tp => ({ tp, atpItems: [] }));
-                                            const rowSpan = groups.reduce((acc, g) => acc + Math.max(g.atpItems.length, 1), 0);
-
-                                            return groups.map((grp, grpIdx) => {
-                                                const items = grp.atpItems.length > 0 ? grp.atpItems : [{ alur: '', alokasiWaktu: '-' }];
-                                                return items.map((item, itemIdx) => {
-                                                    const nonEffective = item.planDate ? checkNonEffectiveDate(item.planDate) : null;
-                                                    return (
-                                                        <tr key={`${elIdx}-${grpIdx}-${itemIdx}`} className="hover:bg-gray-50">
-                                                            {grpIdx === 0 && itemIdx === 0 && (
-                                                                <td rowSpan={rowSpan} className="px-4 py-3 border align-top">
-                                                                    <div className="font-bold text-gray-800 mb-1">{el.elementName}</div>
-                                                                    <div className="text-xs text-gray-600">{el.capaianPembelajaran}</div>
-                                                                </td>
-                                                            )}
-                                                            {itemIdx === 0 && (
-                                                                <td rowSpan={Math.max(items.length, 1)} className="px-4 py-3 border align-top bg-blue-50/20">
-                                                                    <ul className="list-disc pl-4 text-gray-700"><li>{grp.tp}</li></ul>
-                                                                </td>
-                                                            )}
-                                                            
-<td className={`px-4 py-3 border align-top ${activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur?.substring(0, 30) || 'xxx')) ? 'bg-indigo-100/50' : 'bg-green-50/20'}`}>
-    {item.alur ? (
-        <div className="flex gap-2">
-            <input 
-                type="checkbox" 
-                checked={!!(selectedAtps[className] && selectedAtps[className][`${elIdx}-${grpIdx}-${itemIdx}`])}
-                onChange={(e) => {
-                    const checked = e.target.checked;
-                    setSelectedAtps(prev => ({
-                        ...prev,
-                        [className]: {
-                            ...(prev[className] || {}),
-                            [`${elIdx}-${grpIdx}-${itemIdx}`]: checked
-                        }
-                    }));
-                }}
-                className="mt-1"
-            />
-            <div className="flex flex-col">
-                <div className="flex gap-1 items-start">
-                    <span className="font-bold text-green-600">{itemIdx+1}.</span>
-                    <span>{item.alur}</span>
-                </div>
-                {activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur.substring(0, 30))) && (
-                    <span className="mt-1 inline-block text-[10px] font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded w-fit">
-                        ✓ Modul Dibuat
-                    </span>
-                )}
-            </div>
-        </div>
-    ) : <span className="text-gray-400 italic">Belum digenerate</span>}
-</td>
-
-                                                            <td className="px-4 py-3 border text-center align-top">{item.alokasiWaktu}</td>
-                                                            <td className="px-4 py-3 border align-top">
-                                                                {item.alur ? (
-                                                                    <div className="flex flex-col gap-2">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <input 
-                                                                                type="date" 
-                                                                                className={`flex-1 text-xs p-1 border rounded ${nonEffective ? 'border-red-400 bg-red-50 text-red-700 font-bold' : ''}`}
-                                                                                value={item.planDate || ''}
-                                                                                onChange={(e) => handleUpdateDate(className, elIdx, allocIdx, grpIdx, itemIdx, e.target.value)}
-                                                                            />
-                                                                            {item.planDate && <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{getDayName(new Date(item.planDate))}</span>}
+                                                return groups.map((grp, grpIdx) => {
+                                                    const items = grp.atpItems.length > 0 ? grp.atpItems : [{ alur: '', alokasiWaktu: '-' }];
+                                                    return items.map((item, itemIdx) => {
+                                                        const nonEffective = item.planDate ? checkNonEffectiveDate(item.planDate) : null;
+                                                        return (
+                                                            <tr key={`${elIdx}-${grpIdx}-${itemIdx}`} className="hover:bg-slate-50/50 transition-colors">
+                                                                {grpIdx === 0 && itemIdx === 0 && (
+                                                                    <>
+                                                                        <td rowSpan={rowSpan} className="px-4 py-3 border border-slate-200 text-center align-top font-bold text-slate-800 text-sm">
+                                                                            {elIdx + 1}
+                                                                        </td>
+                                                                        <td rowSpan={rowSpan} className="px-4 py-3 border border-slate-200 align-top font-bold text-slate-800 text-sm">
+                                                                            {el.elementName}
+                                                                        </td>
+                                                                        <td rowSpan={rowSpan} className="px-4 py-3 border border-slate-200 align-top text-xs text-slate-600 leading-relaxed">
+                                                                            {el.capaianPembelajaran}
+                                                                        </td>
+                                                                        <td rowSpan={rowSpan} className="px-4 py-3 border border-slate-200 align-top bg-slate-50/20">
+                                                                            <ul className="list-disc pl-4 space-y-1 text-xs text-slate-700 font-medium">
+                                                                                {groups.map((g, idx) => (
+                                                                                    <li key={idx}>{g.tp}</li>
+                                                                                ))}
+                                                                            </ul>
+                                                                        </td>
+                                                                    </>
+                                                                )}
+                                                                
+                                                                <td className={`px-4 py-3 border border-slate-200 align-top text-xs leading-normal ${activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur?.substring(0, 30) || 'xxx')) ? 'bg-indigo-50/50' : 'bg-emerald-50/10'}`}>
+                                                                    {item.alur ? (
+                                                                        <div className="flex gap-2.5 items-start">
+                                                                            {currentView === 'modul_ajar' && (
+                                                                                <input 
+                                                                                    type="checkbox" 
+                                                                                    checked={!!(selectedAtps[className] && selectedAtps[className][`${elIdx}-${grpIdx}-${itemIdx}`])}
+                                                                                    onChange={(e) => {
+                                                                                        const checked = e.target.checked;
+                                                                                        setSelectedAtps(prev => ({
+                                                                                            ...prev,
+                                                                                            [className]: {
+                                                                                                ...(prev[className] || {}),
+                                                                                                [`${elIdx}-${grpIdx}-${itemIdx}`]: checked
+                                                                                            }
+                                                                                        }));
+                                                                                    }}
+                                                                                    className="mt-0.5 h-4 w-4 rounded-md border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                                                />
+                                                                            )}
+                                                                            <div className="flex flex-col gap-1">
+                                                                                <div className="flex gap-1.5 items-start">
+                                                                                    <span className="font-bold text-emerald-600">{itemIdx+1}.</span>
+                                                                                    <span className="text-slate-700 font-medium">{item.alur}</span>
+                                                                                </div>
+                                                                                {activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur.substring(0, 30))) && (
+                                                                                    <span className="inline-block text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md w-fit">
+                                                                                        ✓ Modul Dibuat
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
                                                                         </div>
-                                                                        {nonEffective && <div className="text-[10px] text-red-600 bg-red-100 p-1 rounded flex gap-1"><AlertCircle className="w-3 h-3"/> {nonEffective.description}</div>}
-                                                                    </div>
-                                                                ) : '-'}
-                                                            </td>
-                                                        </tr>
-                                                    );
+                                                                    ) : <span className="text-slate-400 italic">Belum digenerate</span>}
+                                                                </td>
+
+                                                                <td className="px-4 py-3 border border-slate-200 text-center align-middle font-extrabold text-emerald-700 text-xs">
+                                                                    {item.alokasiWaktu ? (
+                                                                        <span className="inline-block whitespace-nowrap bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 shadow-3xs">
+                                                                            {item.alokasiWaktu.toLowerCase().includes('jp') ? item.alokasiWaktu : `${item.alokasiWaktu} JP`}
+                                                                        </span>
+                                                                    ) : '-'}
+                                                                </td>
+
+                                                                <td className="px-4 py-3 border border-slate-200 align-top">
+                                                                    {item.alur ? (
+                                                                        <div className="flex flex-col gap-1.5">
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <input 
+                                                                                    type="date" 
+                                                                                    className={`flex-1 text-xs p-1.5 border rounded-lg focus:ring-emerald-500 focus:border-emerald-500 ${nonEffective ? 'border-red-400 bg-red-50 text-red-700 font-bold' : 'border-slate-200 text-slate-700'}`}
+                                                                                    value={item.planDate || ''}
+                                                                                    onChange={(e) => handleUpdateDate(className, elIdx, allocIdx, grpIdx, itemIdx, e.target.value)}
+                                                                                />
+                                                                            </div>
+                                                                            {item.planDate && (
+                                                                                <div className="text-center mt-1">
+                                                                                    <div className="text-xs font-bold text-slate-800">
+                                                                                        {getDayName(new Date(item.planDate))}, {new Date(item.planDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                                                    </div>
+                                                                                    <div className={`text-[10px] font-bold mt-0.5 ${
+                                                                                        getSemesterLabel(item.planDate).includes('1') ? 'text-emerald-600' : 'text-blue-600'
+                                                                                    }`}>
+                                                                                        {getSemesterLabel(item.planDate)}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                            {nonEffective && (
+                                                                                <div className="text-[10px] text-red-600 bg-red-100 p-1.5 rounded-lg flex gap-1 items-start mt-1 leading-normal">
+                                                                                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-red-500"/> 
+                                                                                    <span>{nonEffective.description}</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : '-'}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
                                                 });
-                                            });
-                                        })}
-                                    </tbody>
-                                </table>
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
+                        );
+                    })()}
+                    
+                    {/* Beautiful success toast notification */}
+                    {showSaveToast && (
+                        <div className="fixed bottom-5 right-5 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-2.5 animate-bounce">
+                            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                            <span className="text-xs font-bold font-sans">Semua perubahan pada Program Tahunan berhasil disimpan!</span>
                         </div>
-                    );
-                })()}
+                    )}
                 </div>
-            </div>
-        )}
-      </main>
+            )}
+        </main>
+      </div>
     </div>
   );
 };
+
 
 // Create or get the root element
 const rootElement = document.getElementById('root')!;
