@@ -11,7 +11,7 @@ import {
     ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, 
     Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2, Search, Lock, 
     Plus, Menu, Users, ClipboardCheck, BookMarked, CalendarRange, Award, CheckSquare, 
-    Layers, PenLine, CheckCheck, Upload, RotateCcw
+    Layers, PenLine, CheckCheck, Upload, RotateCcw, ClipboardPaste, FileSpreadsheet, Copy
 } from 'lucide-react';
 
 
@@ -2377,8 +2377,15 @@ interface StudentRecord {
     id: string;
     nisn: string;
     nis: string;
+    nipd?: string;
     name: string;
     gender: 'L' | 'P';
+    birthPlace?: string;
+    birthDate?: string;
+    nik?: string;
+    religion?: string;
+    address?: string;
+    photo?: string;
     notes?: string;
 }
 
@@ -2731,94 +2738,412 @@ const DashboardView: React.FC<{
 // --- Daftar Siswa View Component ---
 const DaftarSiswaView: React.FC<{
     selectedClass: string;
+    setSelectedClass?: (c: string) => void;
     identity: UserIdentity;
-}> = ({ selectedClass, identity }) => {
+}> = ({ selectedClass: initialClass, setSelectedClass, identity }) => {
+    const classList = ['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'];
+    const [activeClass, setActiveClass] = useState<string>(initialClass || 'Kelas 1');
+
+    useEffect(() => {
+        if (initialClass && initialClass !== activeClass) {
+            setActiveClass(initialClass);
+        }
+    }, [initialClass]);
+
+    const handleSelectClass = (cls: string) => {
+        setActiveClass(cls);
+        if (setSelectedClass) {
+            setSelectedClass(cls);
+        }
+    };
+
+    // Default sample students for Kelas 1 to match official display
+    const getDefaultStudents = (cls: string): StudentRecord[] => {
+        if (cls === 'Kelas 1') {
+            return [
+                { id: '1', name: 'Adittia', nipd: '262701001', nis: '262701001', gender: 'L', nisn: '', birthPlace: 'Bandung', birthDate: '2019-09-15', nik: '3204311509190001', religion: 'Islam', address: 'Kp Sukatinggal Rt 003 Rw 006' },
+                { id: '2', name: 'Alfath Fatir Abdurahman', nipd: '262701002', nis: '262701002', gender: 'L', nisn: '', birthPlace: 'Bandung', birthDate: '2019-11-02', nik: '3204310211190002', religion: 'Islam', address: 'Kp Sukatinggal Rt 003 Rw 006' },
+                { id: '3', name: 'Algifari Ramdan', nipd: '262701003', nis: '262701003', gender: 'L', nisn: '', birthPlace: 'Bandung', birthDate: '2020-05-05', nik: '3204310505200001', religion: 'Islam', address: 'Kp Sukatinggal Rt 002 Rw 006' },
+                { id: '4', name: 'Alvino Febriansyah', nipd: '262701004', nis: '262701004', gender: 'L', nisn: '', birthPlace: 'Bandung', birthDate: '2020-02-08', nik: '3204310802200002', religion: 'Islam', address: 'Kp Sukatinggal Rt 001 Rw 006' },
+                { id: '5', name: 'Fauzan Nizam', nipd: '262701005', nis: '262701005', gender: 'L', nisn: '3191707564', birthPlace: 'Kabupaten Cianjur', birthDate: '2019-07-27', nik: '3203232707190003', religion: 'Islam', address: 'Kp Sukatinggal' },
+                { id: '6', name: 'Nur Rizki Firdaus', nipd: '262701006', nis: '262701006', gender: 'L', nisn: '', birthPlace: 'Bandung', birthDate: '2020-03-24', nik: '3204312403200001', religion: 'Islam', address: 'Kp Sukatinggal Rt 001 Rw 006' },
+                { id: '7', name: 'Muhammad Kaysa Nadeem Saputra', nipd: '262701007', nis: '262701007', gender: 'L', nisn: '', birthPlace: 'Bandung', birthDate: '', nik: '', religion: 'Islam', address: 'Kp Sukatinggal' }
+            ];
+        }
+        return [];
+    };
+
+    const storageKey = `prota_students_${activeClass}`;
     const [students, setStudents] = useState<StudentRecord[]>(() => {
         try {
-            const saved = localStorage.getItem(`prota_students_${selectedClass}`);
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch(e) {}
+        return getDefaultStudents(activeClass);
+    });
+
+    // Reload students when active class changes
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    setStudents(parsed);
+                    return;
+                }
+            }
+        } catch(e) {}
+        setStudents(getDefaultStudents(activeClass));
+    }, [activeClass]);
+
+    // Rombel configuration state
+    const rombelStorageKey = `prota_rombel_settings_${activeClass}`;
+    const [rombelCount, setRombelCount] = useState<number>(() => {
+        try {
+            const saved = localStorage.getItem(`${rombelStorageKey}_count`);
+            if (saved) return parseInt(saved, 10) || 1;
+        } catch(e) {}
+        return 1;
+    });
+
+    const [rombelLabels, setRombelLabels] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem(`${rombelStorageKey}_labels`);
             if (saved) return JSON.parse(saved);
         } catch(e) {}
-        return [
-            { id: '1', nisn: '0123456701', nis: '1001', name: 'Ahmad Rizky Pratama', gender: 'L', notes: 'Aktif' },
-            { id: '2', nisn: '0123456702', nis: '1002', name: 'Aisyah Nur Syafiqah', gender: 'P', notes: 'Aktif' },
-            { id: '3', nisn: '0123456703', nis: '1003', name: 'Bagas Aditya Putra', gender: 'L', notes: 'Aktif' },
-            { id: '4', nisn: '0123456704', nis: '1004', name: 'Citra Dewi Kirana', gender: 'P', notes: 'Aktif' },
-            { id: '5', nisn: '0123456705', nis: '1005', name: 'Dafa Alamsyah', gender: 'L', notes: 'Aktif' },
-        ];
+        return [`${activeClass}A`, `${activeClass}B`, `${activeClass}C`, `${activeClass}D`];
     });
 
     useEffect(() => {
-        localStorage.setItem(`prota_students_${selectedClass}`, JSON.stringify(students));
-    }, [students, selectedClass]);
+        try {
+            const savedCount = localStorage.getItem(`${rombelStorageKey}_count`);
+            const savedLabels = localStorage.getItem(`${rombelStorageKey}_labels`);
+            setRombelCount(savedCount ? parseInt(savedCount, 10) || 1 : 1);
+            setRombelLabels(savedLabels ? JSON.parse(savedLabels) : [`${activeClass}A`, `${activeClass}B`, `${activeClass}C`, `${activeClass}D`]);
+        } catch(e) {}
+    }, [activeClass]);
 
-    const [newName, setNewName] = useState('');
-    const [newNisn, setNewNisn] = useState('');
-    const [newNis, setNewNis] = useState('');
-    const [newGender, setNewGender] = useState<'L' | 'P'>('L');
-    const [search, setSearch] = useState('');
+    const handleRombelCountChange = (count: number) => {
+        setRombelCount(count);
+        localStorage.setItem(`${rombelStorageKey}_count`, count.toString());
+    };
 
-    const handleAddStudent = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newName.trim()) return;
-        const newStudent: StudentRecord = {
-            id: Date.now().toString(),
-            nisn: newNisn || `012345${Math.floor(1000+Math.random()*9000)}`,
-            nis: newNis || `${1000 + students.length + 1}`,
-            name: newName,
-            gender: newGender,
-            notes: 'Aktif'
+    const handleRombelLabelChange = (index: number, val: string) => {
+        const next = [...rombelLabels];
+        next[index] = val;
+        setRombelLabels(next);
+        localStorage.setItem(`${rombelStorageKey}_labels`, JSON.stringify(next));
+    };
+
+    // Notification toast state
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [toastType, setToastType] = useState<'success' | 'info' | 'warning'>('success');
+    const notify = (msg: string, type: 'success' | 'info' | 'warning' = 'success') => {
+        setToastMessage(msg);
+        setToastType(type);
+    };
+    useEffect(() => {
+        if (toastMessage) {
+            const timer = setTimeout(() => setToastMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [toastMessage]);
+
+    // Modal state for Excel Paste
+    const [showPasteModal, setShowPasteModal] = useState<boolean>(false);
+    const [pasteText, setPasteText] = useState<string>('');
+
+    // Update single field of a student
+    const updateStudentField = (id: string, field: keyof StudentRecord, value: any) => {
+        setStudents(prev => prev.map(s => {
+            if (s.id === id) {
+                return { ...s, [field]: value, nis: field === 'nipd' ? value : s.nis };
+            }
+            return s;
+        }));
+    };
+
+    // Delete single student
+    const handleDeleteRow = (id: string) => {
+        setStudents(prev => prev.filter(s => s.id !== id));
+    };
+
+    // Add empty rows
+    const handleAddRows = (count: number = 1) => {
+        const newRows: StudentRecord[] = [];
+        const baseIndex = students.length;
+        for (let i = 0; i < count; i++) {
+            newRows.push({
+                id: (Date.now() + i).toString(),
+                name: '',
+                nipd: '',
+                nis: '',
+                gender: 'L',
+                nisn: '',
+                birthPlace: '',
+                birthDate: '',
+                nik: '',
+                religion: 'Islam',
+                address: '',
+                photo: '',
+                notes: 'Aktif'
+            });
+        }
+        setStudents(prev => [...prev, ...newRows]);
+    };
+
+    // Save Data
+    const handleSaveData = () => {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(students));
+            notify(`Data siswa ${activeClass} (${students.length} baris) berhasil disimpan!`, 'success');
+        } catch(e) {
+            notify('Gagal menyimpan data siswa ke penyimpanan lokal.', 'warning');
+        }
+    };
+
+    // Clear Data
+    const handleClearData = () => {
+        if (students.length === 0) {
+            notify('Tabel data siswa sudah kosong.', 'info');
+            return;
+        }
+        if (confirm(`Apakah Anda yakin ingin mengosongkan seluruh data siswa untuk ${activeClass}?`)) {
+            setStudents([]);
+            localStorage.removeItem(storageKey);
+            notify(`Data siswa ${activeClass} berhasil dikosongkan.`, 'info');
+        }
+    };
+
+    // Handle Image Upload for Student Photo (3x4)
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [activePhotoStudentId, setActivePhotoStudentId] = useState<string | null>(null);
+    const [previewPhotoModal, setPreviewPhotoModal] = useState<{ name: string; photo: string } | null>(null);
+
+    const handleTriggerPhotoUpload = (studentId: string) => {
+        setActivePhotoStudentId(studentId);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+            fileInputRef.current.click();
+        }
+    };
+
+    const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !activePhotoStudentId) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+            notify('Ukuran file foto maksimal 2 MB.', 'warning');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const base64 = event.target?.result as string;
+            if (base64) {
+                updateStudentField(activePhotoStudentId, 'photo', base64);
+                notify('Foto 3x4 siswa berhasil diunggah.', 'success');
+            }
         };
-        setStudents([...students, newStudent]);
-        setNewName('');
-        setNewNisn('');
-        setNewNis('');
+        reader.readAsDataURL(file);
     };
 
-    const handleDelete = (id: string) => {
-        setStudents(students.filter(s => s.id !== id));
+    // Smart Paste Parser for Excel / Sheets / Dapodik Table
+    const handleProcessPasteData = () => {
+        if (!pasteText.trim()) {
+            notify('Silakan tempelkan (paste) data teks dari Excel terlebih dahulu.', 'warning');
+            return;
+        }
+
+        try {
+            const lines = pasteText.trim().split(/\r?\n/).filter(line => line.trim().length > 0);
+            if (lines.length === 0) {
+                notify('Data yang ditempel kosong.', 'warning');
+                return;
+            }
+
+            const parsedStudents: StudentRecord[] = [];
+
+            lines.forEach((line, lineIdx) => {
+                // Split by Tab (Excel default) or semicolon/comma/pipe if no tab
+                let cols = line.split('\t').map(c => c.trim());
+                if (cols.length === 1 && line.includes(';')) {
+                    cols = line.split(';').map(c => c.trim());
+                } else if (cols.length === 1 && line.includes(',')) {
+                    cols = line.split(',').map(c => c.trim());
+                } else if (cols.length === 1 && line.includes('|')) {
+                    cols = line.split('|').map(c => c.trim()).filter(c => c.length > 0);
+                }
+
+                // Check if this is a header row (skip if line 0 contains keywords like nama, nipd, nisn, etc.)
+                const joinedLower = cols.join(' ').toLowerCase();
+                if (lineIdx === 0 && (
+                    joinedLower.includes('nama') || 
+                    joinedLower.includes('nipd') || 
+                    joinedLower.includes('nisn') || 
+                    joinedLower.includes('tempat lahir') || 
+                    joinedLower.includes('nik')
+                )) {
+                    return; // skip header line
+                }
+
+                if (cols.length === 0) return;
+
+                // Detect if first column is row number (e.g. 1, 2, 3...)
+                let startIdx = 0;
+                if (/^\d{1,3}$/.test(cols[0]) && cols.length > 1 && !/^\d{1,3}$/.test(cols[1])) {
+                    startIdx = 1;
+                }
+
+                const name = cols[startIdx] || '';
+                if (!name) return; // ignore rows without name
+
+                const nipd = cols[startIdx + 1] || '';
+                
+                // Gender detection
+                let rawGender = (cols[startIdx + 2] || '').toUpperCase();
+                let gender: 'L' | 'P' = 'L';
+                if (rawGender.startsWith('P') || rawGender.includes('PEREMPUAN') || rawGender.includes('FEMALE')) {
+                    gender = 'P';
+                }
+
+                const nisn = cols[startIdx + 3] || '';
+                const birthPlace = cols[startIdx + 4] || '';
+                const birthDate = cols[startIdx + 5] || '';
+                const nik = cols[startIdx + 6] || '';
+                let religion = cols[startIdx + 7] || 'Islam';
+                if (!religion) religion = 'Islam';
+                const address = cols[startIdx + 8] || '';
+
+                parsedStudents.push({
+                    id: (Date.now() + Math.random() * 10000 + lineIdx).toFixed(0),
+                    name,
+                    nipd,
+                    nis: nipd,
+                    gender,
+                    nisn,
+                    birthPlace,
+                    birthDate,
+                    nik,
+                    religion,
+                    address,
+                    photo: '',
+                    notes: 'Aktif'
+                });
+            });
+
+            if (parsedStudents.length === 0) {
+                notify('Tidak dapat membaca data siswa dari teks yang ditempel. Pastikan susunan kolom sesuai panduan.', 'warning');
+                return;
+            }
+
+            // Replace or append
+            setStudents(parsedStudents);
+            localStorage.setItem(storageKey, JSON.stringify(parsedStudents));
+            setShowPasteModal(false);
+            setPasteText('');
+            notify(`Berhasil memasukkan ${parsedStudents.length} data siswa dari Excel ke ${activeClass}!`, 'success');
+        } catch(e: any) {
+            notify(`Gagal memproses data paste: ${e.message}`, 'warning');
+        }
     };
 
-    const filtered = students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.nisn.includes(search));
-
+    // Download official Word document
     const handleDownloadDoc = () => {
-        const rows = students.map((s, idx) => `
+        if (students.length === 0) {
+            notify('Belum ada data siswa untuk diunduh.', 'warning');
+            return;
+        }
+
+        const rombelLabel = rombelLabels[0] || activeClass;
+        const rowsHtml = students.map((s, idx) => `
             <tr>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${idx+1}</td>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${s.nisn}</td>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${s.nis}</td>
-                <td style="border: 1px solid #000; padding: 6px;">${s.name}</td>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${s.gender}</td>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${s.notes || 'Aktif'}</td>
+                <td style="border: 1px solid #000; padding: 6px 4px; text-align: center; font-size: 9pt;">${idx + 1}</td>
+                <td style="border: 1px solid #000; padding: 6px 6px; font-weight: bold; font-size: 9pt;">${s.name || '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px 4px; text-align: center; font-size: 9pt;">${s.nipd || s.nis || '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px 4px; text-align: center; font-size: 9pt;">${s.gender || 'L'}</td>
+                <td style="border: 1px solid #000; padding: 6px 4px; text-align: center; font-size: 9pt;">${s.nisn || '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px 6px; font-size: 9pt;">${s.birthPlace || '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px 4px; text-align: center; font-size: 9pt;">${s.birthDate || '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px 4px; text-align: center; font-size: 9pt;">${s.nik || '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px 4px; text-align: center; font-size: 9pt;">${s.religion || 'Islam'}</td>
+                <td style="border: 1px solid #000; padding: 6px 6px; font-size: 9pt;">${s.address || '-'}</td>
             </tr>
         `).join('');
 
         const html = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
-            <head><meta charset='utf-8'><title>Daftar Siswa - ${selectedClass}</title>
-            <style>
-                @page { size: A4 portrait; margin: 2cm; }
-                body { font-family: 'Arial', sans-serif; font-size: 11pt; }
-                table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-                th { border: 1px solid #000; background: #e2e8f0; padding: 8px; text-align: center; }
-            </style>
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Daftar Siswa - ${rombelLabel}</title>
+                <!--[if gte mso 9]>
+                <xml>
+                <w:WordDocument>
+                <w:View>Print</w:View>
+                <w:Zoom>100</w:Zoom>
+                <w:DoNotOptimizeForBrowser/>
+                </w:WordDocument>
+                </xml>
+                <![endif]-->
+                <style>
+                    @page { size: 330mm 215mm; margin: 1.5cm 1.5cm 1.5cm 1.5cm; mso-page-orientation: landscape; }
+                    @page Section1 { size: 330mm 215mm; margin: 1.5cm 1.5cm 1.5cm 1.5cm; mso-header-margin: 36.0pt; mso-footer-margin: 36.0pt; mso-paper-source: 0; }
+                    div.Section1 { page: Section1; }
+                    body { font-family: 'Arial', sans-serif; font-size: 10pt; color: #000; }
+                    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+                    th { border: 1px solid #000; background: #0f172a; color: #ffffff; padding: 8px 4px; text-align: center; font-size: 9pt; font-weight: bold; }
+                    .header-box { text-align: center; margin-bottom: 12px; }
+                    .header-title { font-size: 13pt; font-weight: bold; margin: 0; text-transform: uppercase; }
+                    .header-sub { font-size: 11pt; font-weight: bold; margin: 2px 0 0 0; }
+                    .header-meta { font-size: 9.5pt; margin-top: 4px; }
+                </style>
             </head>
             <body>
-                <h2 style="text-align: center; font-size: 14pt; margin-bottom: 4px;">DAFTAR SISWA AMPU ${selectedClass.toUpperCase()}</h2>
-                <h3 style="text-align: center; font-size: 12pt; margin-top: 0; font-weight: normal;">${identity.institutionName || 'SDN SUKATINGGAL'} - TAHUN PELAJARAN ${identity.academicYear}</h3>
-                <p><b>Wali Kelas / Guru:</b> ${identity.authorName} | <b>NIP:</b> ${identity.nip || '-'}</p>
-                <table>
-                    <thead>
-                        <tr>
-                            <th width="5%">NO</th>
-                            <th width="20%">NISN</th>
-                            <th width="15%">NIS</th>
-                            <th>NAMA LENGKAP SISWA</th>
-                            <th width="12%">L/P</th>
-                            <th width="15%">KETERANGAN</th>
+                <div class="Section1">
+                    <div class="header-box">
+                        <div class="header-title">DAFTAR PESERTA DIDIK ROMBONGAN BELAJAR ${rombelLabel.toUpperCase()}</div>
+                        <div class="header-sub">${(identity.institutionName || 'SDN SUKATINGGAL').toUpperCase()} - TAHUN PELAJARAN ${identity.academicYear || '2025/2026'}</div>
+                        <div class="header-meta"><b>Guru / Wali Kelas:</b> ${identity.authorName || '-'} &nbsp;&nbsp;|&nbsp;&nbsp; <b>NIP:</b> ${identity.nip || '-'} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Siswa:</b> ${students.length} Peserta Didik</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th width="3%">NO</th>
+                                <th width="18%">NAMA LENGKAP</th>
+                                <th width="9%">NIPD</th>
+                                <th width="4%">JK</th>
+                                <th width="10%">NISN</th>
+                                <th width="12%">TEMPAT LAHIR</th>
+                                <th width="9%">TGL LAHIR</th>
+                                <th width="13%">NIK</th>
+                                <th width="7%">AGAMA</th>
+                                <th width="15%">ALAMAT</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                    <table style="width: 100%; margin-top: 25px; border: none;">
+                        <tr style="border: none;">
+                            <td style="border: none; width: 50%; text-align: center; font-size: 9.5pt;">
+                                Mengetahui,<br>Kepala Sekolah<br><br><br><br><br>
+                                <b><u>${identity.headmasterName || '...........................................'}</u></b><br>
+                                NIP. ${identity.headmasterNip || '...........................................'}
+                            </td>
+                            <td style="border: none; width: 50%; text-align: center; font-size: 9.5pt;">
+                                ${identity.city || 'Sukatinggal'}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br>
+                                Guru Kelas / Wali Kelas<br><br><br><br><br>
+                                <b><u>${identity.authorName || '...........................................'}</u></b><br>
+                                NIP. ${identity.nip || '...........................................'}
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
+                    </table>
+                </div>
             </body>
             </html>
         `;
@@ -2827,121 +3152,461 @@ const DaftarSiswaView: React.FC<{
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Daftar_Siswa_${selectedClass.replace(/\s+/g, '_')}.doc`;
+        a.download = `Daftar_Siswa_${rombelLabel.replace(/\s+/g, '_')}_Dapodik.doc`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        notify(`Dokumen Word Daftar Siswa ${rombelLabel} siap dicetak!`, 'success');
     };
 
+    const filledCount = students.filter(s => s.name && s.name.trim().length > 0).length;
+    const currentRombelLabel = rombelLabels[0] || `${activeClass}A`;
+
     return (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-5xl mx-auto space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div className="max-w-7xl mx-auto space-y-6">
+            {/* Hidden File Input for 3x4 Photo Upload */}
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handlePhotoFileChange} 
+                accept="image/*" 
+                className="hidden" 
+            />
+
+            {/* Notification Toast */}
+            {toastMessage && (
+                <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+                    <div className={`px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-bold text-white ${
+                        toastType === 'success' ? 'bg-emerald-600 border-emerald-500' :
+                        toastType === 'warning' ? 'bg-amber-600 border-amber-500' : 'bg-slate-800 border-slate-700'
+                    }`}>
+                        {toastType === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                        <span>{toastMessage}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Top Header Card */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <Users className="w-5 h-5 text-emerald-600" />
-                        <span>Daftar Siswa ({selectedClass})</span>
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">Data roster siswa terdaftar untuk kelas ampu aktif Anda.</p>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 mb-1">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Manajemen Data Siswa</span>
+                    </div>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Daftar Siswa</h1>
+                    <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                        Kelola data lengkap peserta didik (NIPD, JK, NISN, NIK, Alamat, dan Foto 3x4), tempel langsung dari spreadsheet/Excel, serta ekspor dokumen Word siap cetak.
+                    </p>
                 </div>
-                <button
-                    onClick={handleDownloadDoc}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
-                >
-                    <Download className="w-4 h-4" /> Unduh Format Word
-                </button>
-            </div>
 
-            {/* Quick Add Form */}
-            <form onSubmit={handleAddStudent} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
-                <input 
-                    type="text" 
-                    placeholder="Nama Lengkap Siswa"
-                    value={newName} 
-                    onChange={e => setNewName(e.target.value)} 
-                    className="p-2.5 bg-white border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500 md:col-span-2"
-                />
-                <input 
-                    type="text" 
-                    placeholder="NISN"
-                    value={newNisn} 
-                    onChange={e => setNewNisn(e.target.value)} 
-                    className="p-2.5 bg-white border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <select 
-                    value={newGender} 
-                    onChange={e => setNewGender(e.target.value as 'L' | 'P')}
-                    className="p-2.5 bg-white border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                    <option value="L">Laki-Laki (L)</option>
-                    <option value="P">Perempuan (P)</option>
-                </select>
-                <button 
-                    type="submit" 
-                    className="p-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                    <Plus className="w-4 h-4" /> Tambah
-                </button>
-            </form>
-
-            {/* Filter Search */}
-            <div className="flex items-center justify-between gap-4">
-                <div className="relative flex-1 max-w-xs">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                    <input 
-                        type="text" 
-                        placeholder="Cari siswa..." 
-                        value={search} 
-                        onChange={e => setSearch(e.target.value)} 
-                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                    />
-                </div>
-                <div className="text-xs font-bold text-slate-500 flex gap-3">
-                    <span>Total: <strong className="text-slate-800">{students.length}</strong></span>
-                    <span>L: <strong className="text-blue-600">{students.filter(s => s.gender === 'L').length}</strong></span>
-                    <span>P: <strong className="text-pink-600">{students.filter(s => s.gender === 'P').length}</strong></span>
+                {/* Top Action Buttons */}
+                <div className="flex items-center flex-wrap gap-2.5">
+                    <button
+                        onClick={() => setShowPasteModal(true)}
+                        className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                    >
+                        <ClipboardPaste className="w-4 h-4 text-emerald-600" />
+                        <span>Paste dari Excel</span>
+                    </button>
+                    <button
+                        onClick={handleClearData}
+                        className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                    >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Clear Data</span>
+                    </button>
+                    <button
+                        onClick={handleSaveData}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                        <Save className="w-4 h-4" />
+                        <span>Simpan Data</span>
+                    </button>
+                    <button
+                        onClick={handleDownloadDoc}
+                        className="px-4 py-2 bg-[#0f172a] hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                        <Download className="w-4 h-4" />
+                        <span>Unduh Word</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
-                        <tr>
-                            <th className="p-3 text-center w-12">No</th>
-                            <th className="p-3">NISN</th>
-                            <th className="p-3">NIS</th>
-                            <th className="p-3">Nama Lengkap</th>
-                            <th className="p-3 text-center w-20">L/P</th>
-                            <th className="p-3 text-center w-24">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium">
-                        {filtered.map((s, idx) => (
-                            <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                                <td className="p-3 font-mono text-slate-600">{s.nisn}</td>
-                                <td className="p-3 font-mono text-slate-600">{s.nis}</td>
-                                <td className="p-3 font-bold text-slate-800">{s.name}</td>
-                                <td className="p-3 text-center">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${s.gender === 'L' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                                        {s.gender}
-                                    </span>
-                                </td>
-                                <td className="p-3 text-center">
-                                    <button onClick={() => handleDelete(s.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer" title="Hapus">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                        {filtered.length === 0 && (
+            {/* Class Pill Tabs (Kelas 1 - Kelas 6) */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {classList.map(cls => {
+                    const isActive = cls === activeClass;
+                    return (
+                        <button
+                            key={cls}
+                            onClick={() => handleSelectClass(cls)}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                isActive 
+                                    ? 'bg-emerald-600 text-white shadow-xs' 
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+                            }`}
+                        >
+                            {cls}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Pengaturan Rombongan Belajar (Rombel) Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                        <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                            <Layers className="w-4 h-4 text-emerald-600" />
+                            <span>Pengaturan Rombongan Belajar (Rombel) {activeClass}</span>
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                            Tentukan jumlah rombel dan sesuaikan label setiap kelas (contoh: Kelas 1A, Kelas 1B).
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-600 font-medium">Jumlah Rombel:</span>
+                        <select
+                            value={rombelCount}
+                            onChange={e => handleRombelCountChange(parseInt(e.target.value, 10))}
+                            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                        >
+                            <option value={1}>1 Rombel</option>
+                            <option value={2}>2 Rombel</option>
+                            <option value={3}>3 Rombel</option>
+                            <option value={4}>4 Rombel</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+                    {Array.from({ length: rombelCount }).map((_, idx) => (
+                        <div key={idx} className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-600">
+                                Rombel {idx + 1} Label:
+                            </label>
+                            <input
+                                type="text"
+                                value={rombelLabels[idx] || `${activeClass}${String.fromCharCode(65 + idx)}`}
+                                onChange={e => handleRombelLabelChange(idx, e.target.value)}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                                placeholder={`Contoh: ${activeClass}${String.fromCharCode(65 + idx)}`}
+                            />
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Main Student List Table Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+                {/* Card Table Header with Badge */}
+                <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                        <span className="w-5 h-5 bg-emerald-600 text-white rounded-full flex items-center justify-center text-[11px] font-bold">
+                            {activeClass.replace(/\D/g, '') || '1'}
+                        </span>
+                        <h3 className="font-bold text-slate-800 text-sm">
+                            Daftar Siswa {activeClass} <span className="text-slate-400 font-normal text-xs">({students.length} baris)</span>
+                        </h3>
+                    </div>
+
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/80 text-emerald-800 border border-emerald-200/80 rounded-full text-[11px] font-medium">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Sesuai Format Lampiran Dapodik (Nama, NIPD, JK, NISN, Tempat Lahir, Tanggal Lahir, NIK, Agama, Alamat, Foto)</span>
+                    </div>
+                </div>
+
+                {/* Dark Table Responsive */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                        <thead className="bg-[#0f172a] text-white font-bold text-[11px] uppercase tracking-wider">
                             <tr>
-                                <td colSpan={6} className="p-8 text-center text-slate-400">Belum ada data siswa untuk kelas ini.</td>
+                                <th className="py-3 px-2 text-center w-10">NO</th>
+                                <th className="py-3 px-2.5 min-w-[170px]">NAMA</th>
+                                <th className="py-3 px-2 min-w-[110px]">NIPD</th>
+                                <th className="py-3 px-2 text-center min-w-[70px]">JK</th>
+                                <th className="py-3 px-2 min-w-[110px]">NISN</th>
+                                <th className="py-3 px-2.5 min-w-[130px]">TEMPAT LAHIR</th>
+                                <th className="py-3 px-2 min-w-[120px]">TANGGAL LAHIR</th>
+                                <th className="py-3 px-2 min-w-[150px]">NIK</th>
+                                <th className="py-3 px-2 min-w-[100px]">AGAMA</th>
+                                <th className="py-3 px-2.5 min-w-[190px]">ALAMAT</th>
+                                <th className="py-3 px-2 text-center min-w-[80px]">FOTO (3X4)</th>
+                                <th className="py-3 px-2 text-center min-w-[50px]">AKSI</th>
                             </tr>
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                            {students.map((s, idx) => (
+                                <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="py-2.5 px-2 text-center text-slate-500 font-bold">
+                                        {idx + 1}
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <input
+                                            type="text"
+                                            value={s.name}
+                                            onChange={e => updateStudentField(s.id, 'name', e.target.value)}
+                                            placeholder="Nama Lengkap Siswa"
+                                            className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-900 outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <input
+                                            type="text"
+                                            value={s.nipd || s.nis || ''}
+                                            onChange={e => updateStudentField(s.id, 'nipd', e.target.value)}
+                                            placeholder="NIPD"
+                                            className="w-full px-2 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-1 text-center">
+                                        <select
+                                            value={s.gender || 'L'}
+                                            onChange={e => updateStudentField(s.id, 'gender', e.target.value)}
+                                            className="px-2 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                                        >
+                                            <option value="L">L</option>
+                                            <option value="P">P</option>
+                                        </select>
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <input
+                                            type="text"
+                                            value={s.nisn || ''}
+                                            onChange={e => updateStudentField(s.id, 'nisn', e.target.value)}
+                                            placeholder="NISN"
+                                            className="w-full px-2 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <input
+                                            type="text"
+                                            value={s.birthPlace || ''}
+                                            onChange={e => updateStudentField(s.id, 'birthPlace', e.target.value)}
+                                            placeholder="Bandung"
+                                            className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs text-slate-800 outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <input
+                                            type="text"
+                                            value={s.birthDate || ''}
+                                            onChange={e => updateStudentField(s.id, 'birthDate', e.target.value)}
+                                            placeholder="DD/MM/YYYY"
+                                            className="w-full px-2 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <input
+                                            type="text"
+                                            value={s.nik || ''}
+                                            onChange={e => updateStudentField(s.id, 'nik', e.target.value)}
+                                            placeholder="NIK (16 Digit)"
+                                            className="w-full px-2 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <select
+                                            value={s.religion || 'Islam'}
+                                            onChange={e => updateStudentField(s.id, 'religion', e.target.value)}
+                                            className="w-full px-2 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs text-slate-800 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                                        >
+                                            <option value="Islam">Islam</option>
+                                            <option value="Kristen">Kristen</option>
+                                            <option value="Katolik">Katolik</option>
+                                            <option value="Hindu">Hindu</option>
+                                            <option value="Buddha">Buddha</option>
+                                            <option value="Khonghucu">Khonghucu</option>
+                                        </select>
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <input
+                                            type="text"
+                                            value={s.address || ''}
+                                            onChange={e => updateStudentField(s.id, 'address', e.target.value)}
+                                            placeholder="Alamat Lengkap"
+                                            className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg text-xs text-slate-800 outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-2 text-center">
+                                        {s.photo ? (
+                                            <div className="relative group inline-block">
+                                                <img 
+                                                    src={s.photo} 
+                                                    alt="Foto 3x4" 
+                                                    onClick={() => setPreviewPhotoModal({ name: s.name, photo: s.photo! })}
+                                                    className="w-8 h-10 object-cover rounded border border-slate-300 shadow-2xs mx-auto cursor-pointer hover:opacity-80 transition-opacity" 
+                                                />
+                                                <button
+                                                    onClick={() => updateStudentField(s.id, 'photo', '')}
+                                                    className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
+                                                    title="Hapus foto"
+                                                >
+                                                    <X className="w-2.5 h-2.5" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTriggerPhotoUpload(s.id)}
+                                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg flex items-center justify-center gap-1 mx-auto transition-colors cursor-pointer text-[10px]"
+                                                title="Upload Foto 3x4"
+                                            >
+                                                <ImageIcon className="w-3.5 h-3.5" />
+                                                <span>3x4</span>
+                                            </button>
+                                        )}
+                                    </td>
+                                    <td className="py-2 px-2 text-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteRow(s.id)}
+                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                            title="Hapus baris"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+
+                            {students.length === 0 && (
+                                <tr>
+                                    <td colSpan={12} className="p-8 text-center text-slate-400">
+                                        Belum ada data siswa untuk {activeClass}. Gunakan tombol <b>Paste dari Excel</b> atau <b>+ Tambah 1 Baris</b> untuk mulai mengisi data.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Table Footer with Add Row Buttons & Count Info */}
+                <div className="p-4 bg-slate-50/70 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => handleAddRows(1)}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Tambah 1 Baris</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAddRows(5)}
+                            className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+5 Baris</span>
+                        </button>
+                    </div>
+
+                    <div className="text-xs text-slate-500 font-medium">
+                        Total baris: <b>{students.length}</b> &nbsp;|&nbsp; Siswa terisi: <b>{filledCount}</b>
+                    </div>
+                </div>
             </div>
+
+            {/* MODAL: PASTE DATA SISWA DARI EXCEL / SPREADSHEET (GAMBAR 2) */}
+            {showPasteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+                    <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in duration-150">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                    <FileSpreadsheet className="w-4 h-4" />
+                                </div>
+                                <h3 className="font-bold text-slate-900 text-base">
+                                    Paste Data Siswa dari Excel / Spreadsheet
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => setShowPasteModal(false)}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Format Guidance Box */}
+                        <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 space-y-2 text-xs">
+                            <div className="font-bold text-emerald-900 flex items-center gap-1.5">
+                                <Info className="w-4 h-4 text-emerald-600" />
+                                <span>Susunan Kolom yang Didukung:</span>
+                            </div>
+                            <div className="font-mono text-[11px] bg-white/90 px-3 py-2 rounded-xl border border-emerald-200 text-emerald-800 overflow-x-auto whitespace-nowrap">
+                                [No] &nbsp;|&nbsp; Nama &nbsp;|&nbsp; NIPD &nbsp;|&nbsp; JK (L/P) &nbsp;|&nbsp; NISN &nbsp;|&nbsp; Tempat Lahir &nbsp;|&nbsp; Tanggal Lahir &nbsp;|&nbsp; NIK &nbsp;|&nbsp; Agama &nbsp;|&nbsp; Alamat
+                            </div>
+                            <p className="text-emerald-700 text-[11px] leading-relaxed">
+                                Cukup salin (Copy / Ctrl+C) tabel dari Excel atau Dapodik Anda, lalu tempelkan (Paste / Ctrl+V) pada kotak teks di bawah ini. Sistem secara otomatis mendeteksi kolom dan mengisi data ke tabel siswa.
+                            </p>
+                        </div>
+
+                        {/* Textarea */}
+                        <div>
+                            <textarea
+                                value={pasteText}
+                                onChange={e => setPasteText(e.target.value)}
+                                rows={8}
+                                placeholder="Tempelkan data yang Anda copy dari Excel di sini..."
+                                className="w-full p-4 border border-slate-200 rounded-2xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none placeholder:text-slate-400 bg-slate-50/50 focus:bg-white resize-y"
+                            />
+                        </div>
+
+                        {/* Modal Actions */}
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowPasteModal(false)}
+                                className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleProcessPasteData}
+                                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                            >
+                                <Check className="w-4 h-4" />
+                                <span>Proses & Masukkan Data</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: PREVIEW FOTO 3X4 */}
+            {previewPhotoModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+                    <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 text-center space-y-4 animate-in fade-in zoom-in duration-150">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <h4 className="font-bold text-slate-800 text-sm">Foto 3x4: {previewPhotoModal.name}</h4>
+                            <button
+                                onClick={() => setPreviewPhotoModal(null)}
+                                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="py-2">
+                            <img
+                                src={previewPhotoModal.photo}
+                                alt="Foto Siswa"
+                                className="w-48 h-64 object-cover rounded-2xl mx-auto border-2 border-slate-200 shadow-md"
+                            />
+                        </div>
+                        <button
+                            onClick={() => setPreviewPhotoModal(null)}
+                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                        >
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -12333,6 +12998,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
         ) : currentView === 'daftar_siswa' ? (
             <DaftarSiswaView 
                 selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
                 identity={userIdentity}
             />
         ) : currentView === 'presensi' ? (
