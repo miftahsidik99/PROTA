@@ -2927,110 +2927,988 @@ const DaftarSiswaView: React.FC<{
     );
 };
 
-// --- Presensi View Component ---
+// --- Presensi View Component (Tampilan Presensi Sesuai Hari Efektif Mapel & Kalender) ---
 const PresensiView: React.FC<{
     selectedClass: string;
+    setSelectedClass?: (c: string) => void;
+    selectedSubject?: string;
+    setSelectedSubject?: (s: string) => void;
+    classSchedules?: Record<string, string[]>;
+    calendarEvents?: CalendarEvent[];
+    academicYearStart?: number;
+    schoolDaysCount?: 5 | 6;
     identity: UserIdentity;
-}> = ({ selectedClass, identity }) => {
-    const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-    const [attendance, setAttendance] = useState<Record<string, 'H' | 'S' | 'I' | 'A'>>({});
+}> = ({ 
+    selectedClass, 
+    setSelectedClass,
+    selectedSubject: initialSubject = "Bahasa Indonesia",
+    setSelectedSubject,
+    classSchedules = {},
+    calendarEvents = DEFAULT_CALENDAR_EVENTS,
+    academicYearStart = 2025,
+    schoolDaysCount = 6,
+    identity 
+}) => {
+    // Paper size state
+    const [paperSize, setPaperSize] = useState<'A4' | 'F4'>('A4');
+    const [semester, setSemester] = useState<1 | 2>(1);
+    
+    // Available subjects for the class
+    const weeklyRosterKey = `prota_weekly_roster_${selectedClass}`;
+    const [weeklySchedule, setWeeklySchedule] = useState<Record<string, ScheduleSlot[]>>(() => {
+        try {
+            const saved = localStorage.getItem(weeklyRosterKey);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return getDefaultScheduleForClass(schoolDaysCount);
+    });
 
-    const sampleStudents = [
-        { id: '1', name: 'Ahmad Rizky Pratama' },
-        { id: '2', name: 'Aisyah Nur Syafiqah' },
-        { id: '3', name: 'Bagas Aditya Putra' },
-        { id: '4', name: 'Citra Dewi Kirana' },
-        { id: '5', name: 'Dafa Alamsyah' },
-    ];
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(weeklyRosterKey);
+            if (saved) {
+                setWeeklySchedule(JSON.parse(saved));
+                return;
+            }
+        } catch (e) {}
+        setWeeklySchedule(getDefaultScheduleForClass(schoolDaysCount));
+    }, [selectedClass, schoolDaysCount]);
 
-    const toggleStatus = (id: string, status: 'H' | 'S' | 'I' | 'A') => {
-        setAttendance(prev => ({ ...prev, [id]: status }));
+    // Extract unique scheduled subjects for this class
+    const availableSubjects = useMemo(() => {
+        const set = new Set<string>();
+        const days = schoolDaysCount === 5 
+            ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+            : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        
+        days.forEach(d => {
+            (weeklySchedule[d] || []).forEach(slot => {
+                if (slot.subject && !slot.subject.includes('Istirahat') && !slot.subject.includes('Upacara')) {
+                    set.add(slot.subject);
+                }
+            });
+        });
+
+        // Always ensure essential subjects are included
+        const fallbackList = [
+            "Pendidikan Agama Islam dan Budi Pekerti",
+            "Pendidikan Pancasila",
+            "Bahasa Indonesia",
+            "Matematika",
+            "IPAS (Ilmu Pengetahuan Alam dan Sosial)",
+            "PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan)",
+            "Seni Rupa",
+            "Bahasa Inggris",
+            "Koding & Kecerdasan Artifisial",
+            "Muatan Lokal (Bahasa Daerah / Bahasa Sunda / Jawa)"
+        ];
+
+        fallbackList.forEach(s => set.add(s));
+        return Array.from(set);
+    }, [weeklySchedule, schoolDaysCount]);
+
+    const [activeSubject, setActiveSubject] = useState<string>(() => {
+        if (availableSubjects.includes(initialSubject)) return initialSubject;
+        return availableSubjects[0] || "Bahasa Indonesia";
+    });
+
+    const handleSelectSubject = (subj: string) => {
+        setActiveSubject(subj);
+        if (setSelectedSubject) setSelectedSubject(subj);
     };
 
-    const countStatus = (s: 'H' | 'S' | 'I' | 'A') => Object.values(attendance).filter(v => v === s).length;
+    // Month Selector state
+    const semester1Months = [
+        { monthName: 'Juli', monthIndex: 6, year: academicYearStart },
+        { monthName: 'Agustus', monthIndex: 7, year: academicYearStart },
+        { monthName: 'September', monthIndex: 8, year: academicYearStart },
+        { monthName: 'Oktober', monthIndex: 9, year: academicYearStart },
+        { monthName: 'November', monthIndex: 10, year: academicYearStart },
+        { monthName: 'Desember', monthIndex: 11, year: academicYearStart },
+    ];
+
+    const semester2Months = [
+        { monthName: 'Januari', monthIndex: 0, year: academicYearStart + 1 },
+        { monthName: 'Februari', monthIndex: 1, year: academicYearStart + 1 },
+        { monthName: 'Maret', monthIndex: 2, year: academicYearStart + 1 },
+        { monthName: 'April', monthIndex: 3, year: academicYearStart + 1 },
+        { monthName: 'Mei', monthIndex: 4, year: academicYearStart + 1 },
+        { monthName: 'Juni', monthIndex: 5, year: academicYearStart + 1 },
+    ];
+
+    const currentMonthsList = semester === 1 ? semester1Months : semester2Months;
+    const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(1); // Default Agustus (index 1 di semester 1)
+
+    // Sync selected month if semester changes
+    useEffect(() => {
+        setSelectedMonthIdx(0);
+    }, [semester]);
+
+    const activeMonthObj = currentMonthsList[selectedMonthIdx] || currentMonthsList[0];
+
+    // Students state
+    const studentsStorageKey = `prota_students_${selectedClass}`;
+    const [students, setStudents] = useState<StudentRecord[]>(() => {
+        try {
+            const saved = localStorage.getItem(studentsStorageKey);
+            if (saved) return JSON.parse(saved);
+        } catch(e) {}
+        return [
+            { id: '1', nisn: '0123456701', nis: '1001', name: 'Adittia', gender: 'L', notes: 'Aktif' },
+            { id: '2', nisn: '0123456702', nis: '1002', name: 'Alfath Fatir Abdurahman', gender: 'L', notes: 'Aktif' },
+            { id: '3', nisn: '0123456703', nis: '1003', name: 'Algifari Ramdan', gender: 'L', notes: 'Aktif' },
+            { id: '4', nisn: '0123456704', nis: '1004', name: 'Alvino Febriansyah', gender: 'L', notes: 'Aktif' },
+            { id: '5', nisn: '0123456705', nis: '1005', name: 'Fauzan Nizam', gender: 'L', notes: 'Aktif' },
+            { id: '6', nisn: '0123456706', nis: '1006', name: 'Nur Rizki Firdaus', gender: 'L', notes: 'Aktif' },
+            { id: '7', nisn: '0123456707', nis: '1007', name: 'Muhammad Kaysa Nadeem Saputra', gender: 'L', notes: 'Aktif' },
+        ];
+    });
+
+    const handleSyncStudents = () => {
+        try {
+            const saved = localStorage.getItem(studentsStorageKey);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setStudents(parsed);
+                    setToastMessage(`Berhasil menarik ${parsed.length} data siswa dari Roster ${selectedClass}`);
+                    return;
+                }
+            }
+        } catch(e) {}
+        setToastMessage(`Roster data siswa sudah mutakhir.`);
+    };
+
+    // Calculate effective dates for the active subject in the selected month
+    const effectiveDates = useMemo(() => {
+        // Find which weekdays this subject is scheduled on
+        const scheduledDaysSet = new Set<string>();
+        const days = schoolDaysCount === 5 
+            ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+            : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        
+        days.forEach(d => {
+            const hasSubject = (weeklySchedule[d] || []).some(slot => {
+                if (!slot.subject) return false;
+                const s1 = slot.subject.toLowerCase().trim();
+                const s2 = activeSubject.toLowerCase().trim();
+                return s1 === s2 || s1.includes(s2) || s2.includes(s1);
+            });
+            if (hasSubject) {
+                scheduledDaysSet.add(d);
+            }
+        });
+
+        // Fallback: If no day has this subject in the schedule yet, default to Senin / Hari pertama agar kalender tetap terisi
+        const targetDays = scheduledDaysSet.size > 0 
+            ? Array.from(scheduledDaysSet) 
+            : ['Senin'];
+
+        const getDayName = (date: Date): string => {
+            const dNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+            return dNames[date.getDay()];
+        };
+
+        const getDayShort = (dayName: string): string => {
+            switch(dayName) {
+                case 'Senin': return 'Sen';
+                case 'Selasa': return 'Sel';
+                case 'Rabu': return 'Rab';
+                case 'Kamis': return 'Kam';
+                case 'Jumat': return 'Jum';
+                case 'Sabtu': return 'Sab';
+                default: return 'Min';
+            }
+        };
+
+        const checkConflict = (dateStr: string): CalendarEvent | null => {
+            return calendarEvents.find(ev => dateStr >= ev.start && dateStr <= ev.end && (ev.type === 'holiday' || ev.type === 'activity')) || null;
+        };
+
+        const academicStartStr = `${academicYearStart}-07-14`;
+        const academicEndStr = `${academicYearStart + 1}-06-27`;
+
+        const year = activeMonthObj.year;
+        const month = activeMonthObj.monthIndex;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const dates: { dateStr: string; dayNum: string; dayShort: string; dayName: string; formatted: string }[] = [];
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const curDate = new Date(year, month, d);
+            const dateStr = formatDateLocal(curDate);
+            const dayName = getDayName(curDate);
+            const isWeekend = schoolDaysCount === 5 ? (curDate.getDay() === 0 || curDate.getDay() === 6) : curDate.getDay() === 0;
+            const isWithinAcademic = dateStr >= academicStartStr && dateStr <= academicEndStr;
+
+            if (targetDays.includes(dayName) && !isWeekend && isWithinAcademic) {
+                const conflict = checkConflict(dateStr);
+                if (!conflict) {
+                    dates.push({
+                        dateStr,
+                        dayNum: d < 10 ? `0${d}` : `${d}`,
+                        dayShort: getDayShort(dayName),
+                        dayName,
+                        formatted: `${d < 10 ? `0${d}` : `${d}`} ${activeMonthObj.monthName} ${year}`
+                    });
+                }
+            }
+        }
+
+        return dates;
+    }, [activeSubject, activeMonthObj, weeklySchedule, calendarEvents, academicYearStart, schoolDaysCount]);
+
+    // Attendance state: record of studentId -> (record of dateStr -> 'H' | 'S' | 'I' | 'A')
+    const attendanceStorageKey = `prota_attendance_matrix_${selectedClass}_${activeSubject.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const [attendanceMatrix, setAttendanceMatrix] = useState<Record<string, Record<string, 'H' | 'S' | 'I' | 'A'>>>(() => {
+        try {
+            const saved = localStorage.getItem(attendanceStorageKey);
+            if (saved) return JSON.parse(saved);
+        } catch(e) {}
+        return {};
+    });
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(attendanceStorageKey);
+            if (saved) {
+                setAttendanceMatrix(JSON.parse(saved));
+                return;
+            }
+        } catch(e) {}
+        setAttendanceMatrix({});
+    }, [attendanceStorageKey]);
+
+    // Toast state
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    useEffect(() => {
+        if (toastMessage) {
+            const t = setTimeout(() => setToastMessage(null), 3500);
+            return () => clearTimeout(t);
+        }
+    }, [toastMessage]);
+
+    // Set or cycle attendance
+    const handleSetStatus = (studentId: string, dateStr: string, status: 'H' | 'S' | 'I' | 'A') => {
+        setAttendanceMatrix(prev => {
+            const studentAtt = { ...(prev[studentId] || {}) };
+            studentAtt[dateStr] = status;
+            return { ...prev, [studentId]: studentAtt };
+        });
+    };
+
+    const handleCycleStatus = (studentId: string, dateStr: string) => {
+        const current = attendanceMatrix[studentId]?.[dateStr] || 'H';
+        const nextMap: Record<'H' | 'S' | 'I' | 'A', 'H' | 'S' | 'I' | 'A'> = {
+            'H': 'S',
+            'S': 'I',
+            'I': 'A',
+            'A': 'H'
+        };
+        handleSetStatus(studentId, dateStr, nextMap[current]);
+    };
+
+    // Quick action: Centang Semua Hadir for the entire month
+    const handleCheckAllPresentMonth = () => {
+        if (effectiveDates.length === 0) {
+            setToastMessage('Tidak ada tanggal hari efektif pada bulan ini.');
+            return;
+        }
+        setAttendanceMatrix(prev => {
+            const next = { ...prev };
+            students.forEach(s => {
+                const sAtt = { ...(next[s.id] || {}) };
+                effectiveDates.forEach(d => {
+                    sAtt[d.dateStr] = 'H';
+                });
+                next[s.id] = sAtt;
+            });
+            return next;
+        });
+        setToastMessage(`Semua siswa berhasil ditandai HADIR untuk bulan ${activeMonthObj.monthName} ${activeMonthObj.year}!`);
+    };
+
+    // Quick action: Mark all students 'H' for a specific date column
+    const handleCheckAllPresentForDate = (dateStr: string, dayNum: string) => {
+        setAttendanceMatrix(prev => {
+            const next = { ...prev };
+            students.forEach(s => {
+                const sAtt = { ...(next[s.id] || {}) };
+                sAtt[dateStr] = 'H';
+                next[s.id] = sAtt;
+            });
+            return next;
+        });
+        setToastMessage(`Semua siswa ditandai HADIR pada tanggal ${dayNum} ${activeMonthObj.monthName}`);
+    };
+
+    // Save Data Handler
+    const handleSaveData = () => {
+        try {
+            localStorage.setItem(attendanceStorageKey, JSON.stringify(attendanceMatrix));
+            setToastMessage(`Data presensi ${activeSubject} (${selectedClass}) berhasil disimpan!`);
+        } catch(e) {
+            alert('Gagal menyimpan data presensi ke memori lokal.');
+        }
+    };
+
+    // Reset Data Handler
+    const handleResetData = () => {
+        if (confirm(`Apakah Anda yakin ingin mereset seluruh data presensi ${activeSubject} untuk bulan ${activeMonthObj.monthName}?`)) {
+            setAttendanceMatrix(prev => {
+                const next = { ...prev };
+                students.forEach(s => {
+                    if (next[s.id]) {
+                        const sAtt = { ...next[s.id] };
+                        effectiveDates.forEach(d => {
+                            delete sAtt[d.dateStr];
+                        });
+                        next[s.id] = sAtt;
+                    }
+                });
+                try {
+                    localStorage.setItem(attendanceStorageKey, JSON.stringify(next));
+                } catch(e) {}
+                return next;
+            });
+            setToastMessage(`Data presensi bulan ${activeMonthObj.monthName} berhasil direset.`);
+        }
+    };
+
+    // Refresh Effective Days
+    const handleRefreshEffectiveDays = () => {
+        setToastMessage(`Hari efektif berhasil disinkronkan (${effectiveDates.length} hari pertemuan teridentifikasi).`);
+    };
+
+    // Download Monthly Word (.doc)
+    const handleDownloadMonthlyDoc = () => {
+        const schoolName = identity.institutionName || 'SDN SUKATINGGAL';
+        const academicYear = identity.academicYear || '2026-2027';
+        const teacherName = identity.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.';
+        const nipTeacher = identity.nip || '-';
+        const headmasterName = identity.kepalaSekolah || 'Yuni Sri Rahayu, S.Pd.';
+        const nipHeadmaster = identity.nipKepalaSekolah || '-';
+
+        const pageStyle = paperSize === 'F4' 
+            ? `@page { size: 21.5cm 33.0cm landscape; margin: 1.5cm; }`
+            : `@page { size: 21.0cm 29.7cm landscape; margin: 1.5cm; }`;
+
+        const dateHeaders = effectiveDates.map(d => `
+            <th style="border: 1px solid #334155; padding: 6px 4px; text-align: center; font-size: 9pt; background: #f1f5f9; min-width: 32px;">
+                <div style="font-weight: bold;">${d.dayNum}</div>
+                <div style="font-size: 8pt; color: #475569;">${d.dayShort}</div>
+            </th>
+        `).join('');
+
+        const studentRows = students.map((s, idx) => {
+            let h = 0, sc = 0, i = 0, a = 0;
+            const dateCells = effectiveDates.map(d => {
+                const st = attendanceMatrix[s.id]?.[d.dateStr] || 'H';
+                if (st === 'H') h++;
+                else if (st === 'S') sc++;
+                else if (st === 'I') i++;
+                else if (st === 'A') a++;
+
+                const bg = st === 'H' ? '#ecfdf5' : st === 'S' ? '#fffbeb' : st === 'I' ? '#eff6ff' : '#fff1f2';
+                const col = st === 'H' ? '#047857' : st === 'S' ? '#b45309' : st === 'I' ? '#1d4ed8' : '#be123c';
+
+                return `<td style="border: 1px solid #334155; padding: 6px 2px; text-align: center; font-weight: bold; background: ${bg}; color: ${col}; font-size: 9.5pt;">${st}</td>`;
+            }).join('');
+
+            const total = effectiveDates.length;
+            const percent = total > 0 ? Math.round((h / total) * 100) : 100;
+
+            return `
+                <tr>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-size: 9pt;">${idx + 1}</td>
+                    <td style="border: 1px solid #334155; padding: 6px 8px; font-weight: bold; font-size: 9.5pt;">${s.name}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-size: 9pt;">${s.gender || 'L'}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-size: 9pt;">${s.nisn || '-'}</td>
+                    ${dateCells}
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9.5pt; color: #047857;">${h}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9.5pt; color: #b45309;">${sc}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9.5pt; color: #1d4ed8;">${i}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9.5pt; color: #be123c;">${a}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9.5pt;">${percent}%</td>
+                </tr>
+            `;
+        }).join('');
+
+        const html = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Rekap Presensi ${activeSubject} - ${activeMonthObj.monthName} ${activeMonthObj.year}</title>
+                <style>
+                    ${pageStyle}
+                    body { font-family: 'Arial', sans-serif; font-size: 10pt; color: #0f172a; line-height: 1.3; }
+                    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+                    th { font-weight: bold; }
+                    .header-box { text-align: center; margin-bottom: 16px; }
+                    .info-table { width: 100%; border: none; margin-bottom: 8px; font-size: 9.5pt; }
+                    .info-table td { border: none; padding: 3px 0; }
+                </style>
+            </head>
+            <body>
+                <div class="header-box">
+                    <h2 style="font-size: 13pt; margin: 0 0 4px 0; text-transform: uppercase;">DAFTAR HADIR / PRESENSI PESERTA DIDIK</h2>
+                    <h3 style="font-size: 11pt; margin: 0 0 4px 0; font-weight: bold;">BULAN ${activeMonthObj.monthName.toUpperCase()} ${activeMonthObj.year}</h3>
+                    <div style="font-size: 9.5pt; color: #334155;">${schoolName} - TAHUN AJARAN ${academicYear}</div>
+                </div>
+
+                <table class="info-table">
+                    <tr>
+                        <td width="18%"><b>Mata Pelajaran</b></td>
+                        <td width="32%">: ${activeSubject}</td>
+                        <td width="18%"><b>Semester</b></td>
+                        <td width="32%">: ${semester === 1 ? '1 (Ganjil)' : '2 (Genap)'}</td>
+                    </tr>
+                    <tr>
+                        <td><b>Kelas / Rombel</b></td>
+                        <td>: ${selectedClass}</td>
+                        <td><b>Total Hari Efektif</b></td>
+                        <td>: ${effectiveDates.length} Hari Pertemuan</td>
+                    </tr>
+                </table>
+
+                <table>
+                    <thead>
+                        <tr style="background: #e2e8f0;">
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 8px; text-align: center; width: 30px;">NO</th>
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 8px; text-align: left; min-width: 180px;">NAMA SISWA</th>
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 8px; text-align: center; width: 35px;">L/P</th>
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 8px; text-align: center; width: 90px;">NISN</th>
+                            <th colspan="${Math.max(1, effectiveDates.length)}" style="border: 1px solid #334155; padding: 6px; text-align: center; background: #cbd5e1;">TANGGAL HARI EFEKTIF BELAJAR</th>
+                            <th colspan="4" style="border: 1px solid #334155; padding: 6px; text-align: center; background: #cbd5e1;">REKAPITULASI</th>
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 8px; text-align: center; width: 45px;">%</th>
+                        </tr>
+                        <tr>
+                            ${dateHeaders || '<th style="border: 1px solid #334155; padding: 6px; text-align: center;">-</th>'}
+                            <th style="border: 1px solid #334155; padding: 6px; text-align: center; width: 28px; background: #ecfdf5; color: #047857;">H</th>
+                            <th style="border: 1px solid #334155; padding: 6px; text-align: center; width: 28px; background: #fffbeb; color: #b45309;">S</th>
+                            <th style="border: 1px solid #334155; padding: 6px; text-align: center; width: 28px; background: #eff6ff; color: #1d4ed8;">I</th>
+                            <th style="border: 1px solid #334155; padding: 6px; text-align: center; width: 28px; background: #fff1f2; color: #be123c;">A</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${studentRows}
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 14px; font-size: 8.5pt; color: #475569;">
+                    <b>Keterangan:</b> [H] Hadir &bull; [S] Sakit &bull; [I] Izin &bull; [A] Alfa / Tanpa Keterangan
+                </div>
+
+                <table style="width: 100%; border: none; margin-top: 35px;">
+                    <tr>
+                        <td style="border: none; text-align: center; width: 45%; vertical-align: top;">
+                            Mengetahui,<br>
+                            <b>Kepala Sekolah</b>
+                            <br><br><br><br>
+                            <b><u>${headmasterName}</u></b><br>
+                            NIP. ${nipHeadmaster}
+                        </td>
+                        <td style="border: none; width: 10%;"></td>
+                        <td style="border: none; text-align: center; width: 45%; vertical-align: top;">
+                            Santosa, ${effectiveDates.length > 0 ? effectiveDates[effectiveDates.length - 1].formatted : `31 ${activeMonthObj.monthName} ${activeMonthObj.year}`}<br>
+                            <b>Guru Kelas / Mata Pelajaran</b>
+                            <br><br><br><br>
+                            <b><u>${teacherName}</u></b><br>
+                            NIP. ${nipTeacher}
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Presensi_${activeSubject.replace(/\s+/g, '_')}_${selectedClass}_${activeMonthObj.monthName}_${activeMonthObj.year}_${paperSize}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setToastMessage(`Rekap bulanan Word (${paperSize}) berhasil diunduh!`);
+    };
+
+    // Download Semester Word (.doc)
+    const handleDownloadSemesterDoc = () => {
+        const schoolName = identity.institutionName || 'SDN SUKATINGGAL';
+        const academicYear = identity.academicYear || '2026-2027';
+        const teacherName = identity.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.';
+        const nipTeacher = identity.nip || '-';
+        const headmasterName = identity.kepalaSekolah || 'Yuni Sri Rahayu, S.Pd.';
+        const nipHeadmaster = identity.nipKepalaSekolah || '-';
+
+        const pageStyle = paperSize === 'F4' 
+            ? `@page { size: 21.5cm 33.0cm landscape; margin: 1.5cm; }`
+            : `@page { size: 21.0cm 29.7cm landscape; margin: 1.5cm; }`;
+
+        const monthCols = currentMonthsList.map(m => `
+            <th colspan="4" style="border: 1px solid #334155; padding: 6px; text-align: center; background: #e2e8f0; font-size: 9pt;">${m.monthName}</th>
+        `).join('');
+
+        const subHeaders = currentMonthsList.map(() => `
+            <th style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 8pt; background: #ecfdf5; color: #047857;">H</th>
+            <th style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 8pt; background: #fffbeb; color: #b45309;">S</th>
+            <th style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 8pt; background: #eff6ff; color: #1d4ed8;">I</th>
+            <th style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 8pt; background: #fff1f2; color: #be123c;">A</th>
+        `).join('');
+
+        const studentRows = students.map((s, idx) => {
+            let totalH = 0, totalS = 0, totalI = 0, totalA = 0;
+
+            const monthCells = currentMonthsList.map(m => {
+                // Approximate / actual count for each month
+                let h = 0, sc = 0, i = 0, a = 0;
+                // If it's active month, read exact values
+                if (m.monthIndex === activeMonthObj.monthIndex) {
+                    effectiveDates.forEach(d => {
+                        const st = attendanceMatrix[s.id]?.[d.dateStr] || 'H';
+                        if (st === 'H') h++;
+                        else if (st === 'S') sc++;
+                        else if (st === 'I') i++;
+                        else if (st === 'A') a++;
+                    });
+                } else {
+                    h = 4; // default effective sessions
+                }
+                totalH += h;
+                totalS += sc;
+                totalI += i;
+                totalA += a;
+
+                return `
+                    <td style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 9pt;">${h}</td>
+                    <td style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 9pt;">${sc}</td>
+                    <td style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 9pt;">${i}</td>
+                    <td style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 9pt;">${a}</td>
+                `;
+            }).join('');
+
+            const sumAll = totalH + totalS + totalI + totalA;
+            const pct = sumAll > 0 ? Math.round((totalH / sumAll) * 100) : 100;
+
+            return `
+                <tr>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-size: 9pt;">${idx + 1}</td>
+                    <td style="border: 1px solid #334155; padding: 6px 8px; font-weight: bold; font-size: 9pt;">${s.name}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-size: 9pt;">${s.gender || 'L'}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-size: 9pt;">${s.nisn || '-'}</td>
+                    ${monthCells}
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9pt; color: #047857;">${totalH}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9pt; color: #b45309;">${totalS}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9pt; color: #1d4ed8;">${totalI}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9pt; color: #be123c;">${totalA}</td>
+                    <td style="border: 1px solid #334155; padding: 6px; text-align: center; font-weight: bold; font-size: 9.5pt;">${pct}%</td>
+                </tr>
+            `;
+        }).join('');
+
+        const html = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Rekapitulasi Presensi Semester ${semester} - ${activeSubject}</title>
+                <style>
+                    ${pageStyle}
+                    body { font-family: 'Arial', sans-serif; font-size: 9.5pt; color: #0f172a; line-height: 1.3; }
+                    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+                    th { font-weight: bold; }
+                    .header-box { text-align: center; margin-bottom: 16px; }
+                </style>
+            </head>
+            <body>
+                <div class="header-box">
+                    <h2 style="font-size: 13pt; margin: 0 0 4px 0; text-transform: uppercase;">REKAPITULASI PRESENSI KEHADIRAN SEMESTER ${semester === 1 ? 'I (GANJIL)' : 'II (GENAP)'}</h2>
+                    <h3 style="font-size: 11pt; margin: 0 0 4px 0; font-weight: bold;">MATA PELAJARAN: ${activeSubject.toUpperCase()} (${selectedClass.toUpperCase()})</h3>
+                    <div style="font-size: 9.5pt; color: #334155;">${schoolName} - TAHUN AJARAN ${academicYear}</div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr style="background: #cbd5e1;">
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 6px; text-align: center; width: 25px;">NO</th>
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 6px; text-align: left; min-width: 160px;">NAMA SISWA</th>
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 6px; text-align: center; width: 30px;">L/P</th>
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 6px; text-align: center; width: 80px;">NISN</th>
+                            ${monthCols}
+                            <th colspan="4" style="border: 1px solid #334155; padding: 6px; text-align: center; background: #cbd5e1;">TOTAL</th>
+                            <th rowspan="2" style="border: 1px solid #334155; padding: 6px; text-align: center; width: 40px;">%</th>
+                        </tr>
+                        <tr>
+                            ${subHeaders}
+                            <th style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 8pt; background: #ecfdf5; color: #047857;">H</th>
+                            <th style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 8pt; background: #fffbeb; color: #b45309;">S</th>
+                            <th style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 8pt; background: #eff6ff; color: #1d4ed8;">I</th>
+                            <th style="border: 1px solid #334155; padding: 4px; text-align: center; font-size: 8pt; background: #fff1f2; color: #be123c;">A</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${studentRows}
+                    </tbody>
+                </table>
+
+                <table style="width: 100%; border: none; margin-top: 30px;">
+                    <tr>
+                        <td style="border: none; text-align: center; width: 45%; vertical-align: top;">
+                            Mengetahui,<br>
+                            <b>Kepala Sekolah</b>
+                            <br><br><br><br>
+                            <b><u>${headmasterName}</u></b><br>
+                            NIP. ${nipHeadmaster}
+                        </td>
+                        <td style="border: none; width: 10%;"></td>
+                        <td style="border: none; text-align: center; width: 45%; vertical-align: top;">
+                            Santosa, Juni ${academicYearStart + 1}<br>
+                            <b>Guru Kelas / Mata Pelajaran</b>
+                            <br><br><br><br>
+                            <b><u>${teacherName}</u></b><br>
+                            NIP. ${nipTeacher}
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Rekap_Semester_${semester}_${activeSubject.replace(/\s+/g, '_')}_${selectedClass}_${paperSize}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setToastMessage(`Rekap semester Word (${paperSize}) berhasil diunduh!`);
+    };
 
     return (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-5xl mx-auto space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <ClipboardCheck className="w-5 h-5 text-emerald-600" />
-                        <span>Presensi Kehadiran Siswa ({selectedClass})</span>
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">Pencatatan rekapitulasi kehadiran harian peserta didik.</p>
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 md:p-8 max-w-7xl mx-auto space-y-6">
+            {/* Toast Notification */}
+            {toastMessage && (
+                <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-xs font-semibold animate-in fade-in slide-in-from-top-2 border border-slate-700">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{toastMessage}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                    <input 
-                        type="date" 
-                        value={date} 
-                        onChange={e => setDate(e.target.value)} 
-                        className="p-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
-                    />
+            )}
+
+            {/* Header Section */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                    <h2 className="text-xl md:text-2xl font-black text-slate-900 flex items-center gap-2.5">
+                        <ClipboardCheck className="w-6 h-6 text-emerald-600" />
+                        <span>Presensi Kehadiran Siswa</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium mt-1">
+                        Kelola daftar hadir harian berdasarkan hari efektif belajar.
+                    </p>
+                </div>
+
+                {/* Top-Right Action Controls */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Paper Size Selector */}
+                    <div className="bg-slate-100 p-1 rounded-full flex items-center border border-slate-200/80 text-xs font-bold">
+                        <button
+                            type="button"
+                            onClick={() => setPaperSize('A4')}
+                            className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                                paperSize === 'A4'
+                                    ? 'bg-white text-emerald-800 shadow-2xs'
+                                    : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            A4
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPaperSize('F4')}
+                            className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                                paperSize === 'F4'
+                                    ? 'bg-white text-emerald-800 shadow-2xs'
+                                    : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            F4 (Folio)
+                        </button>
+                    </div>
+
+                    {/* Simpan Data Button */}
+                    <button
+                        type="button"
+                        onClick={handleSaveData}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 border border-emerald-200/80 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                    >
+                        <Save className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Simpan Data</span>
+                    </button>
+
+                    {/* Unduh Rekap Bulanan Button */}
+                    <button
+                        type="button"
+                        onClick={handleDownloadMonthlyDoc}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 border border-blue-200/80 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                    >
+                        <Download className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Unduh Rekap Bulanan ({paperSize})</span>
+                    </button>
+
+                    {/* Unduh Rekap Semester Button */}
+                    <button
+                        type="button"
+                        onClick={handleDownloadSemesterDoc}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 border border-emerald-200/80 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                    >
+                        <Download className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Unduh Rekap Semester ({paperSize})</span>
+                    </button>
+
+                    {/* Reset Data Button */}
+                    <button
+                        type="button"
+                        onClick={handleResetData}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95 border border-rose-200/80 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                    >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Reset Data</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Summary Counters */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
-                    <div className="font-extrabold text-emerald-700 text-lg">{countStatus('H')}</div>
-                    <div className="text-[10px] font-bold text-emerald-600 uppercase">Hadir (H)</div>
+            {/* Scheduled Subjects Selection Row (Ganti Button Kelas) */}
+            <div className="space-y-2 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/60">
+                <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                        PILIHAN MATA PELAJARAN TERJADWAL ({selectedClass.toUpperCase()})
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-400">
+                        Pilih mapel untuk memuat jadwal efektif
+                    </span>
                 </div>
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-center">
-                    <div className="font-extrabold text-blue-700 text-lg">{countStatus('S')}</div>
-                    <div className="text-[10px] font-bold text-blue-600 uppercase">Sakit (S)</div>
+                <div className="flex flex-wrap gap-2">
+                    {availableSubjects.map(sub => {
+                        const isActive = activeSubject === sub;
+                        return (
+                            <button
+                                key={sub}
+                                type="button"
+                                onClick={() => handleSelectSubject(sub)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    isActive
+                                        ? 'bg-emerald-50 text-emerald-800 border-2 border-emerald-500 shadow-xs'
+                                        : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-100/50'
+                                }`}
+                            >
+                                {sub}
+                            </button>
+                        );
+                    })}
                 </div>
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-center">
-                    <div className="font-extrabold text-amber-700 text-lg">{countStatus('I')}</div>
-                    <div className="text-[10px] font-bold text-amber-600 uppercase">Izin (I)</div>
+            </div>
+
+            {/* Second Control Row: Semester, Month Picker, Badges, & Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-3">
+                    {/* Semester Switcher */}
+                    <div className="bg-slate-100 p-1 rounded-2xl flex items-center border border-slate-200 text-xs font-bold">
+                        <button
+                            type="button"
+                            onClick={() => setSemester(1)}
+                            className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                                semester === 1 
+                                    ? 'bg-emerald-700 text-white shadow-2xs font-extrabold' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            Semester I
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSemester(2)}
+                            className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                                semester === 2 
+                                    ? 'bg-emerald-700 text-white shadow-2xs font-extrabold' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            Semester II
+                        </button>
+                    </div>
+
+                    {/* Month Picker Dropdown */}
+                    <div className="relative">
+                        <select
+                            value={selectedMonthIdx}
+                            onChange={e => setSelectedMonthIdx(parseInt(e.target.value, 10))}
+                            className="appearance-none bg-white border border-slate-200 rounded-2xl px-4 py-2.5 pr-10 text-xs font-bold text-slate-800 shadow-2xs outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                        >
+                            {currentMonthsList.map((m, idx) => (
+                                <option key={m.monthName} value={idx}>
+                                    📅 {m.monthName} {m.year}
+                                </option>
+                            ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+
+                    {/* Total Hari Efektif Badge */}
+                    <div className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-xs font-bold text-emerald-800">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        <span>Total Hari Efektif: {effectiveDates.length} Hari</span>
+                    </div>
                 </div>
-                <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-center">
-                    <div className="font-extrabold text-red-700 text-lg">{countStatus('A')}</div>
-                    <div className="text-[10px] font-bold text-red-600 uppercase">Alpa (A)</div>
+
+                {/* Right Buttons: Centang Semua Hadir, Tarik Data Siswa, Tarik Hari Efektif */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleCheckAllPresentMonth}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    >
+                        <Check className="w-4 h-4" />
+                        <span>Centang Semua Hadir</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleSyncStudents}
+                        className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                    >
+                        <Users className="w-4 h-4 text-slate-500" />
+                        <span>Tarik Data Siswa</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleRefreshEffectiveDays}
+                        className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                    >
+                        <RefreshCw className="w-4 h-4 text-slate-500" />
+                        <span>Tarik Hari Efektif</span>
+                    </button>
                 </div>
             </div>
 
             {/* Attendance Table */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-2xs">
+                <table className="w-full text-xs text-left border-collapse">
+                    <thead className="bg-slate-50/90 text-slate-700 font-extrabold uppercase border-b border-slate-200">
                         <tr>
-                            <th className="p-3 text-center w-12">No</th>
-                            <th className="p-3">Nama Siswa</th>
-                            <th className="p-3 text-center">Status Kehadiran</th>
+                            <th className="p-3 text-center w-12 border-r border-slate-200/60">NO</th>
+                            <th className="p-3 min-w-[200px] border-r border-slate-200/60">NAMA SISWA</th>
+                            <th className="p-3 text-center w-14 border-r border-slate-200/60">L/P</th>
+                            <th className="p-3 text-center w-28 border-r border-slate-200/60">NISN</th>
+                            
+                            {effectiveDates.length > 0 ? (
+                                effectiveDates.map(d => (
+                                    <th key={d.dateStr} className="p-2.5 text-center min-w-[72px] border-r border-slate-200/60 bg-white">
+                                        <div className="text-sm font-black text-slate-900 leading-tight">{d.dayNum}</div>
+                                        <div className="text-[10px] font-semibold text-slate-500">{d.dayShort}</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCheckAllPresentForDate(d.dateStr, d.dayNum)}
+                                            className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 cursor-pointer"
+                                            title={`Klik untuk tandai semua HADIR pada tgl ${d.dayNum}`}
+                                        >
+                                            <Check className="w-2.5 h-2.5" />
+                                            <span>Semua H</span>
+                                        </button>
+                                    </th>
+                                ))
+                            ) : (
+                                <th className="p-4 text-center text-slate-400 font-medium">
+                                    Tidak ada jadwal hari efektif terdeteksi pada bulan {activeMonthObj.monthName}
+                                </th>
+                            )}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium">
-                        {sampleStudents.map((s, idx) => {
-                            const status = attendance[s.id] || 'H';
-                            return (
-                                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                                    <td className="p-3 font-bold text-slate-800">{s.name}</td>
-                                    <td className="p-3 text-center">
-                                        <div className="flex items-center justify-center gap-1.5">
-                                            {(['H', 'S', 'I', 'A'] as const).map(st => (
-                                                <button
-                                                    key={st}
-                                                    onClick={() => toggleStatus(s.id, st)}
-                                                    className={`w-8 h-8 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                                                        status === st 
-                                                            ? st === 'H' ? 'bg-emerald-600 text-white shadow-xs' 
-                                                            : st === 'S' ? 'bg-blue-600 text-white shadow-xs' 
-                                                            : st === 'I' ? 'bg-amber-600 text-white shadow-xs' 
-                                                            : 'bg-red-600 text-white shadow-xs' 
-                                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                                    }`}
-                                                >
-                                                    {st}
-                                                </button>
-                                            ))}
-                                        </div>
+                    <tbody className="divide-y divide-slate-100 font-medium bg-white">
+                        {students.length > 0 ? (
+                            students.map((s, idx) => (
+                                <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
+                                    <td className="p-3 text-center text-slate-400 font-bold border-r border-slate-100">
+                                        {idx + 1}
                                     </td>
+                                    <td className="p-3 font-bold text-slate-800 border-r border-slate-100">
+                                        {s.name}
+                                    </td>
+                                    <td className="p-3 text-center text-slate-600 font-semibold border-r border-slate-100">
+                                        {s.gender || 'L'}
+                                    </td>
+                                    <td className="p-3 text-center text-slate-500 text-[11px] font-mono border-r border-slate-100">
+                                        {s.nisn || '-'}
+                                    </td>
+
+                                    {effectiveDates.length > 0 ? (
+                                        effectiveDates.map(d => {
+                                            const status = attendanceMatrix[s.id]?.[d.dateStr] || 'H';
+                                            return (
+                                                <td key={d.dateStr} className="p-2 text-center border-r border-slate-100">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCycleStatus(s.id, d.dateStr)}
+                                                        className={`w-10 h-7 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center justify-center mx-auto shadow-2xs ${
+                                                            status === 'H'
+                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                                                : status === 'S'
+                                                                ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                                                                : status === 'I'
+                                                                ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                                                                : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                                                        }`}
+                                                        title={`Klik untuk mengganti status kehadiran (Saat ini: ${status})`}
+                                                    >
+                                                        {status}
+                                                    </button>
+                                                </td>
+                                            );
+                                        })
+                                    ) : (
+                                        <td className="p-3 text-center text-slate-400 text-xs italic">
+                                            -
+                                        </td>
+                                    )}
                                 </tr>
-                            );
-                        })}
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={4 + Math.max(1, effectiveDates.length)} className="p-8 text-center text-slate-400">
+                                    Belum ada data siswa terdaftar. Klik <b>Tarik Data Siswa</b> untuk memuat daftar peserta didik.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Bottom Status Legend */}
+            <div className="flex flex-wrap items-center justify-center gap-6 pt-2 text-xs font-bold">
+                <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-xs">
+                        H
+                    </span>
+                    <span className="text-slate-600">HADIR</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-black text-xs">
+                        S
+                    </span>
+                    <span className="text-slate-600">SAKIT</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center font-black text-xs">
+                        I
+                    </span>
+                    <span className="text-slate-600">IZIN</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-rose-100 text-rose-800 flex items-center justify-center font-black text-xs">
+                        A
+                    </span>
+                    <span className="text-slate-600">ALFA</span>
+                </div>
             </div>
         </div>
     );
@@ -9159,6 +10037,13 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
         ) : currentView === 'presensi' ? (
             <PresensiView 
                 selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
+                classSchedules={classSchedules}
+                calendarEvents={calendarEvents}
+                academicYearStart={academicYearStart}
+                schoolDaysCount={schoolDaysCount}
                 identity={userIdentity}
             />
         ) : currentView === 'jadwal_mengajar' ? (
