@@ -1,0 +1,45 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account and session profile",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "assignedClass": {
+          "type": "string"
+        },
+        "institutionName": {
+          "type": "string"
+        },
+        "academicYear": {
+          "type": "string"
+        },
+        "semester": {
+          "type": "string"
+        },
+        "activeSessionId": {
+          "type": "string"
+        },
+        "lastActive": {
+          "type": "number"
+        }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile and active single-session credentials"
+    }
+  }
+}

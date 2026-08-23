@@ -11,17 +11,20 @@ import {
     ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, 
     Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2, Search, Lock, 
     Plus, Menu, Users, ClipboardCheck, BookMarked, CalendarRange, Award, CheckSquare, 
-    Layers, PenLine, CheckCheck, Upload
+    Layers, PenLine, CheckCheck, Upload, RotateCcw
 } from 'lucide-react';
 
 
 import localforage from 'localforage';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { initializeFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    ignoreUndefinedProperties: true
+}, firebaseConfig.firestoreDatabaseId);
 
 
 
@@ -2382,11 +2385,27 @@ interface StudentRecord {
 interface JournalRecord {
     id: string;
     date: string;
-    timeSlot: string;
+    dayName?: string;
+    formattedDate?: string;
+    timeSlot?: string;
     subject: string;
-    topic: string;
-    activity: string;
+    topic?: string;
+    activity?: string;
     notes: string;
+    isHeb?: boolean;
+    nonHebReason?: string;
+    element?: string;
+    atpTopic?: string;
+    learningModel?: string;
+    atpAchievement?: string;
+    attendanceSummary?: {
+        h: number;
+        s: number;
+        i: number;
+        a: number;
+        total: number;
+    };
+    jpCount?: number;
 }
 
 // --- Edit Profile Modal ---
@@ -6675,44 +6694,1225 @@ const HariEfektifView: React.FC<HariEfektifViewProps> = ({
 };
 
 // --- KKTP View Component ---
+interface KKTPStudentScore {
+    studentId: string;
+    studentName: string;
+    gender: 'L' | 'P';
+    nisn?: string;
+    nis?: string;
+    criteria: 'Sangat Baik' | 'Baik' | 'Cukup' | 'Perlu Bimbingan';
+    description: string;
+}
+
+interface KKTPRubric {
+    perluBimbingan: string;
+    cukup: string;
+    baik: string;
+    sangatBaik: string;
+}
+
+interface KKTPRecord {
+    id: string;
+    subject: string;
+    className: string;
+    date: string;
+    formattedDate: string;
+    dayNumber: string;
+    element: string;
+    atpId: string;
+    atpTitle: string;
+    rubric: KKTPRubric;
+    studentScores: KKTPStudentScore[];
+    createdAt: string;
+}
+
+interface DisplayAtpItem {
+    id: string;
+    no: number;
+    element: string;
+    title: string;
+    rawTopic: string;
+    dateStr: string;
+    formattedDate: string;
+    dayNumber: string;
+    processed: boolean;
+}
+
+const generateSoloRubric = (topic: string): KKTPRubric => {
+    let clean = topic.trim();
+    if (clean.endsWith('.')) clean = clean.slice(0, -1);
+    clean = clean.replace(/^[A-Z]/, c => c.toLowerCase());
+
+    return {
+        perluBimbingan: `Belum mampu ${clean}.`,
+        cukup: `Mampu ${clean}, namun masih terbatas pada aspek dasar (Unistructural).`,
+        baik: `Mampu ${clean}, dengan mengaitkan beberapa aspek relevan (Multistructural/Relational).`,
+        sangatBaik: `Sangat mahir ${clean}, dan mampu mengaplikasikannya dalam konteks yang lebih luas (Extended Abstract).`
+    };
+};
+
+const generateStudentDescription = (topic: string, criteria: 'Sangat Baik' | 'Baik' | 'Cukup' | 'Perlu Bimbingan'): string => {
+    let clean = topic.trim();
+    if (clean.endsWith('.')) clean = clean.slice(0, -1);
+
+    if (criteria === 'Sangat Baik') {
+        return `Sangat mahir ${clean}, dan mampu mengembangkannya secara mandiri.`;
+    } else if (criteria === 'Baik') {
+        return `Mampu memahami ${clean}, dengan baik.`;
+    } else if (criteria === 'Cukup') {
+        return `Mampu memahami ${clean}, namun masih memerlukan sedikit bimbingan pada aspek tertentu.`;
+    } else {
+        return `Memerlukan bimbingan lebih lanjut dalam ${clean}.`;
+    }
+};
+
 const KKTPView: React.FC<{
     selectedSubject: string;
+    setSelectedSubject?: (s: string) => void;
     selectedClass: string;
+    setSelectedClass?: (c: string) => void;
+    classSchedules?: Record<string, string[]>;
+    calendarEvents?: CalendarEvent[];
+    academicYearStart?: number;
+    schoolDaysCount?: 5 | 6;
     identity: UserIdentity;
-}> = ({ selectedSubject, selectedClass, identity }) => {
-    return (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-5xl mx-auto space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <Target className="w-5 h-5 text-emerald-600" />
-                        <span>Kriteria Ketercapaian Tujuan Pembelajaran (KKTP)</span>
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">Rubrik interval ketuntasan belajar {selectedSubject} ({selectedClass}).</p>
-                </div>
-            </div>
+    data?: CurriculumData | null;
+    activities?: ActivityLog[];
+    onNavigate?: (view: any) => void;
+}> = ({ 
+    selectedSubject, 
+    setSelectedSubject, 
+    selectedClass, 
+    setSelectedClass,
+    classSchedules = {},
+    calendarEvents = [],
+    academicYearStart = 2025,
+    schoolDaysCount = 6,
+    identity,
+    data,
+    activities,
+    onNavigate
+}) => {
+    const [viewMode, setViewMode] = useState<'list' | 'assess' | 'history'>('list');
+    const [selectedAtpIds, setSelectedAtpIds] = useState<Record<string, boolean>>({});
+    const [activeAssessmentAtp, setActiveAssessmentAtp] = useState<DisplayAtpItem | null>(null);
+    const [assessmentDate, setAssessmentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [expandedHistoryIds, setExpandedHistoryIds] = useState<Record<string, boolean>>({});
+    const [searchHistory, setSearchHistory] = useState<string>('');
+    const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 text-xs">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+    const notify = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+        setNotification({ message, type });
+        setTimeout(() => setNotification(null), 3500);
+    };
+
+    // Scheduled subjects list
+    const scheduledSubjects = useMemo(() => {
+        let subjectsFromRoster: string[] = [];
+        try {
+            const saved = localStorage.getItem(`prota_weekly_roster_${selectedClass}`);
+            if (saved) {
+                const roster = JSON.parse(saved);
+                Object.values(roster).forEach((slots: any) => {
+                    if (Array.isArray(slots)) {
+                        slots.forEach(slot => {
+                            if (slot && slot.subject) {
+                                const trimmed = slot.subject.trim();
+                                if (trimmed && !isExcludedSubject(trimmed) && !subjectsFromRoster.includes(trimmed)) {
+                                    subjectsFromRoster.push(trimmed);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        } catch (e) {}
+
+        if (subjectsFromRoster.length === 0) {
+            subjectsFromRoster = SUBJECTS.filter(s => !isExcludedSubject(s));
+        }
+        return subjectsFromRoster;
+    }, [selectedClass]);
+
+    // Active Subject
+    const currentSubject = useMemo(() => {
+        if (scheduledSubjects.includes(selectedSubject)) return selectedSubject;
+        return scheduledSubjects[0] || selectedSubject;
+    }, [scheduledSubjects, selectedSubject]);
+
+    // Storage keys
+    const historyStorageKey = `kktp_history_${selectedClass}_${currentSubject}`;
+    const studentsStorageKey = `prota_students_${selectedClass}`;
+
+    // Load History
+    const [kktpHistory, setKktpHistory] = useState<KKTPRecord[]>(() => {
+        try {
+            const saved = localStorage.getItem(`kktp_history_${selectedClass}_${currentSubject}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return [];
+    });
+
+    // Reload history when subject or class changes
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(historyStorageKey);
+            if (saved) {
+                setKktpHistory(JSON.parse(saved));
+            } else {
+                setKktpHistory([]);
+            }
+        } catch (e) {
+            setKktpHistory([]);
+        }
+    }, [historyStorageKey]);
+
+    // Save history helper
+    const saveKktpHistory = (records: KKTPRecord[]) => {
+        setKktpHistory(records);
+        try {
+            localStorage.setItem(historyStorageKey, JSON.stringify(records));
+        } catch (e) {}
+    };
+
+    // Load students
+    const [students, setStudents] = useState<StudentRecord[]>(() => {
+        try {
+            const saved = localStorage.getItem(studentsStorageKey);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return [
+            { id: '1', name: 'Adittia', gender: 'L', nisn: '0123456701', nis: '1001', notes: 'Aktif' },
+            { id: '2', name: 'Alfath Fatir Abdurahman', gender: 'L', nisn: '0123456702', nis: '1002', notes: 'Aktif' },
+            { id: '3', name: 'Algifari Ramdan', gender: 'L', nisn: '0123456703', nis: '1003', notes: 'Aktif' },
+            { id: '4', name: 'Alvino Febriansyah', gender: 'L', nisn: '0123456704', nis: '1004', notes: 'Aktif' },
+            { id: '5', name: 'Fauzan Nizam', gender: 'L', nisn: '0123456705', nis: '1005', notes: 'Aktif' },
+            { id: '6', name: 'Nur Rizki Firdaus', gender: 'L', nisn: '0123456706', nis: '1006', notes: 'Aktif' },
+            { id: '7', name: 'Muhammad Kaysa Nadeem Saputra', gender: 'L', nisn: '0123456707', nis: '1007', notes: 'Aktif' }
+        ];
+    });
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(studentsStorageKey);
+            if (saved) {
+                setStudents(JSON.parse(saved));
+            }
+        } catch (e) {}
+    }, [studentsStorageKey]);
+
+    // Extract ATPs for active subject ONLY from generated & saved PROTA
+    const atpList: DisplayAtpItem[] = useMemo(() => {
+        let activeCurriculum: CurriculumData | null = null;
+        if (data && data.elements && data.subject?.toLowerCase().trim() === currentSubject.toLowerCase().trim()) {
+            activeCurriculum = data;
+        } else if (activities && activities.length > 0) {
+            const match = activities.find(act => 
+                (act.type === 'ATP_JP' || act.type === 'CP_TP') && 
+                act.subject?.toLowerCase().trim() === currentSubject.toLowerCase().trim() &&
+                act.dataSnapshot && Array.isArray(act.dataSnapshot.elements)
+            );
+            if (match && match.dataSnapshot) {
+                activeCurriculum = match.dataSnapshot;
+            }
+        }
+
+        let extractedItems: DisplayAtpItem[] = [];
+        if (activeCurriculum && Array.isArray(activeCurriculum.elements)) {
+            let counter = 1;
+            activeCurriculum.elements.forEach((el, elIdx) => {
+                (el.allocations || []).forEach((alloc) => {
+                    const matchesClass = isSameClass(alloc.className, selectedClass) || !alloc.className;
+                    if (matchesClass && alloc.structuredAtp && alloc.structuredAtp.length > 0) {
+                        alloc.structuredAtp.forEach((grp, grpIdx) => {
+                            (grp.atpItems || []).forEach((item, itemIdx) => {
+                                const rawTopic = item.alur ? item.alur.replace(/^-\s*/, '') : grp.tp;
+                                const dateStr = item.planDate || '';
+                                let formattedDate = 'Tanggal belum dijadwalkan';
+                                let dayNumber = `${counter}`;
+                                if (dateStr) {
+                                    try {
+                                        const d = new Date(dateStr);
+                                        if (!isNaN(d.getTime())) {
+                                            const indonesianDays = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                                            const indonesianMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+                                            formattedDate = `${indonesianDays[d.getDay()]}, ${d.getDate()} ${indonesianMonths[d.getMonth()]} ${d.getFullYear()}`;
+                                            dayNumber = `${d.getDate()}`;
+                                        } else {
+                                            formattedDate = dateStr;
+                                        }
+                                    } catch (e) {
+                                        formattedDate = dateStr;
+                                    }
+                                }
+
+                                extractedItems.push({
+                                    id: `ext-${elIdx}-${grpIdx}-${itemIdx}`,
+                                    no: counter++,
+                                    element: el.elementName,
+                                    title: rawTopic,
+                                    rawTopic: rawTopic,
+                                    dateStr,
+                                    formattedDate,
+                                    dayNumber,
+                                    processed: false
+                                });
+                            });
+                        });
+                    }
+                });
+            });
+        }
+
+        // Mark processed items from history
+        return extractedItems.map(item => {
+            const isProcessed = kktpHistory.some(h => 
+                h.atpId === item.id || 
+                h.atpTitle.trim().toLowerCase() === item.title.trim().toLowerCase()
+            );
+            return { ...item, processed: isProcessed };
+        });
+    }, [currentSubject, selectedClass, data, activities, kktpHistory]);
+
+    // Selected ATP count
+    const selectedAtpCount = useMemo(() => {
+        return Object.values(selectedAtpIds).filter(Boolean).length;
+    }, [selectedAtpIds]);
+
+    const handleSelectAll = (checked: boolean) => {
+        const next: Record<string, boolean> = {};
+        if (checked) {
+            atpList.forEach(item => {
+                next[item.id] = true;
+            });
+        }
+        setSelectedAtpIds(next);
+    };
+
+    const handleToggleAtp = (id: string) => {
+        setSelectedAtpIds(prev => ({
+            ...prev,
+            [id]: !prev[id]
+        }));
+    };
+
+    // Assessment State
+    const [assessmentScores, setAssessmentScores] = useState<KKTPStudentScore[]>([]);
+
+    const startAssessment = () => {
+        const selectedList = atpList.filter(item => selectedAtpIds[item.id]);
+        if (selectedList.length === 0) {
+            notify("Silakan pilih minimal 1 ATP untuk dinilai.", "info");
+            return;
+        }
+
+        const targetAtp = selectedList[0];
+        setActiveAssessmentAtp(targetAtp);
+        setAssessmentDate(targetAtp.dateStr || new Date().toISOString().split('T')[0]);
+
+        // Init scores
+        const initScores: KKTPStudentScore[] = students.map(st => ({
+            studentId: st.id,
+            studentName: st.name,
+            gender: st.gender || 'L',
+            nisn: st.nisn,
+            nis: st.nis,
+            criteria: 'Baik',
+            description: generateStudentDescription(targetAtp.title, 'Baik')
+        }));
+        setAssessmentScores(initScores);
+        setViewMode('assess');
+    };
+
+    const handleScoreCriteriaChange = (index: number, criteria: 'Sangat Baik' | 'Baik' | 'Cukup' | 'Perlu Bimbingan') => {
+        if (!activeAssessmentAtp) return;
+        setAssessmentScores(prev => {
+            const updated = [...prev];
+            updated[index] = {
+                ...updated[index],
+                criteria,
+                description: generateStudentDescription(activeAssessmentAtp.title, criteria)
+            };
+            return updated;
+        });
+    };
+
+    const handleScoreDescChange = (index: number, description: string) => {
+        setAssessmentScores(prev => {
+            const updated = [...prev];
+            updated[index] = {
+                ...updated[index],
+                description
+            };
+            return updated;
+        });
+    };
+
+    const handleBatchCriteria = (criteria: 'Sangat Baik' | 'Baik' | 'Cukup' | 'Perlu Bimbingan') => {
+        if (!activeAssessmentAtp) return;
+        setAssessmentScores(prev => prev.map(s => ({
+            ...s,
+            criteria,
+            description: generateStudentDescription(activeAssessmentAtp.title, criteria)
+        })));
+        notify(`Semua siswa diatur ke predikat: ${criteria}`);
+    };
+
+    const handleSaveAssessment = () => {
+        if (!activeAssessmentAtp) return;
+
+        const rubric = generateSoloRubric(activeAssessmentAtp.title);
+        
+        let formattedDateStr = assessmentDate;
+        let dayNum = '1';
+        try {
+            const d = new Date(assessmentDate);
+            if (!isNaN(d.getTime())) {
+                const indonesianDays = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                const indonesianMonths = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                formattedDateStr = `${indonesianDays[d.getDay()]}, ${d.getDate()} ${indonesianMonths[d.getMonth()]} ${d.getFullYear()}`;
+                dayNum = `${d.getDate()}`;
+            }
+        } catch (e) {}
+
+        const newRecord: KKTPRecord = {
+            id: `kktp-${Date.now()}`,
+            subject: currentSubject,
+            className: selectedClass,
+            date: assessmentDate,
+            formattedDate: formattedDateStr,
+            dayNumber: dayNum,
+            element: activeAssessmentAtp.element,
+            atpId: activeAssessmentAtp.id,
+            atpTitle: activeAssessmentAtp.title,
+            rubric,
+            studentScores: assessmentScores,
+            createdAt: new Date().toISOString()
+        };
+
+        const updatedHistory = [newRecord, ...kktpHistory.filter(h => h.atpId !== activeAssessmentAtp.id)];
+        saveKktpHistory(updatedHistory);
+        notify("Penilaian KKTP berhasil disimpan!");
+        setViewMode('history');
+    };
+
+    const handleDeleteRecord = (id: string) => {
+        if (confirm("Apakah Anda yakin ingin menghapus catatan penilaian KKTP ini?")) {
+            const updated = kktpHistory.filter(h => h.id !== id);
+            saveKktpHistory(updated);
+            notify("Catatan penilaian KKTP telah dihapus.");
+        }
+    };
+
+    const handleDeleteAllHistory = () => {
+        if (confirm(`Apakah Anda yakin ingin menghapus seluruh riwayat KKTP ${currentSubject} (${selectedClass})?`)) {
+            saveKktpHistory([]);
+            notify("Seluruh riwayat KKTP telah dibersihkan.");
+        }
+    };
+
+    // Word Document (.doc) Export
+    const downloadDocFile = (record: KKTPRecord) => {
+        const schoolName = identity.institutionName || 'SDN SUKATINGGAL';
+        const academicYear = identity.academicYear || '2026/2027';
+        const semester = identity.semester || 'Ganjil';
+        const headmaster = identity.kepalaSekolah || 'Yuni Sri Rahayu, M.Pd.';
+        const headmasterNip = identity.nipKepalaSekolah || '198706162019032007';
+        const teacherName = identity.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.';
+        const teacherNip = identity.nip || '199602152025211094';
+
+        const html = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+            <meta charset="utf-8">
+            <title>Penilaian KKTP - ${record.atpTitle}</title>
+            <style>
+                @page {
+                    size: 21.0cm 29.7cm;
+                    margin: 2.0cm 2.0cm 2.0cm 2.0cm;
+                    mso-page-orientation: portrait;
+                }
+                body {
+                    font-family: 'Times New Roman', Times, serif;
+                    font-size: 11pt;
+                    line-height: 1.3;
+                    color: #000;
+                }
+                .header-title {
+                    text-align: center;
+                    font-weight: bold;
+                    font-size: 13pt;
+                    margin-bottom: 2px;
+                    text-transform: uppercase;
+                }
+                .header-sub {
+                    text-align: center;
+                    font-weight: bold;
+                    font-size: 12pt;
+                    margin-bottom: 15px;
+                    text-transform: uppercase;
+                }
+                .meta-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 15px;
+                    font-size: 10.5pt;
+                }
+                .meta-table td {
+                    padding: 3px 0;
+                    vertical-align: top;
+                }
+                .table-data {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 10px;
+                    margin-bottom: 15px;
+                    font-size: 10pt;
+                }
+                .table-data th {
+                    border: 1px solid #000;
+                    padding: 6px 4px;
+                    background-color: #f2f2f2;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                .table-data td {
+                    border: 1px solid #000;
+                    padding: 5px 6px;
+                    vertical-align: top;
+                }
+                .rubric-box {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 10px;
+                    margin-bottom: 15px;
+                    font-size: 9.5pt;
+                }
+                .rubric-box th {
+                    border: 1px solid #000;
+                    padding: 5px;
+                    background-color: #e6f4ea;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                .rubric-box td {
+                    border: 1px solid #000;
+                    padding: 6px;
+                    vertical-align: top;
+                }
+                .sig-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 30px;
+                    font-size: 11pt;
+                }
+                .sig-table td {
+                    text-align: center;
+                    vertical-align: top;
+                    padding: 0;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header-title">PENILAIAN KRITERIA KETUNTASAN TUJUAN PEMBELAJARAN (KKTP)</div>
+            <div class="header-sub">${schoolName} — ${record.className.toUpperCase()}</div>
+
+            <table class="meta-table">
+                <tr>
+                    <td style="width: 22%;"><b>Mata Pelajaran</b></td>
+                    <td style="width: 3%;">:</td>
+                    <td style="width: 45%;">${record.subject}</td>
+                    <td style="width: 15%;"><b>Tahun Ajaran</b></td>
+                    <td style="width: 3%;">:</td>
+                    <td style="width: 12%;">${academicYear}</td>
+                </tr>
+                <tr>
+                    <td><b>Fase / Kelas</b></td>
+                    <td>:</td>
+                    <td>${record.className}</td>
+                    <td><b>Semester</b></td>
+                    <td>:</td>
+                    <td>${semester}</td>
+                </tr>
+                <tr>
+                    <td><b>Elemen</b></td>
+                    <td>:</td>
+                    <td colspan="4">${record.element}</td>
+                </tr>
+                <tr>
+                    <td><b>Alur Tujuan Pembelajaran</b></td>
+                    <td>:</td>
+                    <td colspan="4"><b>${record.atpTitle}</b></td>
+                </tr>
+                <tr>
+                    <td><b>Hari / Tanggal</b></td>
+                    <td>:</td>
+                    <td colspan="4">${record.formattedDate}</td>
+                </tr>
+            </table>
+
+            <div style="font-weight: bold; font-size: 10.5pt; margin-top: 10px; margin-bottom: 4px;">A. Rubrik Penilaian (SOLO Taxonomy)</div>
+            <table class="rubric-box">
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">PERLU BIMBINGAN (0 - 60)</th>
+                        <th style="width: 25%;">CUKUP (61 - 70)</th>
+                        <th style="width: 25%;">BAIK (71 - 85)</th>
+                        <th style="width: 25%;">SANGAT BAIK (86 - 100)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>${record.rubric.perluBimbingan}</td>
+                        <td>${record.rubric.cukup}</td>
+                        <td>${record.rubric.baik}</td>
+                        <td>${record.rubric.sangatBaik}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="font-weight: bold; font-size: 10.5pt; margin-top: 15px; margin-bottom: 4px;">B. Hasil Penilaian Ketercapaian Peserta Didik</div>
+            <table class="table-data">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">NO</th>
+                        <th style="width: 28%;">NAMA SISWA</th>
+                        <th style="width: 6%;">JK</th>
+                        <th style="width: 18%;">KRITERIA PENILAIAN</th>
+                        <th style="width: 43%;">DESKRIPSI KETERCAPAIAN</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${record.studentScores.map((st, i) => `
                         <tr>
-                            <th className="p-3 w-1/3">Tujuan Pembelajaran (TP)</th>
-                            <th className="p-3 text-center bg-red-50 text-red-700">0 - 60%<br/><span className="text-[9px]">Perlu Bimbingan</span></th>
-                            <th className="p-3 text-center bg-amber-50 text-amber-700">61 - 70%<br/><span className="text-[9px]">Cukup</span></th>
-                            <th className="p-3 text-center bg-blue-50 text-blue-700">71 - 85%<br/><span className="text-[9px]">Baik</span></th>
-                            <th className="p-3 text-center bg-emerald-50 text-emerald-700">86 - 100%<br/><span className="text-[9px]">Sangat Baik</span></th>
+                            <td style="text-align: center;">${i + 1}</td>
+                            <td><b>${st.studentName}</b></td>
+                            <td style="text-align: center;">${st.gender || '-'}</td>
+                            <td style="text-align: center; font-weight: bold;">${st.criteria}</td>
+                            <td>${st.description}</td>
                         </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium">
-                        <tr>
-                            <td className="p-3 font-bold text-slate-800">Menjelaskan materi dasar dan menerapkan nilai karakter utama.</td>
-                            <td className="p-3 text-center text-slate-500">Remedial seluruh bagian</td>
-                            <td className="p-3 text-center text-slate-500">Remedial di bagian tertentu</td>
-                            <td className="p-3 text-center text-slate-500">Sudah mencapai ketuntasan</td>
-                            <td className="p-3 text-center text-slate-500">Perlu pengayaan / tantangan</td>
-                        </tr>
-                    </tbody>
-                </table>
+                    `).join('')}
+                </tbody>
+            </table>
+
+            <table class="sig-table">
+                <tr>
+                    <td style="width: 50%;">
+                        Mengetahui,<br/>
+                        Kepala Sekolah ${schoolName}
+                        <br/><br/><br/><br/><br/>
+                        <b><u>${headmaster}</u></b><br/>
+                        NIP. ${headmasterNip}
+                    </td>
+                    <td style="width: 50%;">
+                        Ditetapkan di Sukatinggal,<br/>
+                        Guru Mata Pelajaran / Kelas
+                        <br/><br/><br/><br/><br/>
+                        <b><u>${teacherName}</u></b><br/>
+                        NIP. ${teacherNip}
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        `;
+
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const sanitizedTitle = record.atpTitle.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_');
+        a.download = `KKTP_${record.className}_${record.subject.replace(/[^a-zA-Z0-9]/g, '_')}_${sanitizedTitle}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        notify("Dokumen Word KKTP berhasil diunduh!");
+    };
+
+    // Filtered history list
+    const filteredHistory = useMemo(() => {
+        if (!searchHistory.trim()) return kktpHistory;
+        const q = searchHistory.toLowerCase();
+        return kktpHistory.filter(h => 
+            h.atpTitle.toLowerCase().includes(q) || 
+            h.formattedDate.toLowerCase().includes(q) ||
+            h.element.toLowerCase().includes(q)
+        );
+    }, [kktpHistory, searchHistory]);
+
+    return (
+        <div className="space-y-6 max-w-7xl mx-auto pb-16">
+            {/* Toast Notification */}
+            {notification && (
+                <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-top-2 text-sm font-medium">
+                    <CheckCircle className="w-5 h-5 text-emerald-400" />
+                    <span>{notification.message}</span>
+                </div>
+            )}
+
+            {/* Top Navigation Bar: Header + Main Actions */}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs">
+                                <Target className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+                                    {viewMode === 'assess' ? 'Penilaian KKTP' : 'KKTP'}
+                                </h1>
+                                <p className="text-xs md:text-sm text-slate-500 font-medium mt-0.5">
+                                    {viewMode === 'assess' 
+                                        ? `${selectedClass} • ${selectedAtpCount || 1} ATP terpilih • ${currentSubject}`
+                                        : 'Pilih ATP untuk menentukan Kriteria Ketuntasan Tujuan Pembelajaran.'
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Action buttons depending on mode */}
+                    {viewMode === 'list' && (
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <button
+                                onClick={() => setViewMode('history')}
+                                className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                            >
+                                <FileText className="w-4 h-4 text-slate-500" />
+                                <span>Riwayat KKTP</span>
+                                {kktpHistory.length > 0 && (
+                                    <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">
+                                        {kktpHistory.length}
+                                    </span>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (atpList.length > 0) {
+                                        notify("Sinkronisasi ATP dengan kalender hari efektif selesai!");
+                                    } else {
+                                        notify("Data PROTA belum ditemukan untuk mata pelajaran ini. Silakan buat di Program Tahunan.", "info");
+                                    }
+                                }}
+                                className="px-4 py-2.5 bg-white hover:bg-emerald-50/50 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                            >
+                                <RefreshCw className="w-4 h-4 text-emerald-600" />
+                                <span>Sinkron ATP</span>
+                            </button>
+                            <button
+                                onClick={startAssessment}
+                                disabled={selectedAtpCount === 0}
+                                className={`px-5 py-2.5 rounded-full font-bold text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer ${
+                                    selectedAtpCount > 0 
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
+                                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                                }`}
+                            >
+                                <PenLine className="w-4 h-4" />
+                                <span>Buat KKTP ({selectedAtpCount} ATP)</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {viewMode === 'assess' && (
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <button
+                                onClick={() => {
+                                    if (confirm("Reset seluruh data penilaian siswa ke awal?")) {
+                                        handleBatchCriteria('Baik');
+                                    }
+                                }}
+                                className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Clear Data</span>
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                            >
+                                <X className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Batal</span>
+                            </button>
+                            <button
+                                onClick={handleSaveAssessment}
+                                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                            >
+                                <Check className="w-4 h-4" />
+                                <span>Simpan</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {viewMode === 'history' && (
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                                <span>Kembali ke ATP</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Subject Selector Buttons Row (Replaces Class Buttons as requested) */}
+                {viewMode !== 'assess' && (
+                    <div className="mt-5">
+                        <div className="flex items-center gap-2 mb-2 text-xs font-bold text-slate-600">
+                            <span>Pilih Mata Pelajaran:</span>
+                            <span className="text-slate-400 font-normal">({selectedClass})</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {scheduledSubjects.map((subj) => {
+                                const isCurrent = currentSubject === subj;
+                                return (
+                                    <button
+                                        key={subj}
+                                        onClick={() => {
+                                            if (setSelectedSubject) {
+                                                setSelectedSubject(subj);
+                                            }
+                                            setSelectedAtpIds({});
+                                        }}
+                                        className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                                            isCurrent
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200/80'
+                                        }`}
+                                    >
+                                        {subj}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* VIEW 1: ATP SELECTION LIST (Image 1) */}
+                {viewMode === 'list' && (
+                    <div className="mt-6">
+                        {atpList.length > 0 ? (
+                            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-2xs">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                                        <tr>
+                                            <th className="p-3 text-center w-12">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={atpList.length > 0 && selectedAtpCount === atpList.length}
+                                                    onChange={(e) => handleSelectAll(e.target.checked)}
+                                                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                                                    title="Pilih Semua"
+                                                />
+                                            </th>
+                                            <th className="p-3 text-center w-12 text-slate-500">NO</th>
+                                            <th className="p-3 w-48 text-slate-700">ELEMEN</th>
+                                            <th className="p-3 text-slate-700">
+                                                ALUR TUJUAN PEMBELAJARAN (TOTAL: {atpList.length} ATP)
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 font-medium">
+                                        {atpList.map((item, index) => {
+                                            const isChecked = !!selectedAtpIds[item.id];
+                                            const isEvenGroup = Math.floor(index / 4) % 2 === 0;
+                                            const rowBg = isChecked 
+                                                ? 'bg-emerald-50/60' 
+                                                : (isEvenGroup ? 'bg-rose-50/20 hover:bg-rose-50/40' : 'bg-purple-50/20 hover:bg-purple-50/40');
+
+                                            return (
+                                                <tr key={item.id} className={`${rowBg} transition-colors`}>
+                                                    <td className="p-3.5 text-center">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={isChecked}
+                                                            onChange={() => handleToggleAtp(item.id)}
+                                                            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3.5 text-center text-slate-500 font-bold">
+                                                        {item.no}
+                                                    </td>
+                                                    <td className="p-3.5 font-bold text-slate-900">
+                                                        {item.element}
+                                                    </td>
+                                                    <td className="p-3.5 space-y-1.5">
+                                                        <div className="font-bold text-slate-900 text-[13px] leading-snug">
+                                                            {item.title}
+                                                        </div>
+                                                        <div className="flex items-center gap-2.5">
+                                                            <span className="text-emerald-700 font-semibold text-[11px]">
+                                                                {item.formattedDate}
+                                                            </span>
+                                                            {item.processed && (
+                                                                <span className="px-2 py-0.5 bg-slate-200/70 text-slate-700 font-bold rounded-md text-[10px]">
+                                                                    Sudah Diproses
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="bg-slate-50/70 border-2 border-dashed border-slate-200 rounded-3xl p-8 md:p-12 text-center max-w-2xl mx-auto space-y-4">
+                                <div className="w-14 h-14 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-center mx-auto text-amber-600 shadow-2xs">
+                                    <BookMarked className="w-7 h-7" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <h3 className="text-base md:text-lg font-bold text-slate-800">
+                                        Data PROTA Belum Tersedia untuk {currentSubject} ({selectedClass})
+                                    </h3>
+                                    <p className="text-xs md:text-sm text-slate-500 leading-relaxed max-w-md mx-auto">
+                                        Tabel Elemen, Alur Tujuan Pembelajaran (ATP), dan jadwal tanggal pelaksanaan hanya dimuat setelah Anda membuat atau menghasilkan Program Tahunan (PROTA) pada mata pelajaran ini dan menyimpannya.
+                                    </p>
+                                </div>
+                                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                                    {onNavigate && (
+                                        <button
+                                            onClick={() => onNavigate('generator')}
+                                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                                        >
+                                            <PenLine className="w-4 h-4" />
+                                            <span>Buat PROTA di Program Tahunan</span>
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setViewMode('history')}
+                                        className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                                    >
+                                        <FileText className="w-4 h-4 text-slate-500" />
+                                        <span>Lihat Riwayat KKTP ({kktpHistory.length})</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* VIEW 2: PENILAIAN KKTP FORM (Image 2) */}
+                {viewMode === 'assess' && activeAssessmentAtp && (
+                    <div className="mt-6 space-y-6">
+                        {/* Rubrik Penilaian SOLO Taxonomy Card */}
+                        <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-5 md:p-6 space-y-3">
+                            <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                                <Table className="w-4 h-4 text-emerald-600" />
+                                <span>Rubrik Penilaian (SOLO Taxonomy)</span>
+                            </div>
+                            <div className="text-xs font-bold text-slate-800 border-b border-emerald-200/50 pb-2">
+                                {activeAssessmentAtp.title}
+                            </div>
+                            
+                            {(() => {
+                                const rubric = generateSoloRubric(activeAssessmentAtp.title);
+                                return (
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1 text-xs">
+                                        <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
+                                            <div className="font-bold text-red-700 mb-1 text-[11px]">PERLU BIMBINGAN</div>
+                                            <div className="text-slate-600 leading-relaxed text-[11px]">{rubric.perluBimbingan}</div>
+                                        </div>
+                                        <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
+                                            <div className="font-bold text-amber-700 mb-1 text-[11px]">CUKUP</div>
+                                            <div className="text-slate-600 leading-relaxed text-[11px]">{rubric.cukup}</div>
+                                        </div>
+                                        <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
+                                            <div className="font-bold text-blue-700 mb-1 text-[11px]">BAIK</div>
+                                            <div className="text-slate-600 leading-relaxed text-[11px]">{rubric.baik}</div>
+                                        </div>
+                                        <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
+                                            <div className="font-bold text-emerald-700 mb-1 text-[11px]">SANGAT BAIK</div>
+                                            <div className="text-slate-600 leading-relaxed text-[11px]">{rubric.sangatBaik}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Date Picker & Selected ATP Bar */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    HARI / TANGGAL
+                                </label>
+                                <input 
+                                    type="date"
+                                    value={assessmentDate}
+                                    onChange={(e) => setAssessmentDate(e.target.value)}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-emerald-500"
+                                />
+                            </div>
+                            <div className="md:col-span-3">
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    ATP TERPILIH
+                                </label>
+                                <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-950 truncate">
+                                    {activeAssessmentAtp.title}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Quick Action Buttons for Batch Grading */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                            <span className="text-xs font-bold text-slate-600">Aksi Cepat Penilaian:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => handleBatchCriteria('Sangat Baik')}
+                                    className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                >
+                                    Semua Sangat Baik
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleBatchCriteria('Baik')}
+                                    className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                >
+                                    Semua Baik
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleBatchCriteria('Cukup')}
+                                    className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                >
+                                    Semua Cukup
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleBatchCriteria('Perlu Bimbingan')}
+                                    className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                >
+                                    Semua Perlu Bimbingan
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Student Assessment Table */}
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-2xs">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                                    <tr>
+                                        <th className="p-3 text-center w-12">NO</th>
+                                        <th className="p-3 w-56">NAMA SISWA</th>
+                                        <th className="p-3 text-center w-14">JK</th>
+                                        <th className="p-3 w-44">KRITERIA PENILAIAN</th>
+                                        <th className="p-3">DESKRIPSI KETERCAPAIAN</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-medium">
+                                    {assessmentScores.map((st, idx) => (
+                                        <tr key={st.studentId} className="hover:bg-slate-50/70">
+                                            <td className="p-3 text-center text-slate-500 font-bold">
+                                                {idx + 1}
+                                            </td>
+                                            <td className="p-3 font-bold text-slate-900">
+                                                {st.studentName}
+                                            </td>
+                                            <td className="p-3 text-center text-slate-600 font-semibold">
+                                                {st.gender}
+                                            </td>
+                                            <td className="p-3">
+                                                <select
+                                                    value={st.criteria}
+                                                    onChange={(e) => handleScoreCriteriaChange(idx, e.target.value as any)}
+                                                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-emerald-500 cursor-pointer"
+                                                >
+                                                    <option value="Sangat Baik">Sangat Baik</option>
+                                                    <option value="Baik">Baik</option>
+                                                    <option value="Cukup">Cukup</option>
+                                                    <option value="Perlu Bimbingan">Perlu Bimbingan</option>
+                                                </select>
+                                            </td>
+                                            <td className="p-3">
+                                                <input 
+                                                    type="text"
+                                                    value={st.description}
+                                                    onChange={(e) => handleScoreDescChange(idx, e.target.value)}
+                                                    className="w-full p-2 bg-slate-50/50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:bg-white focus:border-emerald-500 font-normal"
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {/* VIEW 3: RIWAYAT KKTP (Image 3) */}
+                {viewMode === 'history' && (
+                    <div className="mt-6 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                            <div className="font-bold text-slate-800 text-sm">
+                                Riwayat KKTP {selectedClass} — {currentSubject}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="relative">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                                    <input 
+                                        type="text"
+                                        placeholder="Cari riwayat..."
+                                        value={searchHistory}
+                                        onChange={(e) => setSearchHistory(e.target.value)}
+                                        className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:border-emerald-500 w-44"
+                                    />
+                                </div>
+                                {kktpHistory.length > 0 && (
+                                    <button
+                                        onClick={handleDeleteAllHistory}
+                                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl border border-red-200 flex items-center gap-1.5 transition-all cursor-pointer"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <span>Hapus Semua Riwayat</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {filteredHistory.length === 0 ? (
+                            <div className="text-center py-12 bg-slate-50/50 rounded-2xl border border-slate-200/80 space-y-2">
+                                <FileText className="w-8 h-8 text-slate-300 mx-auto" />
+                                <div className="text-sm font-bold text-slate-700">Belum ada riwayat penilaian KKTP</div>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    Pilih ATP pada tab utama dan klik tombol "Buat KKTP" untuk melakukan penilaian ketercapaian siswa.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {filteredHistory.map((rec) => {
+                                    const isExpanded = !!expandedHistoryIds[rec.id];
+
+                                    return (
+                                        <div key={rec.id} className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden transition-all">
+                                            {/* Accordion Header Row */}
+                                            <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/40 hover:bg-slate-50">
+                                                <div className="flex items-center gap-3.5">
+                                                    {/* Day circle */}
+                                                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center shrink-0 border border-emerald-200">
+                                                        {rec.dayNumber || '20'}
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-xs font-bold text-slate-900">
+                                                            {rec.formattedDate}
+                                                        </div>
+                                                        <div className="text-xs text-slate-600 line-clamp-1 font-medium mt-0.5">
+                                                            {rec.atpTitle}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 self-end md:self-center">
+                                                    {/* Unduh Word Button */}
+                                                    <button
+                                                        onClick={() => downloadDocFile(rec)}
+                                                        title="Unduh Dokumen Word (.doc)"
+                                                        className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center border border-emerald-200 transition-all cursor-pointer"
+                                                    >
+                                                        <Download className="w-4 h-4" />
+                                                    </button>
+
+                                                    {/* Delete record */}
+                                                    <button
+                                                        onClick={() => handleDeleteRecord(rec.id)}
+                                                        title="Hapus Catatan"
+                                                        className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 flex items-center justify-center border border-rose-200 transition-all cursor-pointer"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+
+                                                    {/* Expand / Collapse Toggle */}
+                                                    <button
+                                                        onClick={() => setExpandedHistoryIds(prev => ({
+                                                            ...prev,
+                                                            [rec.id]: !prev[rec.id]
+                                                        }))}
+                                                        className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 transition-all cursor-pointer"
+                                                    >
+                                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Expanded Accordion Body */}
+                                            {isExpanded && (
+                                                <div className="p-5 border-t border-slate-100 space-y-5 bg-white">
+                                                    {/* Table of Students & Criteria Badges */}
+                                                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                                        <table className="w-full text-left text-xs border-collapse">
+                                                            <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                                                                <tr>
+                                                                    <th className="p-2.5 w-48">NAMA</th>
+                                                                    <th className="p-2.5 w-32 text-center">PREDIKAT</th>
+                                                                    <th className="p-2.5">DESKRIPSI</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100 font-medium">
+                                                                {rec.studentScores.map((st) => {
+                                                                    let badgeBg = 'bg-blue-50 text-blue-700 border-blue-200';
+                                                                    if (st.criteria === 'Sangat Baik') badgeBg = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                                                    if (st.criteria === 'Cukup') badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
+                                                                    if (st.criteria === 'Perlu Bimbingan') badgeBg = 'bg-rose-50 text-rose-700 border-rose-200';
+
+                                                                    return (
+                                                                        <tr key={st.studentId} className="hover:bg-slate-50/50">
+                                                                            <td className="p-2.5 font-bold text-slate-900">
+                                                                                {st.studentName}
+                                                                            </td>
+                                                                            <td className="p-2.5 text-center">
+                                                                                <span className={`px-2.5 py-0.5 rounded-md font-bold text-[10px] border ${badgeBg}`}>
+                                                                                    {st.criteria}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="p-2.5 text-slate-600 text-[11px] leading-relaxed">
+                                                                                {st.description}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+
+                                                    {/* Rubrik Penilaian Box */}
+                                                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2 text-xs">
+                                                        <div className="flex items-center gap-2 font-bold text-slate-800">
+                                                            <Table className="w-3.5 h-3.5 text-slate-500" />
+                                                            <span>Rubrik Penilaian (SOLO Taxonomy)</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-1 text-[11px]">
+                                                            <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                                                                <div className="font-bold text-red-700 mb-0.5">PERLU BIMBINGAN</div>
+                                                                <div className="text-slate-600">{rec.rubric.perluBimbingan}</div>
+                                                            </div>
+                                                            <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                                                                <div className="font-bold text-amber-700 mb-0.5">CUKUP</div>
+                                                                <div className="text-slate-600">{rec.rubric.cukup}</div>
+                                                            </div>
+                                                            <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                                                                <div className="font-bold text-blue-700 mb-0.5">BAIK</div>
+                                                                <div className="text-slate-600">{rec.rubric.baik}</div>
+                                                            </div>
+                                                            <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                                                                <div className="font-bold text-emerald-700 mb-0.5">SANGAT BAIK</div>
+                                                                <div className="text-slate-600">{rec.rubric.sangatBaik}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -6721,106 +7921,1174 @@ const KKTPView: React.FC<{
 // --- Jurnal View Component ---
 const JurnalView: React.FC<{
     selectedSubject: string;
+    setSelectedSubject?: (subject: string) => void;
     selectedClass: string;
+    setSelectedClass?: (className: string) => void;
+    classSchedules?: Record<string, any>;
+    calendarEvents?: CalendarEvent[];
+    academicYearStart?: number;
+    schoolDaysCount?: number;
     identity: UserIdentity;
-}> = ({ selectedSubject, selectedClass, identity }) => {
-    const [journals, setJournals] = useState<JournalRecord[]>(() => [
-        {
-            id: '1',
-            date: new Date().toISOString().split('T')[0],
-            timeSlot: '07:30 - 09:00',
-            subject: selectedSubject,
-            topic: 'Mengenal Lingkungan Belajar dan Karakter Utama',
-            activity: 'Diskusi kelompok dan pemutaran video edukatif',
-            notes: 'Siswa antusias dan aktif berdiskusi'
+    data?: CurriculumData | null;
+    activities?: ActivityLog[];
+    onNavigate?: (view: any) => void;
+}> = ({ 
+    selectedSubject: initialSubject, 
+    setSelectedSubject, 
+    selectedClass, 
+    setSelectedClass,
+    classSchedules,
+    calendarEvents = [],
+    academicYearStart = 2026,
+    schoolDaysCount = 6,
+    identity,
+    data,
+    activities,
+    onNavigate
+}) => {
+    // Scheduled subjects from weekly roster
+    const scheduledSubjects = useMemo(() => {
+        let subjectsFromRoster: string[] = [];
+        try {
+            const saved = localStorage.getItem(`prota_weekly_roster_${selectedClass}`);
+            if (saved) {
+                const roster = JSON.parse(saved);
+                Object.values(roster).forEach((slots: any) => {
+                    if (Array.isArray(slots)) {
+                        slots.forEach(slot => {
+                            if (slot && slot.subject) {
+                                const trimmed = slot.subject.trim();
+                                if (trimmed && !isExcludedSubject(trimmed) && !subjectsFromRoster.includes(trimmed)) {
+                                    subjectsFromRoster.push(trimmed);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        } catch (e) {}
+
+        if (subjectsFromRoster.length === 0) {
+            subjectsFromRoster = SUBJECTS.filter(s => !isExcludedSubject(s));
         }
-    ]);
+        return subjectsFromRoster;
+    }, [selectedClass]);
 
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [topic, setTopic] = useState('');
-    const [activity, setActivity] = useState('');
-    const [notes, setNotes] = useState('');
+    const [activeSubject, setActiveSubject] = useState<string>(() => {
+        if (scheduledSubjects.includes(initialSubject)) return initialSubject;
+        return scheduledSubjects[0] || "Bahasa Indonesia";
+    });
 
-    const handleAdd = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!topic) return;
-        const newJ: JournalRecord = {
-            id: Date.now().toString(),
-            date,
-            timeSlot: '07:30 - 09:00',
-            subject: selectedSubject,
-            topic,
-            activity,
-            notes
-        };
-        setJournals([newJ, ...journals]);
-        setTopic('');
-        setActivity('');
-        setNotes('');
+    const handleSelectSubject = (subj: string) => {
+        setActiveSubject(subj);
+        if (setSelectedSubject) setSelectedSubject(subj);
     };
 
-    return (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 md:p-8 max-w-5xl mx-auto space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <BookMarked className="w-5 h-5 text-emerald-600" />
-                        <span>Jurnal Pembelajaran Harian ({selectedClass})</span>
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">Catatan pelaksanaan KBM harian dan refleksi pembelajaran.</p>
-                </div>
-            </div>
+    // Semester state: 1 = Ganjil, 2 = Genap
+    const [semester, setSemester] = useState<1 | 2>(() => {
+        const rawSem = identity?.semester || 'Ganjil';
+        return (rawSem.includes('2') || rawSem.toLowerCase().includes('genap')) ? 2 : 1;
+    });
 
-            <form onSubmit={handleAdd} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3 text-xs">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div>
-                        <label className="block font-bold text-slate-700 mb-1">Tanggal</label>
-                        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none" />
+    const semester1Months = [
+        { monthName: 'Juli', monthIndex: 6, year: academicYearStart },
+        { monthName: 'Agustus', monthIndex: 7, year: academicYearStart },
+        { monthName: 'September', monthIndex: 8, year: academicYearStart },
+        { monthName: 'Oktober', monthIndex: 9, year: academicYearStart },
+        { monthName: 'November', monthIndex: 10, year: academicYearStart },
+        { monthName: 'Desember', monthIndex: 11, year: academicYearStart },
+    ];
+
+    const semester2Months = [
+        { monthName: 'Januari', monthIndex: 0, year: academicYearStart + 1 },
+        { monthName: 'Februari', monthIndex: 1, year: academicYearStart + 1 },
+        { monthName: 'Maret', monthIndex: 2, year: academicYearStart + 1 },
+        { monthName: 'April', monthIndex: 3, year: academicYearStart + 1 },
+        { monthName: 'Mei', monthIndex: 4, year: academicYearStart + 1 },
+        { monthName: 'Juni', monthIndex: 5, year: academicYearStart + 1 },
+    ];
+
+    const currentMonthsList = semester === 1 ? semester1Months : semester2Months;
+    const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(1); // Default Agustus / Februari
+    const activeMonthObj = currentMonthsList[selectedMonthIdx] || currentMonthsList[0];
+
+    // Notification toast
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [toastType, setToastType] = useState<'success' | 'info' | 'warning'>('success');
+    const notify = (msg: string, type: 'success' | 'info' | 'warning' = 'success') => {
+        setToastMessage(msg);
+        setToastType(type);
+    };
+    useEffect(() => {
+        if (toastMessage) {
+            const t = setTimeout(() => setToastMessage(null), 3500);
+            return () => clearTimeout(t);
+        }
+    }, [toastMessage]);
+
+    // Students list for attendance calculations
+    const studentsStorageKey = `prota_students_${selectedClass}`;
+    const [students, setStudents] = useState<StudentRecord[]>(() => {
+        try {
+            const saved = localStorage.getItem(studentsStorageKey);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return [
+            { id: '1', nisn: '0123456701', nis: '1001', name: 'Adittia', gender: 'L', notes: 'Aktif' },
+            { id: '2', nisn: '0123456702', nis: '1002', name: 'Alfath Fatir Abdurahman', gender: 'L', notes: 'Aktif' },
+            { id: '3', nisn: '0123456703', nis: '1003', name: 'Algifari Ramdan', gender: 'L', notes: 'Aktif' },
+            { id: '4', nisn: '0123456704', nis: '1004', name: 'Alvino Febriansyah', gender: 'L', notes: 'Aktif' },
+            { id: '5', nisn: '0123456705', nis: '1005', name: 'Fauzan Nizam', gender: 'L', notes: 'Aktif' },
+            { id: '6', nisn: '0123456706', nis: '1006', name: 'Nur Rizki Firdaus', gender: 'L', notes: 'Aktif' },
+            { id: '7', nisn: '0123456707', nis: '1007', name: 'Muhammad Kaysa Nadeem Saputra', gender: 'L', notes: 'Aktif' },
+        ];
+    });
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(studentsStorageKey);
+            if (saved) setStudents(JSON.parse(saved));
+        } catch (e) {}
+    }, [studentsStorageKey]);
+
+    // Attendance Matrix storage key
+    const subjectCleanKey = activeSubject.replace(/[^a-zA-Z0-9]/g, '_');
+    const attendanceStorageKey = `prota_attendance_matrix_${selectedClass}_${subjectCleanKey}`;
+    const [attendanceMatrix, setAttendanceMatrix] = useState<Record<string, Record<string, 'H' | 'S' | 'I' | 'A'>>>(() => {
+        try {
+            const saved = localStorage.getItem(attendanceStorageKey);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {};
+    });
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(attendanceStorageKey);
+            if (saved) {
+                setAttendanceMatrix(JSON.parse(saved));
+                return;
+            }
+        } catch (e) {}
+        setAttendanceMatrix({});
+    }, [attendanceStorageKey]);
+
+    // Weekly Schedule for scheduled days detection
+    const weeklySchedule: Record<string, ScheduleSlot[]> = useMemo(() => {
+        try {
+            const saved = localStorage.getItem(`prota_weekly_roster_${selectedClass}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            'Senin': [{ time: '07:30 - 08:40', subject: 'Bahasa Indonesia' }, { time: '08:40 - 09:50', subject: 'Matematika' }],
+            'Selasa': [{ time: '07:30 - 08:40', subject: 'Pendidikan Agama Islam' }, { time: '08:40 - 09:50', subject: 'Pendidikan Pancasila' }],
+            'Rabu': [{ time: '07:30 - 08:40', subject: 'IPAS' }, { time: '08:40 - 09:50', subject: 'Bahasa Indonesia' }],
+            'Kamis': [{ time: '07:30 - 08:40', subject: 'Matematika' }, { time: '08:40 - 09:50', subject: 'Seni Rupa' }],
+            'Jumat': [{ time: '07:30 - 08:40', subject: 'PJOK' }, { time: '08:40 - 09:15', subject: 'Koding & Kecerdasan Artifisial' }],
+            'Sabtu': [{ time: '07:30 - 08:40', subject: 'Muatan Lokal (Bahasa Sunda / Daerah)' }, { time: '08:40 - 09:50', subject: 'Bahasa Inggris' }]
+        };
+    }, [selectedClass]);
+
+    // Find scheduled days for active subject
+    const scheduledDaysForSubject = useMemo(() => {
+        const scheduledDaysSet = new Set<string>();
+        const days = schoolDaysCount === 5 
+            ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+            : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        
+        days.forEach(d => {
+            const hasSubject = (weeklySchedule[d] || []).some(slot => {
+                if (!slot.subject) return false;
+                const s1 = slot.subject.toLowerCase().trim();
+                const s2 = activeSubject.toLowerCase().trim();
+                return s1 === s2 || s1.includes(s2) || s2.includes(s1);
+            });
+            if (hasSubject) {
+                scheduledDaysSet.add(d);
+            }
+        });
+
+        return scheduledDaysSet.size > 0 ? Array.from(scheduledDaysSet) : ['Senin'];
+    }, [activeSubject, weeklySchedule, schoolDaysCount]);
+
+    // Extract ATPs from PROTA (data snapshot or activities)
+    const protaAtpList = useMemo(() => {
+        let activeCurriculum: CurriculumData | null = null;
+        if (data && data.elements && data.subject?.toLowerCase().trim() === activeSubject.toLowerCase().trim()) {
+            activeCurriculum = data;
+        } else if (activities && activities.length > 0) {
+            const match = activities.find(act => 
+                (act.type === 'ATP_JP' || act.type === 'CP_TP') && 
+                act.subject?.toLowerCase().trim() === activeSubject.toLowerCase().trim() &&
+                act.dataSnapshot && Array.isArray(act.dataSnapshot.elements)
+            );
+            if (match && match.dataSnapshot) {
+                activeCurriculum = match.dataSnapshot;
+            }
+        }
+
+        let atps: { element: string; title: string; planDate?: string }[] = [];
+        if (activeCurriculum && Array.isArray(activeCurriculum.elements)) {
+            activeCurriculum.elements.forEach(el => {
+                (el.allocations || []).forEach(alloc => {
+                    const matchesClass = isSameClass(alloc.className, selectedClass) || !alloc.className;
+                    if (matchesClass && alloc.structuredAtp && alloc.structuredAtp.length > 0) {
+                        alloc.structuredAtp.forEach(grp => {
+                            (grp.atpItems || []).forEach(item => {
+                                const rawTopic = item.alur ? item.alur.replace(/^-\s*/, '') : grp.tp;
+                                atps.push({
+                                    element: el.elementName,
+                                    title: rawTopic,
+                                    planDate: item.planDate
+                                });
+                            });
+                        });
+                    }
+                });
+            });
+        }
+        return atps;
+    }, [activeSubject, selectedClass, data, activities]);
+
+    const hasSavedProta = protaAtpList.length > 0;
+
+    // Journal storage key
+    const journalStorageKey = `prota_jurnal_entries_${selectedClass}_${subjectCleanKey}`;
+    const [savedJournals, setSavedJournals] = useState<Record<string, Partial<JournalRecord>>>(() => {
+        try {
+            const saved = localStorage.getItem(journalStorageKey);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {};
+    });
+
+    // Model Pembelajaran Preset Options
+    const LEARNING_MODELS = [
+        "Problem Based Learning (PBL)",
+        "Project Based Learning (PjBL)",
+        "Discovery Learning",
+        "Inquiry Learning",
+        "Direct Instruction (Pengajaran Langsung)",
+        "Contextual Teaching and Learning (CTL)",
+        "Cooperative Learning (STAD / Jigsaw)",
+        "Pembelajaran Berdiferensiasi (TaRL)",
+        "Gamifikasi & Eksplorasi Konsep",
+        "Praktik Langsung / Eksperimen Konkret"
+    ];
+
+    // Predikat / Ketercapaian Refleksi Options
+    const ACHIEVEMENT_OPTIONS = [
+        "Sangat Baik: Seluruh siswa tuntas mencapai TP dan menunjukkan pemahaman mendalam (Extended Abstract)",
+        "Baik: Mayoritas siswa tuntas mencapai TP dengan aktif dan mandiri (Relational)",
+        "Cukup: Sebagian besar siswa mencapai TP, beberapa siswa memerlukan pendampingan (Multistructural)",
+        "Perlu Bimbingan: Sebagian siswa belum mencapai TP, diperlukan penguatan materi dan remedial (Unistructural)",
+        "Tuntas 100%: KBM berjalan efektif, seluruh indikator ketercapaian terpenuhi",
+        "Pengayaan: Siswa menyelesaikan materi dengan cepat dan diberikan materi pengayaan",
+        "Remedial Terarah: Dilakukan pendampingan khusus pada materi esensial bagi siswa tertentu"
+    ];
+
+    // Calculate all dates in the selected month that match the schedule
+    const monthlyJournalList = useMemo(() => {
+        // Jangan muatkan data secara otomatis jika pengguna belum menghasilkan dan menyimpan tabel PROTA
+        if (!hasSavedProta) {
+            return [];
+        }
+
+        const dNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+        const mNamesIndo = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        
+        const checkConflict = (dateStr: string): CalendarEvent | null => {
+            return calendarEvents.find(ev => dateStr >= ev.start && dateStr <= ev.end && (ev.type === 'holiday' || ev.type === 'activity')) || null;
+        };
+
+        const academicStartStr = `${academicYearStart}-07-14`;
+        const academicEndStr = `${academicYearStart + 1}-06-27`;
+
+        const year = activeMonthObj.year;
+        const month = activeMonthObj.monthIndex;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const list: JournalRecord[] = [];
+        let hebMeetingCounter = 0;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const curDate = new Date(year, month, d);
+            const dateStr = formatDateLocal(curDate);
+            const dayName = dNames[curDate.getDay()];
+            const isWeekend = schoolDaysCount === 5 ? (curDate.getDay() === 0 || curDate.getDay() === 6) : curDate.getDay() === 0;
+            const isWithinAcademic = dateStr >= academicStartStr && dateStr <= academicEndStr;
+
+            if (scheduledDaysForSubject.includes(dayName) && !isWeekend) {
+                const conflict = checkConflict(dateStr);
+                const isHeb = !conflict && isWithinAcademic;
+                let nonHebReason = '';
+
+                if (!isWithinAcademic) {
+                    nonHebReason = 'Di luar Kalender Tahun Ajaran Efektif';
+                } else if (conflict) {
+                    nonHebReason = conflict.description || (conflict.type === 'holiday' ? 'Libur Nasional / Sekolah' : 'Kegiatan Khusus Sekolah');
+                }
+
+                // Compute Attendance Summary from matrix
+                let hCount = 0;
+                let sCount = 0;
+                let iCount = 0;
+                let aCount = 0;
+                const totalStudents = students.length || 1;
+
+                if (isHeb) {
+                    students.forEach(st => {
+                        const status = attendanceMatrix[st.id]?.[dateStr] || 'H';
+                        if (status === 'H') hCount++;
+                        else if (status === 'S') sCount++;
+                        else if (status === 'I') iCount++;
+                        else if (status === 'A') aCount++;
+                    });
+                }
+
+                // Match ATP sequentially
+                let defaultAtpTopic = '';
+                let defaultElement = 'Umum';
+                if (isHeb) {
+                    hebMeetingCounter++;
+                    if (protaAtpList.length > 0) {
+                        const atpIndex = (hebMeetingCounter - 1) % protaAtpList.length;
+                        defaultAtpTopic = protaAtpList[atpIndex]?.title || '';
+                        defaultElement = protaAtpList[atpIndex]?.element || 'Elemen Pembelajaran';
+                    } else {
+                        defaultAtpTopic = `Pembelajaran ${activeSubject} Pertemuan ke-${hebMeetingCounter}`;
+                    }
+                } else {
+                    defaultAtpTopic = `KBM Ditiadakan (Non HEB: ${nonHebReason})`;
+                }
+
+                // Check previously saved user customization
+                const saved = savedJournals[dateStr] || {};
+                const finalAtpTopic = saved.atpTopic !== undefined ? saved.atpTopic : defaultAtpTopic;
+                const finalLearningModel = saved.learningModel !== undefined ? saved.learningModel : (isHeb ? "Problem Based Learning (PBL)" : "-");
+                const finalAchievement = saved.atpAchievement !== undefined ? saved.atpAchievement : (isHeb ? ACHIEVEMENT_OPTIONS[1] : "-");
+                const finalNotes = saved.notes !== undefined ? saved.notes : (isHeb ? "KBM terlaksana lancar, siswa aktif berpartisipasi." : `Non HEB: Menginjak pada hari ${dayName}, ${d} ${mNamesIndo[month]} (${nonHebReason})`);
+                const finalElement = saved.element || defaultElement;
+
+                list.push({
+                    id: `jurnal-${dateStr}`,
+                    date: dateStr,
+                    dayName,
+                    formattedDate: `${dayName}, ${d < 10 ? `0${d}` : d} ${mNamesIndo[month]} ${year}`,
+                    timeSlot: '07:30 - 09:00',
+                    subject: activeSubject,
+                    topic: finalAtpTopic,
+                    activity: finalLearningModel,
+                    notes: finalNotes,
+                    isHeb,
+                    nonHebReason,
+                    element: finalElement,
+                    atpTopic: finalAtpTopic,
+                    learningModel: finalLearningModel,
+                    atpAchievement: finalAchievement,
+                    attendanceSummary: {
+                        h: hCount,
+                        s: sCount,
+                        i: iCount,
+                        a: aCount,
+                        total: totalStudents
+                    },
+                    jpCount: 2
+                });
+            }
+        }
+
+        return list;
+    }, [hasSavedProta, activeMonthObj, scheduledDaysForSubject, schoolDaysCount, calendarEvents, academicYearStart, students, attendanceMatrix, protaAtpList, savedJournals, activeSubject]);
+
+    // Handle field updates
+    const handleUpdateJournalRow = (dateStr: string, field: keyof JournalRecord, value: any) => {
+        setSavedJournals(prev => {
+            const updated = {
+                ...prev,
+                [dateStr]: {
+                    ...(prev[dateStr] || {}),
+                    [field]: value
+                }
+            };
+            try {
+                localStorage.setItem(journalStorageKey, JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+        });
+    };
+
+    // Save All journals explicitly
+    const handleSaveAll = () => {
+        if (!hasSavedProta) {
+            notify(`Tabel PROTA untuk ${activeSubject} belum dihasilkan & disimpan. Silakan buat PROTA terlebih dahulu.`, 'warning');
+            return;
+        }
+        try {
+            localStorage.setItem(journalStorageKey, JSON.stringify(savedJournals));
+            notify(`Data Jurnal Mengajar ${activeSubject} (${activeMonthObj.monthName} ${activeMonthObj.year}) berhasil disimpan!`, 'success');
+        } catch (e) {
+            notify('Gagal menyimpan ke penyimpanan lokal.', 'warning');
+        }
+    };
+
+    // Reset customizations for this month
+    const handleResetMonth = () => {
+        if (!hasSavedProta || monthlyJournalList.length === 0) {
+            notify('Tidak ada data jurnal yang dapat direset.', 'warning');
+            return;
+        }
+        if (confirm(`Reset seluruh perubahan jurnal ${activeSubject} bulan ${activeMonthObj.monthName}?`)) {
+            const next = { ...savedJournals };
+            monthlyJournalList.forEach(item => {
+                delete next[item.date];
+            });
+            setSavedJournals(next);
+            try {
+                localStorage.setItem(journalStorageKey, JSON.stringify(next));
+            } catch (e) {}
+            notify(`Jurnal bulan ${activeMonthObj.monthName} telah direset ke nilai awal.`, 'info');
+        }
+    };
+
+    // Word Download Modal State & Handler
+    const [showDownloadModal, setShowDownloadModal] = useState(false);
+    const [downloadPaperSize, setDownloadPaperSize] = useState<'A4' | 'F4'>('A4');
+    const [downloadOrientation, setDownloadOrientation] = useState<'landscape' | 'portrait'>('landscape');
+
+    const handleDownloadWordDoc = () => {
+        if (!hasSavedProta || monthlyJournalList.length === 0) {
+            notify(`Tabel PROTA untuk ${activeSubject} belum dihasilkan & disimpan. Silakan buat PROTA terlebih dahulu sebelum mengunduh jurnal.`, 'warning');
+            setShowDownloadModal(false);
+            return;
+        }
+        const isLandscape = downloadOrientation === 'landscape';
+        const isF4 = downloadPaperSize === 'F4';
+        
+        // Page geometry
+        const pageWidth = isLandscape ? (isF4 ? '330mm' : '297mm') : (isF4 ? '215mm' : '210mm');
+        const pageHeight = isLandscape ? (isF4 ? '215mm' : '210mm') : (isF4 ? '330mm' : '297mm');
+
+        const pageStyle = `
+            @page {
+                size: ${pageWidth} ${pageHeight};
+                margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+                mso-page-orientation: ${downloadOrientation};
+            }
+            @page Section1 {
+                size: ${pageWidth} ${pageHeight};
+                margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+                mso-header-margin: 36pt;
+                mso-footer-margin: 36pt;
+                mso-paper-source: 0;
+            }
+            div.Section1 { page: Section1; }
+        `;
+
+        const teacherName = identity?.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.';
+        const nipTeacher = identity?.nip || '199602152025211094';
+        const headmasterName = identity?.kepalaSekolah || 'Yuni Sri Rahayu, S.Pd.';
+        const nipHeadmaster = identity?.nipKepalaSekolah || '198706162019032007';
+        const schoolName = identity?.institutionName || 'SDN SUKATINGGAL';
+        const npsn = identity?.npsn || '20206022';
+        const academicYear = identity?.academicYear || `${academicYearStart}-${academicYearStart + 1}`;
+
+        const hebCount = monthlyJournalList.filter(j => j.isHeb).length;
+        const nonHebCount = monthlyJournalList.filter(j => !j.isHeb).length;
+
+        // Generate rows
+        let rowHtml = '';
+        monthlyJournalList.forEach((j, idx) => {
+            const rowBg = j.isHeb ? (idx % 2 === 0 ? '#ffffff' : '#f8fafc') : '#fffbeb';
+            const statusBadge = j.isHeb 
+                ? '<span style="color: #047857; font-weight: bold; font-size: 8pt; background: #d1fae5; padding: 2px 6px; border-radius: 4px;">HEB</span>' 
+                : '<span style="color: #b45309; font-weight: bold; font-size: 8pt; background: #fef3c7; padding: 2px 6px; border-radius: 4px;">NON HEB</span>';
+
+            const attendanceText = j.isHeb && j.attendanceSummary
+                ? `<b>H:</b> ${j.attendanceSummary.h} &nbsp; <b>S:</b> ${j.attendanceSummary.s} &nbsp; <b>I:</b> ${j.attendanceSummary.i} &nbsp; <b>A:</b> ${j.attendanceSummary.a}`
+                : `<i style="color: #94a3b8;">-</i>`;
+
+            rowHtml += `
+                <tr style="background: ${rowBg};">
+                    <td style="border: 1px solid #94a3b8; padding: 7px 5px; text-align: center; font-weight: bold; font-size: 9pt;">
+                        ${idx + 1}
+                    </td>
+                    <td style="border: 1px solid #94a3b8; padding: 7px 8px; font-size: 9pt; vertical-align: top;">
+                        <div style="font-weight: bold; color: #0f172a;">${j.formattedDate}</div>
+                        <div style="margin-top: 3px;">${statusBadge}</div>
+                    </td>
+                    <td style="border: 1px solid #94a3b8; padding: 7px 8px; font-size: 9pt; vertical-align: top;">
+                        ${j.isHeb ? `
+                            <div style="font-size: 8pt; font-weight: bold; color: #0284c7; margin-bottom: 2px;">ELEMEN: ${j.element?.toUpperCase() || 'PEMBELAJARAN'}</div>
+                            <div style="font-weight: 600; color: #0f172a; line-height: 1.35;">${j.atpTopic || j.topic}</div>
+                        ` : `
+                            <div style="color: #b45309; font-weight: bold; font-size: 8.5pt;">${j.nonHebReason}</div>
+                            <div style="font-size: 8pt; color: #78350f; margin-top: 2px;">Kegiatan Belajar Mengajar Ditiadakan</div>
+                        `}
+                    </td>
+                    <td style="border: 1px solid #94a3b8; padding: 7px 8px; font-size: 9pt; vertical-align: top; color: #334155;">
+                        ${j.isHeb ? (j.learningModel || '-') : '<i style="color: #94a3b8;">-</i>'}
+                    </td>
+                    <td style="border: 1px solid #94a3b8; padding: 7px 6px; font-size: 8.5pt; text-align: center; vertical-align: middle;">
+                        ${attendanceText}
+                    </td>
+                    <td style="border: 1px solid #94a3b8; padding: 7px 8px; font-size: 8.5pt; vertical-align: top; line-height: 1.35;">
+                        ${j.isHeb ? `
+                            <div style="font-weight: bold; color: #047857; margin-bottom: 2px;">${j.atpAchievement || ''}</div>
+                            <div style="color: #475569; font-size: 8pt;">${j.notes || ''}</div>
+                        ` : `
+                            <div style="color: #b45309; font-size: 8pt;">${j.notes || ''}</div>
+                        `}
+                    </td>
+                    <td style="border: 1px solid #94a3b8; padding: 7px 4px; text-align: center; vertical-align: middle; width: 60px;">
+                        <span style="color: #cbd5e1; font-size: 8pt;">[ Paraf ]</span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        const html = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Jurnal Mengajar ${activeSubject} - ${activeMonthObj.monthName} ${activeMonthObj.year}</title>
+                <style>
+                    ${pageStyle}
+                    body { font-family: 'Arial', sans-serif; font-size: 9.5pt; color: #0f172a; line-height: 1.3; }
+                    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+                    th { font-weight: bold; }
+                    .header-box { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 8px; }
+                    .info-table { width: 100%; border: none; margin-bottom: 8px; font-size: 9pt; }
+                    .info-table td { border: none; padding: 2px 0; }
+                </style>
+            </head>
+            <body>
+                <div class="Section1">
+                    <div class="header-box">
+                        <h2 style="font-size: 13pt; margin: 0 0 3px 0; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+                            JURNAL HARIAN KEGIATAN BELAJAR MENGAJAR (KBM)
+                        </h2>
+                        <h3 style="font-size: 11pt; margin: 0 0 3px 0; font-weight: bold; color: #1e293b;">
+                            BULAN ${activeMonthObj.monthName.toUpperCase()} ${activeMonthObj.year}
+                        </h3>
+                        <div style="font-size: 9.5pt; color: #475569;">
+                            <b>${schoolName}</b> (NPSN: ${npsn}) &bull; TAHUN AJARAN ${academicYear}
+                        </div>
                     </div>
-                    <div className="md:col-span-2">
-                        <label className="block font-bold text-slate-700 mb-1">Materi Pokok / TP</label>
-                        <input type="text" placeholder="Topik pembelajaran hari ini" value={topic} onChange={e => setTopic(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none" />
+
+                    <table class="info-table">
+                        <tr>
+                            <td width="18%"><b>Mata Pelajaran</b></td>
+                            <td width="32%">: ${activeSubject}</td>
+                            <td width="18%"><b>Semester</b></td>
+                            <td width="32%">: ${semester === 1 ? '1 (Ganjil)' : '2 (Genap)'}</td>
+                        </tr>
+                        <tr>
+                            <td><b>Kelas / Fase</b></td>
+                            <td>: ${selectedClass} / ${getFaseForClass(selectedClass).name}</td>
+                            <td><b>Total Pertemuan</b></td>
+                            <td>: ${monthlyJournalList.length} Pertemuan (${hebCount} HEB &bull; ${nonHebCount} Non HEB)</td>
+                        </tr>
+                        <tr>
+                            <td><b>Guru Pengampu</b></td>
+                            <td>: ${teacherName}</td>
+                            <td><b>Hari Terjadwal</b></td>
+                            <td>: ${scheduledDaysForSubject.join(', ')}</td>
+                        </tr>
+                    </table>
+
+                    <table>
+                        <thead>
+                            <tr style="background: #e2e8f0; color: #0f172a;">
+                                <th style="border: 1px solid #64748b; padding: 8px 4px; width: 30px; text-align: center; font-size: 8.5pt;">NO</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 6px; width: 130px; text-align: left; font-size: 8.5pt;">HARI / TANGGAL</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 8px; text-align: left; font-size: 8.5pt;">ALUR TUJUAN PEMBELAJARAN (ATP) / MATERI</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 6px; width: 140px; text-align: left; font-size: 8.5pt;">MODEL PEMBELAJARAN</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 4px; width: 110px; text-align: center; font-size: 8.5pt;">PRESENSI (H/S/I/A)</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 8px; width: 220px; text-align: left; font-size: 8.5pt;">CATATAN KETERCAPAIAN / REFLEKSI</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 4px; width: 55px; text-align: center; font-size: 8.5pt;">PARAF</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowHtml || '<tr><td colspan="7" style="text-align: center; padding: 12px; border: 1px solid #cbd5e1;">Tidak ada jadwal pembelajaran pada bulan ini.</td></tr>'}
+                        </tbody>
+                    </table>
+
+                    <div style="margin-top: 10px; font-size: 8pt; color: #475569; display: flex; justify-content: space-between;">
+                        <div>
+                            <b>Keterangan Status:</b> [HEB] Hari Efektif Belajar &bull; [NON HEB] Libur / Kegiatan Khusus Sekolah
+                        </div>
+                        <div style="text-align: right;">
+                            <b>Presensi:</b> H = Hadir, S = Sakit, I = Izin, A = Alfa
+                        </div>
+                    </div>
+
+                    <table style="width: 100%; border: none; margin-top: 30px;">
+                        <tr>
+                            <td style="border: none; text-align: center; width: 45%; vertical-align: top; font-size: 9pt;">
+                                Mengetahui,<br>
+                                <b>Kepala Sekolah</b>
+                                <br><br><br><br>
+                                <b><u>${headmasterName}</u></b><br>
+                                NIP. ${nipHeadmaster}
+                            </td>
+                            <td style="border: none; width: 10%;"></td>
+                            <td style="border: none; text-align: center; width: 45%; vertical-align: top; font-size: 9pt;">
+                                Santosa, ${activeMonthObj.monthName} ${activeMonthObj.year}<br>
+                                <b>Guru Kelas / Pengampu</b>
+                                <br><br><br><br>
+                                <b><u>${teacherName}</u></b><br>
+                                NIP. ${nipTeacher}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Jurnal_Mengajar_${activeSubject.replace(/\s+/g, '_')}_${selectedClass}_${activeMonthObj.monthName}_${activeMonthObj.year}_${downloadPaperSize}_${downloadOrientation}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setShowDownloadModal(false);
+        notify(`Dokumen Jurnal Mengajar Word (${downloadPaperSize} - ${downloadOrientation.toUpperCase()}) berhasil diunduh!`, 'success');
+    };
+
+    // Calculate Summary Statistics for Active Month
+    const stats = useMemo(() => {
+        const totalMeetings = monthlyJournalList.length;
+        const hebTotal = monthlyJournalList.filter(j => j.isHeb).length;
+        const nonHebTotal = monthlyJournalList.filter(j => !j.isHeb).length;
+        
+        let totalH = 0;
+        let totalPossible = 0;
+        monthlyJournalList.filter(j => j.isHeb).forEach(j => {
+            if (j.attendanceSummary) {
+                totalH += j.attendanceSummary.h;
+                totalPossible += j.attendanceSummary.total;
+            }
+        });
+
+        const attendancePct = totalPossible > 0 ? Math.round((totalH / totalPossible) * 100) : 100;
+        return { totalMeetings, hebTotal, nonHebTotal, attendancePct };
+    }, [monthlyJournalList]);
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-5 md:p-8 max-w-7xl mx-auto space-y-6">
+            {/* TOAST NOTIFICATION */}
+            {toastMessage && (
+                <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-3 transition-all duration-300 text-xs md:text-sm font-semibold ${
+                    toastType === 'success' 
+                        ? 'bg-emerald-900/90 text-emerald-100 border-emerald-700/60 backdrop-blur-md'
+                        : toastType === 'warning'
+                        ? 'bg-amber-900/90 text-amber-100 border-amber-700/60 backdrop-blur-md'
+                        : 'bg-slate-900/90 text-slate-100 border-slate-700/60 backdrop-blur-md'
+                }`}>
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{toastMessage}</span>
+                </div>
+            )}
+
+            {/* HEADER & ACTIONS */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center text-emerald-600 shadow-2xs">
+                            <BookMarked className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl md:text-2xl font-bold text-slate-900">
+                                Jurnal Harian Pelaksanaan Pembelajaran
+                            </h2>
+                            <p className="text-xs text-slate-500 font-medium">
+                                Rekapitulasi KBM terjadwal, klasifikasi HEB / Non HEB, model ajar, refleksi ketercapaian, dan integrasi presensi siswa.
+                            </p>
+                        </div>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                        <label className="block font-bold text-slate-700 mb-1">Uraian Kegiatan</label>
-                        <input type="text" placeholder="Ringkasan kegiatan KBM" value={activity} onChange={e => setActivity(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none" />
-                    </div>
-                    <div>
-                        <label className="block font-bold text-slate-700 mb-1">Catatan / Refleksi</label>
-                        <input type="text" placeholder="Refleksi ketercapaian siswa" value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none" />
-                    </div>
-                </div>
-                <div className="flex justify-end">
-                    <button type="submit" className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-2 cursor-pointer">
-                        <Plus className="w-4 h-4" /> Simpan Jurnal
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {onNavigate && (
+                        <button
+                            onClick={() => onNavigate('presensi')}
+                            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                            title="Buka Rekap Presensi Siswa"
+                        >
+                            <Users className="w-4 h-4 text-slate-500" />
+                            <span className="hidden sm:inline">Data Presensi</span>
+                        </button>
+                    )}
+                    <button
+                        onClick={handleResetMonth}
+                        className="px-3.5 py-2 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                        title="Reset isian bulan ini"
+                    >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Reset Bulan</span>
+                    </button>
+                    <button
+                        onClick={handleSaveAll}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                    >
+                        <Save className="w-4 h-4" />
+                        <span>Simpan Jurnal</span>
+                    </button>
+                    <button
+                        onClick={() => setShowDownloadModal(true)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                    >
+                        <FileDown className="w-4 h-4" />
+                        <span>Unduh Word (.doc)</span>
                     </button>
                 </div>
-            </form>
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 text-xs">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
-                        <tr>
-                            <th className="p-3">Tanggal</th>
-                            <th className="p-3">Materi / TP</th>
-                            <th className="p-3">Uraian Kegiatan</th>
-                            <th className="p-3">Catatan / Refleksi</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium">
-                        {journals.map(j => (
-                            <tr key={j.id} className="hover:bg-slate-50">
-                                <td className="p-3 font-bold text-slate-600">{j.date}</td>
-                                <td className="p-3 font-bold text-slate-900">{j.topic}</td>
-                                <td className="p-3 text-slate-700">{j.activity}</td>
-                                <td className="p-3 text-emerald-700">{j.notes}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
             </div>
+
+            {/* SUBJECT SELECTOR (FROM WEEKLY ROSTER) */}
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                    <span className="flex items-center gap-1.5">
+                        <BookOpen className="w-4 h-4 text-emerald-600" />
+                        <span>MATA PELAJARAN TERJADWAL ({selectedClass}):</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                        Hari Terjadwal: <b className="text-emerald-700">{scheduledDaysForSubject.join(', ')}</b>
+                    </span>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
+                    {scheduledSubjects.map(sub => {
+                        const isActive = sub.toLowerCase().trim() === activeSubject.toLowerCase().trim();
+                        return (
+                            <button
+                                key={sub}
+                                onClick={() => handleSelectSubject(sub)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer shadow-2xs ${
+                                    isActive
+                                        ? 'bg-emerald-600 text-white shadow-emerald-200/50 scale-[1.02]'
+                                        : 'bg-slate-100 hover:bg-slate-200/70 text-slate-700 border border-slate-200/80'
+                                }`}
+                            >
+                                <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-white' : 'bg-emerald-500'}`} />
+                                <span>{sub}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* SEMESTER & MONTH FILTER */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Semester Toggle */}
+                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
+                        <button
+                            onClick={() => {
+                                setSemester(1);
+                                setSelectedMonthIdx(0);
+                            }}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                semester === 1 
+                                    ? 'bg-emerald-600 text-white shadow-2xs' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            Semester 1 (Ganjil)
+                        </button>
+                        <button
+                            onClick={() => {
+                                setSemester(2);
+                                setSelectedMonthIdx(0);
+                            }}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                semester === 2 
+                                    ? 'bg-emerald-600 text-white shadow-2xs' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            Semester 2 (Genap)
+                        </button>
+                    </div>
+
+                    {/* Stats overview pill */}
+                    <div className="flex items-center flex-wrap gap-2 text-xs font-bold">
+                        {hasSavedProta ? (
+                            <>
+                                <span className="px-3 py-1.5 bg-emerald-100/70 text-emerald-800 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>{stats.hebTotal} Pertemuan HEB</span>
+                                </span>
+                                <span className="px-3 py-1.5 bg-amber-100/70 text-amber-800 rounded-xl border border-amber-200 flex items-center gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>{stats.nonHebTotal} Non HEB (Libur)</span>
+                                </span>
+                                <span className="px-3 py-1.5 bg-blue-100/70 text-blue-800 rounded-xl border border-blue-200 flex items-center gap-1.5">
+                                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                                    <span>Kehadiran: {stats.attendancePct}%</span>
+                                </span>
+                            </>
+                        ) : (
+                            <span className="px-3 py-1.5 bg-amber-100/80 text-amber-900 rounded-xl border border-amber-300 flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                                <span>PROTA Belum Dibuat / Disimpan</span>
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Month Tabs */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {currentMonthsList.map((m, idx) => {
+                        const isSelected = selectedMonthIdx === idx;
+                        return (
+                            <button
+                                key={m.monthName}
+                                onClick={() => setSelectedMonthIdx(idx)}
+                                className={`py-2.5 px-3 rounded-xl text-center text-xs font-bold transition-all cursor-pointer border ${
+                                    isSelected
+                                        ? 'bg-white border-emerald-500 text-emerald-700 ring-2 ring-emerald-500/20 shadow-xs'
+                                        : 'bg-white/60 hover:bg-white border-slate-200 text-slate-700'
+                                }`}
+                            >
+                                <div className="text-[13px]">{m.monthName}</div>
+                                <div className="text-[10px] text-slate-400 font-semibold">{m.year}</div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* MONTHLY JOURNAL TABLE */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-emerald-600" />
+                        <span>Daftar Pertemuan KBM Bulan {activeMonthObj.monthName} {activeMonthObj.year}</span>
+                    </h3>
+                    {hasSavedProta && (
+                        <span className="text-xs text-slate-500 font-medium">
+                            Total: <b>{monthlyJournalList.length}</b> Hari Jadwal ({stats.hebTotal} HEB &bull; {stats.nonHebTotal} Non HEB)
+                        </span>
+                    )}
+                </div>
+
+                {!hasSavedProta ? (
+                    <div className="bg-white border-2 border-dashed border-amber-200 rounded-3xl p-10 text-center max-w-xl mx-auto space-y-4 shadow-xs">
+                        <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+                            <BookOpen className="w-7 h-7" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <h4 className="font-bold text-slate-800 text-base">
+                                Tabel PROTA Belum Dihasilkan & Disimpan
+                            </h4>
+                            <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
+                                Data jurnal daftar pertemuan KBM untuk mata pelajaran <b>{activeSubject}</b> tidak dimuat otomatis karena tabel PROTA belum dibuat atau disimpan pada halaman PROTA.
+                            </p>
+                        </div>
+                        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                            {onNavigate && (
+                                <button
+                                    onClick={() => onNavigate('prota')}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                    <span>Buka & Buat PROTA Sekarang</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ) : monthlyJournalList.length > 0 ? (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-2xs">
+                        <table className="w-full text-left text-xs border-collapse">
+                            <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                                <tr>
+                                    <th className="p-3 text-center w-12">NO</th>
+                                    <th className="p-3 w-44">HARI & TANGGAL</th>
+                                    <th className="p-3 min-w-[240px]">ALUR TUJUAN PEMBELAJARAN (ATP) / MATERI</th>
+                                    <th className="p-3 w-52">MODEL PEMBELAJARAN</th>
+                                    <th className="p-3 w-36 text-center">PRESENSI SISWA</th>
+                                    <th className="p-3 min-w-[280px]">CATATAN KETERCAPAIAN & REFLEKSI</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                                {monthlyJournalList.map((item, index) => {
+                                    const isHeb = item.isHeb;
+                                    const rowBg = isHeb 
+                                        ? (index % 2 === 0 ? 'bg-white hover:bg-emerald-50/20' : 'bg-slate-50/40 hover:bg-emerald-50/20')
+                                        : 'bg-amber-50/40 hover:bg-amber-50/70 border-l-4 border-l-amber-400';
+
+                                    return (
+                                        <tr key={item.date} className={`${rowBg} transition-colors`}>
+                                            {/* NO */}
+                                            <td className="p-3 text-center font-bold text-slate-500 align-top">
+                                                {index + 1}
+                                            </td>
+
+                                            {/* HARI & TANGGAL */}
+                                            <td className="p-3 align-top space-y-1.5">
+                                                <div className="font-bold text-slate-900 text-xs">
+                                                    {item.formattedDate}
+                                                </div>
+                                                <div>
+                                                    {isHeb ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md">
+                                                            <Check className="w-3 h-3 text-emerald-600" />
+                                                            <span>HEB (Efektif)</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded-md" title={item.nonHebReason}>
+                                                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                                                            <span>Non HEB</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            {/* ATP / MATERI */}
+                                            <td className="p-3 align-top space-y-1.5">
+                                                {isHeb ? (
+                                                    <div className="space-y-1">
+                                                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">
+                                                            {item.element || 'Elemen Pembelajaran'}
+                                                        </span>
+                                                        <textarea
+                                                            value={item.atpTopic || ''}
+                                                            onChange={(e) => handleUpdateJournalRow(item.date, 'atpTopic', e.target.value)}
+                                                            rows={2}
+                                                            placeholder="Tuliskan Alur Tujuan Pembelajaran (ATP) / Materi yang diajarkan..."
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="p-2.5 bg-amber-100/60 border border-amber-200/80 rounded-xl text-amber-900 text-xs">
+                                                        <div className="font-bold flex items-center gap-1.5">
+                                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                                                            <span>Menginjak {item.nonHebReason}</span>
+                                                        </div>
+                                                        <div className="text-[11px] text-amber-800/90 mt-0.5">
+                                                            Tidak ada kegiatan KBM tatap muka terjadwal.
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </td>
+
+                                            {/* MODEL PEMBELAJARAN */}
+                                            <td className="p-3 align-top space-y-1.5">
+                                                {isHeb ? (
+                                                    <div className="space-y-1.5">
+                                                        <input
+                                                            type="text"
+                                                            value={item.learningModel || ''}
+                                                            onChange={(e) => handleUpdateJournalRow(item.date, 'learningModel', e.target.value)}
+                                                            placeholder="Model pembelajaran..."
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                        />
+                                                        <select
+                                                            value={item.learningModel || ''}
+                                                            onChange={(e) => handleUpdateJournalRow(item.date, 'learningModel', e.target.value)}
+                                                            className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 outline-none cursor-pointer"
+                                                        >
+                                                            <option value="" disabled>Pilih Model Preset...</option>
+                                                            {LEARNING_MODELS.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 text-xs italic">-</span>
+                                                )}
+                                            </td>
+
+                                            {/* PRESENSI SISWA */}
+                                            <td className="p-3 align-top text-center">
+                                                {isHeb && item.attendanceSummary ? (
+                                                    <div className="space-y-1.5">
+                                                        <div className="grid grid-cols-2 gap-1 text-[11px] font-bold">
+                                                            <div className="px-1.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md">
+                                                                H: {item.attendanceSummary.h}
+                                                            </div>
+                                                            <div className="px-1.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-md">
+                                                                S: {item.attendanceSummary.s}
+                                                            </div>
+                                                            <div className="px-1.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-md">
+                                                                I: {item.attendanceSummary.i}
+                                                            </div>
+                                                            <div className="px-1.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 rounded-md">
+                                                                A: {item.attendanceSummary.a}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400">
+                                                            Total: {item.attendanceSummary.total} Siswa
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 text-xs italic">-</span>
+                                                )}
+                                            </td>
+
+                                            {/* CATATAN KETERCAPAIAN & REFLEKSI */}
+                                            <td className="p-3 align-top space-y-2">
+                                                {isHeb ? (
+                                                    <div className="space-y-1.5">
+                                                        {/* Dropdownlist Ketercapaian */}
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                                Predikat Ketercapaian ATP:
+                                                            </label>
+                                                            <select
+                                                                value={item.atpAchievement || ''}
+                                                                onChange={(e) => handleUpdateJournalRow(item.date, 'atpAchievement', e.target.value)}
+                                                                className="w-full p-1.5 bg-emerald-50/70 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-900 outline-none cursor-pointer"
+                                                            >
+                                                                {ACHIEVEMENT_OPTIONS.map(opt => (
+                                                                    <option key={opt} value={opt}>{opt}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Catatan / Refleksi Deskriptif */}
+                                                        <textarea
+                                                            value={item.notes || ''}
+                                                            onChange={(e) => handleUpdateJournalRow(item.date, 'notes', e.target.value)}
+                                                            rows={2}
+                                                            placeholder="Catatan tambahan hasil observasi atau refleksi pembelajaran..."
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <textarea
+                                                        value={item.notes || ''}
+                                                        onChange={(e) => handleUpdateJournalRow(item.date, 'notes', e.target.value)}
+                                                        rows={2}
+                                                        className="w-full p-2 bg-amber-50/50 border border-amber-200 rounded-xl text-xs text-amber-900 outline-none resize-y"
+                                                    />
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="bg-slate-50/70 border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center max-w-xl mx-auto space-y-3">
+                        <CalendarRange className="w-10 h-10 text-slate-400 mx-auto" />
+                        <h4 className="font-bold text-slate-800 text-sm">
+                            Tidak Ada Hari Terjadwal pada Bulan {activeMonthObj.monthName} {activeMonthObj.year}
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                            Mata pelajaran <b>{activeSubject}</b> belum dijadwalkan pada kelas {selectedClass} atau berada di luar rentang kalender.
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* DOWNLOAD WORD CONFIGURATION MODAL */}
+            {showDownloadModal && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 max-w-md w-full space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                                <FileDown className="w-5 h-5 text-blue-600" />
+                                <h3 className="font-bold text-slate-900 text-base">Unduh Dokumen Word (.doc)</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowDownloadModal(false)}
+                                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 text-xs">
+                            <div className="space-y-1.5">
+                                <label className="font-bold text-slate-700 block">Ukuran Kertas:</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadPaperSize('A4')}
+                                        className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                                            downloadPaperSize === 'A4'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-sm">A4</div>
+                                        <div className="text-[10px] text-slate-400 font-medium">21.0 x 29.7 cm</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadPaperSize('F4')}
+                                        className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                                            downloadPaperSize === 'F4'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-sm">F4 / Folio</div>
+                                        <div className="text-[10px] text-slate-400 font-medium">21.5 x 33.0 cm</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="font-bold text-slate-700 block">Orientasi Cetak:</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadOrientation('landscape')}
+                                        className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                                            downloadOrientation === 'landscape'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-sm">Landscape (Lanskap)</div>
+                                        <div className="text-[10px] text-emerald-600 font-medium">Disarankan untuk Jurnal</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadOrientation('portrait')}
+                                        className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                                            downloadOrientation === 'portrait'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-sm">Portrait (Potret)</div>
+                                        <div className="text-[10px] text-slate-400 font-medium">Format vertikal standar</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                                <div><b>Mata Pelajaran:</b> {activeSubject}</div>
+                                <div><b>Bulan & Tahun:</b> {activeMonthObj.monthName} {activeMonthObj.year}</div>
+                                <div><b>Kelas:</b> {selectedClass} &bull; <b>Total:</b> {monthlyJournalList.length} Pertemuan</div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                            <button
+                                onClick={() => setShowDownloadModal(false)}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleDownloadWordDoc}
+                                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 cursor-pointer"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span>Unduh Sekarang</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -6906,13 +9174,13 @@ const App = () => {
   useEffect(() => {
     if (!user || !user.email || appStage === 'login' || appStage === 'register' || appStage === 'admin') return;
 
-    const checkSession = async () => {
-      try {
-        const emailNormalized = String(user?.email || '').toLowerCase().trim();
-        if (!emailNormalized) return;
-        const userDocRef = doc(db, 'users', emailNormalized);
-        const userSnap = await getDoc(userDocRef);
-        
+    const emailNormalized = String(user?.email || '').toLowerCase().trim();
+    if (!emailNormalized) return;
+    const userDocRef = doc(db, 'users', emailNormalized);
+
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (userSnap: any) => {
         if (userSnap.exists()) {
           const dbSessionId = userSnap.data()?.activeSessionId;
           const localSessionId = localStorage.getItem('prota_session_id');
@@ -6920,19 +9188,27 @@ const App = () => {
             alert('Akun Anda telah masuk di perangkat atau sesi aktif lain. Sesi saat ini akan ditutup secara otomatis.');
             handleLogout();
           }
-        } else {
-          // If deleted by admin
+        } else if (!userSnap?.metadata?.fromCache) {
+          // Only alert deleted if confirmed by server (not unpopulated cache)
           alert('Akun Anda telah dihapus oleh Administrator.');
           handleLogout();
         }
-      } catch (e) {
-        console.error('Failed to verify active session', e);
+      },
+      (error) => {
+        // Silently tolerate offline mode or network reconnection states
+        const msg = error?.message || '';
+        if (msg.includes('offline') || msg.includes('unavailable') || msg.includes('timeout')) {
+          return;
+        }
+        console.warn('Notice from session sync:', msg);
       }
-    };
+    );
 
-    checkSession();
-    const interval = setInterval(checkSession, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      try {
+        unsubscribe();
+      } catch (e) {}
+    };
   }, [user, appStage]);
 
   const handleBackup = async () => {
@@ -8731,14 +11007,24 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
           
           try {
               if (isLogin) {
-                  const userDocRef = doc(db, 'users', emailNormalized);
-                  const userSnap = await getDoc(userDocRef);
+                  let userSnap: any = null;
+                  try {
+                      const userDocRef = doc(db, 'users', emailNormalized);
+                      userSnap = await getDoc(userDocRef);
+                  } catch (fsErr) {
+                      console.warn('Firestore not reachable during login check, fallback to local storage:', fsErr);
+                  }
                   
-                  if (userSnap.exists()) {
+                  if (userSnap && userSnap.exists()) {
                       const dbData = userSnap.data() || {};
                       if (dbData && dbData.password === password) {
                           const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
-                          await updateDoc(userDocRef, { activeSessionId, lastActive: Date.now() });
+                          try {
+                              const userDocRef = doc(db, 'users', emailNormalized);
+                              await updateDoc(userDocRef, { activeSessionId, lastActive: Date.now() });
+                          } catch (updateErr) {
+                              console.warn('Could not sync activeSessionId to cloud, stored locally:', updateErr);
+                          }
                           
                           const userClass = dbData.assignedClass || 'Kelas 1';
                           const instName = dbData.institutionName || 'Sekolah Dasar';
@@ -8791,7 +11077,12 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                               lastActive: Date.now() 
                           };
                           
-                          await setDoc(userDocRef, userData);
+                          try {
+                              const userDocRef = doc(db, 'users', emailNormalized);
+                              await setDoc(userDocRef, userData);
+                          } catch (setErr) {
+                              console.warn('Could not sync user to cloud on login fallback:', setErr);
+                          }
                           await usersDB.setItem(emailNormalized, userData);
                           
                           localStorage.setItem('prota_user', JSON.stringify({ email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName }));
@@ -8815,11 +11106,16 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                       }
                   }
               } else {
-                  const userDocRef = doc(db, 'users', emailNormalized);
-                  const userSnap = await getDoc(userDocRef);
+                  let userSnap: any = null;
+                  try {
+                      const userDocRef = doc(db, 'users', emailNormalized);
+                      userSnap = await getDoc(userDocRef);
+                  } catch (fsErr) {
+                      console.warn('Firestore not reachable during registration check:', fsErr);
+                  }
                   const storedUser = await usersDB.getItem(emailNormalized);
                   
-                  if (userSnap.exists() || storedUser) {
+                  if ((userSnap && userSnap.exists()) || storedUser) {
                       alert('Akun dengan email ini sudah ada.');
                   } else {
                       const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
@@ -8835,7 +11131,12 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                           lastActive: Date.now() 
                       };
                       
-                      await setDoc(userDocRef, userData);
+                      try {
+                          const userDocRef = doc(db, 'users', emailNormalized);
+                          await setDoc(userDocRef, userData);
+                      } catch (setErr) {
+                          console.warn('Could not sync registered user to cloud, saved locally:', setErr);
+                      }
                       await usersDB.setItem(emailNormalized, userData);
                       
                       localStorage.setItem('prota_user', JSON.stringify({ name, email: emailNormalized, assignedClass: assignedClassToSave, institutionName: institution }));
@@ -10073,14 +12374,32 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
         ) : currentView === 'kktp' ? (
             <KKTPView 
                 selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
                 selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                classSchedules={classSchedules}
+                calendarEvents={calendarEvents}
+                academicYearStart={academicYearStart}
+                schoolDaysCount={schoolDaysCount}
                 identity={userIdentity}
+                data={data}
+                activities={activities}
+                onNavigate={setCurrentView}
             />
         ) : currentView === 'jurnal' ? (
             <JurnalView 
                 selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
                 selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                classSchedules={classSchedules}
+                calendarEvents={calendarEvents}
+                academicYearStart={academicYearStart}
+                schoolDaysCount={schoolDaysCount}
                 identity={userIdentity}
+                data={data}
+                activities={activities}
+                onNavigate={setCurrentView}
             />
         ) : currentView === 'calendar' ? (
             <CalendarPageView 
