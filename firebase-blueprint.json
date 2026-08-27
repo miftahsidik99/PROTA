@@ -34,29 +34,12 @@
         }
       },
       "required": ["email"]
-    },
-    "AppConfig": {
-      "title": "AppConfig",
-      "description": "Global application configurations and flashcard resources",
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array"
-        },
-        "updatedAt": {
-          "type": "number"
-        }
-      }
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile and active single-session credentials"
-    },
-    "/app_config/{configId}": {
-      "schema": "AppConfig",
-      "description": "Global application configuration documents"
     }
   }
 }

@@ -18,11 +18,14 @@ import {
 
 import localforage from 'localforage';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { initializeFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    ignoreUndefinedProperties: true
+}, firebaseConfig.firestoreDatabaseId);
 
 
 
@@ -2039,7 +2042,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     fetchCloudFlashcards();
   }, []);
 
-  const handleAddOrUpdateFlashcard = async (e?: React.FormEvent) => {
+  const handleAddOrUpdateFlashcard = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!fcTitle.trim()) {
       notifyFc('Judul flashcard/video tidak boleh kosong.', 'warning');
@@ -2050,11 +2053,9 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       return;
     }
 
-    let updatedList: LoginFlashcardItem[] = [];
-
     if (editingFcId) {
       // Update existing item
-      updatedList = flashcards.map(item => {
+      const updated = flashcards.map(item => {
         if (item.id === editingFcId) {
           return {
             ...item,
@@ -2066,13 +2067,13 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
         }
         return item;
       });
-      setFlashcards(updatedList);
+      setFlashcards(updated);
       setEditingFcId(null);
       setFcTitle('');
       setFcLink('');
       setFcCategory('Tutorial Guru');
       setFcDuration('');
-      notifyFc('Flashcard berhasil diperbarui dan disimpan!', 'success');
+      notifyFc('Flashcard berhasil diperbarui di tabel! Klik "Simpan ke Server" untuk menyimpannya.', 'info');
     } else {
       // Add new item
       const newItem: LoginFlashcardItem = {
@@ -2083,24 +2084,12 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
         duration: fcDuration.trim() || (extractYoutubeVideoId(fcLink.trim()) ? 'YouTube' : 'Tautan'),
         createdAt: Date.now()
       };
-      updatedList = [newItem, ...flashcards];
-      setFlashcards(updatedList);
+      setFlashcards([newItem, ...flashcards]);
       setFcTitle('');
       setFcLink('');
       setFcCategory('Tutorial Guru');
       setFcDuration('');
-      notifyFc('Flashcard baru berhasil ditambahkan dan disimpan!', 'success');
-    }
-
-    // Auto-save to LocalStorage & Firestore Server
-    try {
-      localStorage.setItem('prota_login_flashcards', JSON.stringify(updatedList));
-      await setDoc(doc(db, 'app_config', 'login_flashcards'), {
-        items: updatedList,
-        updatedAt: Date.now()
-      });
-    } catch (err) {
-      console.warn('Auto-save flashcards error:', err);
+      notifyFc('Flashcard baru berhasil ditambahkan ke tabel! Klik "Simpan ke Server" untuk menampilkannya di login.', 'info');
     }
   };
 
@@ -2124,32 +2113,14 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     setFcDuration('');
   };
 
-  const handleDeleteFlashcard = async (id: string) => {
-    const targetItem = flashcards.find(f => f.id === id);
-    const updated = flashcards.filter(f => f.id !== id);
-    setFlashcards(updated);
-    
-    // Clear input form if the deleted item was currently being edited
-    if (editingFcId === id) {
-      handleCancelEditFc();
-    }
-
-    // Instantly save to local storage
-    try {
-      localStorage.setItem('prota_login_flashcards', JSON.stringify(updated));
-    } catch (e) {}
-
-    // Instantly sync deletion to Firestore Server
-    try {
-      await setDoc(doc(db, 'app_config', 'login_flashcards'), {
-        items: updated,
-        updatedAt: Date.now()
-      });
-      const itemTitle = targetItem ? targetItem.title : 'Item';
-      notifyFc('Berhasil menghapus flashcard & link dari tabel dan database!', 'success');
-    } catch (err: any) {
-      console.warn('Delete sync error:', err);
-      notifyFc('Flashcard dihapus dari cache lokal browser.', 'info');
+  const handleDeleteFlashcard = (id: string) => {
+    if (confirm('Hapus item flashcard ini?')) {
+      const updated = flashcards.filter(f => f.id !== id);
+      setFlashcards(updated);
+      if (editingFcId === id) {
+        handleCancelEditFc();
+      }
+      notifyFc('Flashcard berhasil dihapus dari tabel.', 'info');
     }
   };
 
@@ -2171,18 +2142,11 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
-  const handleResetDefaultFlashcards = async () => {
-    setFlashcards(DEFAULT_LOGIN_FLASHCARDS);
-    handleCancelEditFc();
-    try {
-      localStorage.setItem('prota_login_flashcards', JSON.stringify(DEFAULT_LOGIN_FLASHCARDS));
-      await setDoc(doc(db, 'app_config', 'login_flashcards'), {
-        items: DEFAULT_LOGIN_FLASHCARDS,
-        updatedAt: Date.now()
-      });
-      notifyFc('Flashcard berhasil dikembalikan ke data panduan bawaan dan disinkronkan ke server.', 'info');
-    } catch (err) {
-      notifyFc('Flashcard dikembalikan ke data awal lokal.', 'info');
+  const handleResetDefaultFlashcards = () => {
+    if (confirm('Kembalikan flashcard ke data panduan bawaan sistem?')) {
+      setFlashcards(DEFAULT_LOGIN_FLASHCARDS);
+      handleCancelEditFc();
+      notifyFc('Flashcard dikembalikan ke data awal.', 'info');
     }
   };
 
@@ -3220,17 +3184,21 @@ const DaftarSiswaView: React.FC<{
     setSelectedClass?: (c: string) => void;
     identity: UserIdentity;
 }> = ({ selectedClass: initialClass, setSelectedClass, identity }) => {
-    // Derive active class strictly from user's assigned class in profile or selectedClass
-    const activeClass = identity.assignedClass || initialClass || 'Kelas 1';
+    const classList = ['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'];
+    const [activeClass, setActiveClass] = useState<string>(initialClass || 'Kelas 1');
 
     useEffect(() => {
-        if (activeClass && setSelectedClass && initialClass !== activeClass) {
-            setSelectedClass(activeClass);
+        if (initialClass && initialClass !== activeClass) {
+            setActiveClass(initialClass);
         }
-    }, [activeClass, initialClass, setSelectedClass]);
+    }, [initialClass]);
 
-    // Active rombel index state (for switching between parallel rombels in the assigned class)
-    const [activeRombelIdx, setActiveRombelIdx] = useState<number>(0);
+    const handleSelectClass = (cls: string) => {
+        setActiveClass(cls);
+        if (setSelectedClass) {
+            setSelectedClass(cls);
+        }
+    };
 
     // Default sample students for Kelas 1 to match official display
     const getDefaultStudents = (cls: string): StudentRecord[] => {
@@ -3247,6 +3215,33 @@ const DaftarSiswaView: React.FC<{
         }
         return [];
     };
+
+    const storageKey = `prota_students_${activeClass}`;
+    const [students, setStudents] = useState<StudentRecord[]>(() => {
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch(e) {}
+        return getDefaultStudents(activeClass);
+    });
+
+    // Reload students when active class changes
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    setStudents(parsed);
+                    return;
+                }
+            }
+        } catch(e) {}
+        setStudents(getDefaultStudents(activeClass));
+    }, [activeClass]);
 
     // Rombel configuration state
     const rombelStorageKey = `prota_rombel_settings_${activeClass}`;
@@ -3278,9 +3273,6 @@ const DaftarSiswaView: React.FC<{
     const handleRombelCountChange = (count: number) => {
         setRombelCount(count);
         localStorage.setItem(`${rombelStorageKey}_count`, count.toString());
-        if (activeRombelIdx >= count) {
-            setActiveRombelIdx(0);
-        }
     };
 
     const handleRombelLabelChange = (index: number, val: string) => {
@@ -3289,38 +3281,6 @@ const DaftarSiswaView: React.FC<{
         setRombelLabels(next);
         localStorage.setItem(`${rombelStorageKey}_labels`, JSON.stringify(next));
     };
-
-    const currentRombelLabel = rombelLabels[activeRombelIdx] || rombelLabels[0] || `${activeClass}A`;
-
-    const storageKey = activeRombelIdx === 0 
-        ? `prota_students_${activeClass}` 
-        : `prota_students_${activeClass}_rombel_${activeRombelIdx}`;
-
-    const [students, setStudents] = useState<StudentRecord[]>(() => {
-        try {
-            const saved = localStorage.getItem(storageKey);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-            }
-        } catch(e) {}
-        return getDefaultStudents(activeClass);
-    });
-
-    // Reload students when active class or active rombel changes
-    useEffect(() => {
-        try {
-            const saved = localStorage.getItem(storageKey);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) {
-                    setStudents(parsed);
-                    return;
-                }
-            }
-        } catch(e) {}
-        setStudents(getDefaultStudents(activeClass));
-    }, [activeClass, storageKey]);
 
     // Notification toast state
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -3542,7 +3502,7 @@ const DaftarSiswaView: React.FC<{
             return;
         }
 
-        const rombelLabel = currentRombelLabel;
+        const rombelLabel = rombelLabels[0] || activeClass;
         const rowsHtml = students.map((s, idx) => `
             <tr>
                 <td style="border: 1px solid #000; padding: 6px 4px; text-align: center; font-size: 9pt;">${idx + 1}</td>
@@ -3643,6 +3603,7 @@ const DaftarSiswaView: React.FC<{
     };
 
     const filledCount = students.filter(s => s.name && s.name.trim().length > 0).length;
+    const currentRombelLabel = rombelLabels[0] || `${activeClass}A`;
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
@@ -3714,40 +3675,24 @@ const DaftarSiswaView: React.FC<{
                 </div>
             </div>
 
-            {/* Assigned Class Status Banner & Rombel Tabs */}
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-emerald-50/90 border border-emerald-200/80 rounded-2xl">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
-                        <GraduationCap className="w-4 h-4" />
-                    </div>
-                    <div>
-                        <div className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">Kelas yang Diampu (Sesuai Ikhtisar Profil Guru)</div>
-                        <div className="text-sm font-black text-emerald-950">{activeClass} â€” {currentRombelLabel}</div>
-                    </div>
-                </div>
-                {rombelCount > 1 && (
-                    <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-emerald-200 shadow-2xs">
-                        <span className="text-[11px] font-bold text-slate-500 px-2">Pilih Rombel:</span>
-                        {Array.from({ length: rombelCount }).map((_, idx) => {
-                            const rLabel = rombelLabels[idx] || `${activeClass}${String.fromCharCode(65 + idx)}`;
-                            const isRombelActive = activeRombelIdx === idx;
-                            return (
-                                <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => setActiveRombelIdx(idx)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                        isRombelActive
-                                            ? 'bg-emerald-600 text-white shadow-xs'
-                                            : 'text-slate-600 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    {rLabel}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
+            {/* Class Pill Tabs (Kelas 1 - Kelas 6) */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {classList.map(cls => {
+                    const isActive = cls === activeClass;
+                    return (
+                        <button
+                            key={cls}
+                            onClick={() => handleSelectClass(cls)}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                isActive 
+                                    ? 'bg-emerald-600 text-white shadow-xs' 
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+                            }`}
+                        >
+                            {cls}
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Pengaturan Rombongan Belajar (Rombel) Card */}
@@ -3805,7 +3750,7 @@ const DaftarSiswaView: React.FC<{
                             {activeClass.replace(/\D/g, '') || '1'}
                         </span>
                         <h3 className="font-bold text-slate-800 text-sm">
-                            Daftar Siswa {currentRombelLabel} <span className="text-slate-400 font-normal text-xs">({students.length} baris)</span>
+                            Daftar Siswa {activeClass} <span className="text-slate-400 font-normal text-xs">({students.length} baris)</span>
                         </h3>
                     </div>
 
@@ -7565,14 +7510,14 @@ const HariEfektifView: React.FC<HariEfektifViewProps> = ({
                     <td width="50%">
                         Mengetahui,<br/>
                         Kepala ${schoolName}<br/><br/><br/><br/>
-                        <b><u>${identity?.kepalaSekolah || identity?.headmasterName || 'Yuni Sri Rahayu, S.Pd.'}</u></b><br/>
-                        NIP. ${identity?.nipKepalaSekolah || identity?.headmasterNip || '198706162019032007'}
+                        <b><u>..........................................</u></b><br/>
+                        NIP. ..........................................
                     </td>
                     <td width="50%">
-                        ${schoolName.replace(/SDN|SD|Sekolah/gi, '').trim()}, .................... 2026<br/>
-                        Guru Mata Pelajaran / Kelas (${selectedClass})<br/><br/><br/><br/>
+                        ${schoolName.replace(/SDN|SD|Sekolah/gi, '').trim()}, .................... 2025<br/>
+                        Guru Mata Pelajaran / Kelas<br/><br/><br/><br/>
                         <b><u>${teacherName}</u></b><br/>
-                        NIP. ${identity?.nip || '199602152025211094'}
+                        NIP. ..........................................
                     </td>
                 </tr>
             </table>
@@ -9597,217 +9542,4703 @@ const JurnalView: React.FC<{
                     </td>
                     <td style="border: 1px solid #94a3b8; padding: 7px 8px; font-size: 8.5pt; vertical-align: top; line-height: 1.35;">
                         ${j.isHeb ? `
-                            <div style="font-wexœì½ûzÛH®8ø¢ÚÓIiI¾åÖJìüd[I_×’»Oo&_BK”Åˆ"5$Ç“ö÷íCìî“,€º°Š,R’îésÎh¦c‰¬+
-@( å]“»ıá6ı0j±¿m<~öüÉ³lêDW^Ğ¸“$œ¶ØÖìë‹µİ¿}n:É¬={îwê	ûıwV©Ü¾\z_v°’ÏK(ÁâäÆwwÖdgŸ=yòôçlI#öşå¶ØóY":
-ÂÄ—kÿk±O+÷~ùøÉöÆ÷èıÖúêåz2´Wz™åX.ÃhèÂ`6g_YúŞıíçÇÎöåólæ‡^pÕbÏàİc€?KÜ¯IÃñ½« Å |7zÁ¾¸Qâ_>ŸzÃ¡ï¾`×Ş0·ØÓZ¸Â±¿ŒgNÌàrøÄİ´ æ=;s"gÄ>¼\Çz³³ÎFæÓO/ÔÏÛÚ‹êÇ â„“©Ïv2«ú’~úAÜ
-w*ó(hÅƒ±;uâÆÔDa’Æ ğ5¼+şTDë%j\Ãzˆò;•q’ÌZëë×××Íëíf]­÷Ï×Ï;ûÆãÊnfp®c›øÔM6;Qì&0‚dÔx^±K¼ÄwwßÁŸ»Á•óÙ‰ØßœAâ}q{óËÏî ¹eõèVg|zù¹9Å/'ÎÔ½Í¿»qğ—7ï”Ş¾Œ?~›9WnØñû2Ş°oIFÎÔóoZ¬Ò<Ç¯ÔYìq#v#od ÑÏÍ'€H)³m>Ûr^0ßÜÆØõˆm6·_0{—‰sé»Ğ'§X7ßwf1´+¿)¼ßÜØø»bbI8Ã'HBíåD®Å 8S´—nâBC÷—áW¨f#ÊóÜDî)­qTIñ‚âU‘çÅ#nzÁ(lHx“–,%77jR_\Å] Ãú–iX±'œÈ†­`yôz¹'“—ˆJìD=ğ8ŞYëò{a°YÀÊô¢éê”ñ½ñ–äz46·d-¶ÿÛæ“£EN"@êQç³™D8ÚønhĞ 9 m Ö—raü¼»8?i±·íónû„vŞtÛ}ø²×9j¿kŸ³ãÎÉúR=Ü;®Ïk}¼U6ëmÛ¬7fm™š¤ÜMwëçíËEsÚ»8‚)3¬f^ $÷’ÕZû*›ìvÉdµ-¿˜	dÁD^^‚P GúÄh_®_î²êÉYï¤ƒfqp[c/ç¾ÿ‚õÛo/N®•˜; #ì5¿-˜J¡ˆ!^HDóS‚-Ãüì>œ/0äegmóùß×vaîÇlag®[’àä‹…K3Û[ĞL+·—­Ô†JÄÎ¨ëîƒˆElgg‡m²W¬²Éªoœà³ç×* HV¶à§8³ZeÁó2Ù÷b@ãŒ®1[g¯–•˜‰pt‡û¸ü·ĞÄß®ÜÛyFô°j©5¼Ët #ë‡	È"g aºÓù
-ëNƒ#"÷oŞ…$ÑyqÒôAªIÆ·i‹¬úã·±{¹ÎmŞvö$M…Á[õæ$ğmíÏX7óh#ùk:›¯6åÄu@¶ŒNVò['òXß>;ÃkÇ_ »áÜw‡ÎMk.(«ù9ô‚*Ha•Ú1Ş #)å;eÀ¶Ãf™HiAÎ`rÁZ#»[îóÑFNH\À¡E¯%zÕÓÇÏ?¿Ô—çR¯âÓöF‘’¥+B´}¬íœ„ÆÈ˜jcÚÌÊwG‰uH(:  ©áÍ›öÑ6¼çK¨}tqÎúï.`#<ëQ~TÛı³õ¸İïœwÿ@>^Ç§#cÄØuüÛÜ\ÏÎ;½ÎI¯Ëªo×{ëİõví]q1È­­åá¸lŸ„YXæıöY%ÛuvŞy}Ô9ìıqë®õÉ“U`
-kızñ°l4ë˜ßËÄ®ïèŸ¿Eáõ[´v 	
-÷.e€%¢İegíÙš„‰mf
-ºâi€MXxÖvûŞĞ™0gè0¾ÿ°™;½”‚6ä0Ø‘á«xMÚKhò•2I¶dzvMbÏ«îkTV‚gC/ùÎM‹|ŠÇ‰7ºi À¥ÅPs—nríºA©Ml±-¥6 µRBÀz‰“ÌãéïALùÀhOïŒÜ	Œ€íqpJÑæıÉé	£RGŞå<z8t¯<°v8Çó˜õÜIè;ã»è
-Y(êØ¡·„¢s¹±ÄŸĞ[¶ÓzQõàkÏ™xIuák÷_^PgmøÖöGÎ¤Ùˆy,6p¢l/²v.£ûd˜ïÅFfbPŸü=o†…áäì,KH0h÷sg<÷ê//Œ•Æ‹ˆ8s|G"®Ùµ€hÿ-ÓÍËù.ÊêÎpê ò$dÜù.	¬Ë´qÒ=k¢\ïÍŞªVŠ¹õº”zg].…/¨ß£?iÙ{N„±S¿‹mwÉõ#µFªšºzóÇa‹©İ	Uú¼‰ûàÉ*NşEeÁØs›ÚËu<HŸ}Êb\úá%ğÇÀ½f{ğµú¾òùÈ@5Ãªêh?¾™¢TœÙÌLB#çú4æÇx,b68ğPäâü¨9ˆ\'qOIßƒßUì*WÜÂÃp0Ç“:Q£ãÓ¹]µâT´âNs¹#(èO‡áuà‡ÎObøÑÄGy4ñ1cÎiF.l¿·ºşø§õ+P>?‚úù1k¥øX‚âùw„âğXãÌ™¹QHKxy0#İ-Œx ,©Éãê5Æn0Ü{ş°ê³ ì'ÕZQÅÈ†_Ü|ÅØMzãğú@ä8:~uäø±«
-B”CªŸÂ	6É²G<¿ÂZ£!$?G:ì±Ì2c6­±K7;±çƒ:ô|üÃ' <Ü8–Ë|+°s}í;ş „ºÄe½ùöÏa<—1p¯ˆµi-Ãƒb(#’Äî1@¤Z­±]ö-ƒt	Z]7K‚²Ø:v/¹ÅÉZgäùÀ~«Ÿ±ËÏM/~ë^Ö
-â¶£%Ûú¡°1õÅwÅ¬PÚx‘~Æ±‡âŠñzÙI Ä;ÀæøÓo‹ñ±ŠGî Á`àŠõªeŠáGğ§f©ĞÔ¦eTP#/¨G…Ìº)3¶Û¦-œ ‡ÙÉ.Û`¯Ø±“Œ›dí©VÅ¨×Í‚5öe½#‘/í>r€%2MÇê
-sêúÒ×3ƒ¹tPgïó+óANEtQU}¦GKÈ£@@¸j\= š;llõ…H*øb¤­ÆÖÆ‹ÇĞoãkÌf'l:lÍÏAbıÚ¸n<ƒjÓ¯g„B5¹i<ÍÈ
-ßÖ±şi»×g'§ıîë.(Ô]Ğ­›â·$qêˆİ¹rÙÃ‡ÚèfñíÓÈûê?l<åÊüıWãÉ›}m<f³›Æ¶šãVÎEÍõ,˜Æ.±+g•èœÌCFbğ¤yD\«± !
-À  ¯ñTˆKîÔÃ&`xöZœa¶J²Ú+ŞÆ¬…ñóŠU`¥`¯‹ØøyccıgÑ»|˜%L>zÅÂSg0Fá¬qéÏ£ÆtX)ì¥•Øµ€“Å5ø¸P²#cTü‰6&şà#Âö9êíó'ZûüÁÒíß~º-¢öÇî`²ïEyÅéäphÿ0L4yÁ¤±±ÆÖZ$ß©o‹N,¢ZíöAˆŞvÚsöµ÷‘‚z9ÊR9á6şÓ¸œ™‰åÒ² L	„õÕñ¾	_øì²ñÄ¢d»”L`ñ·6Äùm5m}µq„U‚4by²‘ágòr4#äG Œ.ü§±öOS~¸õ5^d‡ØÃÉ±M€Iã}Ã}Rˆ:Tu±ydAßã-½OÎ²|Å²hæÈ³ˆ_iÄä¶„®'Ä?49ªNb'pè{jz[ ğ”òS‰Y~±>Ö'°4‰©2ãt‰qŸ»gæ% 7Æ;Ü;†ÖÄ™UMğáÈ›à+<Å[—'vu‚†®ÏpRuØ[c&Pf‚Æ³3s u6$óbâ^EX&ÌO,öâk§¹ ³;áAÁ«"{Ô*Ì¡œ¿…Á‰óÅ»BÙÛºO«./ç°3—£Aì£Ú²óËáiÓÕŠ"h`¥Mh“‚M»ù·ı-¦dœ1¨=QKm(OŒÍä™Ä¡” É$ƒX,(!¶²2Ä`ÅaÔ˜…ˆ'ÑZéœÈ×mgmo>q8Ò2iÑd=D©âÚhê"v£¸p‹StUÊœ¨!ò¹ÔÚ{Ã!ì#ñ´åè
-·¶{@bØeÎ–ÔŞ:G{‰X„`
-¹ÆN0ôİsJBú`1B-LQgq	7şR‰¿ ~	Ü"h0/F®GìµJ–í´”Äİ\›8…€ã¿å»Üb$â£ÜÃñ•ûë–¡ÏŠxÒs¾¸mß_I+Ñ¥…(š\Î×Ÿ#R)R¤*×w\û’uÀ[˜ÂâÅÛíyS\C.ü	+Ä·	«Í*‰ænÉVQ´h -¸æŠÑ“¿òr½ö|ç~·%»@ëš°Ø¡©±v·e³˜ó²j.½‹½wı>ëuàÏé9«¾>?=f¿v:‡G¿±óÓ^¿s^[¨ÎHİbk	=¤Xª—
-\F«ü´P
-Î±,ûŠo–k0¨œÎ\Ûæô%Vô¸İo³3å™Ğ|×>øµ}ÄªÃu­U¾Ö%ï²ó¦a¾ßÜœ}ı CîñÒ2¹é3Ök^ck»Ë9Šœ­ zÓãåÔT†cä#éshÉ°ò,D¡ï_:Q#{A‘­æ#&7§Î¬Ï/ó&TıÃm”^,ìÛ;j4“ğ(¼–ÆôfySd”;;Ì<Ş°ËUå'gF´Bv	!?÷fçµ\–ÇO†×‹=™ğXÌ´@)Àn*LY¾Æ·ó<€˜=g4AHŠQ†sa‚ÉÑué­À˜ıÈ]ª0~LãàSs»ıkFuUãã»@´Í­ÅÖ·ìG·Æmêû¤V×Ÿåtª±vıùÆâo‚Ñäg‰ÓÛ·úö	Ö¸kºú£9,æßqhğ*bÆ©)i£CZ¤©~w	Í)<T¼T&ÂOuŞZ°•ı¸sÜÁ=—=dÇ§'ı·ìu÷.ÚuºxóZåÆ½½ìÆ½‚ÍÒÖ¦š¦t’ï‡WW¾››^éŒ•úW¤­iL6ÿåL„w0,f%(‹iW7Kx»Q‹¤w‡_«êİ.kIÙ.îŠyn+¡æ_•ÈËğĞLDÄRÜm
-kXrB£€k”uµœı•±¾r^¢=¹£±…JüÑ¸¹õ¿7·şã¦ŠJº#j–9[Ç'çœÙÏ½f3–ëî\?İ†„ŸE’æşmìÄhUEaâÀj.¢W—iÈ>)ñWC•MM“Ï›[TñÉØ]´Yc…©Ê"¸š‚›ƒ HW¸ÈMé.¡Gb½íì-#vQ[Ë–[ uuä­`ÎŸ”Bœù.ğnû0û%àÍ»¼3´5—ÉÆªäü]j>ú#@Næ9âô àTâ»ÀÛr~’´´'®èCwŒêNĞbæ†çÏíß¿'˜_––0«¥iâ¹A?/¦‰í{®§‡>K_-EÏ–\(¾Hgç§ı6CÌ§ì ßIØ:|‰É¾àËËt­vÖ‹[!IL¬ï\ÆÖ0»û]EŞá?˜"†åŒ§­ôçS¾éZ E°RÔeL>‚hÉªNëÌ~] Js–”ôĞ •úHl‚–şLKÕTsé]Õbe“[+Z¬nğmemVºkŠiÃ.UÅ-m‘’³XÑ&¥«Êº…eº,ÂL![üVp}Kó:\ÕPE½£?˜²SãIuvÓbõ§˜¥2D'lèÛ³¯Öv”["UIƒEFyé¡H½‰´:‹]‰şMV*2MıÆŞò¬"ıöŞQgéS¢Çßã”¨èh¼ƒºtÍ%=/ÜÑŠØ)õ°ïø¸ùGßé„èÀ%ĞX**£óª³’h‚DLe'HEÉL2úP¹ßõ¬é>¾_$¸âÓnIJ*ˆ§Rïxi5§jhÙJã2í¶vÅÄ’ßßXN»,tû¼pK~:ñ˜<©3ê‰î>CK}÷á.àğÇ)ó^ÍÑşÑEÈŒö²šë¦Ø2nšùÓØg0˜g÷uÒ´úÆ.”d_lªˆ¯p}Ã‰ËRåÈH‚®ÏL–âm&@k•»`'?¾§Ï&®¡ï:”",r}ø9"M‡K®~È·ì3÷BrŞ63xÛ<HæhŠÍT(8Ò6}Ğ|BñãCoŠò|˜„SŒ#bdZÓµ)¸]Ü†\ğ‡¦ç¯Í`(Ê|ìøÎ`±ôãõI¯3ˆ5K€’ÓƒØQz§ïQx]J!eG(ò³´¿§ß’‚6~Jı?·-rş”Så^{¦]l§¬Ò³á¢£_Áì@ ¸‡Ã'~–4ôfN4ñ]›çŠ6r/}r  3Çğ;AJ¹ZŞØ°H6ÄOÉ®îàŒö‰ÂM\Dg-·f½7ô½e±[fiˆ~šÑL®8Raª…^™,‹6ÊÊa=’İÌi4êÚã:p>*	 "ï`‚lùÚJİ’û÷,•µh‰h1ƒV1ÔJ“)@ØZ>/QAƒ@E&¡‡«e*hpê°A½ßÂô;¾sJ Â9<Ùº{ŸÂF·ŸêàÖğôº½_ÛßHÏ9¬ys®š7§4I(±L–.Êóª8`yã†‰/)­PbS'Èö…ûDyÀOÀô4†JÁvh¯áñµ‹ÏJÓÚ°åï]amjeÓM•FËşÎ¶Èà¶aXsr;ç´ÒTç xôØ²Çò’ÅJQöÓÒ¢3Mª‡ÏT Ÿ†­ùâıãÊû!aö³”áPÿ`Â72ÒâaÚ·†Õrí]İê² %ù‰‹b‹>h99-<¾,à°ŒÁZu	T¦)ùf Yò$Ä*ÇœŸØæŠc¥¤+CÅäìßBjòly%ÍÚtÖÀTb'·ÿ;t|˜ÅÏˆ†ˆ…«u9c®ÚjáççH‹ÂK;ÏZ†x˜H£àÈç[<„g#wH?!×­§yGiÙqÿRƒ§³ñÌ™HİıD¼N»tF+2x-}J[Øä=ê/>R,íù¾‹n5&ı¼Ì‚‹X)NoÜÔwî:q¬ÈËsS*>¶Obõ#ûRî
-ëä¿ş6uÇm„w%»ÿ•6•{òÍUCô—j³ $CI†?D±ªyé‡ƒÉ=™+'Q×O/táI¢Œ€ô’Œg|_ªAX8‘[œcp™Ï€)Ø‘“ÌúáÌˆû]îÕnìà
-š®ºZĞÅÅ\¡Ûœ‡×U%ôÖYEö_©3·	S»r“&ïD®@~w¾mİ¯Êâ5t£µşÜ÷b4s·ıyÄúóÏóL¢‚Tq‡©E»X€fˆ/¡Z³Ù\l»+ûäí@3=¤x	Ÿr‹!ÎÃÁ<n‰Ctí‡~æÎ[ãÃyBÛ(&	=sı5nî>Ñ;nQw”Bï.QäŒçÒNœz-=ÍF7¨1=ºA.KFœ¸³PoÜ"ãóİ6£Ç?Êaª´SµèW^ğÙ™0‹|u)åÎz
-U·;V¤ÑÊË“M5ï¹iã‰Ê¥‹JàÛŒMÑR¯’•”-•Îëî`¹+¥ş)&¼¡ôƒw/œ{é³yr/”Å´Ÿœ6î·AêbïòìcÇ”sçß$ÛƒøŞ!›ğiê	Ëÿ{‹ºTñ§øyÉ½GÿƒKlø"<¹E{QRö„ O³¢æª§âEŸ{Š ámób©×ÖĞ“m‡»gï_nÊ^” E¾\çåï©¤uÚç'İ“7i¿êÑQÑq`¹Aš{(ßJ<ŞîÂßgˆµ{ ÈlD{ÿ]4«#õ˜•\ĞK@¬í6î*“ş9"y”û}ÅãÌø®âÏÃ‡L.2	zÿj‚QyhÄ–03ëün™ˆÀ»t=ûJœCk–NnYøwïü¼m±oöUl–dU[jî÷ÓØ¨‰rğÉÓãÂh¼‚ø½ï¸^1àâ¿:àÈ„›ƒ›
-ª³á}¨u‹¡æıÕ¡&3šP£§
-jôë»C­]5çß
-µ?Æ*c	w¹¯-†Ç1áîş”‰ó¿“)æ?¢•ø¦ı1¦£²pŸÂÁşGÁƒ(œÑ¥^œ°C-òÊ°Ë÷,Ù'wıåN&Sç§ò£I6½üö]ü€>9ô&NdíşYë\™¦}_£üı'øÉœQ¶cÏı’ËŞÓz‚Ÿ;Vj#ùŞ&ü”˜Q4OÈgËä¥—Ö~ .–0dûŸÿ(Ë
-~îëßÚûo»_:Ç“şÇÓ3º²€á,YŞä±èc˜Dà»2Šà÷]ú÷ûFğsãö^ŞBqœe>´û9	.­³s™ËşÀ'‘7Ã›ïÅ¿¿»“C&nüï²ºRç}÷¹	h®L‹ñk´ÂËØ¾àm©¦î-øŸyÖğ¿ÉƒáŞTöİ)ì/A]÷¦¬BdVa%¶£"”NİC¾#ºŞUï¤Y­PzÉø¯%ÒşÙÒFd:+¿{ºğNLş²0ªpé zî’†¡„ÒçY¥¾\$}Yh®Jq”g¿)£¦ËøêÒ öUbÏã…‰È©¥=t2é¾y¼ôİP”¬{Yxú2×	-˜ÍñRáä2JœÏt"ƒÃ'tom&!;ß›C`‰¡Çü¹1Ì¥„ˆZ`7*v÷)Œ"/ÂòLî”‚Ì+§¿¶Ø¯§çlÿôäu÷ÍÅ9¿·ïøôÀsó-Î^Ç°Ô~kü?/ˆİ¤±Á/î3n~Ë]ëf½c!Ô>³&±u—{yVã§iÖ±WHš}ÂœÀ›b%/`#gHÿ†SøÛøùIz•àV)¾­~£Aéåm‹‚ü—Ìx¿L(°ıv
-ºóìò2¹vÊ#ªx.~Á…¼ªÖ¸è¢(=êm‰tHKf7XæÊ~Íî*yÁÖÔÑcÊÖs©\Ÿ¶„rc‰ø¯Uo¯£Z‹s/Ğe3;-éh{?ëgŞ’hE=ÊuÏã.&sÜİ(qâÖÒ6¹¥›—5¯’z?ÜƒWZ^Í£öAöŞçj¥ıxÙÜø12ß™ïäM­&øe
-¼ûæfÖ?¹Û«ù}¨0“•Åm;mœÊŸú‰i6,‚!Ó+wjc/Êx—½Èas™$xò³(ü¬ CØ÷PÀl?^QÅ^5+ŒößÚln°¯lëçæ36˜®ĞérYPTé¿¾şC£¯ÿC£¹ÏŸH£¯³uö:ô½ğÏ£Õ'@«ÛÛ@²­.•s±9şÏCN#õÇØcûnâLş—
-"
-Ètªß	†ñ Æ[n§M‡ó»tJÿa{™ÏŸÈöä*°*|'Î¬ö½ùŸ¾Îà€^ŒV(´/ñd‡òÎÿ¡b‹AÑ³0:ó’ÿ9­fôzÎ|şDz>‹Àªga¹Éw§æiæ5¥òa £Ä›8>‹-ûÿÄ¤(#–¸âº$bh•$ä5öòr—¬ógÒ:ß"[|Î>¿tZul‘ŸO<d}g<7\![öJ=â!è)sR òNC!îÊ§³N“}/¿â^cµEÚTÊZ+p"ÉÙ¬ÙöşÍFXıé²›1‹SrÊ(NVñßZŒR{@ş=M´TjUPó³	c4¿„ƒUÁûäÏ½Ÿûû‚ş¥œü]Sôêu¯’’wi£û
-¯,5bÑŞÖ^<¸}ñàÏBÙÍØKo„ÿÏc·3áõ½ú…¼xŒÉìñn%¨j¬ã÷’0r®Üæ•›ta¹D6èĞFT>ŞˆUU½š–a3‰n2ù6y'3'Šé‚™w½Ó“&ıÒ0°qQşáCöÿÚt§ç×,É<õ÷ĞAåjÍÿûÕ™Î|·9§³u“€+áD…i*yWØl£Ğ.¡2öŠy­Şk¼€A*)iÆŞN¤;Òò’›ê,r¿«§]Fn6›X¢n}itÖb¶!Tœ'ã0BšSµø.NØ[3}o¯ïªxÉ%s£‘ÌsÕ^æy®ÍÛ,¤ÒÅ¿e'Œ:Må6Ôq£(Œª•×€V€‰xÃ8†“#b¨3WkŸ·ÿŞÖÙû5JƒÊ±ÿ½3›õ ©:®S[üø Ø
-íàÅ‰îËŠ^yA…ıÎ*‘{åá•ôfFãÓO¬.ı¸rPOá-ır†S¨¾kĞ·È°º˜¨QÑšƒ'wKSóÀâu‰kÆø¿±€V,NPÁÈ 9¦?äy•>Ï¬ zëó;@êÚ­â¿˜ëë¬Ñh°#{-N4ŒéêI_¥¥ñ§EhÌGæ3cøæ;„Ğû&0uÎ¦1ÎL“Æñq¤:­(„Q,TÇ¿ÌRÃ6¬Ş"ç¦éÅôW²0ä™‚lÒ¼ì5‰ülF ¬N
-·:æt^·/úNßtO>¾>j÷Şî·Ïz9¼àâ÷/€Ÿ!	vÏ3 Ü²àöm+¿ó cÖæ0èÎ,‡IuªÃKŒ>˜Í>B©‘wU©¼6Ö£Î°,ÖË$‹F‹7M÷+Pd\­™¼‚w>Dİg‡É¢ø³j°jÈá7ï˜K†O›$Ñ²¥?¥3ÙS‘õfLvg`f¼ 3ëİ8ı¾ 7k´{û û^Øe€’‘^;QP­ì‡sƒ0a¸äÈQ³c€d±XÁ²×(•nÕ7™8šº£¥—ğ¶1us¯½È ®ê‡Ÿ!6Ê§¥qø_¬¨\—íİÌ€«±*è7Q2˜'¤¶Î`Mó,	Ÿ§ÌéT!®XægÖ÷¦n8OÎİ/_^:Á"Y”‹ı²ICøãèg´Õwj0Â$'¢@AÙ
-ŒYKĞå‰lÄ¼—ZŸ¯ºF ¹½±±QéÂ2Rz1É< õº¡—?±M“Ò«İöL'm¯­ŠRCdF&3TÏ±E1Pªt«íç÷¦çşsî7]N8¸m’”İ|ÅİòÖ‚ƒ­~]†€w/´8Úôq†R„`?Ğ—€i˜Ï•ì 9¾¤HrúÁmÂø³ïÕÄ`0=šI•Êq÷ôZ3	Âk7ÚGÕØÃ@ÆN"Æƒq›Ÿbë&¥vq|^T?g“½i€•xÕœÍã16ã©¶ÂŠoneù¦­t<öFIµ€¹wòTÕ* EL);‰Eˆgå ÌõA¸L›±ô+óşCfëæ?¯½ ”ì¦3ä¸sD´š
-´‚VoàcÂ‰ÁŒT´¹SĞõWh™¢ÄA“9ö<ÊkÈÅ Ğ¥AşN™¸AÙä¼ÑN#„¬(k¾â¡ŞÁO…ï;äk2tö•X…ÿUR''hö½‘&H‡ğ*C šPl*‰“šÙ”InBjFÂçîJ^Á§›‘iÀ(ízñ ò.]SìØ‘6--šk1ØA,¢|_.ë\Šeì9ã‹4™çUSX|e‘¹ú\ Ñš(“c^î£7¬äå)m Àw2í¢,¥@Îh–È¬ƒ™8«•öd°v0Ä|¾3fS'ãídxÁ™\MäÕc029˜Ûù4¹=Ğà½à'€Z ÖÌgPd	GİmÖ¬dd4µwã¶YÄ%8wPd@Õœº‰ƒÕEátßŒ3º,ĞáiàßğÙ±¡ë»xÉ/´Bòp4ÅX‰†¡j@iUÍæÁ,œÍÑd:Q
-Ôš+ ÒĞ;À£Yc.ş&™™kÑLS)Râ*‰d…Éô@˜P}E¨ó…£Æõ°i8„lÚÉuM€Ø`Š°ä8x[¤gt¬iŒµPGÉ8Fş@¤mêXP®é>tãjEôÜŠš¯æó(£_l¯.U2denÂúš›rëI˜x làB3A,¾	(¢BG5s[ÌÂ`ğ²[ÓD§q’tM,á­äõÜáøºP³ç&sB +ÒÜ2Û%¡U9×x$H|ÅK<7>ØS\"İÜéÖÈ¸ôCT	÷šíÁ×ê{‹vS'³ÂÂ‡:ûFÇæ-Ò}o@çÃëŸã¶—T÷ì7BKãÅùQs¹€\§tÄ¿«Øk¦°PÑ!>åy~t %'¥§9¸œùé3yfÏ?]`?ræøã·tş·ğ‹ßH‚×‘!§«â¼ñğñÛ&Îâ“lT#¹š0Y7î=Xu´Áğ@!Å³²• š‡0S7ÓU3ÁPŞ8WÏ¦ÀL&säœ|Må¸Í!Ù¹Ğâ–ÁÂ»€'MIÌË·ıã£.¦Z ß]„‹B>Q‘#à7ñ«æûvÅ÷ÈDŒòPÚ,•p­…c2iâ“jKl6,gÈÚVƒÉP,ç¦Î,öni±¡j6ƒ¸X®=7âQÎSWêÒHK?T4ö‘fU]qØN€ãW~ñf¨m·&²DQ!ºèëÈ"Õ¾(µL+T¤>§¬³H´„(Â@«~Úy™°2˜Ãh¦¡© -ó ‚Ã}`o75õÌgF_üdÔR½H‘©Ê*óùóMN›¡x’±ã
-.ÏxOÆeÚ&¹:…°å f›jå˜Å¹F;6öÀèô¶ëhøR…3?/CØ`ww·úí6m^Šøü<Û?×Ÿğ¦v«:äg›Ã:/ô«_<÷šÚÙO›6z0%İb€{ˆÜ4âÈÜÿˆÎôs ¢Eé¿2÷cŒ	¬èUüüéJÕ;‘÷Ñå×ÑƒfCb~L&ÉŒW%Ïƒ
-Ì+™n–E¬é€ z…Hr&æe_X1(…‘˜Ã Lß¹äp2Ÿ™°r|~f2´<Ëp`°70q0¾6†ªÕsÇiÖÕä¢EUÊc‡tÌ©òu»×é—nÒ3bØ¶à)\={<gÀˆwŸ=°ûÃ±GøÑCÏŒQõ.öŞuöû½Ì´¼¸çİK'ÂÛ¶©‘®şÄh"‰æÆÚÇ¼œ\öúi®¸°²+m ?,»(SfŞ§ƒæ¨Íé¿% Š[mç´Ã[K+İÀÀZÆhíÚ’ğÖ61!1ë¥5AÁ8Ù>é{9:ÉìH«ÓV?-ä‘eÊª.ø¢w'|1*"ßós>¥;¾‹˜ÉğjEƒ˜ÈĞ~Lkä&’ú_?FÀĞ4­-ÚY¨~[e©ŒS7e£ñøÔNÍ4+š >½‰ÜSµF3ô¢ìY¼,²Üw³sàİÚî·Õ•¯16 «ª-,@AuÚœşdà^ÎıÉ¾¿„UæÌ{–e{ù7&v×ô„ù8@xàåOLÿf¼çV¤–Ü÷ë¤ÀÏc”r´óa)€ë9_Ü~;‚œzb]!lHoÀf³zd{½©ã´C?7a^B\Ä˜ŒA€ ’¨8¸ÕrV‹ÃÉ³àå*È 8#ˆ%°8n¢707iã•ë5P@dŸ²ê/^<GÄlÏAô#¯Î½ ‡•x“Úõ¨oXÇz„˜ıSÂ‹M+ótµe]Ç{¦T}n6ºä§w\§>ĞùÒÁÌ5×åÿ  Ô_H	Eùàèş1¥r•ûˆB“hÜ;ö@t³·šİÚñ¸½¡÷Ï:ë5Ï@‡’æ³À›•7Ğ‘6»ùóÏO7¶6Ÿlml=ÙÚÜÜøù±j%ç‹SÖ¢VXuïà„õ.Ûı.]›p†%D#0¶ä–ª=qgïôÜIp(o†ıó²¢ÁßæÇz‘ÇÎ±s3·€ïpù ´½—ÍŸŸ?Ûxºùtkcóçí­gªgàİ©7ø~"ˆ’Ñ¡9…ÇÓü“¶â.oK–Í¼q‚Ï ÄW%g`›µt€¦Øª"­Ò²d{îtæ‡7háFy“iéœó‹V_cªdª]®tse¶¼M»zş@¸ˆeŒKÈf%ãÙìœri[L'îì·á}'j(&^æˆ¡{‰šš«œa’¯íj¥­"§­añeÆ’£ã´‰?°
-¨vÁ°®µqa[K—7™¡¾´q³(.ß‘…ÔZû+]zƒ¼µÅ×ÄR)ÚNÛ–ˆIÅÚH¬î«:³´]Ã<m§}åZRÉÃ¶}èÂxå‡—¢£+cÌÔI>à!‘ÇOHØµÊ œ÷
-·L£ÄÁ7§ş•'SÅêÕkoA“ùÒ‰·ı8äIB}8§<2V{1º,]Q'}JŸìÜé6ñ4ãP½ü@[oDŒ\ø‹cZü4›M~@”yÎCóÌ-W0'vğŸ\ÅÌe…°^ç6³^ä®ÍÎ˜{JWàÌñ’Ş’Ñ”ö•ìÔrQòNåy_zc!–ó°&ıÓ—òÌ¹L¶¾J×® üÒKXP™•,¬kˆV6~ZT3¢²´¨ŒCø¸¶è¨­„×Õš¥ğ­mx/°‚UÍYÃ\“ZSœ‚zhœ«Úü›{*Z×š0"=6åşƒ)z4“±p£åéågóÈİü ¶Êr¶ˆ|—’PToh ![©»0°ğÖ:¢°¹ÒéÉuÙYèŞO<vÆâbËÍ:£Ú¥ÜR™Ğff×Ì6·Ò[ª7»Ã¹6M¶ORÍğè®
-p»»ñ¨Ìú¢|³Æjõ æ~óî,mS<Xál†ÛlğhÆ´,ï!O#ù8Ä?~¥Â6Â›x•w…g-ö;%”ÛqÊXw¦ï×¡TSŞnúSÃ#İtøG$ü‘imÕ_•E¬MÑèG—:Ôp´€Û‚ğı¤Ş°ß>êœ´Ï?v~éœôóÑ . <@Ğ˜ ·ñZ^˜§Hu½$ÒâH‚á¦E¸_à‡ÑJîR3§¼:‰Äoö©1ÕU4‹†°Á8ıç&ŞçbN=ó™ÑÎÕÓ»“ïğó&ş8ÀÆ©ƒ±$|ëls£Û(£şPŞ“Nò©›óñQøJ¦„’)’z‡¾uı™æ»Ç%JñÎ|h¸h]§
-Dä†‘¶‘ÆFÚ…?Z)%a—ÀŒÒd“ãnYäGGƒY·7T†¨ğŒÂ{!ªNêZ¥=Ú©3tY%m:k1åMä4ÕÓš^gº¨~ì>eÆ¨Òİx-l—‚vM¶³†Ú•¸§Í;°ú%
-Ñ/x#ë³çd5yN–²şò˜3¥9îè}Œ¼`X…ß8&U4ÑÓB¤9ìŸ}|wV£Ó^ìŸ}ìŸU(:HÕÅ1?ùµ*mT3sll-H-j(Ë]Ñòê•ÅYàXœéjäg›yaiÉâ,O¶Má-İ‚2E*´
-»¦%²-Xö V¥§«dø1^W'éJ–)¨¦¥*ƒsº@‡¢Øë(œ‡\HËjÎ‰Y¥n‰İàg3×®;9%¢Ö?ş˜ÉQñ)ç".Ô;ä­”‡ò÷åãÎSq•×«5GaÔq@F¨Æ~˜Ä6Ÿrs0¦çUÊ!‚†ø^õ¿Ê5a,‡NğWH¹¢’Â	bJK ×¶XAŠ:—`Äºw¾’SÄù–èø‡<®¤N²àâqœò-Q´ŒleÑÀË2C½³khÙÒf©4ÊÅğ+ÖlV–™ñfÛ´1RCø½ &<©Æˆ2–¥0Ìlü¯¦rÍ¦JZ&Î.œ'™(;ƒrùYb‘² h>ìAŠ/K3"ŒxL-;Zdc|J‡Ö%|¢j+–&äçì	øZ¥7`Aİüîìc¯ßFà ÷^« Üf™öPVTgÈZ“Á_Fk'Y·°4*G[©ùR¸”{‘‚öÄwæ	NY48É4CÈG¦oÕšŸzbö8šÿë_7Ö©Ñ”ìú§cª‚wie>À¬j úşıwµ`:v ·O¶~(ñ$İ[ÌğŸ©e·=áÛaˆÊïQzL7Vp¹âZ¼^†Æm-ç«Ç¾7p«u¬¥jñçzŒöœ²®3=ÛÌ®å‡8JüÏ²½æmtb¹r%ş©ø¦Øií›ºˆiQñ,¯2Øœ	oI×Ååi:Hâü¿æ0)`š®L³#³Ñ,ÿÄB¶0WTÌÆ¹èUVÌ5‰sÔ“uëÜ™^³+wö¼3ËnĞÎ­î,œå7n‹czv`9EéDyØzŠ­53ÈjKƒ*±!Š6¸ø¨Ì…’&Ù±ÀğÄŒ¿xí"–hƒ¥x!óş`a. 6`Ğ\>ˆ§$tÇ¦Ú®ÈcZ«Š“&Ø”Mû¤"šò`[v³Æû9ece•u”¾Meå?3`®*‹	‚Bº)Ní‡jÅÕ‚/}®¢{¥R!Yåøôàâècû]ûí4|“LgC7!ÇÚMåÊJòK-ãñ¯åÀŒB;Kò†úÙˆf$’‡*6#Cú&©œ\„Ò&~ŠY¨ŸÆ4¥Æ¢¨¦š¨¬­<ZÓ&Ô#}İ¬¦JU ›f!‚g}P5|ÏD®eYq3Õ`\—Y›´òK†ûdıQ²èo¾_ï?‡^ËdÌx!0Ù&vTB¬D‹‘ğß°0È¿ê*èûÔúX–B_œg,H±B7ø® ¥ı°©¡9ÌãAŞÛ¿Â¢p —Q‡¾$äÜöığR‹±äì}¯`K\qÎ4û6¨MZÌ“Aœ„H¼/.™®whë×Ïj™ã"mUT³jªR3Nä¸JÑ5~Ğ˜¨™dèìN”ˆÜLôæ¥|ÔŠt«+´AŞPª:1¾¦Úvî<ÏVÃ¬Ãë«9 m­ç^À¿øNìà·sç’^:S»ön>u*ã\&óµ™Éb«ğAÆDRµöÁ2VúdéT¹3S)Áb<`933LğKç[gŸgÒ¯Ÿİæ­¦Ü¤)í¥™£eD€; ,¡ü'¾ŸñTM°Øpª®ÌPj7j¥«ŠiTRæa)[Oto Wì}…–ó”ñ%Ço¸äø—–¿Ğ’W>èU[+UÅ2ˆ-•/ÌÑŠ%V¶olÛ¨ÀÏÂgÇ˜\Äî VQ	k*ÊÂ²^Ñ‚¡²¾€Ï7²ûÇ'xó3lè/–3&sc¾ÄpÓ„œMÒ!"ÿ‘0M™æã.ui3<DÙh(¥·¥Ú‘p­À°l»¿ÿnÑTjš-Ú¬[³WÎ”ÒâéôVÌ|Á~Úa'„'T§ùyFŒu3;CCQÎQ-oÊ’0YñšÊ¡R9¤æ·Ãk5k×²„$¸âgêÖşSó“Él…MZ¯š.Aï/T‘Í»ªÜq )l£n0™1|ËA„¨m9ş"}7ÈCwßöéÇo9ÛÆÆ³ÆæãOöÊ`X\óÈAõ§­g™ê´óq„Ø>~ï‡<»Fv`µÌ¨,¼VÊªòaaE£&åCxcİ2^è%…á!‰/<	çîè!¥—T+¢nE‚ÒºÕ„E˜¦S}Ä¼ìi0¥À“J?U3{`!ø²d3—×ÁàaßC©ß.8J©1ÇPSî$†K'rÕdË6Å»ş<#À‘]Ô%Tß¶ñáÏŒˆq:à¼GÒ‚Z 9q$›k£…óĞ e2;:øVÍp‰­)ˆãy×ra`+q‚ÈZkOBæJp“&zÇT± CVÑt“‹Š;ræ~ÂFï££Êšeå»)søCYIZ’2¹C
-Ò-¶mzâjtğZ4WNø1iBÕ+¢tÄeô!›)ÒÊ‚úw¢‰#úšÜ|ÒQ	eÖ­œ”äŠÉ	?K”‚Oiá'w‚¥ÙT–ÜÔs;Ùé-*TJZÂOtµL8x«­Û¦’ğÒéfª™
-2½¶¬ğ¹LğÚ^ŞÊ€ÊRùíŞô‘'‰©CRO…ù»–;¤NÂ«+ß•És³x®oJ/>—GF;‹å#Õ‰?9ÿê\2Ú´[±ö‚]Y cª(ˆËéHóø,ğá›Zs-´Ş,»>NÅäo§]Êv/¹,ô¦5M şĞŒÃ(©V:»$p´ë}<}ıñ×NçÀ7t¿ªN5ìo.Ï9‹&'Çsk¥˜Tœ$=M[nt¨)E_5	3\i	šPØn»#¡„>T½¥¨D4Çie;Ïdj;f: Ó|Óíş
-ú1™š„Éf_"qTqÆ!2*¦­¦m“¡Àó6œG1ª‹ÿç
-¨MÃàvÛ€ÚÓzø´ÆşÎe<1Pß4F#jaˆ/ÊæÕõü8ëÔ°	-;É¸I7ÌT«ª"Ÿ	€šÖæÆÖÙó§7ğo·¡~UÉŒŠ>Ëñ'Øe”SÚeJr3™f¸”ÎİåŸ¼åòn¶°â»V¾§=ìN±"›Ø]¬b÷²‹}ËØlc÷´-g»ƒ…¬ÄF¶¼Ëåêv²ïf)[h+[²•{XÊîi+»§µlE{YV†ÍÊ½¬f«ÚÍV±œÉk9b‹œëŞMhËÑV3£™õ
-Ì3™Ñ—[h2…S eúy°ÈõÖ5 ˜–!ä}yZ7	Îz°ÑÓw¯İ4¸Šq0Ã*¹«¤á·*<kÙ)8A0wü>Ñ“nÜÄ6^1›K*¼A‘ĞÍŒv£êw4@ŞÛyG#d¦ö
-VÈ< p¯ L]m™Öº'¶\ú Â¤7¸§×·ÔJÄ7IäÃâ ªb(½òGóÀûç\şFé°ç&*İ#È„*Å6š|6teAÉÖ¿u$Â/=®V™}Ÿî)•raV¬S2ÒæQ÷.)^~YÑCÃ¤Ä
-D€ÉÕØÔu1ês> Åø7l«±ï†®È†×îP¼yb ¬37:ì¤6>Íåó)İ¶t´­di#óÒfæ•Íw35È’´¨&œx\áÃVñ†îAƒÚ©0]›à5S7”} käFŞ ’Ûyè·é}‰]ebÂ{p-önîß4ÜæùH³4ÕÙ;'h¼›®ñ|Ë&Ê—;L·
-öâ³»Ã¢ş¬½Jõ/ÚÍr¼
-WzVz«d>©ŠÇ¡</URÈo tØ:¾ı”‰ğ‰œ:=½—kóÁ&µØK;P7·ÔòÖ”ê‹¸…$f÷o³ÂLnE»GıÎy‹uG É¬È{mÏåy'ÆÖªO½˜ä.@(m.<ØpVTĞí»…r
-,¼(ş"n%mä-¾VÑtE;3n¼UÛ`_á	¡‹×Ì8×«ŒŸr]æ¦‡¾ãÂb-–‰Ì4ÑFY¦‹â©Œ#Ò__óáh±…>–}ò§Ÿ
-ÊÚÑ³ià^aåÌ®ÜŒ
-Ş¡”SãfÙ[åw%¯ ìØ,?36ü%¯§m°xqQU0Œ²˜5³mF(]Â‚Jœÿ3íoİqb[÷ØÖİ&–\>×´0;óXE/Æg81R§¤®¦F³Å)\lhf.iV8+„:ÍÎ„ÚRu3
-qz­…Yi X;:b¼/sŒi*W¶=F	8ÇB&ï˜lI˜.¤à†‘7t}/¹ÉwôİÖÈà öÅùNs‡E1×cµ“lcÛ5äŞ_ÉÆ¸nÈ.L­ ˆ™®’d63ñğ¡ª]Ä³bï_.Œ§˜ö±@VªçV:MiµõÊUyÍÌQu×mµjzl³^n~/rÍl•7SÕ<2Ö¦#§×Êhöæ™‰	Àz¾s¶0ÁfPĞh™€±—Új™ó6K©03€^§ëÌyPfOÑ\I­ìk‚©–_ª÷Ïb)Ûã ZÌšÁ½.¬ûÙÓŠ¬O¹l‡L»òGÓåwçÄ53Mà&SFH¶|@zr†¡<‘ÖÎ,f²óô™è ‹g‡ù ±†ƒ‚wÉÌòâV¿(oÄ¡Ô£3,õdá˜‘LL:’”r3O³¸ L×ï¿f’À‹&”²¢ÇòœYÕ£wu1—\ít¸”Ãy²ÂĞ§.OIu›š“MfQMÎú'3Nİõg“R3½X,Æúm[¤h2ÿ<w‚3ÖÅÇkMœ ”dVÇ´‚C~Äú‰=®p~ˆjj)ú©(cÇ?è·ğ½‰‹´ÔÅ…uÔ”K[Öµ(Js¶³íÎÙg¦á\şUD,VäÔ¥¡xWYgä-“Üñ!‰ªYÜÒö±Õ‰?÷'9Á†Ò¸æ£ì©M³ğHåûâ+~–ÄYšĞ²x‹ŸE¸‹Ÿ•ğ?«á0ÆB<ÆO‘`ÅñE%
-¿x`zBĞ­î>ŞĞAVG:~qaWº˜÷U‹láHİ»Sgò½8tx¥İŸEáÔ‹‹nF1ü¬ÄM,éå9Lİj¢'îî‹±Û/bº½UâœÍX¯#N1²ÕÄ¨õšâ‘à
-º›€8– „éÜ€Ê“§›W:ÿÀÔX2Âk2Şòy¬µÏºxM5{ãâ5Ÿâ
-·!Ş7÷5Ù™'Şá§_¢Š[Á²±_ºıÎÇ7ãîI÷#4ôñ°óŞ­ê_¼(mÙ'òPx‹µ81fO˜‘ß„á•ï¾qƒv”1•¼>ìQS‡éIm¹í¨ÿ6O)ULŠæ³(œ¹Oxa¸
-Igozí^ÿ¼{ò&½®?¸ K3l[KK›u3ÒªµÏÏÛ¿™ôŠ«‘«R:ır cáâãÂ‘‹¥pfg2Õ¥ëj›…İËª¥ X Ë€EL4•¬s±­òyóYO>AË› óJ½mŸ_ôğX]b	,êå!òZìÇoUÅZ^©‹²ÄFF×–¯ñŒ×j·Ÿ
-z·,†n‹\vº|Š‹ÊuZ5¬@Z; {õXŸÉŒ<¹±7ò&kE3¶oTö#÷Ÿs/ÂÛ Ş¯©uÇÌ<xÖ>XZÈw–ó<Îv¬w©Ñ!vj!1|¬QOfö(­K½3Áÿ°ED+ü+y~×@õr›aÄ@>ÓnÆ)ºí!9Áş0!äu/+`îÎØ÷ØdyÜeLi+i#`V=TïİhèNFZ›ªéşüÊ‰¹Ë‡²ÏÁc¢Cuÿ¬ô°h>ÇØ…iªı3­á3x6uÉ5ï|v‚+Ö;¨3Ú³ü¦Ñ%Ò¡D;·uvìÌ\Şë[7<æ×£,C«8J Õt]€i4ŸÄ@ëêÙf& ó¥[ÇİxK‚·‘{üÂò)
-,39­´¥-­¿—zÛ?ƒm;ºt¢y3íavvw «o§8}Ø¶‹`}iOnR’şğÚhÖ4ñFuêzšÃš3ç—<gÆ¯8ô@Ì€áWW€U­É…_Ûïº{0Z4¡ÄjÛ*ºeC`±Sæ`æVÉ“x¥ÉŞµOŞ´OØYçü¤ı–¤0öAY5ÛÇšÔÎ“ÙÏmã9Ä'à^”dĞÙÒ J]¾HÂ¬ğR8kÀ‚ŠÆ	*–ùÉq|ÊmäÆ3øâ¦™{¼&Ş–åÇÍŒœ­i8T …£"¬ÛÓãq}¡=÷º’ò˜¯
-”ÊÙƒñfä]áV GpìMİ>mkÙ‹¹×êªTä½–”û,ãhí‰È×f*“Â¦éSKNx]Ÿßá,{kò+ gkßn×4İX+ª¾7#wæ;·ºşéÓ'õú•W§7ôëWüYÖg1±ép«š§<Ïö¹a^kízéO¥ÂãsËã’À0–W¨ƒ	¡şša£­I$r­ğËqèpÂáÍqÖîrñe˜vÖd=Ïwzá¥Ã|çÊÓ”‡L28™6­*©eYªŠ´JuCçª³Oé¾rÆ²ş™ (m şû©Î,=XQLfêTÕîŸ™7‘Z›RĞt’Y'{ÓA&3‡¼/{z9‡í ÚgaÂ®àÅ˜»L4ÂëD<Ò´Ó¾!é,d’Ñ™ıê×%(E˜;à´»U$ëáŸfì¸å>~
--MËN/Q°…D(P¦F ‹«¾Ô qv¯²!“çå‡WÕOÇ êúÀœõN$¤NôÍfóSjHïi­f-«YÁÉvé5áhº¾$â¡¢r,:R'æÑ@5mC‹ÎÔ…?h½@³‹l‡XEŠ-	[:U‹_†ší'ê@'h8tõ$O%Uc1¬°ÏZ%ÄN,#v<´õšìTĞ€"AÒÚÊÉî¤¹”„½n8âycFˆ$#u•p¢'>Ó÷ø<ÃQŞÄ“öEPZÊ¼ìv›¥Ë¾br~ÑRv•ÌeLè¯ŒPæ2İŞÁJ(‹<åBœ#@H4¼à;‰7vbÏ'ë•ÜH& ¤2ÀËĞgqÙ­+¤‚6+Øç€LÓ™—A^3/<ıY_G	½wÜ>ï£×å~ûhÿâ¨İï(
-NÒá­Í§"—ÀbÏèÌê#„Í)ô›¦µ–r™}Úœeij³âÄYå‡ğïl”Šö
-ÙÅ)€d<íxêks²xÆ[°ÌhÜâ$_Z-Š_45.F :(	Q”İÛrZ.¨Xª¸D°âªáŠL§_`É0 `°[Ş¸2£ô_Ñ,½²aš8jİİãÎQ÷¤ÃŞtN:çÄReˆÎÚ(²ã‰\SrÎzjƒ˜”Kâ•Kì•
-uVÈ$°s-®¦ôi	€öåvwäN@ëçª)hı0[Ïá³3¼Uè¶3Ï÷Æ)+¡òƒ¬Opq#OÑ%yÂ¹7•æ]€P4mšG.¨Sú^À=DÒœ4*Ö’kÌî}QŒô4y˜àİ)2V.C–¼Ñ¬Ç9lá«qŠ¨®t&:!eW~0˜OÉíiÈŠôÉŠ9œƒ†	¼~
-Ò¿|>E·¥¦Ö£â›eßè2ƒÜ[-ÚUö‚ÜÁ-”ıTËÄ÷¨ÖP`(YPŞ¬lJ·¹ªV"~Î€tNZ¬fÃÔ,øä€# ¸Š•81RÔBë!~úoÚ½–0wÊÒæLHctâ†úÆ&î ïUnûs«5z½m%ÅÏáéI¿sØkÜ”ÈÁ¥Ü[´¥»j-S“/¡Ú‡­K–©òn>E¸!ÁØ#ä£hì‡İÚÀ.±h¬*,QÄ&cOÆÌdMiĞ”>s1ÃaàÔŠpĞ~İoŸ£‚Pí´àoÍ„GŠ8H$†‚gMoHBÅ¨™Ì —¸e°ò R»-î«{ÒëŸ_öºf ³í¡^€Ù'dDN—˜3®^§ßmŸá ’Ô˜Æ?ÀêÑÙß_zÀÂ€·RIÜ¹t³€Hªµ[UÏìjì3ì\ 'Mg>úÓ]l7™ô‹iƒ¾pœ¸Bé!7Û‚›œXÛ!Iğdo‰qÚ ¡ì„âİ%.JÔ–æÍa2$×¼¾ÅŞÀÂ“ğí‡“W4ò¡]#­°êàH¿Yg[uÎğ1p©Ödoñü ò”òFG`Ú09>ÊiÆnõ pd|â´=Mç°´Â…7Fƒ+ÁŒÚ¢-¥:¥ˆ©Eü-şøÍ1¥‘p(cà‚ È÷COÀÙ¥ÀÓ:« ùÚ İã¦‚ØÈsı!tç‘´ä¦Öştîyóû$& —˜?i²óô@q[˜œ<óÌ˜uÃ2·:Cgnâ &ÌºCvt
-—G>7b‹=^XäÓ}Ê„æÏïñ³àÌ¶ü¬vá‘òr‡Ê•—æòC6gÎHO.÷:çõÌIh÷€¯X‹şÙZÙ)*~ô?Ê‘™]	ôÏB€4¿xúgy@ê¤&ëÁs¨Hm!ŒõæjZb!;À“§œI®•ŞÕ”~–„~È‹ ÀÓÜÏ3ëyu¦ıÒÅoKÆ¥qœÎ¯ÓìÑö1-:EÏôgÎ×v6~[ ³®yDºvW°]i’CczæJ’{œágé4ÑWÁ)šx+NÒr Zîh­°šyÖf‚]ÓY2ÁÀü$ÇcòaÁ×¸¢U7Y‘ Ï|Š3RÈnÍ@Ì|:œïjKá-‚' ‡©
-Nğò>ÖâN;¯Ógm¬ËÇ™‹D3Ö4@q€.YDS,ÿñ[~Jö—rP‚n]pcQæˆŠD3ºñ“†o»Tgõ£B@kĞt]yRaàÈXÇ ÇŸwzG}¶×Ş?dıSPAúm†šÁ~ÿâ¼Sh¤/¾jD³ÖØÔwŒ$âyä"zÏ	~s¿‚4Ÿ&IGz ,~Ç"&ÄOmùêüöı¨©»gr¥–£p€–~Ã?ª¦ÁÙŠÜG^ÓjèÃv2³zX[Ê	{¿Í§ÈûZ X³§øü(€ßTû±Î¼Z”#ÊLx2[Z}ï}(Øˆ`C\JyoÙqnsùìJó×œä1|6Ù}âsl	JË*8e¦P;pÙĞûÆu9Æô	'öÄ	—üüŠËF~4tÂÖÙ±5ûAäN¡è	û;;Îœ… —!cõ(üy	E˜÷ÓOÖBjø y¨@Cø‰U±vÁ³	l2(k+PÎ1Ûe' Lb0ß&õ‚7O¸_\ØúgßqÀ›…#ËÙ©œ!Ş2)r¤`RE4"ù.´
-Ò¶
-#ËJ/ÅïöÔ[}oÃ2Ö`›ìÜÎV èş<ŠÃÈÌå’å6ÕPZI¬ìÄr¶:Ô†Y~¡ÌxàÃîPPY›Ó›
-ÈÊíªù‚äTfú3LüRÀtšu}Ê?©qÛXiåvTAKØ¼4ı·ËäâEf—|%.¦kjš¤#£ùíT…ÙÍ´ÛÛvŒ^i·*Ês¯\dº_|Ç¡9åØ¼Î—Ãkqœ‹£¨=À
-&w©Šf€ÉÄzÖØ£üÜeÑñˆ´n0´v¡úÀÈàûvDW!¦á-ÚéÜjÆôIÿdK½¦>‹ÀçÄ±wd®›×†-°9í¯¤l2ÅoLR\&L	?\Ï–veÂğµ	\N‹êÆ×Å:©"İzŞB+hGd([ÜˆãÁ?Í‘-ÅuVŠP*K¨°êuÕwX ıO¦ó½4t/€Ëwî*½GèW.‘N›Î²¡HÁu‘Ô»¬XkTß#xyÙœ%?(ibKôŠ’&Íµ6'«mÑº§n°ş;i1ÃGQ\øXW7$"š7óxà‰wİVŞñ“åôd$|U-Hºb¿2'?ÍC'ïsÈu±B÷¿¼¯_‰3PÖß/œ¹Áq8œûÂU'Œ^‡‘LªhMÓkÉ9×]…‚&˜v«øE¬'ı*¸«D$«Ğú•'0‹¬ÏŠ–³®¤|eøâQ§ÅQµKÅÔZ÷ğ4v±g#Œ´«H‚¾- LS’†6N¸u²/!{H°Od1‚fãÁo¢©ÛO%Û¤q1µ\¼÷“‚Üb™D™‚×
-qç‰ÑÂbfÅ)qø§ĞlZpSAùÕ ©/¯™5]¶Ø‘Ãñİ(©®)çò®qt.†ì¤: PáI¹LB?œ²¢Óné7ô`£D©¬o3w9›>Ÿ™‹ÔáôÔœa?œy”ÔlÈ(€+j+€—Ën›Œ£D;’MÌ£áöÈÿ‘ß<ŒÎ7U‘²jtŒM“¿'6T[Üğşê[â¼–é¬#¹Êê=jfiOxD){TPr?Qú¤j[’¹l_Ç7-éÔi3Ë•Ê.h ‚’ÕõZ7PGöJoìÏxÚ¯âıÆ‡š¶Ğ~?U­ÈIA¨&óúî…!šr3+ ò0ñ´™CİŠ§÷±,•2@ÍòDé%ÉébÌéTEg
-_Í3ÂÌ·™8¯Ç	©o˜öG5óš#nV3Â‚³Xg´?ké$ ¿J´W}ó•Ú²¬˜ËÃ&WÈŠa9¹W 	ù?Tü–aˆ·©«K-'§âoº°:ÓÕËkû¾)dOö©•Ûç[Ï/{]­Lq?"}Wr7Œ`è»{s"]’iÑAÖ‘éb–tV–SôÊc'æ¹ÅC¤6‚İ2În¡5İ>ÌdAÊ&×yònı’e0dnÖ;şïYÆÀKåÒL$ˆ¾ĞÑ<ĞV™Cº8Š%v§ûãĞ`^ÌMºş}«b,û¿YÌı7 Ï$ëÿHÖüóGJÖf“‡K?”œù5j³º8!d…b!HÜÏc5@\PÛ¾]aÚgÆ´\ÖBÑ3@g,—"$g'<×ğfE¥}ãìî°gHü×Ë¶¹•gˆiÙM£ìÓBùHa	¿õŒŒc••d}ã²‹¨)Ñü+‚BtºÈİïxŸ
-\ì…oªLçùã75ÛL˜]©Â5u¾ÒŞEĞ%‹;ì©Uš‹‘ÖYfè¶}\ou‰‰áÎ-UùÆ^2;^rêN¡àÄc¸Û£
-¸ÏÀ	œåæò˜¹õö b{è%èÆ·‘›%¥'á³¥Áµ¯ùš{´¦ªãñt‹Ş!-¶&CNgQˆQ†Ífêv«i©CA2vğâª`àú> F¾s…éâ#7Æ€Ñ0‚2ğ“F+wËk/†×”²6¸©5/íË$â!^ğ±Ãon«.(&‡L@P°.ËÈƒĞç[‚ Ê§‹®±ƒœxdÙ·ÉÙj¥¢fm¿¾<˜è¯N´|@QZCûÊá”±’TŒ4ñF‘3û{‹*Ÿ­*ynşşuÓÆ‘»5Ã8¯´Ë§ÄQp@Ï!$ÅM[g–7½÷²Î+Yı"N]ØuûĞ?‚œ`£ÃMÖIfö’ü¶ÓcÓ¬QjÑ¨şcøSm='}ğËO©¡šnäPÆñò½qŞŸÖÍË	ÆráªĞÂ«¿ÔQ[pÊu^`©Ò«G<[‰9ÂE6£ôJ¶“ì Ò©¨¡hıi5­n¦RÎÈYË=õw{ì©|¬=L7b¾™åŒvTpéRìóÚmŞÅÉrŸ›±x+m–øYêBMf›Œ>zLÁÀ•|t–5ãÚ]½È›I!*Ÿ°+çrÜŸ¿XÓ"%BÃg*îìŒzÛ´õwÃM
->â‹ÀxÔJp»ÙÙç½£:;ÃºÁdîE^v˜D²¾so†¾/-21Tz8§RL¥F8xÖ7fÕbÿ Á×n›ìF8I0Z6+v;”8ĞıĞ›´HpIF@z\áåPïs›“ƒa•0	Âi	p‡’Ñs?å÷ékŸJ6&İ¹p¿îµ"F÷Uœ¼®¸E—[Š–+»Vãg%÷jÑ§p±ÖpÂ,–Óms•£N=K'oO–# 9ÎèN@æïëê‚í¼í_ƒviÀ"ÌÑ0-ÀÀcqn<!è32Š®JÃZØèßØq»×ïœ³³óÓã³>ûÿşŸÿWÆ^Ÿ³óÎÉ~û¤ÍÎ:Ç{£ö»öyû„wNÚGícV=?;®±7í½Jòµ×9ßk÷º=ÔL<øÛßx*Ã$	Ht†”’ñÑ#àDÊìÇÎ¹b’c 7œQÉà‚y4g½ƒõã.ÎaäÆ°8 dqYs*öÙ0œÌ1e¨ÏóFs ßO=Î•æÉt2û•Ë¼†¹ ê`™³Íœ	EÀüç4ªtâ²co ÛE8JØ¯a4D½j†Bï$fäü>}ŠËÆè¼‰LëB :Bèô(CÚÉo½‹øúÀşæâ@ù À:s£)&ü›guNj›ÛÀ!Ç0YÓ}ôJa8ÌyÔ²¯ØA§sÆ:íó“îÉ›Õ{ôè90>h9ö0¥ïÈóÙÑÜŸÇNğèF}n·t½©8<	Ş!ÎıÚáêÆ°¦3ÖŸ;d¿!d±Ã:1F>laÅk'º‚²D<X-ZßÃÈK<Ô®C¡ÈuDÔĞŠ½;}Äá÷SlzzdáƒØãLáçs,?
-4m˜†³™ÙQJÍjÏ&n ÈåcMFs¿Æï¦Î°²zì:ì`âÕ6 èÎĞ°‘M½ú.¼¡—¢kÜ x³Ç»fÕ_ÏŞ%ê9=\.=JQcÁ@š±èYm0‡nïæÔŠPü9Çàt+&…#oŒUg3ÿ‹N‚ğŞ•‹w° t}Î«¿&±šCä0djuĞnìPÂ¨À0İú°áËC4dW &c>ÕÇ°
-¡u0«áK{ëĞ¹
-¯@¡®rş&ÍH[ RÌP8 ±LİŠ`–Ğ¯&qhê%‘“5Ú˜Î#oˆ#LœHş#²ŠÌ¤pÄ@,1ï#ÌûHœ2ÓØk/ÆŒqêÓ~…>zİ†œËÔ8¶!2Ä>FÉÓº€$ıÿ)? zl½ÈzHèİ“×§çÀj»¬Gálì }ŞEªóˆª¢ –„œ[gÒS	·‚9H(]7/¹i:ódF$a•îHİ.4~zÔyËŞ\œ_|€2Ä2c:AìåZ:¿t¥†l³•3İ“Îì\»÷Î<‘­Ã?O+X]f ]ç[Ø5|72U‰­F#å6«–a´z€‘ı‰cÅ8ªE@>ƒ>¸à÷Fl…@Ïä¤?¨Sœúô’µŠRí!ğ¥=°Ö˜*Qàx[„‘zK¾ç^R 6%H_i¸}g>RpÔÜİt$œœ²^y™ŠŞIÜ¥ÅFè\á>ü‹‡dÖY{rYˆÂú!LZ¬ÁÊ#’·û¸İğì¢\Š œ¤¤'­À=	Aa{ºh÷ÙÙQ{¿óöôè (0†7‡m¨Ò;=y¼ÆHÆÙ®D´÷Ú{Œ²ÒÂÀÈ÷S'OğU:>=BS ¦á…g˜ı¤ÿÀÚ›‡óéô¦	XG›¼h¨NugÌƒ¦c Aß	ê,š_FÈ°¡£Ã³¿'n`‚XÉ»tá@’¬^x,ú`g.€Ó‡¾i¡ßáNPF°K“ìPåĞ² T©›¨Pk‚şEV©í'Ø)Èı½ƒæƒmìtï¼Ó><8ıú½xwArF*`÷*k#¦‹Kùğ 1LÜ@)fô¬ğ°CI ã‰ÎàT¦Z LD‰e”ª˜ıÄ&tçFŸ£òO”¾ÁMHşÀ°¿ÅŞ:‰·°TğDX¬+Ãï`›áâ%§ ¸‚HƒxsÆN/@Úa 5Â¾KxÌø!€qèmÿøˆ_€Tk=xğV$8“éeé-l$ìŒCï‰Ù€9 ÄtêRÄs®ØËq2õw×_^†Ã›İšÊH‹)ˆÑÖ93Læ	tDØ¿ú úCö¶ÓFŒ‡Qòı’ÒŠ€ ß‚F7¡‰ßİYA×ş¨e¿ÍÙ›0Y^t+@†mTÀâÀÙ½`T¯”j±Í§³D<¸v½«1h— Š¾`(4`Å¯ğ‚:/Öxä8ïß677Ÿo={ä]y^Ü»Áƒš°!ªÁ&Ä¨ê¶Ø|†æyLĞ·¶»Œ°ÎO.¾}¹>ŞÜåsÆllbÚk1oÛùÜğ}‹á–ëÌùnâ|åD¶Ÿ=Ş|²)'Ò¸“$„AonA¡µ]]MÁœ8sl÷äpÄœ“ÓcP|P¼n¿½8!ñ:+6¿\‡ÑŠ)ì‘2±7b²Y´^´ÔÎ[]°İÖê™.İåW“)±Í<6õôœ§ªï™ğBŠ¹Ş5±¡ôC\©ÛdİÌ?òº{ˆÌ	g]<ê·{ìâø"ÅÑ¾['‘­÷!,¯’Ô"&]Oe˜:Ê&yÑ$;i9ÃuÆ37ª™­g…‘zf“¯§²tİ¾i¾ŒgD”„YA†ƒ­§[Om²¶k°Ö—ëX}·nnİ™ıºÎd"(„*±İn¬g^ç¼ßf]À´xŠ4;¿³v<s'ğ7M­prC‰"eT4@£0ÒFÿõßYõ"rèèE0Q4ñeìö ˆy^¸RBjpûşJŒN¬¦´Pˆ ¼Tb´Öe&£)˜lŞÖ,ß^µ–İKTÀ5é!ìó#ĞI`À–µÎ€Bu¨ã3Á‘_ÏP/Í-!ëüÿçìíÁc¾]aîwHÜÖXTõ1¬P<¬]³¬‹Z©!iów†D­’ÿ>ä¦„t¯QøªàW9üËZD¨2Aó\2(´ÍdEşe’·fB«¥H«Dëá<â•H'ƒ¼Cù»Î5+}uQ‹¯@XğFÔ—Ò„Ä/QQ›x¸:J[œ‘ÙI
-õq‚ò‚ò/Mö\Áóìüôu÷ˆ]]ôHÌXVÓğÀÑ[t$AËíAæ%T¼nƒF<Ÿ¬ŠftŒA–‰Äˆ4–5mwÒ
-©IƒXŒ¼ aÖàtÃ†hM7mˆG©qCÔRæOØ ëƒN¯İÍIsÌ j6mj
-Š{|	ªŠkÎ]”ì~·ª6şÎd>Ã2BBˆ‚<Qe”nÜ€#Í|/`]:×Æ’Ù û‚6M:I‘ mwßba0&˜Ãì†Åß…şÔ—Ş¿³°GğGB²'ZAS&»DÚa:œƒ";…6&ĞŒAÎN‹½'Æ17ZĞùã”4>Z0R‹ÅÀ+BPŠîáZä Ó)´rhCá»‹0zô„Ñã,5zt¤Ñƒó$ÚLj4‰Pœci¿¯­¦}ÉF‚Vi••æ“ßAÚÑPw‚Ú¯Së	l©Ïé‘vø¶!şšü\dœy®ß9¾PôÀóÔy Ó¡&(ÖÔÈQ§j°ªÂõX¨†i‚»4aŸ¸õBH¦çôPÓäL%Mç[×A‹°–8mµr ÿõè²}"H«@“‘D ?Ü/ ÜCÁÉëT/o¨KÜN×ë°ó¦ÛF­¨ı+h£ÕM¡:â&˜3„]6tp×~¼­ä˜o&wÜIœA ƒ‡a#@ $Iµu$â¢ü‹W;LC`‰¶;É3åf‹BÉ&Ó4Ru:RœO®ÿ+³+åöÃ1·é%[=ªêöÜÚ£:BV\şË4ÜògYæÍŸ¦·ö(°.ˆu%nÖÕíš<·Ì^“ç,vá”á<dm•7ËÜà
-7HŞnÏs¯<¥ [íÏVş'FZéqç¸ı¶}L“JÂE²©rSFGÖ)nÑ8u:%½sBß®<R2F´º0}ÌE’Zâ±48x›âm<|cŠ¡‰Ôw[|h'oÚgG$D—oŠv
-2º8üŞ/E…Mæˆº.¬Ê,¤QUÑ¡¦Ò…ş×c'päc•ÙÏ*×'Nt#1Èm>ÈóÎë£ÎaùA\'K{,Õ$¾S_:±Q²™a&˜57@|¨ndRÚŒçiÌBÚ‡o»ç@ÛmƒxáMgsŸ“kŠ £7aDŸO‘Ï_:˜í}Â!è ÿŠÔ:]”è¦fÃï¯º>Ï“Ğ¹À+­"ğœ˜…`¬ş9gõÀëñ"ÔÇ—áñVÑ’o·m 4š©½ó!Íˆğû¢ğíCØ&`z)i¦j¯~à9WAHÖÓ*j[5"iÅø £áßu6™{”T–ÕûĞø$éeáÉ0DÈ Ë÷ıš¼Ğy‚»¦`ß§—Àı¾.9Q‚’!­Är4TÂB{arûv
- Üˆ…ªæC6»ƒ	Œ¯}ÀûÄğ8v‚Æ®ÏN~½¹E{2ö"DpÖ“B×‘ĞÜ2®ÉíÍØĞ´ŠÙ•©:åvU\zD}Ec¨Qü,€vüã³.””ıTaì{ˆÆÔ³¶nD®iR°ª»I§Ú˜¸ğÎZ…6¸Îö€íP£HB•S§QÀ¤`ÆpnıU§Äúa47’j*p3×ıuß;…mV"5ßsºí7'§½~÷(óXÄå<áĞâÜCÙ—¹.m§Eç‰ ñ$”·˜Ø¦w ¿œıWg'!,wX!1M7<<Ì‰gyU¬–ïõq~ÚtÖï¾¶i"ë¤‚pléáüÚk¤{HÓÇ§oéó	_é‹½óî!®uÚ]x,FàchHç{‚w=»ÁV{˜$ Nƒ=F"òçlÏÃC2;íƒô(²ç ÍSèâÌ£Ëqƒ)ê3·dêÚGlOu­›pª‡ÒÌÚ6ÇÂõLëí«z¤áı>1CA±gœ€¸p_Wvs¼i6\áƒhŞS‚Ş`PÙaçü]íäİ ¸C´
-"W©!óÍ1`Ÿl±P‹Ÿ”¼?nŸuPo9”ë±÷ÿ…ßû§gİÃ¾D*ü «§6TR‚Z„Â2¨Dá¦¶~mUñ™›pöG@ğ¤oé½Î¯E$Sã%IÍ\Ò!ÈÏqHÛ’•IÑ“;¨|ØA†%e€ÃâµÍ¡d³Äû¿]@…ípsƒŒ+ÿ³mÙ²_ÚGİ´'öO‘’z€-½‹ããöùoÚa‚Úí{ˆl˜DÒê6í¥wÖ9LA´ßî_ÀIÎº;mï¢<òğô¤×íõ;'¸vû V `qØ9ƒ
-oùÍ~óyÓ4n°sR¶öÕ¶s†Ñgda9D©,€mĞV‰µ©1öú¿á¨|Ç§'@—ÜDç([Y«ïÆ“ŸŸ>ıÙ<7Ø.8'GI8k±­­Ù×ÜaÂs|V|,ÍD@ª84\V#få¨"ÛØâŠg>k»è¥¡N¶³³–§:¹Ó’³Ş´ÍúñÇ(ôiÆ„ü@zO
-a<ƒ3‹)dš{Á®½a2†1mlü]‚~¥0\Ÿ¸›æ[Æ¿™N@€b£ùDcù9=PŠ|Â·±d\ƒ	8ƒÉU„·74$ôG›£'£Ÿ­ÀëßbOa4Ø’‰égb¾;Ò»6F›Ï¶œÆj8CÎJ|ÁôĞÇ— ±ÍSq*Ú>ù­k5Ÿ¡ÿÚĞåKˆ‡vâ¬´àXT—ÂŞã»!è†ìŸÇD‘—¼²‘‘Õ)ªâiöU< Ç¦ŠDWîìë!p‘›c|½µŸ'\‘sPv#¢jmç]Ñóî·üsçÌÆége'\ş)Ïvl”ãyŞÓœ¯|ÕûáÄÅ,ÄÏ7Ş*jĞCjMW
-£¸r¡¤å)qÕè1+z÷ª0„L^Yƒ«î+™×}XDŒ‰[“ï¨…WMî{ËÓ6X‡,¢Wãs’ğ¦zÌj½7½`àÏA°ªVoı\¡+Æô×Ix^»Ñ>ìÕšVøŸó0q–/Ni†}ì>_'-uŞé^œïw>vşëmûöëûœPÓgôğ!Kñ~³8ø©	qºïMUTÀ”ª °:{ŠVp,]³¯(¨~:WSbc/¡Ë"r\ôğ	ÕÍ:2ü[Œê£”bœ¶y«Ì°–½!QÃºU]¹õOáÅaégõğŒ`à^9c1{TÅİ¨ÉŞ¹C‡_ëhŒg*y( /K@»´€eğRœZÒêÔ>Æv[Yä‡³,BO~°0B»‹0Ä„óŸÔ7•²]5‹ŸØæ“Ö?bB†5ò¼,¿ L~c)T3ËfŠ\ş)æ±áç¢ ?©nÂ”0¢HÇt-p³Ä3ØLl­%ÂkÌã6åîñ*ƒx9Û5“Åñ£îæËõÙ®aÆ€ş´ÃÛü‰}zyíÒšÍøbã2rIÃ‘Ó¥ã_;7ñJê¡|’ŒAlãn.²…OÖş´øT™ £Š°…ñ¼ ÒSÄ(Ó­ğ…ZØ˜¹7ÖƒŒ-å,¡È–R*:hÓZÀY¶m‡™À-ˆC^¹ÓüT†½5-Í5è|qeşÃ£ğ*8T©1¾¯„×°¿$¡ØqS$njÌ0œê¯¶ŸÖĞ‰ï®Õg¹T¥˜_æ1é	r…è…
-Ùï>¢İ)'Ä,›…	?ÀÏ¡äÓá\X±Óü3­Œ›±5>Ÿ¾»í hŒÃÄ.i™e¬© ÔL”³êÏVÌ‹ç‹qC:#1·LÚ¶Ÿr<=…ºe¥Ì‚>HßNJn„Ò·èV+È¨.Ï¥Ûx-0Z–“òâRtîNoÉÍex}.M`ö@íK»Ò~\1ˆÊ`N<åº@óKÔ…ZtñWŠwÂ<!'¶
-Ğ“Bø^Ñî`w'¨ ±·°RatÓL%´Ò¬¢j "2}SĞVÖ¢¾òiC±Óÿàé•Ä%_ó!lNêö
-¼Iİù
-+zAÃğı¹'ïö½ ‡=mªÕƒpğµ&‚­x]</‡íC!'x¼à{,À`H…¼Œ­ğäÆ1¦Ïlú§†ß™l¼,*x-Ï}S´Ëg";¯?t†mß_œˆ¬®1{š*…ÓÄ#Zl‘Ø…2MëxÓDîË3´h…~­TÕiê,ğU3E_¬™şE9NUíşnh¸¬]9Kbí˜1†²ˆ‹‡¢¢™ğEŸñâ¤/{.Ş_‰¹Q4Ú47úz+ïZk¨k\t
-Æ´ü„#ò@.ÂğAi.^.QÊú:7qâ’±¹•˜9£İåšİëJqğâ…¼ĞYNZÏ‘oB“ï"j<zŠ	-ˆŞš¼àñYû¬sş±×ı¿;½÷È 3IÌFa0±¹¶m–5²a8|¯¾¥ÚŒŞ1y"ƒê7.‹búd¬ºZ&‰1A½ ¦^0å695VêÜmÄa”àBîÄ®„±Ë<u¿®£ÃªÇÓ= éà7‰9Ãš1<"SPxØÀñSrÅ[/ô¥ıĞŒğNØÍäş°UO³–Áf/g\ç#´¦,Sñàâ&­š({~¡‘ˆêM~wƒ0]áZËƒôQt•47×SPM©ä{Ğ–Ph*¶ô47öÒô."K‘ÙÉ¥ZeùÔ *œ¥ ~[/KÙ×©Ä­p§Ü¤Åo‹SZÜ€Ù´BÈtÅŸŠ¨q½Dë0Šò;•q’ÌZëë×××Íëíf]­÷Ï×Ï;ûÆãÊ®60×îjS{‰—YÂj`v•úMFç£ µïî*†9ÓĞ9ÃËu^V¯M‹²kÀöÿà
-åá¸9ümÒÁÀ­ü5&ûmv…¦qØ Å#Vù‚3 úÈñr$ Ã_¶Sı?[£c:hÈÛuc)Æ9êÂb$Ÿ3šG˜¯2c*1¥[´­ç Sz†Qé¹W¡kœgTŞºş­şìÄ»ó„ÃÒ¶vz”y·ì4şöµ©m$ùWw¶7ÈHxùÊ6»6º,Edä‡6²å’í ëâ¿_wÏŒ¤yèA [[w¢Ç¨§§§g¦§»§{ÌÍíÆÆ¦>ê¹5jèlwŞå5mÜ~^ÃÆ™lÔ7uÔuËŒºÕ#e5™Ú2ø)9NeªÀhEÌ#“óÉä4¾‡PŠõûZiÉFHÓP‘Mz†…¶Wmc([b¤BúÎ$½ap•&|ÿqz¶
-é¹‘ßøÙ:v­ıé::Ï¯¢p‘qX`|8‡ló±R0mLÎiG1ë™¨©Û–óâ­ƒÜ™Ñ“™ÖÌ¸;Ôc½Ó‘1usĞ1 ’iÒşîÙÛ«å·š};Í%¦0x!&81`ı@ü÷ù}çOFìîüŸ0k• zĞ—ˆ’!cRkc¨¯¦Ò|5Ï3ŞÖß¦;*ÂædõóVÿó>£!¼ò’ìÍJç¥½¦">î5eù•y#¤¿(8p¬°‹Ó¢³Ã
-‚©ÃÚñ*¿«®ƒ•îñÕéÙÕIï·Rá”ŒG¥¥:;j›ì¶rü²æ>n,Â+\ƒ™ÁdòqG«k¦Vå°ªôY®ÒUCuìõ»&5]…ªú]:ßEñA¨\zo@/“ˆ ô>VİàkÜWJ/cÇ$ŠŞbà´veÖœ5‡,uv§f5Ó€“¸¸±|2³SeyW}‡‰şUË÷ö«Ãv•í?©±ì~m•¨[Pò÷L[&€Càìv*ÖYïã‘Uhìx2ß Êd BI,ı‹~9üş‹bº„}•ô .k×Õß—ÃÁpÈÍv|ëz³.Í&Ü´“N=™Ó~Sl‚•˜ÔËÕ
-Wç';<9`ëá¾†õ+…A$øŠÑ¨Ã;tŸ_ğOxúŒZÕMÔÈX²1C(UH=®ˆMë²na İÒÖô·¦·k«šÎ§§°Òi¬Ÿ¿¥4Ö·ÕúÓmŠc3J §Øğ¸‹5q“°‡@¾ÁÔû0ö¯†(ËÍºÒ~MâóÊŸFƒIøm |ª+£¯fxíQ7©Ÿ)ˆ}*Í8¥K?aÁí“{â>yà±ìwz^2¬#uëŠ¶TÍM
-z,˜ÄBÖ²×rÒ:ëœ*àÍ5Cù&üÍq¾I"Ç³˜ï¢6Sf¹üLj™ÔÜ±8›’õbó‹—.Şğä'¡ş.yjäìFj–s[9a1G\h“Âó¼³ÊYÓ$uÉd>‰A@Æ(8x(mïî`’X>¸zGâ]R±{œRP»ï~$Õ6@CF.€WÜEÔGbÔª3Dÿ–é¿o§ ‘yvU)î-‹ªæâQ¢©%>W„#9tç@[…ØwTçá½ößLÃt¢gşM—y¹C4´œ–2+…HlëĞœ($9–{ã6$ƒÔ›Äü$’
-h 	S4– ·x”:X˜äDêt]qÇÓæxİ»N­áÄ	`p¹Š—TÀ›gnÃş¾¹ê4Ù13ÉTÏèjJÌ¢9Öúw‡3eB°«•&ïšò9Ñ ·ÔÜ»;Xrˆ‡àRø§ ·amÏç‚iD‚…v}]É•º¤,É¬ºŸıh¾ VQSÅ8é439ÖŠ©ÜœÎ/#£ÅcsKv¬ëOÑÓ°’ˆÄcëIËèŒ<Ô©Gå7¾ºÄ¨ c{,úîô?€İ¬nîL³Ú†ñåˆé&È	<.Q&¹Yâ/Mğ“'”…$I@’_úQ”şy•0ûƒT‹kÌ;²…¶ğG>é¸†˜Qº='è‚¾Dsà±*t_•HÄ9u#­Lş—†GÉ¼KFª…Á¼„?”{[fßlÚ«0=+‚Ø'ìWx¬yü=UòöÁ&î,§áÛ·hÇñÌ¿s¥´”Å¶ìGÍînIÉ6´_q*¬ AR°`7s}ª0®)Yİ•®ßÙU~:ı^i(ı¦»Îo—<‡<«M:ªù"a³ûê¹¤ímT0—Ïæô½¦ß­æ´"çğ®¯¦šH?¾Şx÷ñ×Ô™Rœ”¬§iš…dÑÁ˜F÷ÍĞ{QäNXˆ:<Á{vşù²Wm›[³'¼9LWƒ$úbûn²k´ú*Æ&².U³#A¢âR5¯8*dnQ)}O±)=hğ¸aÃ¤¸ÆS iËÅƒ™y¶	£5ÂÁ_s`KÃ¡;hƒğr	p{SogÃçÊU ñ¬â‚àœªdˆ‰5§™Æ­H^ŠÌìË˜¸Hu2(´É¨ğ*s¦»¬0Ââ®¯tad|<ï²SÁgI•±SJ½ı@P¯Î=¾:¹:µNÎ{ªÊZSg /h§£Oİ¢>eo¢.ÌÀŠ’›æT|,SÇQ;ÙœJs€‰¨Ü˜<•½´fA'=B#jJğSşyM5Åá.T‰Ç™¹%¼,Ú"zièØo°0<S{”3I†)H7û<˜Ì>å7©x¯aõN>SÜÏ÷/¯¬‹£Ó#L²»aæ9¯à s?€p7gšÖpeUàpM"™“¨ñcÑ7¯8ü®°× ÅÇEe?¹Ş½”*	2Ã/Gå€bD³wV/S^ÄlÍ+›É«Í…*5$ ÕiS~[@È<¯Ùj[5¶1­ë¿ äÚŠé¤.@´"ßJ%K1ê2’¼aO/¯.¥mM<ÂÛA’Õô‘”(­W¨«¸i˜ÉŞséX½=tA¬út¦åj®_C1ºî‚4$=Üo€ÎŸÎŠ©‘Å§ƒ×a9Xõÿ%çüŸãz¼&Çå­5Ûøk½]Ğ, Á”#F•sG‰½F"¾ÛaKø%œ'¡óâˆ¤Ğ×èêr#—¢”¤y~÷æ,G¦E§œğS Ë`(%YzW…³Ğ¼—³BæpÎ˜íˆö+Tº¿…¹‹sR¸ıJ3-"F+Ë_Ó“Ïœ|–•Ï¥$ŒÂè¡šË¨W¶¡@Iµé#2§ñàXe?EŒ‹ÄµaÚÔ§ÙÏÚ*V-©*EËjìúb–,–Ç•¿›Ë
-m”o•ÍeÚûä¯÷,i6-Û¶1mªNàRBİÙìbZ-:oèzZMtßÜz¹×Ãç‡î|ÜİÈ³Âé¬û«Z‡šèq(µ*ù°OíRíæzX):›(=#ŒßÅ(ˆh.'øÚ+`18ªµ„óp‡(qp8ı€äÛ_1¿‚yéÎd6;	æV˜XÇö¦¨şÈE®‡gQìEh÷#ÓèÚsô:°7[>–t9ô×Ofà³Ùdı±œ/üá£¸ÙéCÎ,ÌB2Â{{ì{°mÆàó0²g E@ÙJŒ¥<jWÍŸ¬ƒxÅ¶waÄ-ô?5å¦%êÖ>·Ôåb€ª;ûÚ†9æ†üxÅõ½½½eñ4ç´ZÕ3ğìá2¬‰ÿ o€«ì	&›;Ö
-C{Ù‡À
-gî¿xDÂ¸+È…£°¢ú¾åbÈÖ7I	F,1$ê(|U<ùJ»ZñÇ@ÚC•s‘3‡¹çÉÔ¹U@;œ64†Äc€»ÂçìX­uëõ \+Ïq“Ê·©¼±8Şğ±züN°ƒT­Æ¦©xBûÕ—{Fºµ•~ÿ²ªä,mO<2©²›`T}BÒßÓ›Û-Røz°‘(+z©<»0UÚ\2…ˆĞ‹°Ïø3û}2&ş„>ş"£©/Z*×ĞøSFÚ¤ooeÈªêç3»3üVŠ‘œı`$®D©f§•#
-ï„á×Ï3ÔI=÷ĞĞ1ü#Q•š_±š(ê–óX/7v$ú ïùóp1«{†ÂMä¢`ÏsâÑ5›éŞA€–NFcÓ¼r1@·Øz€¬CƒÜá‚Ä,ò›ú'÷œÒ9Ñ¤g&çæTC2pÜd8nñg“¸b*:kù   ÿÿì½ÛrÛÈ¶ ø+Yê:5#Q"u±Í’T›’l—Ë²KcÊ{Ÿîj‡
-"!&HààbY¥­ˆó4ó4Ñ1ó0q~a^æ{öÌ|B¯µ2$€L AQe»¶QQ	y]¹î—$ÂØšbÒ†€R‰ò\Ì<ÌÓ(ğ™Pù	~S¦[3?M`Ò}r¦c"OPf$fÜî‘a©œ¸Xt¡=İÇ¬ds½ù ¾œ9ÑÁ­ŞÌ‡TX¹à5bSêth´¯,Àzy‹$n<@¿»-2íp'$,ö¹1›¯`„Ô¯
-7Päß‹¯-¼¯è)°®ŸÍ@pB¶xİ?Z«6Ş]U¼a‹Ç‘ñó®¤ôsÇÁUØ»ô~Oò‚ËZñZKÌÜ¹òİ'¿¯;Õ@ X¡0rî¬W~~ÎneOó2¤ãÆnü~îÌZkk|*Ò˜P‹Ö@Ê÷—U|ß…óëDtë×­÷äâ'J5É ¡[é¥û¡¢UX7®íy¬{ë£M	±8Ç=Ü°!^&¬“Ûõ^¿I}á²ar à;Sğ¾ã«Tò+4Uvä ~•ç]YåpQü%¦;HÊ<ëüørötõ|Ty&yş>B6j¿tìBs	FøS*<T@|•–M"Ël1±¥oø–Z£Ëu¶ŠwC«Šë£ó;IÆ“&Æ@V[YëÊWÓ¬8Wá3ÌkS5Ô4¹àês'°1¿Íææµ†²° Ã‚‰ˆÑç™ï³‚ğ˜ØüjYÈk{0;Şë=¼»p¯Ò©Ã)M>·íO Ø!ÔºKÓ7Ql­q¡nµ±[ñ&tÊ?µ3Ü¨#ù¢ï?OŠ3°C¬ÇóÓ*æmºX5ÍÖ¥„Dô|–L7v¼ª 2?¶å@grqĞŒy°D:QgPX‡u¨(ê‹ŒAÙÄ4ÙO“+iŞM%XËsÍÀûØ‹¥BĞ&b]Ü ä¡ëÅ£u‚d@ÖîtÖgå+~«…\³ÄåY@^¹kÑ¸º9¤%‚^ŠÖTqµ{{õ ó­ÎESÉÓÅú†ÑèMïlòúbÙõÍ…ö,k)—<IòJAtC5šxnCsí§¼N,G/]£õ<qîe;¼Î
-{ÑË¶K‹›ğçOéÉÌ‹G0”ÆÁ‚.yÍrN_ÅO¹¨Š0UC…ãSH5œ,¦>j]»!ŸÎ…3Z-ÍpáF“íº áO}²a‹7)ª¬§±ps¥ •õp¢8g7pĞh5ùI¼ÇŞğ“µJÉÙÖ*¼ú%ƒˆªNááARnw¥e¶?ÒkèÒÓBwwø›ä•“Z©kæäKc–/ƒ\Èxe¾9
-©yG‹Fj;“k/İòº·rI:k»Ğ ¿*úY»™Š{œ„ª“uSsÕÉi<=$A¨¸ÒYÂíQ14…’¶®d»+{ÜÄ2Í‚m~ÄfÎ˜ëI‡-˜häR/:+™[ÎŸ 4¦bABDTÛ>H/‡EÂ 
-²½R›Àúfß¾&ö·ÌHIóX3%µ¸d†JjÙ©jÆµÔœWSSóZ‘ç©y< 
-ÄjßÖ2T‡'ÌSÍóŞª
-ç-Èu}^Q/,j!Ö™	O…8®ş¹§‡]¦bDÊ5‰j¢GHt©Íá6šûRYèB¾qæ›«æÌ8à‡ŞĞoŒõÃXÿ3r½…{#ø¦b¯V±sÃHÓŞ\n*#‰İ|rx×l úµ€ØŸÆó¤L+75a"qyßYp¬ôÏ!„4ãºà¸8åy#^@R
-bšSâFq£ê½¼ÎARçV½$¥÷Win«û3çİ›ñíZ]s»W_6Ÿ¾8Şˆ?¯äÍ´=Ê³éë<#l\©áÑuüù²xsÍíExr~òtçÚàØU®*Naé,y#v\1•ÅÎ1åó*†|f\ÜZld-¹„¾Ü“TI®Dlz¡!Út+ÉMö¿NjPµUÕXNv¨äz%9`^ÃÊ54î^”|“6ëûÎ+û¦W™?yaùÎÅÔ¾I¼´t»j»2YVÓ£Fœm®V§R¼dSqËªd§UŠÍ®ó=
-G›Ú$ô`ÒP‹
-3%•	-`KóƒK‘úìJn¡oí›ôWøâuû]âílsK»3ûUáUÜU¶ú	zÊ¥‚ÆÒ/a‡§ÜóSÈ=MÉÉ4Í'~ÊÃ)F€];£¼7ç÷æì¬bqyvjcEràş­™ÿ{a»V°¿IÌ™caäÚçğBç=îaºböÂœfŠÿ®=Øÿ;È¤=ó&¿lÿÓÆóo6ºíİÔE¹äUÍ—İá¯<8I=d6ºò´<¤áOîzqDyH0I…äL¾Tæôıx+uµ5šeÍ›`yà`c|¼IÅp"|	½u6hŸÚõ­iü¥“«:§xæóÃtbºÙdYv‰/¤%ô²k.%dNØ{lë°×6Œbjıé!¶Â0”ÑO—vtmÛóÊØai€”/›;Ü¿ÊîOÈá^dÓ6o¨?ÆyğLÀCÑdybÎ>]¾+‡Ï½i²·ğŠÂĞçÚtæ‡º‘2œÃ0 ,ÜØfcË×†`¯ÛşééEÿ¯ı—§ı£ÓgÇ§ıÁàÙ€BÚ[C7Ô&›T_I@^ÂH—\¾yõÁ°í”ŠIè¯RìÉµG‘7oô^ÀEÜòVÙßÔG¡¼g3Œ _i b8ùV^»ÕZóaÉa[¾ocx_ÙåãÙ÷æÀ _H,ô:^?²U9î*‹‹b2îÆŸDğÕlT
-Ãênédƒú«GısÄÿd‹M0 ³w8fë@¿%Ú#a¾Ç[t}÷[³Í6;òòU
-KÑ¹ lÌµ-^±£*W“³¡	.kØßíoÔÍ¯˜Ñá=Å¦˜¶;CÀ°ºW%-èÜ‚õi>¼P°g4Ì“õr£¾Àü÷79f0«Öé_w8Á`¼5ìkxMçÊ›Õ<ÇCqÑdO¬%¯&¼2Gğ¤Òªa’9sÌŸ¬|ĞŒşS°Á9öw¬Ñ_B.Ú´ÃáŠşíf¯ôÓg´Wh])uT/¢™ƒ[b[3‚¸ôáo@Ç¯ĞQ /.ŸâF…¸Q‹ú7áõËÊw4¤àÜŠıT¬üM!î<å?èÎã<G$íM¢£oeœzqÁÓú¢G^ğ‘¶øfóÌ"Ø\]6
-ùÒŸ…r¬õÔ–å(¢ı'ñÑ±k9¨Á@ñ±"Fšï’Øbºğ`¦ØÀ"/{"ºë”ƒÎS´P!„Ésæ)³ıx~c‘r÷Gšğ€üä»z2_xx•ŒTé-&Í²‚cH¶˜â‰™À œ	 9 e¿b¶ 	Ú(X¨?ÕÜ‹¼TF¹C!°ªZÀJæ¬P,¹YÎP²™%ó(@fby5bœ¿ñØöâóøÒ˜>T„©¦ZÉ­óI<»œ£ËÉ Œ¬•ÒµÜÒÖ¤-†¨¹/Ü’+V(õú•©GğÒ§ÙVæÁ«a
-¼ôiHöÖÙˆ§SÙjw”9IğÊ ›ç9°Ûaäùgô?¦¦Z.ãYµd'ÿ\ª‘2hš¥‘ÅÆRúU“½­\Vc—…³¿±—àë,×¤§€¹w«Œ¨R TéŞá*ºëÀò4JõP+íªêÚ‚÷øÇR”ı%JWûÅãHÔô3®Äí¥qaR”Ôì°	üå¸®QF?!}ÔfmÉµk&Mš©léÉÉvY•‰¤_•Ç%Ëİ’ò¸$í+V­‰j‘ÆAºOí÷ˆk#ıh®Ép|"~Ôçìˆ “N&ø%å„¢!#I¹4P:^¿Á|ñ*`yó‰5QV+J{j,³' àòáĞ‚Ìì‘Ï@ˆq)¦Ü´X”¡´ƒ@P/­k`J’T8³é¬/6Öv,Œi#×]øõ2B#<4o+IhyZ÷ÕRĞ#JM~N¬+Ì_Vã!–ÚF€êäD#çÀG‘Z'E`2`©™t5hÔÙ{jL$/Ù×.›zEƒÂNÍ,K3$"uæŒ>¸ œb	S#àŠ"àŠşÊïóÂS¹ô‡u-$¿£ÄIã?²ß°¤HØÛÜtfãöï¢=ôf›ÍïoÅsw›“ñIíşø7Öáµ=7²[H¬˜1Â [­ìæßÿËl®ÈbåÚ?!G<0XÀk…CËÅ
-#í­®×R]zş­Q3ù¤™¥½¿Å–ÕGo•/†È‘`ìµ7²\^mÍÜN…—AƒúºvæÀ²´±"iŞXxö°ê½ñæşhës/°¯ì °+‚-4£3~ºÁ®åĞŠû©Š&—Oƒ:1# àÖÂDÃñ¸BÇÁßABŞİ*é'ªób²m&ì¼™qÎœì£p×Ùë=•Ä¶—3LDZ”Úª®"’Ne+ôía´Ái°SRŠõf…5X·›Î.Å?6´ÂÒ´ »šùz¯0¤}ß-Ö†åFGR§æ†¼Êbâ„ÿñ({/€ÖGäú7#"nbW×L•– Hd>šŠñÂlÂÀ ¬¸Öï7Í›0Iä‹²ÍİÛ¸˜_»Ê”¹(Œ|t¬$cëSB7ƒøfItë•xµS)~RzNDMÄF£˜|A‹@š6öÉ–‘¨ìZÉÍ
-IFâc·S>Ş›{Œ•ÃsâÌ¹¬©–¯¹%tí®{’/D¯/¬°_à|áf4A­4N]ö`gÄc«‡GªÏƒ2‚#ÿÒ%`¤Óì[˜3İæ½­Hnïä¨–¸›¦8n¼ÇÉö3…ÚÀalqğÒW¥–0Ai7(™hHF›YWt:pÀ:E	L©ªcÉà‘¨†v·Th»“¿+:İ-3)ß6’• •R©ŸEƒÏsÏgÇ0Ú± \Z£†|u]•Œµ=”‰¼«ô#Diµ³ªK’Z‰şÇ»En(ƒbµšiVaPÖL$Uù†‹XqZ×ä9¡U‡á<ÉqîÇ Î ¦ZŒ6àÅ¹¯a ‘èÿ*ì1ÚÙ,0’EáøˆÒÊ³qÈ—Ê"k=ÙÒ)e½™n¼Ô¾l;9}¨ a»•pZà`Üúøî'x’v_˜¸şØÍoøx#É/SøØÈ~åÚ
-•=–Ì´‡?Ïç.æ!v4Ù1VŠ"ÿ-“À”ÍEÊKÎĞÒÍ2%nê1ÎãñP³°´¦*ÅX}İëÏ"Ôs"$TQ^¿ÑÙªbŸS›8‰ì$
-=üı1¤äv3İÿå10Û@]¶3i!€eagd-hfI{YT:1”v”{Å—«t2'ä’÷Â‚køìt7·ÜS,7T^KZ¾£xj}Á(ÓìQÙ?¢îéíf•Ûk•g ®Z†nhEiQ>·h"Ù¾ô>1Ò—]4¬‚FYã…¡u¿(ú5Üª<~Pê®ÑF?iô¸2p>™O¤½ßáht·Ş×KT2[‘ç‡Ãé\’òèo*-uUZ¯
-_
-í6/ìøQX„œ6Uv½(jVµjR/–s$¡Ò)9.­Ëï°Î|ãénS‡¹2Ï°“i„Ÿ˜
-Ç	Jü/KsY–ÇàÉx óƒZC¢z~Ì´¯ñ !á> ü¹a*Š«(IFÄ€éÄïîr]:òåø‹déVKèD0Iõ¾ &6s³½l²ÄûfÔ
-Kæ”ç†ö/3ş/¢ª4+ÜTf„ê¬$5–YÔÌŞ.Af!è±„E ”´#!ÁW…NysrÃl]:Vm@ÏÈ‚nqıË†§GÏ³Ëğ”X™8·&Wó<…[¬’ššAcØ BQ`B ÃÄÙZ¾÷ó_ó›ˆˆĞÕ™6Õ†5sa©³wRç³¢v/Qâ¢5#ãç¾sÀğŒœÌ›©Êõõuâƒ²1÷†7u¸3
-Ÿm~ßh¬w?Z10B@Ş:×Ëäé.3t”¦é(ü8wahğ´\`»V¬áĞvíÀ›ÙX¤™%Óúºq|ª7ºqÀ1ùÙóapãG¨eÚúo/ŠÿùÎ0Šdº6ÄÇØµ}¹ì\`è@ãyóPÅÏÚwjÎ™EµÚ‚ÚÄš‹d‹
-.Ì*uº¨Cîæ- ³K.¬š5êW°>ä­Êk	ê—BêÈ\n¾77‚×"	^÷ãJğÊ«w“X-‰sÎ™´
-aCeƒEÂ½hy‘®Ş¶VŠ%Z¶×	BZ&,İÀt\¡ºÂ„;©g®—¬¨Pi(¿®U”XÎr\	_5uäŠrÇYiã¼ÖX[°8­x:€BåJ?¼Àb/°ó™øä ©Šq]åâ¼J£8…½šm`x‡<+ZÔÚq6¨@2UŞà’Eåá_wğïDü-šÚH‰ˆò€¢úpâ8 Gˆt*Ğ"),kK$W”ÆÙ¥qŠÉÉ@·wù@éoq Âç>C]¨Jrõ¢'5Ÿ»Y]ê®É²ûqà»÷[øŠÙìhgS[ºxŞH´‡HŸ6íÉ‚o·ë`xS×FÅ"
-ù©"şoÕ™
-±8»vğuŞÑ’‚BL´Jc.Y8’M)µ[Œ”B­b2ÿ*§üôõÔ«T¶Ùïú3h(Ç©}+š«(±6Ätñ¸ºu]o¼–Xg –9FäÄ€sæd2ÔncÇY8\f#å®ïÈ¾Är‰ç<ÔÉñ§UAsß
-¦®ªœsr@MĞòW;vdGÛ`çv‡ğ%˜‚ôfÍÇMè;ı4é”6‚bGü8í•+róùæã·¤óˆŠmZÀºs×O–ë­³·6FÊcQngäL¿4l–ìi°K(Šm`_¼CÙ1®àS$>u‰ıÌK¨Kçk‚·«lWû›“q<6ğ¦ÉÊ¡N_àø§[BIß•l>eOjËFìŠL…™öµ`úN,ñXö|˜-8¿sº˜/:v"‹g”¿´yñ4¬
-`&Š©œ8|ƒåb(¼š ×ú@õÑ)É™k_:6´}+Z‡F‚™5[ël¿–}_Rdùzb3
-›ŸÙó›8ŒçX„ÜÂ\™ÃÛšEV†=kcœñ"ÇØn½À £ç¶…â¶Ú%¢6,I‡´G¨HgD wŒx>†£¨óÁ¨EÎx-øŒ×8¯N#×s8[ÿŒ—*Ş¸„8Ğûk7°gïI3 PÂ¯[OüOÛÀğ\ãËÖÖ:ı×ŞÚY{¯£²<â#•)Ó0ç
-?I­„p_#XWÙ>UhÛFMÅv7eº;E¬‚¼r\2sâªmKHæÌ……Ûèî–·¿ÓÕÍêz£³‡Š–=Ã|:%¼ÇS¨20Èq8µ†]¢#"œù¼×ËşÑQO7*Éğ6•BUnæ;Š Ù.ùÙWê”êVTİÍeF9ïT‡B¯!¾dıscÀß—ÕV·ª¤ ¼ú¾ëL-@nH5FNB Ï#ua–8—˜A	H¨i€xfM¬™Ã-ßrˆ®KÔ¤u|¶Æ&0¦±•QˆşùÙ:z6Ä.ëÃcœ®œ½ıå¼OTc“L±Íd0ˆ€EñØ
-™5šÁyÉ˜«„’Í)¯õ+Ò…Ù€¬¹šøğÕhøjˆ^H
-ŞÚc zbĞıF–Llä­ÜÑŸŒÈ³‚ÛÉ×„*$ß?;aÆiB&í±òÔI^Ù¡Æ„Y¤óY(Ä™3E² ÃF^ür˜Åñ5FÎçN¹><Ì*Z¤b¹VZğj„t bs*EÎ4vIzĞ‰ —&}ØïÍÇ‡GƒWı3¶µ³·ùÓæ«·X\bä7ş[›¢ ¢†HÆG‹°ˆë)»¶à¼ï[!§1¡cùH-FÖÌÇ6œ|PEX±‡£¯íÈÙ$ñÚ˜ NMõ‘íodcÉdChÿ\TCšÜßš!¾~v’‘Ò€b–3ÿ"iE	Ï|J1àEeæc€+ AZçg)ŸüÿÚz*Sô_r^ßÇs‹²h
-ê|$<)58·¦¡7÷àù#×ófp^?:!!r;€Ø#ö
- yríMÜ”J¬“ „MQp>:Q’Î’P8 9ÉÇÔ#½JóaV\f¡Út—¤ »7İĞÀŠRvbĞ“l©6’`İsgf£6\­[Ğp ò¶lµŸjñ»†ª$_-	UÙYolMĞgÁëÊ$e;%)³QÏGŒ•‘–.’•İmÙÚBJA…i@*tºønéümKºø¥.>qŒ‘n2M|#œÒ1š°×Äˆ½¶IWX¡«’‘Ñ%©û#I—àÒ¬j÷²Dş=€ç_g. mñYBÒŸ6üO8ëä)¡1Ïîäü¤“ç/şèPò±Hˆ’û™R³½ˆ›R.én>
-¿ß5÷*4H‘8ê%·x5¼ãF=2ÎäÚœèİÛ—¾@[3¬rš8Eh´Îƒ*íá®¤=,†Ö§”Möóá>à4aêBhê‘¶ã
-ä€¦³ÙÍ~E§‹^ñWâ„ëLFûëó±:U×0LœßYÀ	ô;lÃñ/;€˜ÑŒzÉí]¸»Íï¢]BIs eIU¼H§f©á¢wŸ®w¶·Ö»;{€î:Ğµ@†‚BŒ¨*[dŞ¡ı	wúë®ÿY“XTáA™Í,"SËß2y•ÃãxŠù¦q¡9ƒ‚©½ıTµ9">GdùB&qËµÙ+|ƒtš¼œ!jLñEÔ…‚0J²²7ák…şTˆÆ ÊÖ';|(gè´%hÁnÑ†üÕ ®&¸«ûã®§€»¶º€»:_2îr¬ %œ× ĞA^8?{hÔEIV#ov‰!,ç’­¼@¯_’;>Ã¹g+mÉÜÄqa*òZøŠEöe	dEƒGUZ"ÂÇâ®±ãÁ„G¤- •ßğÖCã­T±"«Y¾&¼ÕmmÅh«³÷dıÉ. ­Ç_0Ú:·QÑç÷gktáå¨³ypÌe¡ØŞ#jƒ¯Oõ#z¼	VŒ×Œëó§ˆëV‰Q™ıxV(ß"DTyŒ,Û ;)"ÖU©Ï	°i‰+ú;}C_¾2cbÎ¶ø5!°FŒ×ÎWÁÖ;€Á:İ§_083Ä&ÜËä÷.yh6°¢˜ã$×;<©ıIDEÁ
-n/X€1ó—?Äc‹]:¡•“Ç°‹ñ„›;8G^‹&´XĞµĞ9@ïÖ¿Áfr¤E†Î‘3´#kú ÈË(ç‰R‘Â<zêAú•\¢Eæá9>gˆ
-ï‘ÆÉóË,2“h²w›k²«İT»ä¦úD¸©.è1_Y2&3¿¶w…¶¼³U@cŒÓ"T¡AÛ;ë§×Ÿî }Ğƒ6p« ÛPwĞşÿqÁáíÖ[PK¦Ó½
-Ói·.İòãL§ê¨…Üß'É´Ïk¸e{#cBaü'r†ß§\âá;_cÃ4!M
-såvÙ\QëÚ"P@™²fYcWeØ-™0÷]G³OadmÓ6¬c9o¦e¸Ş@†¨r’@æVÆ²d'hë¢#Î•;@»kï¸bÛ·ƒ¨ìŒI?ñô§0á¸Ÿ:\¦N•#Ô?Î=h‚ë|•‹pæÌ¡ûïØKtë™ íC^¹Îe$.Ip’&ñ%ÒÏŒïçGSq 4
-FöÌ™~½ëğKa•ÏifDêáµN‹äïDÄ×;Ñ>î÷c­	ÎI[‡°õ(Ø…ö„/ Í ­œ3Øq@3ÂX?r„¥¼f	ö7cMQÕJşgÙäÕC.È®¢¯İ§ëÎîz·ûY¬à?)…•¶§DbÓ•Á¾œ_yŸ›¾[9>b§Î]^ê<Gÿ„6Û‡:œ“;J9RË±
-U‹â	¹$ys{J˜ÂíĞ0aòœÏGX—0ihŠn»3 •	úó:£Øw˜çÚ“Ô«ö­éá1ÎPr´„,‚=íĞb¸"–}»pq-c/×™¢ÿğˆBáçˆù$ï~ˆ)Dó«]G^t7nmO„Ñä3‘%oD};t®œ){ÓQ=õ`±Ø‰e V h*bY‹oHDÁ¿DEø/´øİÚ²ÖJ¤Î ¾ˆ‘‚ü-£6ƒZĞ=iAGá¤.ùŠÏü8À`Ó¹0Äg{‰¬íüƒĞæòe€{ˆ1qV3+tyüÏ¥UËÜÕüòíZ¥Æ1¶öæyÓÔÌ¸¿'Şãˆ÷¸¹ú¢Öß ®m]>Ã&şçÜ)<e™´Š‰®>!ãâ#¹+ä“*%Ó+ù”+“À
-÷B¿'iv‹‚sâNŠwål¯ï Öé®½WOï<˜ózâÏWYp©à &ªÚdJ¼‘°„ê²6|ìb]í°‹)*Ì("|¿†Aáá 7³³4¬”·I•øj´K©@ŞRÊcº€l¯7Ğo~/Ÿ\¶E´ë8âí­êÚOÕY*«’û_‘ğ"Õ¯¾xÛ?9`ÿø÷ÿ`çÖÜ·Ø‘cùCT¾QÍSõŸÿ¥Œh)š†û;?÷<ÜÈMvâÍ-%ºÕ	gš¬úèÿ‰¥Y÷ô,¹¦’ÃA“„Niæ¨¬|ŒéW<;–›¡ÖĞ	†®}aEX×/>ZAkc#ºÎÎ¦£×àüKµÍ:¢¶™œ'£èÉj˜‰ç¯Ø-&	ÊU-7¨~Ö0_ÊeØÑ:iKš¬y¹ÜıcïêÊ¶‰Hù,¬ğIÊs£,qñX!Šbß÷€Ñ:ŸØìÄşh»oÕT‹ê4ÎäåİZ‰‘¼8Ö“xŠ:³3`Æ9—‰áéI|øË¹£7£Á@>]Û,3TWÒ_!¸z”ªã^%é9³›"€·'o;&eEu5Eg£|MÑÔÍ¼ÀŠˆÊjŞÀTª.E³0v»ÙSÒš•ÃüŸÿİ¤Ğƒzj³)§¼ö@Úy€Ñ8{åùHD‚¤¦¥4ÿ<Òí¿¼v®"kbÎÓ§©jXĞúô,z6jÀçÿÿ¿ÿÛÿó€ğóÖÚsÀ\ 0Ï­¦ ´õ¤»İévîì=é|Ÿ?|4xæÿúßş¿ÿ÷@Pºå{…ª„Ğš5	İì=İıËxf9.¦Ñ^èTı¤Ğ¶¸ñ"aß©Ü³GCÏ¿ùİÎíkL‡f·ÖÚc;ÂüÓÿÙ.síñ™²NµÍú 8dûíà£=Òåô2Í*[¸e˜Y6“óÓ*è¥Ü²Šõ2Ì.Û¬î¯>­&ûì·T²†Õ§’­èıSÉf)W7H†ToqªOÛùÃÓÇ–f°£Ò¤)i&Ë\ïK¥É+ÚÔ‘ÊÔˆšğ–tiIIImêÖ\%wLRlA7¦@œÅ½.¨9µ–Ä*’´6eB¤H¼–Æ#İ3õÚÖ÷³6[ÿş;@ûòTqIº¨çf¦Í—œX!Š©ää¢j®öè‚šä>äÔFŸAzf†	œÔ ´Ñşà	/s2Z±ĞÀŒ'i_>ı%Ï”¦öÀÔ­R=¦¦×
-µK#â’;ª|à\o8Í3©¨ Ø@½şÊ!¼fI+OVtèÌÑW¥’­ãÕu°³•êspHÇ9Éò»-Ğ±ĞWŞ0{˜¶]ú’†+{qD:*¢¹:ALÕõ|vgkg+Ç°˜Ş¤Çâ‘ƒfåÈ½u6hŸÚÕ­|´`D·1œ=ì7m@/ÀÉW—ŒğæÇèc§åë€Ëx'5Ôòû#Şoİ¶Ûmü²Î²¶{ÌnóBmÄİZ…eEƒj8Ú‡Î—ó0Â½c›¨ª÷\kòLó—L'ì=Æ`›Æ,b™æ`
-\-üq<«…–°Ÿb•µæ›Ud&¡øÇÇ“_Ê‰ƒaè‹ËÓù´úùÑcÉnÀıvDñZIÌUÁ@V/×ÆêÎ<gs·®Wÿôô¢ÿ×şËÓşÑé³‹ãÓş`ğlĞY~«5tC^û´²¼†ÀsÂíÚÃÄ¶–GËaèŒçöèGKÂ*´İvFÕUfñR°úKXÉÅkjßÜò‘4¨0Ô¸Ê^eû¼æ³ŒŞÈ‹Ö+Æ*nñÊ ãö7^´ŒYSP2ìûz0¯½†×l5‘¬ám²ún/S÷ÍÒp·ä—ÍîÖjã~{Ô/ï©àušÔ$
-”GTæİİ„«ÄJ®’ê¤TÊ4‰ÄÂAôMËMçû¹ıM®èıı­tşa3,	‚Ú*.n^·
-ë`Ş5^Ï±.ı
->½lpfÕÉ6©¨ˆ×ƒÖÈ6Ru0>ª*ò[M§é‰ûs—ÄNxğÕÒ1êÖ€³ÄË˜»ÄëËç0ñRr™˜Ã¹îÕ¿¯ƒ†½1D…uı)YH’zhÄ]âu, ì™Fè}ğr«.%ä¾@7T„ÊöÜòßPlÀÃ€nÒú¶ŸOĞ×[!õWöì–
-`¿ø!ì¾åjDOa±R2u-’)p/è•ÃÖ‰ãÛKI1Èq=ÂLs‹¹ZÁşôh_BÏ5>ŒõÀŸKÛĞù»5¸m®[€±ÀÙ÷Üà¿ÿ­®._½ ÷±İ^
-tğ]ôÊá	ÈÕ¤hNà˜GY`>}‹×‘]IŠ;[NÅ#Çk=oìòºÎ–ïÃÿˆ+Å‚±I!Ø´ş«ZğßM½tÜú•ÃÔÆ~¨K¬aªÏ-ĞØMå9Á%ü¨šë3)â^Pë…½"˜Üæ¤««
-%ŞÌ3x'ÃÇô{^ê]å*›ÎjèVWÃ®× Æ´ÜAäÖØnööì% ÄÖª9|ÈsŞêı[“&¼¬&“åº¸õZB{Éb/¡)¾p.à$Õ5X‘û/9P¸·ng¦üN^ÜNÕnÅ‚É©½àá#*]æõz[Í÷adÆ½Uğu’d³ƒi…7ó!3=\%Ç±›P»UéäP$G­!d "Ğ©u¦±Î4…¾B¥ƒVè¨€yîÙ[şç$á³{ö“ÍBÉıûNClø5èDƒ¦MB¢ÿ¡6[ÍÚ—^GEO}®àïs/(·ÍÕ¶‡şQZÆhÍàáUµüWØ´\oõ³¿c¶‹Ú­æ£º/b¦ŞÍ—“=zDmÛèßgºQpcø$^wQo0 ç ‹Ø »Mø‘÷ÌYÛµväz×vpŒ ßgÖ2˜°<«ïÒÖ„¹Áü}>RÖ‰7|k_ÁPGŞ°5º\g«xYÖ|ãvı±3ëÆõ,´©4ÓÀÏ‰çÒ `\>ÚF|j½™f¿ÈÖU¡ŞfM˜?éÈ7l'Çdjñu³F3>U‰›5sŠ0ö#¬:™¶çŞukÍÜ†`JÖµå$ @ÚÊ€u=`Á“ĞĞ/— 2E'ñ'Gè.‹øhßšß¶<–Ië¦(¦0_1”g§£XgdbKZ_Ç/ùsf"V$WSœt¢Gä/vÀG‚#]orX«NI³ÃÙŒ„¸×’fĞ`ªè(ĞäÏƒ_Ş´CÂóÎÕM®ÃîØĞŠ†ÖÉ½	ÔàÖx®İ†×¼ µú Åa:1Üb ,ñ®Æ†®µ¦‹P(48Õ=æ9«½ZQÎ\ò"ïîN*{U¥Ä.9×hf†Å@æí­L&£›SÅI. b+Ë‹Z³ZŸM¹iî•7¿rL"ÁY3ÿöÚ
-ã){£«EDèB•EäJ¥r¸2”¸©HUÿpÄ½À±ÜÕµ;…æsmì˜.oAÿ&¢°óºf³t6|ıNÑÑ 7¤LœËË<»Ä<(S›‹ñkL»œjOnuøtîÙ,¬"çpR+‘ˆÈ
-ıËò~€1Ù‰ªòµ7²\)û6œx×\Là?y»TEü¾ñëÓ­÷õ[I‡ÏN±¢ gä]ÆÃYê$ïÀ¬€=Â¿i€S1lX3.;\<€s.å³Q9 $·Œº¬»Ò÷¨
-ÅÆÓ¢s¯}‡5üÉ¶°•ºpwÎnEj†Ç9óÇDˆÃ.¦š–7¡tCß‚Vğ`¦! ’—?0òÑ ¥(ŞbîòL™~»«‰ó®öPv¤ÈÒT"%"ä&7¶¢8”ùÜ(¥KÄUa&HœM(o¦çZi‹rQnMŠÅÔ7u*»2:ävëÊ	_aÉm,ú:êqv‰äÊM	,«É¡bæÿª"få­W#İŠp
-¼ÑÁÜcY¢4ÉáJUg’)IM(]‡ìÈUıJ®Jp²ôîo AšŒO
-¯·/;®Ô	­©H8wo“ŠCª2§¾eÉ'è?¥h¨—ùÉe­d¡­é‘xRöNSú^İ6šÙJ§Ì}ª}Lù9´¹$ääõYvú¹@%ÖYƒ©*;+ç”z‘¼ºPä¡Ò!5}‹œ^Ã5]åÕcº—"³şHùÓÉE.“_7XüµNì++v£5¥ñWïz\ÊkƒŒy)ûıç¥áa¶gÚ!óí}°¨ÏL1Ó\r_ÊRFû¶ÎVìgá—Àó ‘_Ï´'•‚(‹óš×hcæeQã)ö+|%ŠİSûkk‚ñmÍj7¤8
-¤÷XØ+gÈ³ø¼¶ÃĞRb½[‹Óñ@•L;Q`F/¦1ç^R_fCÁC*]†sCl£^ãán®
-ü˜eê–²sc ›*Ùz—<LtF¢~ÒU O;Â/ånğ®¶lƒ§ÇI[á_Ëíğû]•»°Æ–.Ü&}ÜUœâ
-Qj¦5v"/!Šµ&ñ%'íÑ=r,rµ1E^‚KvjŸ½§<k%íŠ—ä$ôÜ±@kY€4&P5üJ_«ä0¨ü¬bß·ƒ!:&§˜×ÎH“î)B3×xEéŠß¨™{rRnyLIç9ÌÎ€ğJì±Ì™J­2îFiñÕÏ©\ŠúÙK­¼ÃÆ](çõZƒ…[Cáv˜:L­©U@
-ÿ/ı¿‘´°ÖlÛÄŒß“9±²o˜ğŞKÅf®=ñæ^A¦š‡ú(UD½Ô«TÉ-­ïòğ¢Ù-U¤?OO°M°pP>…Êf·èUXR.!ó¯éø"'r•À=ÀÅó*mş
-=¾ ÎÏ­™ï¸ÉÕŒ4<N©ùıg7ö/WWÄ}áš_ÕÌB#¼¨”‡ít0 £ º3áâğHáñ9œ—pb9u—’î«ƒ±Û˜ñL˜g··Æ+:#kÊĞ°"½3CUgª˜ïLàÇ©9cE9x‹¤ç…}ÂüÒ0Sàêğ¾¡Sw¹OK± |ï¼	OÿBÏGõ=“Ïšæ¤L˜%MÈ^şH%¢`±+z1–†¡D9ß
-¦.ğé9ÈF	{‚ÿì—¼4_¤^šEOIöÿõÿP …e"ŸğU5$TlW¤¹Ì´’×åexÂòÚsÕñi&Ø)yójdnè¢¹$ïÍ^­|²6˜Qá¼YßsÂ§Şƒ×÷Ñq	à¾%p5ÜâÇa›É1Ì…\qY¸­÷­ÏÜœx‹c¥v%ÛVI„3$¹;ä áZ¿Dó>u¦Ğ0äçæ³‰ÈÄé'\5%'ZE‡Tš-Ğ.®Õ¯¾†9+ø~\Fßw?Ìã‘)¬VDİtåÔ‡]8y©QĞµÄ™WºB¡…xKo(oäû–´¶<‘Ìj!D‘(J¸Äï‰:nÆâŒˆ_Á4›WX, IT»è-í~fd:õB
-'”ªÀ¤±V!TÅ]%’Íò]	ÅxÙ@²wTéªğğšh÷ØWÍ Yul?•7õj 5¶¨ÏX•8PÖ¡ Ãôó{‹¬§=Új£ôÏ~ö@3£ôŞn”®·JW¥w>ñO4§œ¼¯6Q×ÚuÑ¢•¨ 25%Ï—Wo6VùTt¦5"ïyŞô2ª½"¡7Ù:TÖÚò¹¢Á=ÅõDÖ|„¼P<©—s8VÓ8p¦±‹´“íCUn±Ë)1O-AZèô0KÊlg:²BLöÆk³Î6¯ëJqÑ(,rÀÖ¹ÎèõŸƒ<\'ÜGÑ¸¢œtßª-°°Üÿª]çt–TÙÊøl«+ÍJ•g"é+"»^Q^˜¡¶äÃ~d]z|9ä=åÉd5ÄÚ˜ØÖHkÁOµÌ™Z5Ù„ÎÖ–öTUæ¸Ù‚CèVÅNnK°(úW_cb;)}A4Ñ¿/g:ÌZ4‹¿Ú]üÕíÅ_İYüÕ]ãW“7öø›°;Z`Ù$h© ¦Kô0zÈw€R CŒ äö—Ëö0jÃğÇ[?Ÿ]ÎûoNúoOk<Ò¯aLÏ¬óÎìğı:sFŸ«Ô¤&ğãy†D2®¹…6Ø¿°.Ù¤¶„5ŠÈÖª0îÜ±zk;ª a9s‚ ¥MJ;‡%é›Rïğ­˜ó¯i€Øû¥´Ó]R;ÛKjggIíì6i§üú^úzÕÙ€«"Î^Å£¡s8%Dnšo³|ÓœÉ<¦r²À"(Ìô×¼.ìKd/ïÅ_îŞ¿| 3ñÊêÍ©dcV3ÙÈë&|8vóUR›¸/jgYrÌÍ–œlN]x=¢²KnVïÆc‹EYÍäÍ9Àğ‹¨¨ç<kXÏd¡¾¾ScU2à<%9Eå©Ç›ymadT2ëct²kI‡â±g”Òıà6ÿıNû7Ç ªd¹1XcëÌş˜¬ü³¬Ù||,·×ºeÒ“˜¬«¦ı·hĞN:!Á“ôıùè¤i¯=VÕFUò09€m€mÜ–ni_FmPù}Õ]}Ã‰ç¹xÔ6ñíüª¾¥wK÷”¯—íŞÊ
-º$ö†Ñ¦”‰“­Øº¢Á¦–J=iD¥vŠ‰Üu!Ù*S©ZıCiJñ?M±¨:ßí³‰Ô™Q-] xÛw—Öd3±9D”Õš£{6å‰t—%¸~õNë®ñîÑ'B©Ëf”o©ÄhËyï89¡’ˆ¹ÃD#î¢hadŠƒû#w@^I´­å^7š•ı±Íİ•ÿşw¦|BàU…pe€ s§–Š*p•)Üş¨MÀTá=·Í¼¦› _µ[áöo»ÄwI>éöØ¡ÂÎ›ìù­¦;Æ}×Äìph¼eøpàøä7Àód©3ÚÑ°ØOÈ¾µn¬uLëïÀGştâ`¥S¾òO²{³‚¹ûõ
-€vìF‡,¤ÔÉ>÷j¼Qô4mQjyßZ]úQ©…)xT¸äJ6”•Ã×TŒ¼Åå%’émr˜9<¬íoò×›÷â£„Fİœ¡¿Ó&ã½½GVÒe€÷è%«ê¾rø|¾±Y«Ú¤ß” ~“½û ïÑS¶àGN³VŠ ^MâxƒMF¡ì3ÛFh¸ÏÂ¥õ”WßÍÇĞ›a¡èìÎ‡=‚™ë1Æ™½µ°şè=úã®èÔİOÎúë_#;@‘Ä¢ÄnßÙéÀ¨—ıM~hã ıåRi{j….‘_\^•6T#×ês'‡¹}ÍAvPÛWÀß²±1s¤wp ¡Ä¿ƒßkCö‡Ï½¶ÒŞkß­ôš^ğªeå¤Y7&cTJ˜äÓ_õòİJ)Ùeu^LÀûçÜºÅÈobíë’a(×~¦AÑ	‹Úd‡ÕõôÚıZé–#GGr³jüìÉóÇ$yø½Ny9Ã	h€†Í¤Ç07×ÆG7/G­UÁ­®1+d?¿>%o ñÈ÷¸¯ƒ-ÊŠD]%‘¬[µV$Æ»û‚$hOwY©Zé(÷X^¼6ËnäŒzº“ı#|`~Cş‚d6¾¿ÍRëÜıf’ ‡d©^õòÒ3•ëkÒŒ½¦xâŞ½H<nÉ[ÄpÕŒÉÆÇS·5 ğEÀé¦®ˆBm¾š2­Ğ‘*ƒ±ıX$4hÌ¨í¨'üò#ÿØÍVı¯ûµİnçÛ_çm¼ÿFÔäI•F…ŸS?±‚æ^WuºSUí•×9&L:ãG…9‹ŠG_æãäÑìÉfşWÍTŸ#)r6²|ÚlFO„R²à|@6˜FèàòÇnY¿XgGÚS6|†%ò“´°f»8°ÚSæcE`*”8‚oèkê;®3I“ÉeÆ§1ù¥b3G,g®4JÂ¨TºÜ†Á²´ßE³›<Ÿ31Ÿœ>`QˆûÊC&¢Ã$Wè:Š†æ…åûf±…•ªÙ¢ºg€¥à½Œ	¼wL ™KiIä<NllÍXë¯N[î:ëÇ€q½ÀYg¯ i€.Ø°5àL«–H]Œx*ê€>¦DYpz[Y³läÍœ¹5_ÃúâMßi4¤c²Äó1;ƒstµ	‚=üÀZ¯1ü/Š'–æarø@>¾Ö4t`\¾ØhpØæÄšAÇ6¦È5YóˆXêM“áÜXpÏµ/É¦ÇYèÅFƒ“›<CR=ó®šå
-™VŠb˜4zÏG0u^ÍßÒK¯ëPÆ7n¥ñi¬úŒ¢ü ¥¦óal‰ÿ^¦¶ı´:-‰.ı—e$«
-3SJ¤iÚ*µ¾Ä4YJòáœlÚ!p²:æ@ÅM~<Ó<®gÁàÅîôO,ˆ¦İ¯³Õ*fAáÓ¯À­ù%äš‘¡2'—yò“ÄfæO…ÈµH´·ºïk"¨ËÀ•òdc§ñÓı3íh÷Ş;*R£5ÚS)ÚCïjwÉ»Z»†k×-à.U’Øª~R;}UZeú.í
-i¦?·Ü›hI†±Ä/‹d3|üuì}i#âlİ;tÄ
-«¶óà+ù–eaw>„ !(õë{Ü æøùÌÜŸ|f{¨»cÿø÷ÿ`·X¡şÇvæú¼xØH_n]¥6şšbFrÒK‹™zô9ğ®	TÂäm«J_Mšc\÷TqŒ‹¥Ö÷pz _æFÜ¨3Œ1V7Q%‹ŞÊíí:zĞYÉ®VÄ·~Ç[NR\Ù™ÛÇøq¶W¶Fh¸;²]À½'	ì|±5e'j‹ïW[‹CKÌ¨w½ÑÙÜNó#ªµªÛJñ&;-ã4fsb¯8Ù‹¸èp²£:§:¥BÙC:m‰ºısã1”%´yÈŞ:±JÙâx0`Ãñ7v$«o£Yû9j× üJÛ·²fŸÖìğÜ‹0K.º'<K\›ë¡›õ\öÌ8¾•Ã[~*Û ÿÑr\ŒE¸zøâ€šä~%ŒÍw*±î:³QnıvŠO²¼QÏ®®lJ»ú7ÛÂFÑ€¾ÔJ‚$1$â²<Á¿‰½â±ñì!7/–{Ç‡ğóÙğU›ç“‡Ü6ÃG«J\ç»')3Šş“º{0BV
-›•èXÊéq*6DW¤¬ ±1«ŒÍMÂk«csƒuå`\…¸J«”®KÓã¥ˆÓ¶:Ùç³wú )CM™:1Çf‘& 7ÿdÖ¾x©[—ZzM ªb®ÚÈÕY`	GÅé¼td¢¯ˆR,¬”«=A+‰íªÓ¶º€áê GóæºÊæm„é"ê²VSÇå-ƒÜŞ¬CæçE¢4ù’n¾µÁÂä›(¯ÍÜ›?Ëí*…Öİ¿åneËMO¯>XVñ°&x¶ôà?‘Kcü0ı{±CşRÈl'z–\Æ¡#ÿûJlÕ¾ù«ô/Àkdİ$ÃBUMş·×ÙÃÓŞ›Äü«ÆK9  »f<­ ß	õªLS¯fSi`‹ğ¦éôjõŠM6§ªõë.T§½›K’ÓµÔ°ö¬ê}Â;½½s]¯°0ºÁ<´·ìÚE“ûíûÛAÎæöÖÚÿC½û—ßØİ>‚Ø`P÷xU_» ï9sh")‰/f) àÌ…a¤ù¾RUu~f3ÁğUš½®¤Ù3Q6P·nçj3õ›R
-Úiî3â„è/U
-Àoj)6ñ>š{ÁÌrf1ù|ûŸ€=@5mrÜV_ 'y\Qê6^Ã!Ó?²#ËqM‡iFöù’¤É+ÂáÄÅ®=B&ä€góˆ{á¯9İõ{ôOşõı]m¨»QŒw}$¶>~LšN™ÿ¸±]D»Åââ~>Yi]rR¦x¬ ‹YQSJ°ßGŸóó D¾±Z€NÓW˜L”šôõ€½ŠÉUÅ'1@$wÈ	Ej³—ƒ_6ìmuÚLv¤Ä¢BSŒ]&àƒbGÖÌ*û”(‡cŒdô?«Sö×Z%Ù<·‹l~[%	J®´=×µüĞAmDß÷Ù ¤ÚKK.Å¦bàX¨p³êc4«Šde©{Ş"M´f‘aŠ)J YZÙ%üæ„â6¥Ä+%_Vhx«K&’X˜i¥Å|”›P¶#¾”G‘&Q[Çtfr9eÀïğ;î	ss©ø[¹éMÁÚ˜Ùå¡a8‘3¤şˆ"ŒªÀTòWÜ`¿‹ŒÂÂõÆ¯Û[ä—•J0IŠ$üY•µÉæÓ-Ùº=òo€LàK‚f¶I Uœ
-6KnxxGÜ@sb‹î"ığ?­½gè:½Ágp>İ­’¹¾4uØÖŠWäØ-àMl½Æ"´˜]‚×‰'^Ä¹Â5%ü¤0”“…wJËx™_¼	©¯Nğ£îÛ¼,aU+×OE?ÍUÕç
-ICµ.œ×A¨O}aJ¹]¥¶7»&âğş‹ÀÅ´ÃÇ–Ÿ¼®^¡ümÆmæ“tÓtaU,9ó4Íj=Ë
-ÎDT“6©ïq†ıìÙÛş›¯úç¬ÿsÿ-°6]ƒah}-•õov*ëßNX0x‰©ôÎk©a-™«şYç¿%_†Ø¸²ÜÍ•jÌ¥\JK]©±¦â‰iEc¼xÕ“•ó8ŠSÂ·hd,İ÷1ğæå½õ§Á¨Ä±ƒ	Î‹[ÁH[ÒQ´¥B•Z™šÂ’úöK§@y.«‚ˆ£8{öæÅ‹woúu°ü@èø	ìá“¼šDBÈ©A'¹ñ¸’¼µØRÆíZz“Óœ+¸úeaİ\`Œ3¾’ÏHY¦Ô@Ş™MQ. €“ƒx>ÄÜ1‡·±”½½<ìÄÈİóWô‡¶Ï^;WH?9˜ N6B`?œ[gƒöÙ¨­ÏxT3Å˜èÚ*1‰½%ÕB-ÂÂ®Ô´ ÏÔIõK7÷ŒõÑEµÀ5Ç«ô¯~„YAh?vÑÔØXQØ({æ»Ş¯ŠÂ²¸]Ï±ßsgf¯rÂq³Â‡¡3Û#ÊYA/%IRueËµ?×¡Ş7ÖGgÌËJb(hÈN02F¾Bv+:¢JÀD³ÅÃ"y„c§Ç^£øüÅgí TƒHzª;×€Ùé8aRœöîÊáëgoŞ±wçı×}Í ‰—8a˜ø‰N.=¤}Uó¦9T”’¯†Éø…qÅq dÿÕ±¯[«£dXújùİ.¯9pãmg>·ƒ¿¡
-œí³ÎVwgMÇqÕ7­©Î#_Ù¶Şş–¨>Šrrjê	¡±fm
-d¥¿²^Ä÷·ÃléxÑlùÊ%ŸsöIÎ"‡Ã
-üúd‹ç8Ç7Šy£«^;ìô“7³ëËµoµSÎMro«4ä- ‘–’PizNLPkÆ’šÃ.C ÌğÑáu5
-¢öÿØ£ˆ#»qdßNãb§QZÁ¯ú@"ßšŸÈÂ´àPf‡æ!Îåv¯lxú²gb½ùv09˜éê}Õ‡25ËÜ¬—~&²Ô6=˜;=&"e°LF[YÇòîb&÷ít.r:‹‹ø§8¤E'µÊ“ªZ¥ØÂAzˆãºÛËü|Yg]7/„!şÛA]ä æVğ«>¥ŠÂu•´4ó¥ŸÎ¦rMæ^vˆõï¾¬cé‹Q};’‹Étõ¾êã`ä“Ò¥ÕÌÍ}é2=-&u>Æ#ékÆ+OZsÖ:Ã,‰z'´«?ò„yjï{»ĞÍ–ï«>£Ï×>‡~LOg~Úp<s'ç!Îç“OßÈú(w¶Ş½şÂ&%q¼ø&x.z2¥õûªæÀ·‚©k+ló^úÙ”Nš‡8šO{ìÕ«ó³/ë8N§‘ÿí .riå¾ê#XÊ$Sy Óù._+‹§âÖH·ƒ–QXJÓ³×Ùê±Ÿã`KÉ¦iúÕÅÒ˜¾À…T°|í¾ê#ˆ:×@í‘±Ú5›õòµ­ü„,¨m­sÃ2rw"oƒÈ¢
-Dó¡5â55r{b~„‰oøşF%ØÏìuÒ?ïã,Ÿ½9îŸôß¼è¿1ğw[.âšXó‘kÁc¿	
-X)b€œowzüsŒùã^qªt±ô€eÊnãM\ÂÁ‰w=w½|j—ëmò»Äóm]Ç_c‚ì%R·rşú/ucL¼7üYù·vâ¼m¼ôô¦\GñÊqíf‡¶¬´?„Ş|EÊ»ÏÏè%—Ã@ÄØ×{m‹ZŸ•)éûÎ+û†Šé´r¥PÆ…R(T@èÂò‹©}³ºÆD²/i?¯í0„Æë‹äŞÅBáâ}J7ñÒ¹›/öİµÁª-ılaxŠÅ˜L¾ör™ˆm1Jvê½X_g;½î·İÙV'•àråßîµÍÊLÖùË`s`~‰£ÊíNò5Òl7nÊêŸ¨óË/ß¦XÜürw–…»ƒ5ÔşæSbsŒä>Ø({í'A16tIfoCÀGXËé,ğH(òz§=•SÎİÁ¹P
-M´7XS„Ÿk_8v½Ğ–âüŠ	èƒ¯"/8-Çw5¡ä´µA\Å@İB´o9PúÉVNú¤‹TÈÓ0uø¥.$’(ÏÔçü!„ƒaG¢‚—ÿ›b“Rœ‘
-N‘PWQœY%¾E©8³¤GQ‡¥±#,YCğ¸™ĞÑîÊhH³|IªP³½DÈOhqU cMªIqPµFaOipZ5bäHôÿşffU pœ•­k1févGVÇ(²@¤ôx©/â*=çÍ%tS‡ˆ4‡Ì›‹Ğ,*•%kÓòÏÊ´õX­xiÆø3™ÑÕsÎmĞAa¿Ogu¹’òwÊï˜¬jİ,ewƒÂ_Ï5½¤ÉÏXŸõ!nTö"½T¼§©5’¦*¦"R<_…¨ô¼QV¢òlê²=@(¼6pÁ].à2 £éúGŞx,x äà¶tKÓË‰å¸7?Ÿ‰>Ä·ò³±?’>œûºŒB¨,½Tº÷0;\tû+l/úì	—½o'_ù¼!ı™±Dbë+Àêªæá·ôáÁóŸ‰\à…uc¨(j¬‘ó¤\‡ìóÃqe™u«H•è‡oÀWzşğ-øäØ³ø%2gÖØşó“M+©?C#±¥é<·B»=äw+Ş-Ã‹ƒwG??;>üù¸Â¦'¯TkÍ[ŞüK	uhëÌş˜ÈÎÊjò·Lz’İ)Åhl÷-±’Æ)éIúŞ|tÒ´·«jC9ñ‘õË/ªî~Nn^[¹€Eı“ÚçÖebˆ…à†f]ÒÇ%ğÒ¾áÍÑ6}î½H<Ÿ%µŒÎ¡^qr$_‡ñCë£İçØüæÔÃ0ó7šálÙ-ôÑ#^"ÔşŸ¢2'OtñLg[ÆãCşòÁ­Ü”BŞdÊ|‘«²Íı¤á×ÒuÖT…ı3±Ükå'Ú¼oÄÒ¸r(S—Rln%˜]jk RHrå±\~³y"¹·Îµu#J¶ÃÒY¡öI‰miÃAGvÈ¶Ô¶ùªüqyuJ…=sAÊ¤äêjC¸\._ßB®Š·D
-s2¾Ê™ÍÜ±ª0hí„hRô<(7Xd9—ÀÒÔ¯T­M3}²ä”Óxí¼ ÉrºxâknõÄ½&Ë×Ü'']Í_âÈ×”i=e7£¥¶ÿH?¾‹Â×¦öÁâÁºÀPô]·Ÿ‰!÷Úbá) w#xˆƒqXa·ñ'ËC,³[K:u¾Ÿ3ª>/¯¾±–]16*R¥Àl+²{©q¾ğx••±Şu9elf3}eÏ.-×aS›¥ìˆf-t­3ı5¬Ü*S)¬ë_«‹ùd…{àÑ¶3Ê­°0ÔcşY¹à}mEŸ|h<%6†ı†~»§?0«)bh‹FoŞ3zŞşVv+R¤!eßÓ"#’ä|×ë_NŞ^`òêÄõİßµ³\µâûcá”şLO
-b¢søaÚz£6Úª%¹J%+¢uk“Y3¿y§è\ˆ!H‘­µeæ¥ÇÌJÁHYiq|Y%t£:'5å×÷Êğr+áİ}Ó}Ó#ÆÌ1~"à¢Aöá
-`«åZÓ!šÁ=ªÆæf~«ÉÅ¦û0ÇèoÃ˜“ñĞ]guu­^\ºÖ|jêªš\q#5¼ÖpdÙè†Âí€@ ›4˜[>Ö@h;áQìNá,—~z³Kgn~Šf.œäÒï¼8›ğrk61¼¤‰µGŞ0Æ,¿íë €©õ[ãÆğÚŸÀ@Í7¿üz£b¡Ê&(ñûá÷¹sÍ6U/ûê«xæÇ Rä4!Né+›¤–ï7:*wq¿6ğú‹omvËBçw»Çú;?°™Œyu·f³X½lİEeXo9eº²f{ëAzp–B ËÀÍÎÕŒòjOl¬­ĞcöŞŒhuı§íííeŒ¤œœ´rĞ±YFË¼4ğmâR8äz`A“O?,½ÇÑ:‹&i—Ğ°ÿ‰…ëŒØÚÚÚú«%a­ŠÛõ?İ·C ­÷ƒ6 ‡÷:ûæÕCµM¤Äî`EÀÁ
-nññîÿÒÂaàøÑıÏdBpx Ñ„,¹O¸¶µ›ÚOçÆ»yßƒ8±ğ¾ H,„ákHvñRR§!º0·¶f~îÊR½`¦R¡¸ûD*;#Ë‡S¾+ÉõŸ¾dÑ>¹Îû#*h«¨I÷DßÎN¯š¯¹
-,}cÌàŸÔÁ©:ëŸ={{1xù_~]íï¬¾oW¼1âã”!kÊë—Ã>ÍÜyØóVã`ŞÃZ‡3+Ü˜9ÃÀ½«¶oÖó®®œ¡-ş¬Š7®Ş¸öĞ—?XD‘ßÛÜ¼¾¾n_o·½`¼yşvóí³ãÆÎÖjÓÓ¸ —µ?!†'VÚÌ!ºÚxÒ¸ï”AËX«…«Å™©<ûôı-şm©¿K¾qæ«ĞÛÀÇ7¼Àp¡Š=æ{U'’¯öîÎpAÖKÉlõÇrÌW#Ò¨;?*q_»‹õÿG0BYÀ˜‘3´ÜËuÆ°¼‘ç/Òï‚<ĞbœÏ‚üN•hr?‰°éz-Æà·¦£âK×»<¢u[¿®ş×øÊ¾ºÈ—°ôûu€ÔJÀÁ°|¨	ÄÍYÈQå]cş‚÷.tşîíi{ØVdóâçğ½…ãZ°Q8”Sh5ãY¨ég®ßZ«Æu
-²[lOû
-š…!/ôú(‰m‚GØ÷±ïENRğñ]kh·6ÿkø?oQk²ºv‡ÜWãİMg Õ†=³ç£ã‰ãZ8šÅV`ˆ\DSæ¯8”À?¶ĞPÜaÑ°)İ¬àSãèÃ[C“ëİ|O0rô@Ÿ®â®|”"×ñŒhàAãb«ˆò@¤ªÊı¨Ú´‚™'µğhv‹~—7+Õ¦/y¯Îb×™L­ú¸çÖhõrl×R×·â¬©ÀÛº)d¡ÃÌ/N»]^†¤,#73
-7ŠûX/Í
-ã™/ÙâõÄÖ4°­ğ AÅzˆ2ùŒPï#¼u™d'“KÉr®›|À˜>;©GÇ_èÖg¾ù‰{öªÏu±ø\W2tl$å¨g—Ûõ©.Ê–“´¦½tæVlV·›úÂáºÖw¤“Å Wÿß]Æ€J°à9úSLÑ§gN½Â½Y<‚Œ2r@N˜;ÕıWF.OW5 |^}$µ.J=¹0&^b¦b¢³¤s4±YL¹W°–öÌjPb´äØÕMAP§õÉ³ åB¹êQ>Ş5~®ôö¢JçJ•ÂS¸Šu_1eº'^â2WnøŞXŠ”˜pğöàÜíåC“÷JuÍó8ÔfÖ,¦åª"uÎg³bõE–g·*»Ên-Ã«z¦FD–ãÌ¢ÌúçgÀBEñ”Í8Òà¦ÌùBÛƒ•<Â—iõ˜y°…Nä˜²œõ_²K; œ` _ß·Êæ}|ÆFpãü¬]£¯3ARzgE@o	†yÙ{XıÀsÃ<ªp­/ úFŒ|©ÂF¹Ù²3X~óò½TÙlÍõÜÿ_FxevŒ¼::YQäçsÊ$¶ŒßvŒjûšäN®²‡M} 3o¡îS•¤CuÉ.'2ÇZv?Qó°˜ñû[?é›%è_xŸpPÊ¹¨Í´˜.Ùr’,âeÆAöw€±¾ÿN>ÿÌ;ùüëÛÉç;¬õÜsom¹|-î9¢¶°`Pè¸ˆ£9"ßÌnHd¡åèÓwŠ`†zo›û@¡’m¡bk™áÈ	Q_<:¸E¦è‚™šÑ,)În’Q6'‹gô_ä2È˜ÃÃfz!º›m<-ÔÌ.œ‰dJ=8EˆQª*$æ‡ F$>IØìlUçìÂË²“5…¹Š<ycI¦/ô9“I{:î1}Äl—’º>2x›ûè™µbŞ¨Ò
-HÇlàÌüšì¯Ô±é)(ãaÌ<ƒ±0çFuy’k9 ,k>q	;á¹ »êLÇ˜·rª¦ß¥%gíN@ Ó[~éø”G($)déä´rQÀÍìwê¸hÕµdôš‰·:şä¾¨uGZ—…D5y|Í•…Ôs~KÇ‚úê’#ê<^àü;j¹ÄV—:aÄ¼+ö3jŸÙ.Ş¹™É&ã#õ•bî¯ùÙ•4?‰>¦JÚkX§ÛQ:¬ß+Ÿ÷ÊáÙËÓ—?õß°×˜ËûìÙ)úIÃ×V!úÍ7ÖP¡aMÁ<§`&°ÎFºmY9ÄX~–ìŸCÏõ©ìj”äÕ2¿‰6ìvLÑÕÕŸd)[kœÒ
-ãKC7"nuBÍŠHşæê-€ÅÁÜÔıİ0{mrQ ÃÜ\¯àcò3£E2o¯ Wîğ¼”z©ò“!Çñ}3W¯d§»PÔW€(WyÄÚÕÆöŠòr&÷Ï™B678HÌx™›‚ÍáÌ\RcAWe}È:YŒÖÙAàÍLh™]2ñfwK
-Å|Ì»t¶%¯#09vÎœun@ªc¯ìĞr­	òÊÍmYmÈç-‡ı   ÿÿä]ınÛ8ÿŸ‚5z°…µe;iÓ½4I‘MwoSlw‹6‡; (ZÙfb5²dècãœaàŞáîÏ{º}’›!)‰ú–h©Ùb	4µe‰Räpf8ó›ÂqËû©Hõârf&?QkùäÁ„Ô	ÂóÇQ *&/İşİhŠç"ğ§dáãrLÈ¦ÅB„ø*3Õk¾¢¾kx6£ôµ2`7ÅÍ½ÁËÃÌÄ¸Ìü¹^:W!ág²/Í¥°œŒ—‡JÁrÑ‘¯|(‹QøIKJV]ã)°oÌğ~ñ†Ä2¬€ÜZæ-é%í=„'4e˜dMíûÀcÄG'-3êÎà!œ_Ö8Q®ñbMYã[e
-v7iè£…Ê_Ê|V…--V+L–Ó×A`uR>(ŒŸşíf;xH+ZÊ4<È t•Û¬÷Ïg®UNö"1ì$3m¥x3¾ó†‡‡¡§Á¨r·F±ßĞtÏYÑµXü8µtx÷÷ÕŒî¸6íÅÀÀLïÀZzDÑ0&NÓ^èïs¿éâÜ_—È…?ŒÇä'já¡!L4Î'™Å¨d¸º¸µ­ûŠ¾£Z"ú™ÕÃG!„¾Â˜f-üP­¢`lé#ñ¸ªı~¹4Å	Y—YD×
-)¨Ãøƒ+tLÅ¤.¯a¥/«|)CµgEÎNÉ‘Æ¢GV>™’Áßû³iqß ¼t —¨m¬µòwÏ‹Í~µ¬v š »R«D4T ˆ çº¶€¥	‘æÀ s +á¢…I©½¥ĞÈë „4ÁIîú©İXº ×Ân$u$ÜÖˆÀ’‚Ã1ñ¥Ñÿıßÿ%½Q¢¯!0ÚêGïåÚêúÕ„¥Ü”	ÁÚjÇ¹GÔ)¯414§K®á#e.<?:.g­17­i€N—Xò˜Å Kç~à½êÿğBç¦aµÀÕ¤´ò$J«u±7#ß¹äÚuVIñÅùÔ°Ò¢Œ|ã×[$pa&yÄwfêNÖ99Œ®%ŸÍşÀ±›V[¾ÓE-~³îì@pR›zî¿£˜-’¼ZlèºŞ¼®äxşæ+¶qøcã>4f<mûp,o{‘f–(³÷š]8‡¤Ä×°›Â-0´ƒŠÛ@âÛî´!‘:{ŒØ(d´Z~Ÿ30ƒµKcâãZÀ/©çÃËÒÅax$EXö¢!ÂBUW°îIqæåÂœÁ>…¢¹ŞÛí4­F^¸¢RÄ©B$¯¶Ø¨2GŸÊÚ°Åv•:'iye˜òfÂ1W›ÔÊ®å›7T¿‰*ï¹È®ÿL-bJQ‚®c$"[^è’’·Çß`]!¨nÚs+XPyŸ×4!¦+¯ë×¦óº²óuûsk¤É±z§}­Öfá€´ÌT“şç–U ¥Y÷K,EÜ	Xµyã´Í D­•<JºïáØT…c€ğ6árhúdúÇæ\Xr©|ıKí “¥æİŞ·½Î°ÊÊEŞôõ¬°ƒ?ö
-kˆ0T³öºh†õn«6‡·®€d­`G	Ì›±l	ÄÕñ‡eñƒ¯Ôñ%ªSq.>i—œèÉ_õ$j8“~R9`,·új»R ^¯¹B%ŠUM1]ØŞvda¸fåŒÔ}Ô††]U»øg† iâ9WE:ƒaOş¢ÒbYöè›eÇËí }Ì¯7mÙwÓ¶kCgˆØ×ª—oË‹˜3å­¨?/y_J}KşX$25<:ÂĞ´ÊC~—Zcwië¿ZÂÌé6‚'üô¸şúT';}º(2†Ô42fc ˜˜¶GıQìÀGº	‘»w¦·§2çÉ!Má!Ã¼0@P$²ûJÂU§uã›¢PmïıdàiØ77ÁNjÚ&ğÅ5F•Ò>¿3nı€Ìèê]pÙ6}¼2Xœ(|ü`ÍÜ"f®sçA/0n]ï5n* ’7×?­©wk[JzÖFK¶¶ß«…#\e™h½ÙB°öV±÷lıóL*Å£óBépíYƒÀ“¤Ä'•¦yó®
-JÛ2O·9L,œĞøXLjäBŠğ½³_œ“±¿l‘šfŒzg…éaÉxÒ;»€Em¢]Íb·ü‹7ÚƒSv|2„]ı;·—äRwŞ>yÊÓü`‚”:·†g’Woº§ª”˜§°æŞR{nØ¹‚­ãÆ°šSO4` X#è¼Ÿ¡Jıo.@¥#âƒ*ãÛæ;(±j	µ.@R(õ	sm‚*Ğ	¨ØÓé¤×M}w§æ0¹èE‘r"¬pùôHøCSM¦Ò¼YîNÄê(€÷aMQZE·±ç#×(ÌoVâBTN)Kâ!ü>Ö™t*Crùê>c0	ş"Í¸•L=$†¿¾D-ã~&;•WÇ)îšN:Ìé``ÌçCrÃf(|$ß¢kìèØnô°qñN‡ğB‡d¢)\Ñ6[7.tş¨¯¸wLc}[§‰f6ã‰_æ^QàÌÚ`pVú”†áÊ¨Ov
-sIê&#‡÷?Ù…ıú÷Õvì®¯im„UëkË`™6¡£ó%ßş"İÃ¼÷w¡'Ÿæª”4ŠT** 3r?;Ğe›Üoù„ÀObÌvŸ’y¸Òq.ã\8uÛrX%1š §°Z£QØŸÔ¨*®óÓ­ø°+“Œ
-¶u±ù3PÜ‘ï¬ó%,Ã†[.|6 +šîŸ!, 2ì™ô#QÛş#ı£Š+Ì»òÏ0Ä	CMEgQæÀ?B[İ†.:è9WÁä­şO1à2ƒ>P9À(¥4Hd¾´LÏ-LoÄO¢³šiŞ[¬Ê¦¸ª²MÈ8°õ‹m¿İ"]NXj?ØC¡™İÙöF÷×»“±e¶ß¯"èQÕr2öHâ”­­­¥ĞÄO«¨´0T{W€Ë9/âº	»ù£í¸+Ãâò|Í"‡}ö«ìÁ/Ü>ÒŞeLNEÉüŞÈc\“!9œh¨"õ7›M_ÓD(¶pöa2`˜ƒ0ÒOyêÁVfÅ6"¬4€µi)v‡ÓŸŠÓ%–ë¾í©*F¡}f%²ğvÂyj_¦øÌœâ[UaÕ3¸œGàhõò)\ÁOï+tœ-s×°Ä©tOí³ªˆˆ?>L ˜Rfîõuqi¿ŒTeEB¦Àa—|»;kKè8Şi#I§ôN›Â‚îö)·÷Ğ¿¾ó¶+×Èq8»:%¥›…ÈjV1ßÕª¸še(ŸeFŸ;)årü#ÄˆÃI8Âµ3¼cÜÉ¥İ9Ï¥æBXVZãäÒ¶ø[ˆ_„8å ¸å¤PŞ˜v*oDÍg¼ÒòÁ
-X ¨XøßNwºª³•Qeêb,6JdİˆıÓMæ•/(»gDw•H‘º%óúL›å+›YÎü–”À›I¡±.1LÆÏ&yÒ‘×İ®Í®Ö–ßÿ÷áïøÒÄèÂn¬£yÛº} ÕeĞbux|RÆ4D`a˜Z"fZşşCÅ-[	”VæbaÑ\tÃT·)´´zB>Üµ«——2æÀÈÍŒ¶Ãp’ğPy‰Ü›¶"7tœ=lm€Â’(İw~vî¨{a`Û˜}÷?¯ûhYÉ,ó6Í\Ş‘Woj"ÇÕ)m²%\¡ı‘Bøu–¨‡Ye‘)®ååò%ÌWI!!·ºœ³Ù5Zo—µİ¹Qvº2`IÆ`öâ.ÿ‹É(…hnürŠ‹á·	ç´ÒÆ¡ãO¸ ¦m“#ÉŒ[qs÷œH ¯•áA¥üë'éPFçI^ÉØæx@áß×8	˜×†ä½Å#ÃÈ*ôœ‰\K†±½õ£{bË
-uzNêİucÈ.Á¨ä‰ßº‘ÚóšMÀæ¦”:ÓR7ù¥qt"x°¤ƒ‘¶’mÁoLş@´š—QÕÄ¾¹]¾ìcşİ…y©í ØŠ9‡++„ƒ+ŞÒq}ø~OWº¡øuŸÒ‘ÎªN¾Ëí§|-UØÜÂ7)i¤¹ô›ŠeÃ)ûi+Mœ’'ÌvÚå¸Nií/¯l+†á«š_TÛò $e„/Ç£ÅúŠ£X™æ%šm£²e”ñøÔÁxW,ÿÜ¢®aºótTÑ!3Åã_oéb(ã$drîÜŞø¬IR„°ÊïQ.1wÍ5ú`~M–ÑçvË¦õ×=kPˆì
-‹ây×Ná¹¦Ï4‘`0~¤n\"‹lx¡â–‚.ï´"¤çÜ‹,5ß¼,âó9õ<âc®*b;pÕä…y[¶œßª`şµ¹a©£}ßY€ÿbfPøÿ_å´A:L2t˜ƒ ½)Äş†Ïà±9mšÍå¡Rà_Ò¨âÁFáÌ°3`³j6–„TÏ³Ó¶×;%00‰t0CxZPŸQ—a§#$Ë˜õhD+õ²JKwŒW†µ%İ}„)‹½ßŒÇäÂ¥¨¥9.Ê¡,ÙuŸßäoÂ¸Ççá”>‚
-;ó ?"¶°¸úııåbĞÇÛúÚ£çÒS0”üøñíçWßşúëÕÇ¨ÛÏoáöÔYñè)k:‚ÿé.…éàNÎ×kĞ’µçÿ  ÿÿ ¢†Y»
+                            <div style="font-weight: bold; color: #047857; margin-bottom: 2px;">${j.atpAchievement || ''}</div>
+                            <div style="color: #475569; font-size: 8pt;">${j.notes || ''}</div>
+                        ` : `
+                            <div style="color: #b45309; font-size: 8pt;">${j.notes || ''}</div>
+                        `}
+                    </td>
+                    <td style="border: 1px solid #94a3b8; padding: 7px 4px; text-align: center; vertical-align: middle; width: 60px;">
+                        <span style="color: #cbd5e1; font-size: 8pt;">[ Paraf ]</span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        const html = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Jurnal Mengajar ${activeSubject} - ${activeMonthObj.monthName} ${activeMonthObj.year}</title>
+                <style>
+                    ${pageStyle}
+                    body { font-family: 'Arial', sans-serif; font-size: 9.5pt; color: #0f172a; line-height: 1.3; }
+                    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+                    th { font-weight: bold; }
+                    .header-box { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 8px; }
+                    .info-table { width: 100%; border: none; margin-bottom: 8px; font-size: 9pt; }
+                    .info-table td { border: none; padding: 2px 0; }
+                </style>
+            </head>
+            <body>
+                <div class="Section1">
+                    <div class="header-box">
+                        <h2 style="font-size: 13pt; margin: 0 0 3px 0; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+                            JURNAL HARIAN KEGIATAN BELAJAR MENGAJAR (KBM)
+                        </h2>
+                        <h3 style="font-size: 11pt; margin: 0 0 3px 0; font-weight: bold; color: #1e293b;">
+                            BULAN ${activeMonthObj.monthName.toUpperCase()} ${activeMonthObj.year}
+                        </h3>
+                        <div style="font-size: 9.5pt; color: #475569;">
+                            <b>${schoolName}</b> (NPSN: ${npsn}) &bull; TAHUN AJARAN ${academicYear}
+                        </div>
+                    </div>
+
+                    <table class="info-table">
+                        <tr>
+                            <td width="18%"><b>Mata Pelajaran</b></td>
+                            <td width="32%">: ${activeSubject}</td>
+                            <td width="18%"><b>Semester</b></td>
+                            <td width="32%">: ${semester === 1 ? '1 (Ganjil)' : '2 (Genap)'}</td>
+                        </tr>
+                        <tr>
+                            <td><b>Kelas / Fase</b></td>
+                            <td>: ${selectedClass} / ${getFaseForClass(selectedClass).name}</td>
+                            <td><b>Total Pertemuan</b></td>
+                            <td>: ${monthlyJournalList.length} Pertemuan (${hebCount} HEB &bull; ${nonHebCount} Non HEB)</td>
+                        </tr>
+                        <tr>
+                            <td><b>Guru Pengampu</b></td>
+                            <td>: ${teacherName}</td>
+                            <td><b>Hari Terjadwal</b></td>
+                            <td>: ${scheduledDaysForSubject.join(', ')}</td>
+                        </tr>
+                    </table>
+
+                    <table>
+                        <thead>
+                            <tr style="background: #e2e8f0; color: #0f172a;">
+                                <th style="border: 1px solid #64748b; padding: 8px 4px; width: 30px; text-align: center; font-size: 8.5pt;">NO</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 6px; width: 130px; text-align: left; font-size: 8.5pt;">HARI / TANGGAL</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 8px; text-align: left; font-size: 8.5pt;">ALUR TUJUAN PEMBELAJARAN (ATP) / MATERI</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 6px; width: 140px; text-align: left; font-size: 8.5pt;">MODEL PEMBELAJARAN</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 4px; width: 110px; text-align: center; font-size: 8.5pt;">PRESENSI (H/S/I/A)</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 8px; width: 220px; text-align: left; font-size: 8.5pt;">CATATAN KETERCAPAIAN / REFLEKSI</th>
+                                <th style="border: 1px solid #64748b; padding: 8px 4px; width: 55px; text-align: center; font-size: 8.5pt;">PARAF</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowHtml || '<tr><td colspan="7" style="text-align: center; padding: 12px; border: 1px solid #cbd5e1;">Tidak ada jadwal pembelajaran pada bulan ini.</td></tr>'}
+                        </tbody>
+                    </table>
+
+                    <div style="margin-top: 10px; font-size: 8pt; color: #475569; display: flex; justify-content: space-between;">
+                        <div>
+                            <b>Keterangan Status:</b> [HEB] Hari Efektif Belajar &bull; [NON HEB] Libur / Kegiatan Khusus Sekolah
+                        </div>
+                        <div style="text-align: right;">
+                            <b>Presensi:</b> H = Hadir, S = Sakit, I = Izin, A = Alfa
+                        </div>
+                    </div>
+
+                    <table style="width: 100%; border: none; margin-top: 30px;">
+                        <tr>
+                            <td style="border: none; text-align: center; width: 45%; vertical-align: top; font-size: 9pt;">
+                                Mengetahui,<br>
+                                <b>Kepala Sekolah</b>
+                                <br><br><br><br>
+                                <b><u>${headmasterName}</u></b><br>
+                                NIP. ${nipHeadmaster}
+                            </td>
+                            <td style="border: none; width: 10%;"></td>
+                            <td style="border: none; text-align: center; width: 45%; vertical-align: top; font-size: 9pt;">
+                                Santosa, ${activeMonthObj.monthName} ${activeMonthObj.year}<br>
+                                <b>Guru Kelas / Pengampu</b>
+                                <br><br><br><br>
+                                <b><u>${teacherName}</u></b><br>
+                                NIP. ${nipTeacher}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Jurnal_Mengajar_${activeSubject.replace(/\s+/g, '_')}_${selectedClass}_${activeMonthObj.monthName}_${activeMonthObj.year}_${downloadPaperSize}_${downloadOrientation}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setShowDownloadModal(false);
+        notify(`Dokumen Jurnal Mengajar Word (${downloadPaperSize} - ${downloadOrientation.toUpperCase()}) berhasil diunduh!`, 'success');
+    };
+
+    // Calculate Summary Statistics for Active Month
+    const stats = useMemo(() => {
+        const totalMeetings = monthlyJournalList.length;
+        const hebTotal = monthlyJournalList.filter(j => j.isHeb).length;
+        const nonHebTotal = monthlyJournalList.filter(j => !j.isHeb).length;
+        
+        let totalH = 0;
+        let totalPossible = 0;
+        monthlyJournalList.filter(j => j.isHeb).forEach(j => {
+            if (j.attendanceSummary) {
+                totalH += j.attendanceSummary.h;
+                totalPossible += j.attendanceSummary.total;
+            }
+        });
+
+        const attendancePct = totalPossible > 0 ? Math.round((totalH / totalPossible) * 100) : 100;
+        return { totalMeetings, hebTotal, nonHebTotal, attendancePct };
+    }, [monthlyJournalList]);
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-5 md:p-8 max-w-7xl mx-auto space-y-6">
+            {/* TOAST NOTIFICATION */}
+            {toastMessage && (
+                <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-3 transition-all duration-300 text-xs md:text-sm font-semibold ${
+                    toastType === 'success' 
+                        ? 'bg-emerald-900/90 text-emerald-100 border-emerald-700/60 backdrop-blur-md'
+                        : toastType === 'warning'
+                        ? 'bg-amber-900/90 text-amber-100 border-amber-700/60 backdrop-blur-md'
+                        : 'bg-slate-900/90 text-slate-100 border-slate-700/60 backdrop-blur-md'
+                }`}>
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{toastMessage}</span>
+                </div>
+            )}
+
+            {/* HEADER & ACTIONS */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center text-emerald-600 shadow-2xs">
+                            <BookMarked className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl md:text-2xl font-bold text-slate-900">
+                                Jurnal Harian Pelaksanaan Pembelajaran
+                            </h2>
+                            <p className="text-xs text-slate-500 font-medium">
+                                Rekapitulasi KBM terjadwal, klasifikasi HEB / Non HEB, model ajar, refleksi ketercapaian, dan integrasi presensi siswa.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {onNavigate && (
+                        <button
+                            onClick={() => onNavigate('presensi')}
+                            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                            title="Buka Rekap Presensi Siswa"
+                        >
+                            <Users className="w-4 h-4 text-slate-500" />
+                            <span className="hidden sm:inline">Data Presensi</span>
+                        </button>
+                    )}
+                    <button
+                        onClick={handleResetMonth}
+                        className="px-3.5 py-2 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                        title="Reset isian bulan ini"
+                    >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Reset Bulan</span>
+                    </button>
+                    <button
+                        onClick={handleSaveAll}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                    >
+                        <Save className="w-4 h-4" />
+                        <span>Simpan Jurnal</span>
+                    </button>
+                    <button
+                        onClick={() => setShowDownloadModal(true)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                    >
+                        <FileDown className="w-4 h-4" />
+                        <span>Unduh Word (.doc)</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* SUBJECT SELECTOR (FROM WEEKLY ROSTER) */}
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                    <span className="flex items-center gap-1.5">
+                        <BookOpen className="w-4 h-4 text-emerald-600" />
+                        <span>MATA PELAJARAN TERJADWAL ({selectedClass}):</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                        Hari Terjadwal: <b className="text-emerald-700">{scheduledDaysForSubject.join(', ')}</b>
+                    </span>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
+                    {scheduledSubjects.map(sub => {
+                        const isActive = sub.toLowerCase().trim() === activeSubject.toLowerCase().trim();
+                        return (
+                            <button
+                                key={sub}
+                                onClick={() => handleSelectSubject(sub)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer shadow-2xs ${
+                                    isActive
+                                        ? 'bg-emerald-600 text-white shadow-emerald-200/50 scale-[1.02]'
+                                        : 'bg-slate-100 hover:bg-slate-200/70 text-slate-700 border border-slate-200/80'
+                                }`}
+                            >
+                                <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-white' : 'bg-emerald-500'}`} />
+                                <span>{sub}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* SEMESTER & MONTH FILTER */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Semester Toggle */}
+                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
+                        <button
+                            onClick={() => {
+                                setSemester(1);
+                                setSelectedMonthIdx(0);
+                            }}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                semester === 1 
+                                    ? 'bg-emerald-600 text-white shadow-2xs' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            Semester 1 (Ganjil)
+                        </button>
+                        <button
+                            onClick={() => {
+                                setSemester(2);
+                                setSelectedMonthIdx(0);
+                            }}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                semester === 2 
+                                    ? 'bg-emerald-600 text-white shadow-2xs' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            Semester 2 (Genap)
+                        </button>
+                    </div>
+
+                    {/* Stats overview pill */}
+                    <div className="flex items-center flex-wrap gap-2 text-xs font-bold">
+                        {hasSavedProta ? (
+                            <>
+                                <span className="px-3 py-1.5 bg-emerald-100/70 text-emerald-800 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>{stats.hebTotal} Pertemuan HEB</span>
+                                </span>
+                                <span className="px-3 py-1.5 bg-amber-100/70 text-amber-800 rounded-xl border border-amber-200 flex items-center gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>{stats.nonHebTotal} Non HEB (Libur)</span>
+                                </span>
+                                <span className="px-3 py-1.5 bg-blue-100/70 text-blue-800 rounded-xl border border-blue-200 flex items-center gap-1.5">
+                                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                                    <span>Kehadiran: {stats.attendancePct}%</span>
+                                </span>
+                            </>
+                        ) : (
+                            <span className="px-3 py-1.5 bg-amber-100/80 text-amber-900 rounded-xl border border-amber-300 flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                                <span>PROTA Belum Dibuat / Disimpan</span>
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Month Tabs */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {currentMonthsList.map((m, idx) => {
+                        const isSelected = selectedMonthIdx === idx;
+                        return (
+                            <button
+                                key={m.monthName}
+                                onClick={() => setSelectedMonthIdx(idx)}
+                                className={`py-2.5 px-3 rounded-xl text-center text-xs font-bold transition-all cursor-pointer border ${
+                                    isSelected
+                                        ? 'bg-white border-emerald-500 text-emerald-700 ring-2 ring-emerald-500/20 shadow-xs'
+                                        : 'bg-white/60 hover:bg-white border-slate-200 text-slate-700'
+                                }`}
+                            >
+                                <div className="text-[13px]">{m.monthName}</div>
+                                <div className="text-[10px] text-slate-400 font-semibold">{m.year}</div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* MONTHLY JOURNAL TABLE */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-emerald-600" />
+                        <span>Daftar Pertemuan KBM Bulan {activeMonthObj.monthName} {activeMonthObj.year}</span>
+                    </h3>
+                    {hasSavedProta && (
+                        <span className="text-xs text-slate-500 font-medium">
+                            Total: <b>{monthlyJournalList.length}</b> Hari Jadwal ({stats.hebTotal} HEB &bull; {stats.nonHebTotal} Non HEB)
+                        </span>
+                    )}
+                </div>
+
+                {!hasSavedProta ? (
+                    <div className="bg-white border-2 border-dashed border-amber-200 rounded-3xl p-10 text-center max-w-xl mx-auto space-y-4 shadow-xs">
+                        <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+                            <BookOpen className="w-7 h-7" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <h4 className="font-bold text-slate-800 text-base">
+                                Tabel PROTA Belum Dihasilkan & Disimpan
+                            </h4>
+                            <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
+                                Data jurnal daftar pertemuan KBM untuk mata pelajaran <b>{activeSubject}</b> tidak dimuat otomatis karena tabel PROTA belum dibuat atau disimpan pada halaman PROTA.
+                            </p>
+                        </div>
+                        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                            {onNavigate && (
+                                <button
+                                    onClick={() => onNavigate('prota')}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                    <span>Buka & Buat PROTA Sekarang</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ) : monthlyJournalList.length > 0 ? (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-2xs">
+                        <table className="w-full text-left text-xs border-collapse">
+                            <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                                <tr>
+                                    <th className="p-3 text-center w-12">NO</th>
+                                    <th className="p-3 w-44">HARI & TANGGAL</th>
+                                    <th className="p-3 min-w-[240px]">ALUR TUJUAN PEMBELAJARAN (ATP) / MATERI</th>
+                                    <th className="p-3 w-52">MODEL PEMBELAJARAN</th>
+                                    <th className="p-3 w-36 text-center">PRESENSI SISWA</th>
+                                    <th className="p-3 min-w-[280px]">CATATAN KETERCAPAIAN & REFLEKSI</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                                {monthlyJournalList.map((item, index) => {
+                                    const isHeb = item.isHeb;
+                                    const rowBg = isHeb 
+                                        ? (index % 2 === 0 ? 'bg-white hover:bg-emerald-50/20' : 'bg-slate-50/40 hover:bg-emerald-50/20')
+                                        : 'bg-amber-50/40 hover:bg-amber-50/70 border-l-4 border-l-amber-400';
+
+                                    return (
+                                        <tr key={item.date} className={`${rowBg} transition-colors`}>
+                                            {/* NO */}
+                                            <td className="p-3 text-center font-bold text-slate-500 align-top">
+                                                {index + 1}
+                                            </td>
+
+                                            {/* HARI & TANGGAL */}
+                                            <td className="p-3 align-top space-y-1.5">
+                                                <div className="font-bold text-slate-900 text-xs">
+                                                    {item.formattedDate}
+                                                </div>
+                                                <div>
+                                                    {isHeb ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md">
+                                                            <Check className="w-3 h-3 text-emerald-600" />
+                                                            <span>HEB (Efektif)</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded-md" title={item.nonHebReason}>
+                                                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                                                            <span>Non HEB</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            {/* ATP / MATERI */}
+                                            <td className="p-3 align-top space-y-1.5">
+                                                {isHeb ? (
+                                                    <div className="space-y-1">
+                                                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">
+                                                            {item.element || 'Elemen Pembelajaran'}
+                                                        </span>
+                                                        <textarea
+                                                            value={item.atpTopic || ''}
+                                                            onChange={(e) => handleUpdateJournalRow(item.date, 'atpTopic', e.target.value)}
+                                                            rows={2}
+                                                            placeholder="Tuliskan Alur Tujuan Pembelajaran (ATP) / Materi yang diajarkan..."
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="p-2.5 bg-amber-100/60 border border-amber-200/80 rounded-xl text-amber-900 text-xs">
+                                                        <div className="font-bold flex items-center gap-1.5">
+                                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                                                            <span>Menginjak {item.nonHebReason}</span>
+                                                        </div>
+                                                        <div className="text-[11px] text-amber-800/90 mt-0.5">
+                                                            Tidak ada kegiatan KBM tatap muka terjadwal.
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </td>
+
+                                            {/* MODEL PEMBELAJARAN */}
+                                            <td className="p-3 align-top space-y-1.5">
+                                                {isHeb ? (
+                                                    <div className="space-y-1.5">
+                                                        <input
+                                                            type="text"
+                                                            value={item.learningModel || ''}
+                                                            onChange={(e) => handleUpdateJournalRow(item.date, 'learningModel', e.target.value)}
+                                                            placeholder="Model pembelajaran..."
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                        />
+                                                        <select
+                                                            value={item.learningModel || ''}
+                                                            onChange={(e) => handleUpdateJournalRow(item.date, 'learningModel', e.target.value)}
+                                                            className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 outline-none cursor-pointer"
+                                                        >
+                                                            <option value="" disabled>Pilih Model Preset...</option>
+                                                            {LEARNING_MODELS.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 text-xs italic">-</span>
+                                                )}
+                                            </td>
+
+                                            {/* PRESENSI SISWA */}
+                                            <td className="p-3 align-top text-center">
+                                                {isHeb && item.attendanceSummary ? (
+                                                    <div className="space-y-1.5">
+                                                        <div className="grid grid-cols-2 gap-1 text-[11px] font-bold">
+                                                            <div className="px-1.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md">
+                                                                H: {item.attendanceSummary.h}
+                                                            </div>
+                                                            <div className="px-1.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-md">
+                                                                S: {item.attendanceSummary.s}
+                                                            </div>
+                                                            <div className="px-1.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-md">
+                                                                I: {item.attendanceSummary.i}
+                                                            </div>
+                                                            <div className="px-1.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 rounded-md">
+                                                                A: {item.attendanceSummary.a}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400">
+                                                            Total: {item.attendanceSummary.total} Siswa
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 text-xs italic">-</span>
+                                                )}
+                                            </td>
+
+                                            {/* CATATAN KETERCAPAIAN & REFLEKSI */}
+                                            <td className="p-3 align-top space-y-2">
+                                                {isHeb ? (
+                                                    <div className="space-y-1.5">
+                                                        {/* Dropdownlist Ketercapaian */}
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                                Predikat Ketercapaian ATP:
+                                                            </label>
+                                                            <select
+                                                                value={item.atpAchievement || ''}
+                                                                onChange={(e) => handleUpdateJournalRow(item.date, 'atpAchievement', e.target.value)}
+                                                                className="w-full p-1.5 bg-emerald-50/70 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-900 outline-none cursor-pointer"
+                                                            >
+                                                                {ACHIEVEMENT_OPTIONS.map(opt => (
+                                                                    <option key={opt} value={opt}>{opt}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Catatan / Refleksi Deskriptif */}
+                                                        <textarea
+                                                            value={item.notes || ''}
+                                                            onChange={(e) => handleUpdateJournalRow(item.date, 'notes', e.target.value)}
+                                                            rows={2}
+                                                            placeholder="Catatan tambahan hasil observasi atau refleksi pembelajaran..."
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <textarea
+                                                        value={item.notes || ''}
+                                                        onChange={(e) => handleUpdateJournalRow(item.date, 'notes', e.target.value)}
+                                                        rows={2}
+                                                        className="w-full p-2 bg-amber-50/50 border border-amber-200 rounded-xl text-xs text-amber-900 outline-none resize-y"
+                                                    />
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="bg-slate-50/70 border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center max-w-xl mx-auto space-y-3">
+                        <CalendarRange className="w-10 h-10 text-slate-400 mx-auto" />
+                        <h4 className="font-bold text-slate-800 text-sm">
+                            Tidak Ada Hari Terjadwal pada Bulan {activeMonthObj.monthName} {activeMonthObj.year}
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                            Mata pelajaran <b>{activeSubject}</b> belum dijadwalkan pada kelas {selectedClass} atau berada di luar rentang kalender.
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* DOWNLOAD WORD CONFIGURATION MODAL */}
+            {showDownloadModal && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 max-w-md w-full space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                                <FileDown className="w-5 h-5 text-blue-600" />
+                                <h3 className="font-bold text-slate-900 text-base">Unduh Dokumen Word (.doc)</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowDownloadModal(false)}
+                                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 text-xs">
+                            <div className="space-y-1.5">
+                                <label className="font-bold text-slate-700 block">Ukuran Kertas:</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadPaperSize('A4')}
+                                        className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                                            downloadPaperSize === 'A4'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-sm">A4</div>
+                                        <div className="text-[10px] text-slate-400 font-medium">21.0 x 29.7 cm</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadPaperSize('F4')}
+                                        className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                                            downloadPaperSize === 'F4'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-sm">F4 / Folio</div>
+                                        <div className="text-[10px] text-slate-400 font-medium">21.5 x 33.0 cm</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="font-bold text-slate-700 block">Orientasi Cetak:</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadOrientation('landscape')}
+                                        className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                                            downloadOrientation === 'landscape'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-sm">Landscape (Lanskap)</div>
+                                        <div className="text-[10px] text-emerald-600 font-medium">Disarankan untuk Jurnal</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadOrientation('portrait')}
+                                        className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                                            downloadOrientation === 'portrait'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-sm">Portrait (Potret)</div>
+                                        <div className="text-[10px] text-slate-400 font-medium">Format vertikal standar</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                                <div><b>Mata Pelajaran:</b> {activeSubject}</div>
+                                <div><b>Bulan & Tahun:</b> {activeMonthObj.monthName} {activeMonthObj.year}</div>
+                                <div><b>Kelas:</b> {selectedClass} &bull; <b>Total:</b> {monthlyJournalList.length} Pertemuan</div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                            <button
+                                onClick={() => setShowDownloadModal(false)}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleDownloadWordDoc}
+                                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 cursor-pointer"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span>Unduh Sekarang</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const App = () => {
+  
+  useEffect(() => {
+    const savedUser = localStorage.getItem('prota_user');
+    if (savedUser) {
+        try {
+            const parsed = JSON.parse(savedUser);
+            if (parsed && !parsed.email) {
+                parsed.email = 'guru@example.com';
+            }
+            setUser(parsed);
+            if (parsed.assignedClass) {
+                setSelectedClass(parsed.assignedClass);
+                setSelectedFase(getFaseForClass(parsed.assignedClass));
+                setUserIdentity(prev => ({
+                    ...prev,
+                    assignedClass: parsed.assignedClass,
+                    authorName: parsed.name || prev.authorName,
+                    institutionName: parsed.institutionName || prev.institutionName
+                }));
+            }
+        } catch (e) {
+            console.error('Failed to parse saved user', e);
+        }
+    }
+  }, []);
+
+  const [appStage, setAppStage] = useState<'login' | 'register' | 'tutorial' | 'identity' | 'generator' | 'admin'>(() => {
+    return localStorage.getItem('prota_user') ? 'generator' : 'login';
+  });
+  const [user, setUser] = useState<{ name: string, email: string, assignedClass?: string, institutionName?: string } | null>(null);
+
+  // --- Login Flashcards State ---
+  const [loginFlashcards, setLoginFlashcards] = useState<LoginFlashcardItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('prota_login_flashcards');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_LOGIN_FLASHCARDS;
+  });
+  const [activeVideoModal, setActiveVideoModal] = useState<LoginFlashcardItem | null>(null);
+
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(doc(db, 'app_config', 'login_flashcards'), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && Array.isArray(data.items) && data.items.length > 0) {
+            setLoginFlashcards(data.items);
+            localStorage.setItem('prota_login_flashcards', JSON.stringify(data.items));
+          }
+        }
+      }, (err) => {
+        console.warn('Could not listen to login_flashcards on snapshot:', err);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Firestore snapshot error for login_flashcards:', e);
+    }
+  }, []);
+
+  // --- Admin Bypass (Shortcut & Taps) ---
+  const [loginTaps, setLoginTaps] = useState(0);
+  const tapTimeoutRef = useRef<any>(null);
+  const handleLoginTap = () => {
+    if (tapTimeoutRef.current) {
+      clearTimeout(tapTimeoutRef.current);
+    }
+    tapTimeoutRef.current = setTimeout(() => {
+      setLoginTaps(0);
+    }, 3000);
+
+    setLoginTaps(prev => {
+      const next = prev + 1;
+      if (next >= 7) {
+        setAppStage('admin');
+        return 0;
+      }
+      return next;
+    });
+  };
+
+  const keySequence = useRef<string[]>([]);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (appStage !== 'login' && appStage !== 'register') return;
+      if (!e || !e.key) return;
+      const key = String(e.key || '').toLowerCase();
+      if (e.ctrlKey && e.altKey) {
+        if (key === 'i' || key === 'p') {
+          keySequence.current.push(key);
+          if (keySequence.current.length > 2) {
+            keySequence.current.shift();
+          }
+          if (keySequence.current.join('') === 'ip') {
+            setAppStage('admin');
+          }
+        }
+      } else {
+        keySequence.current = [];
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [appStage]);
+
+  // --- Single Active Session Checker ---
+  useEffect(() => {
+    if (!user || !user.email || appStage === 'login' || appStage === 'register' || appStage === 'admin') return;
+
+    const emailNormalized = String(user?.email || '').toLowerCase().trim();
+    if (!emailNormalized) return;
+    const userDocRef = doc(db, 'users', emailNormalized);
+
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (userSnap: any) => {
+        if (userSnap.exists()) {
+          const dbSessionId = userSnap.data()?.activeSessionId;
+          const localSessionId = localStorage.getItem('prota_session_id');
+          if (dbSessionId && localSessionId && dbSessionId !== localSessionId) {
+            alert('Akun Anda telah masuk di perangkat atau sesi aktif lain. Sesi saat ini akan ditutup secara otomatis.');
+            handleLogout();
+          }
+        } else if (!userSnap?.metadata?.fromCache) {
+          // Only alert deleted if confirmed by server (not unpopulated cache)
+          alert('Akun Anda telah dihapus oleh Administrator.');
+          handleLogout();
+        }
+      },
+      (error) => {
+        // Silently tolerate offline mode or network reconnection states
+        const msg = error?.message || '';
+        if (msg.includes('offline') || msg.includes('unavailable') || msg.includes('timeout')) {
+          return;
+        }
+        console.warn('Notice from session sync:', msg);
+      }
+    );
+
+    return () => {
+      try {
+        unsubscribe();
+      } catch (e) {}
+    };
+  }, [user, appStage]);
+
+  const handleBackup = async () => {
+    try {
+      if (!user) return;
+      const data = await activitiesDB.getItem(user.email) || [];
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_prota_${user.email}_${formatDateLocal(new Date())}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      alert('Gagal melakukan backup');
+    }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      if (!user || !e.target.files?.[0]) return;
+      const file = e.target.files[0];
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+          await activitiesDB.setItem(user.email, parsed);
+          setActivities(parsed);
+          alert('Berhasil merestore data!');
+      } else {
+          alert('Format file tidak valid.');
+      }
+    } catch(err) {
+      alert('Gagal merestore data');
+    }
+    if (e.target) e.target.value = '';
+  };
+
+const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem('prota_custom_api_key') || '');
+const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+const [showApiKeyText, setShowApiKeyText] = useState(false);
+const [apiKeyMessage, setApiKeyMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, boolean>>>({});
+const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
+
+  const [currentView, setCurrentView] = useState<'dashboard' | 'generator' | 'history' | 'modul_ajar' | 'calendar' | 'daftar_siswa' | 'jadwal_mengajar' | 'hari_efektif' | 'presensi' | 'kktp' | 'jurnal'>('dashboard');
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [calendarPageTab, setCalendarPageTab] = useState<'all' | 'master' | 'analysis'>('all');
+  const [selectedClass, setSelectedClass] = useState<string>(() => localStorage.getItem('prota_assigned_class') || FASES[0].classes[0]);
+  const [selectedFase, setSelectedFase] = useState(() => getFaseForClass(localStorage.getItem('prota_assigned_class') || FASES[0].classes[0]));
+  const [selectedSubject, setSelectedSubject] = useState(SUBJECTS[0]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState<'config' | 'analysis' | 'calendar'>('config');
+
+  useEffect(() => {
+    if (selectedFase && selectedFase.classes && selectedFase.classes.length > 0) {
+      if (!selectedFase.classes.includes(selectedClass)) {
+        setSelectedClass(selectedFase.classes[0]);
+      }
+    }
+  }, [selectedFase]);
+  const [loading, setLoading] = useState(false);
+  const [atpLoading, setAtpLoading] = useState<string | null>(null);
+  const [data, setData] = useState<CurriculumData | null>(null);
+  const [paperSize, setPaperSize] = useState<'A4' | 'Letter' | 'F4'>('A4');
+  const [error, setError] = useState<string | null>(null);
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [modulContext, setModulContext] = useState<ModulAjarContext | null>(null);
+  const [showJpReference, setShowJpReference] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [analysisModal, setAnalysisModal] = useState<string | null>(null);
+  const [bulkGenerationStatus, setBulkGenerationStatus] = useState<Record<string, { current: number, total: number, percent: number, active: boolean, statusText?: string }>>({});
+  const [showSaveToast, setShowSaveToast] = useState(false);
+
+  useEffect(() => {
+      if (showSaveToast) {
+          const t = setTimeout(() => setShowSaveToast(false), 3000);
+          return () => clearTimeout(t);
+      }
+  }, [showSaveToast]);
+  const [pendingSemesterSelection, setPendingSemesterSelection] = useState<string | null>(null);
+  const [selectedCharacteristic, setSelectedCharacteristic] = useState("Beragam (Visual, Auditori, Kinestetik)");
+  
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+
+  useEffect(() => {
+    // Maintenance mode bypass removed
+  }, []);
+
+
+  const [userIdentity, setUserIdentity] = useState<UserIdentity>(() => ({
+      authorName: localStorage.getItem('prota_author_name') || 'Acep Miftah Hilah Ash-shidiq, S.Pd.',
+      nip: localStorage.getItem('prota_nip') || '199602152025211094',
+      institutionName: localStorage.getItem('prota_institution_name') || 'SDN SUKATINGGAL',
+      npsn: localStorage.getItem('prota_npsn') || '20206022',
+      kepalaSekolah: localStorage.getItem('prota_kepala_sekolah') || 'Yuni Sri Rahayu, S.Pd.',
+      nipKepalaSekolah: localStorage.getItem('prota_nip_kepala_sekolah') || '198706162019032007',
+      academicYear: localStorage.getItem('prota_academic_year') || '2026-2027',
+      semester: localStorage.getItem('prota_semester') || 'Ganjil (Semester 1)',
+      assignedClass: localStorage.getItem('prota_assigned_class') || 'Kelas 1',
+      employmentStatus: localStorage.getItem('prota_employment_status') || 'Full Time',
+      customApiKey: localStorage.getItem('prota_custom_api_key') || ''
+  }));
+
+  const handleSaveIdentity = (updated: UserIdentity) => {
+      setUserIdentity(updated);
+      localStorage.setItem('prota_author_name', updated.authorName);
+      if (updated.nip) localStorage.setItem('prota_nip', updated.nip);
+      localStorage.setItem('prota_institution_name', updated.institutionName);
+      if (updated.npsn) localStorage.setItem('prota_npsn', updated.npsn);
+      if (updated.kepalaSekolah) localStorage.setItem('prota_kepala_sekolah', updated.kepalaSekolah);
+      if (updated.nipKepalaSekolah) localStorage.setItem('prota_nip_kepala_sekolah', updated.nipKepalaSekolah);
+      localStorage.setItem('prota_academic_year', updated.academicYear);
+      localStorage.setItem('prota_semester', updated.semester);
+      localStorage.setItem('prota_assigned_class', updated.assignedClass);
+      if (updated.employmentStatus) localStorage.setItem('prota_employment_status', updated.employmentStatus);
+      setShowEditProfileModal(false);
+  };
+
+  // Schedules & Config
+  const [classSchedules, setClassSchedules] = useState<Record<string, string[]>>({});
+  const [classDailyJP, setClassDailyJP] = useState<Record<string, Record<string, number>>>(() => {
+      const saved = localStorage.getItem('prota_class_daily_jp');
+      return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+      localStorage.setItem('prota_class_daily_jp', JSON.stringify(classDailyJP));
+  }, [classDailyJP]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(() => {
+    try {
+        const saved = localStorage.getItem('prota_calendar_events');
+        if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return DEFAULT_CALENDAR_EVENTS;
+  });
+  const [editingCalendarEvent, setEditingCalendarEvent] = useState<{dateStr: string, endDateStr?: string, ev?: CalendarEvent} | null>(null);
+  const [academicYearStart, setAcademicYearStart] = useState<number>(2025);
+  const [schoolDaysCount, setSchoolDaysCount] = useState<5 | 6>(() => {
+      const saved = localStorage.getItem('prota_school_days_count');
+      return saved ? parseInt(saved, 10) as 5 | 6 : 6;
+  });
+
+  useEffect(() => {
+      localStorage.setItem('prota_school_days_count', schoolDaysCount.toString());
+  }, [schoolDaysCount]);
+
+  // Helper
+  useEffect(() => {
+    const savedUser = localStorage.getItem('prota_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+    const savedActivities = localStorage.getItem('prota_activities');
+    if (savedActivities) {
+      try {
+        const parsed = JSON.parse(savedActivities);
+        // Convert string dates back to Date objects
+        const withDates = parsed.map((a: any) => ({ ...a, timestamp: new Date(a.timestamp) }));
+        setActivities(withDates);
+      } catch (e) {
+        console.error("Failed to parse activities", e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activities || activities.length === 0) {
+        if (data) setData(null);
+        return;
+    }
+    const match = activities.find(act => 
+        (act.type === 'ATP_JP' || act.type === 'CP_TP') && 
+        act.subject.toLowerCase().trim() === selectedSubject.toLowerCase().trim()
+    );
+    if (match && match.dataSnapshot) {
+        if (JSON.stringify(data) !== JSON.stringify(match.dataSnapshot)) {
+            setData(match.dataSnapshot);
+        }
+    } else {
+        if (data !== null) setData(null);
+    }
+  }, [selectedSubject, activities]);
+
+  const getScheduledSubjects = (): string[] => {
+      let subjectsFromRoster: string[] = [];
+      try {
+          const saved = localStorage.getItem(`prota_weekly_roster_${selectedClass}`);
+          if (saved) {
+              const roster = JSON.parse(saved);
+              Object.values(roster).forEach((slots: any) => {
+                  if (Array.isArray(slots)) {
+                      slots.forEach(slot => {
+                          if (slot && slot.subject) {
+                              const trimmed = slot.subject.trim();
+                              if (trimmed && !isExcludedSubject(trimmed) && !subjectsFromRoster.includes(trimmed)) {
+                                  subjectsFromRoster.push(trimmed);
+                              }
+                          }
+                      });
+                  }
+              });
+          }
+      } catch (e) {}
+
+      if (subjectsFromRoster.length === 0) {
+          subjectsFromRoster = SUBJECTS.filter(s => !isExcludedSubject(s));
+      }
+      return subjectsFromRoster;
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('prota_user');
+    localStorage.removeItem('prota_session_id');
+    setUser(null);
+    setAppStage('login');
+  };
+
+  const getSubjectKey = (subjectName: string): string | null => {
+      if (!subjectName) return null;
+      if (JP_STANDARDS[subjectName]) return subjectName;
+      const keys = Object.keys(JP_STANDARDS);
+      const lower = String(subjectName).toLowerCase().trim();
+      const directKey = keys.find(k => String(k).toLowerCase() === lower);
+      if (directKey) return directKey;
+      const fuzzyKey = keys.find(k => lower.includes(String(k).toLowerCase()) || String(k).toLowerCase().includes(lower));
+      return fuzzyKey || null;
+  };
+
+  const saveActivitiesToStorage = (activities: ActivityLog[]) => {
+      let currentActivities = [...activities];
+      if (currentActivities.length > 20) {
+          currentActivities = currentActivities.slice(0, 20);
+      }
+      
+      while (currentActivities.length > 0) {
+          try {
+              localStorage.setItem('prota_activities', JSON.stringify(currentActivities));
+              return currentActivities;
+          } catch (e: any) {
+              const msg = e?.message?.toLowerCase() || '';
+              if (e.name === 'QuotaExceededError' || msg.includes('quota') || msg.includes('exceeded')) {
+                  console.warn("Storage quota exceeded, removing oldest activity...");
+                  currentActivities.pop();
+              } else {
+                  console.error("Failed to save activities to localStorage:", e);
+                  return currentActivities;
+              }
+          }
+      }
+      return [];
+  };
+
+  // Activity Management
+  // Fetch activities from Firestore
+  
+  useEffect(() => {
+    const fetchActivities = async () => {
+      if (!user) return;
+      try {
+        const data = await activitiesDB.getItem(user.email);
+        if (data && Array.isArray(data)) {
+            setActivities(data);
+        } else {
+            setActivities([]);
+        }
+      } catch (e) {
+        console.error("Failed to fetch activities", e);
+      }
+    };
+    fetchActivities();
+  }, [user]);
+
+
+  
+  const addActivity = async (type: 'CP_TP' | 'ATP_JP' | 'MODUL_AJAR', subject: string, details: string, dataSnapshot: any) => {
+    if (!user) return;
+    const newActivity: ActivityLog = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      type,
+      subject,
+      details,
+      dataSnapshot: JSON.parse(JSON.stringify(dataSnapshot)),
+      paperSizeSnapshot: paperSize
+    };
+    try {
+        const prev = (await activitiesDB.getItem<ActivityLog[]>(user.email)) || [];
+        const updated = [newActivity, ...prev];
+        await activitiesDB.setItem(user.email, updated);
+        setActivities(updated);
+    } catch (e) {
+        console.error("Failed to add activity", e);
+    }
+  };
+
+  
+  
+  const saveActivityLog = async (log: ActivityLog) => {
+    if (!user) return;
+    try {
+        const prev = (await activitiesDB.getItem<ActivityLog[]>(user.email)) || [];
+        const updated = [log, ...prev];
+        await activitiesDB.setItem(user.email, updated);
+        setActivities(updated);
+    } catch (e) {
+        console.error("Failed to save activity log", e);
+    }
+  };
+
+
+  
+  const deleteActivity = async (id: string) => {
+    if (!user) return;
+    try {
+        const prev = (await activitiesDB.getItem<ActivityLog[]>(user.email)) || [];
+        const updated = prev.filter(act => act.id !== id);
+        await activitiesDB.setItem(user.email, updated);
+        setActivities(updated);
+    } catch (e) {
+        console.error("Failed to delete activity", e);
+    }
+  };
+
+
+  
+  const clearAllActivities = async () => {
+    if (!user) return;
+    try {
+        await activitiesDB.setItem(user.email, []);
+        setActivities([]);
+    } catch (e) {
+        console.error("Failed to clear activities", e);
+    }
+  };
+
+
+  const checkNonEffectiveDate = (dateStr: string): CalendarEvent | null => {
+      if (!dateStr) return null;
+      return calendarEvents.find(range => dateStr >= range.start && dateStr <= range.end) || null;
+  };
+
+  const getDayName = (date: Date): string => {
+      const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+      return days[date.getDay()];
+  };
+
+  const getEffectiveDates = (className: string, subjectName: string = selectedSubject): { date: Date, jp: number }[] => {
+      let weeklyRoster: Record<string, any[]> = {};
+      try {
+          const saved = localStorage.getItem(`prota_weekly_roster_${className}`);
+          if (saved) weeklyRoster = JSON.parse(saved);
+      } catch (e) {}
+
+      const daysList = schoolDaysCount === 5 
+          ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+          : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+      const subjectScheduledDays: string[] = [];
+      const subjectDailyJpMap: Record<string, number> = {};
+
+      daysList.forEach(day => {
+          const slots = weeklyRoster[day] || [];
+          let dayJp = 0;
+          slots.forEach(slot => {
+              if (!slot || !slot.subject) return;
+              const slotSubjLower = slot.subject.toLowerCase().trim();
+              const targetSubjLower = subjectName.toLowerCase().trim();
+              if (slotSubjLower === targetSubjLower ||
+                  slotSubjLower.includes(targetSubjLower) ||
+                  targetSubjLower.includes(slotSubjLower)) {
+                  dayJp += Number(slot.jp) || 1;
+              }
+          });
+          if (dayJp > 0) {
+              subjectScheduledDays.push(day);
+              subjectDailyJpMap[day] = dayJp;
+          }
+      });
+
+      const selectedDays = subjectScheduledDays.length > 0 
+          ? subjectScheduledDays 
+          : (classSchedules[className] || []);
+
+      const dailyJP = subjectScheduledDays.length > 0 
+          ? subjectDailyJpMap 
+          : (classDailyJP[className] || {});
+
+      const dates: { date: Date, jp: number }[] = [];
+      const academicStartStr = `${academicYearStart}-07-14`;
+      const academicEndStr = `${academicYearStart + 1}-06-27`;
+      const startDate = parseDateToLocal(academicStartStr); 
+      const endDate = parseDateToLocal(academicEndStr); 
+
+      const validDays = schoolDaysCount === 5 ? selectedDays.filter(d => d !== 'Sabtu') : selectedDays;
+
+      let current = new Date(startDate);
+      while (current <= endDate) {
+          const dayName = getDayName(current);
+          const dateStr = formatDateLocal(current);
+          const conflict = checkNonEffectiveDate(dateStr);
+          if (validDays.includes(dayName) && (!conflict)) {
+              const jp = dailyJP[dayName] || 3;
+              if (jp > 0) {
+                dates.push({ date: new Date(current), jp });
+              }
+          }
+          current.setDate(current.getDate() + 1);
+      }
+
+      if (dates.length === 0) {
+          console.warn("No effective dates found for", className, subjectName, "using default fallback");
+          const fallbackDays = ["Senin"];
+          const fallbackDailyJP: Record<string, number> = { "Senin": 3 };
+          let currentFallback = new Date(startDate);
+          while (currentFallback <= endDate) {
+              const dayName = getDayName(currentFallback);
+              const dateStr = formatDateLocal(currentFallback);
+              const conflict = checkNonEffectiveDate(dateStr);
+              if (fallbackDays.includes(dayName) && (!conflict)) {
+                  const jp = fallbackDailyJP[dayName] || 3;
+                  if (jp > 0) {
+                    dates.push({ date: new Date(currentFallback), jp });
+                  }
+              }
+              currentFallback.setDate(currentFallback.getDate() + 1);
+          }
+      }
+
+      return dates;
+  };
+
+  const updateDailyJP = (className: string, day: string, jp: number) => {
+    setClassDailyJP(prev => ({
+        ...prev,
+        [className]: {
+            ...(prev[className] || {}),
+            [day]: jp
+        }
+    }));
+  };
+
+  const toggleScheduleDay = (className: string, day: string) => {
+      const isRemoving = (classSchedules[className] || []).includes(day);
+      
+      setClassSchedules(prev => {
+          const currentDays = prev[className] || [];
+          if (isRemoving) {
+              return { ...prev, [className]: currentDays.filter(d => d !== day) };
+          } else {
+              const newDays = [...currentDays, day].sort((a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b));
+              return { ...prev, [className]: newDays };
+          }
+      });
+
+      if (!isRemoving && !(classDailyJP[className]?.[day])) {
+          setClassDailyJP(prev => ({
+              ...prev,
+              [className]: {
+                  ...(prev[className] || {}),
+                  [day]: 3 
+              }
+          }));
+      }
+  };
+
+  const getISOWeek = (d: Date) => {
+      const date = new Date(d.getTime());
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+      const week1 = new Date(date.getFullYear(), 0, 4);
+      return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+  };
+
+  const calculateCalendarAnalysis = (className: string, subject: string): AnalysisResult | null => {
+        let weeklyRoster: Record<string, any[]> = {};
+        try {
+            const saved = localStorage.getItem(`prota_weekly_roster_${className}`);
+            if (saved) weeklyRoster = JSON.parse(saved);
+        } catch (e) {}
+
+        const daysList = schoolDaysCount === 5 
+            ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
+            : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+        const subjectScheduledDays: string[] = [];
+        const subjectDailyJpMap: Record<string, number> = {};
+
+        daysList.forEach(day => {
+            const slots = weeklyRoster[day] || [];
+            let dayJp = 0;
+            slots.forEach(slot => {
+                if (!slot || !slot.subject) return;
+                const slotSubjLower = slot.subject.toLowerCase().trim();
+                const targetSubjLower = subject.toLowerCase().trim();
+                if (slotSubjLower === targetSubjLower ||
+                    slotSubjLower.includes(targetSubjLower) ||
+                    targetSubjLower.includes(slotSubjLower)) {
+                    dayJp += Number(slot.jp) || 1;
+                }
+            });
+            if (dayJp > 0) {
+                subjectScheduledDays.push(day);
+                subjectDailyJpMap[day] = dayJp;
+            }
+        });
+
+        const rawSelectedDays = subjectScheduledDays.length > 0 
+            ? subjectScheduledDays 
+            : (classSchedules[className] || []);
+
+        const selectedDays = schoolDaysCount === 5 ? rawSelectedDays.filter(d => d !== 'Sabtu') : rawSelectedDays;
+        
+        const finalDays = selectedDays.length > 0 ? selectedDays : ["Senin"];
+        const dailyJpSource = subjectScheduledDays.length > 0 
+            ? subjectDailyJpMap 
+            : (classDailyJP[className] || {});
+
+        const subjectKey = getSubjectKey(subject);
+        const annualTargetJP = subjectKey ? JP_STANDARDS[subjectKey]?.[className] || 0 : 0;
+        
+        const academicStartStr = `${academicYearStart}-07-14`;
+        const academicEndStr = `${academicYearStart + 1}-06-27`;
+        const startDate = parseDateToLocal(academicStartStr);
+        const endDate = parseDateToLocal(academicEndStr);
+        
+        let totalAvailableSlots = 0;
+        let semester1Data = { effectiveDays: 0, nonEffectiveDays: 0, effectiveWeeks: 0, uniqueWeeks: new Set<string>(), availableJP: 0 };
+        let semester2Data = { effectiveDays: 0, nonEffectiveDays: 0, effectiveWeeks: 0, uniqueWeeks: new Set<string>(), availableJP: 0 };
+        const monthDetails: Record<string, MonthAnalysis> = {};
+        const dayDistribution: Record<string, number> = {};
+
+        // Calculate JP per meeting (usually 2-3 JP depending on load)
+        const estJPPerMeeting = className.includes('6') ? 2 : 3;
+
+        let current = new Date(startDate);
+        while (current <= endDate) {
+            const dayName = getDayName(current);
+            const dateStr = formatDateLocal(current);
+            const monthKey = current.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+            
+            // Fixed Semester Logic: July-Dec is Semester 1, Jan-June is Semester 2
+            const semester = (current.getMonth() >= 6 && current.getFullYear() === academicYearStart) ? 1 : 2;
+            
+            const weekKey = `${getISOWeek(current)}-${current.getFullYear()}`; 
+
+            if (!monthDetails[monthKey]) {
+                monthDetails[monthKey] = { monthName: monthKey, semester, effectiveDays: 0, nonEffectiveDetails: [] };
+            }
+
+            // FILTER: If 5 days, force Saturday as non-effective
+            const isSabtu = dayName === 'Sabtu';
+            const isSabtuNonEffective = schoolDaysCount === 5 && isSabtu;
+
+            if (finalDays.includes(dayName)) {
+                 const conflict = checkNonEffectiveDate(dateStr) || (isSabtuNonEffective ? { description: 'Libur Sabtu', type: 'holiday' } : null);
+                 if (!conflict) {
+                     const dailyJPVal = dailyJpSource[dayName] || 3;
+                     totalAvailableSlots++;
+                     monthDetails[monthKey].effectiveDays++;
+                     dayDistribution[dayName] = (dayDistribution[dayName] || 0) + 1;
+
+                     if (semester === 1) {
+                         semester1Data.effectiveDays++;
+                         semester1Data.uniqueWeeks.add(weekKey);
+                         semester1Data.availableJP += dailyJPVal;
+                     } else {
+                         semester2Data.effectiveDays++;
+                         semester2Data.uniqueWeeks.add(weekKey);
+                         semester2Data.availableJP += dailyJPVal;
+                     }
+                 } else {
+                     monthDetails[monthKey].nonEffectiveDetails.push({ date: dateStr, reason: conflict.description });
+                     if (semester === 1) semester1Data.nonEffectiveDays++;
+                     else semester2Data.nonEffectiveDays++;
+                 }
+            } else if (isSabtuNonEffective) {
+                 // Even if not in selectedDays, we count Sabtu as a non-effective day for data fidelity
+                 monthDetails[monthKey].nonEffectiveDetails.push({ date: dateStr, reason: 'Libur Sabtu' });
+                 if (semester === 1) semester1Data.nonEffectiveDays++;
+                 else semester2Data.nonEffectiveDays++;
+            }
+            current.setDate(current.getDate() + 1);
+        }
+
+        // Calculate Weekly Target based on effective weeks
+        const totalEffectiveWeeks = semester1Data.uniqueWeeks.size + semester2Data.uniqueWeeks.size;
+        const weeklyTargetJP = totalEffectiveWeeks > 0 ? Math.round(annualTargetJP / totalEffectiveWeeks) : 0;
+        
+        semester1Data.effectiveWeeks = semester1Data.uniqueWeeks.size;
+        semester2Data.effectiveWeeks = semester2Data.uniqueWeeks.size;
+
+        return {
+            totalTargetJP: annualTargetJP,
+            weeklyTargetJP,
+            totalAvailableSlots,
+            totalEffectiveWeeks,
+            semester1: semester1Data,
+            semester2: semester2Data,
+            details: Object.values(monthDetails),
+            dayDistribution
+        };
+  };
+
+const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string) => {
+    if (!currData || !currData.elements) return [];
+    
+    interface FlatTP {
+        id: number;
+        tp: string;
+        elementIndex: number;
+        allocIndex: number;
+        tpIndex: number;
+    }
+
+    const flatTPs: FlatTP[] = [];
+    let tpCounter = 1;
+
+    currData.elements.forEach((el, elIdx) => {
+        (el.allocations || []).forEach((alloc, allocIdx) => {
+            const matchesClass = isSameClass(alloc.className, targetClassName) ||
+                                (el.allocations.length === 1 && !alloc.className);
+            if (matchesClass) {
+                (alloc.tujuanPembelajaran || []).forEach((tp, tpIdx) => {
+                    flatTPs.push({
+                        id: tpCounter++,
+                        tp: tp,
+                        elementIndex: elIdx,
+                        allocIndex: allocIdx,
+                        tpIndex: tpIdx
+                    });
+                });
+            }
+        });
+    });
+
+    if (flatTPs.length === 0) {
+        const targetDigit = normalizeClassStr(targetClassName);
+        currData.elements.forEach((el, elIdx) => {
+            (el.allocations || []).forEach((alloc, allocIdx) => {
+                if (alloc.className && alloc.className.includes(targetDigit)) {
+                    (alloc.tujuanPembelajaran || []).forEach((tp, tpIdx) => {
+                        flatTPs.push({
+                            id: tpCounter++,
+                            tp: tp,
+                            elementIndex: elIdx,
+                            allocIndex: allocIdx,
+                            tpIndex: tpIdx
+                        });
+                    });
+                }
+            });
+        });
+    }
+
+    return flatTPs;
+};
+
+  const generateContent = async (overrideFase?: typeof FASES[0], overrideSubject?: string): Promise<CurriculumData | null> => {
+    setLoading(true);
+    setError(null);
+    const faseToUse = overrideFase || selectedFase;
+    const subjectToUse = overrideSubject || selectedSubject;
+
+    try {
+      const apiKey = getApiKey();
+      if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
+      const ai = new GoogleGenAI({ apiKey });
+
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          subject: { type: Type.STRING },
+          fase: { type: Type.STRING },
+          description: { type: Type.STRING },
+          elements: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                elementName: { type: Type.STRING },
+                capaianPembelajaran: { type: Type.STRING },
+                allocations: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      className: { 
+                        type: Type.STRING,
+                        description: `Nama kelas, HARUS persis salah satu dari: ${(faseToUse?.classes || []).join(" atau ")}`
+                      },
+                      tujuanPembelajaran: { 
+                        type: Type.ARRAY, 
+                        items: { type: Type.STRING },
+                        description: "Daftar Tujuan Pembelajaran spesifik"
+                      }
+                    },
+                    required: ["className", "tujuanPembelajaran"]
+                  }
+                }
+              },
+              required: ["elementName", "capaianPembelajaran", "allocations"]
+            }
+          }
+        },
+        required: ["subject", "fase", "elements", "description"]
+      };
+
+      const prompt = `
+        Bertindaklah sebagai ahli kurikulum pendidikan Indonesia (Kurikulum Merdeka 2025).
+        Tugas: Analisis Capaian Pembelajaran (CP) dan rumuskan Tujuan Pembelajaran (TP).
+        Parameter: Jenjang SD, Fase ${faseToUse?.name || ''}, Mapel ${subjectToUse}, Kelas ${(faseToUse?.classes || []).join(" dan ")}.
+        Instruksi: 
+        1. Tuliskan deskripsi singkat mata pelajaran.
+        2. Tuliskan Elemen dan CP terbaru. 
+        3. Pecah CP menjadi Tujuan Pembelajaran (TP) pembelajaran yang spesifik, aplikatif, dan terukur untuk setiap kelas yang diminta (${(faseToUse?.classes || []).join(" dan ")}). Anda WAJIB memberikan minimal 2 Tujuan Pembelajaran (TP) untuk setiap kelas dalam array 'tujuanPembelajaran'. JANGAN PERNAH mengosongkan array 'tujuanPembelajaran'.
+        4. Pastikan output sesuai dengan skema JSON yang diminta, dengan array 'elements' yang berisi 'allocations' untuk setiap kelas.
+      `;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: { responseMimeType: "application/json", responseSchema: schema }
+      });
+
+      let resultData: CurriculumData;
+      try {
+        let cleanText = response.text || "{}";
+        cleanText = cleanText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        resultData = JSON.parse(cleanText) as CurriculumData;
+        if (!resultData || !resultData.elements || resultData.elements.length === 0) {
+            throw new Error("Data kosong");
+        }
+      } catch (e) {
+        throw new Error("Gagal parsing respon JSON dari AI atau data kosong. Silakan coba lagi.");
+      }
+      
+      setData(resultData);
+      addActivity('CP_TP', subjectToUse, `Analisis CP & TP untuk ${faseToUse.name}`, resultData);
+      
+      try {
+          await generateATP(selectedClass, resultData);
+      } catch (atpErr) {
+          console.error("Gagal membuat ATP otomatis:", atpErr);
+      }
+
+      return resultData;
+
+    } catch (err: any) {
+      console.error(err);
+      setError(formatAIError(err));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateATP = async (className: string, overrideData?: CurriculumData) => {
+    console.log(`Memulai generateATP untuk ${className}...`);
+    setAtpLoading(className);
+    setError(null);
+
+    let activeData = overrideData || data;
+    let flatTPs = extractFlatTPs(activeData, className);
+
+    if (!activeData || flatTPs.length === 0) {
+        if (overrideData) {
+            setAtpLoading(null);
+            setError(`Data TP kosong.`);
+            return;
+        }
+        console.log(`TP untuk ${className} tidak ditemukan dalam data saat ini. Otomatis membuat CP & TP...`);
+        const targetFase = FASES.find(f => f.classes.some(c => isSameClass(c, className))) || selectedFase;
+        const newData = await generateContent(targetFase, selectedSubject);
+        if (newData) {
+            activeData = newData;
+            flatTPs = extractFlatTPs(activeData, className);
+        }
+    }
+
+    if (!activeData || flatTPs.length === 0) {
+        setAtpLoading(null);
+        setError(`Data Tujuan Pembelajaran (TP) untuk ${className} tidak dapat ditemukan atau dihasilkan. Silakan klik tombol 'Generate CP & TP' di menu samping.`);
+        return;
+    }
+
+    // 1. SMART JP CALCULATION
+    let targetJP = 216; 
+    const subjectKey = getSubjectKey(selectedSubject) || getSubjectKey(activeData.subject);
+    if (subjectKey) {
+        targetJP = JP_STANDARDS[subjectKey]?.[className] || 216;
+    }
+    console.log(`Target JP untuk ${className}: ${targetJP}`);
+
+    let selectedDays = classSchedules[className] || [];
+    if (selectedDays.length === 0) {
+        selectedDays = ["Senin"];
+        setClassSchedules(prev => ({ ...prev, [className]: selectedDays }));
+        if (!(classDailyJP[className]?.["Senin"])) {
+            setClassDailyJP(prev => ({
+                ...prev,
+                [className]: {
+                    ...(prev[className] || {}),
+                    "Senin": 3
+                }
+            }));
+        }
+    }
+
+    try {
+        const apiKey = getApiKey();
+        if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
+        const ai = new GoogleGenAI({ apiKey });
+
+        // 2. TIMELINE GENERATION based on Calendar (using subject from activeData)
+        const allEffectiveDates = getEffectiveDates(className, activeData.subject);
+        if (allEffectiveDates.length === 0) {
+            throw new Error("Tidak ada hari efektif yang tersedia untuk jadwal yang dipilih. Silakan periksa kalender akademik atau pilih hari lain.");
+        }
+        
+        const timelineSlots: { date: string, allocatedJP: number }[] = allEffectiveDates.map(slot => ({
+            date: formatDateLocal(slot.date),
+            allocatedJP: slot.jp
+        }));
+        
+        const accumulatedJP = timelineSlots.reduce((sum, s) => sum + s.allocatedJP, 0);
+        console.log(`Total JP tersedia pada timeline: ${accumulatedJP} JP`);
+
+        console.log(`Flat TPs found: ${flatTPs.length}`);
+
+        const prompt = `
+            PERAN: Ahli Kurikulum & Penjadwalan Sekolah Dasar (Kurikulum Merdeka 2025).
+            TUGAS: Pecah Tujuan Pembelajaran (TP) menjadi aktivitas-aktivitas kecil (Alur Tujuan Pembelajaran/ATP).
+            
+            KONTEKS:
+            - Mapel: ${activeData.subject} (${className})
+            - Total Target JP: ${accumulatedJP} JP
+            - Jumlah Slot Pertemuan: ${timelineSlots.length} (dengan variasi JP per pertemuan sesuai jadwal pengguna)
+            
+            DAFTAR TP (ID: TP):
+            ${flatTPs.map(f => `${f.id}: ${f.tp}`).join('\n')}
+            
+            INSTRUKSI:
+            1. Buat rangkaian aktivitas untuk SETIAP TP di atas.
+            2. Satu TP bisa dipecah menjadi beberapa aktivitas (beberapa pertemuan) jika kompleks.
+            3. Distribusikan TP ini ke dalam total ${accumulatedJP} JP yang tersedia. Pastikan total JP dari semua aktivitas diakumulasikan tepat ${accumulatedJP} JP.
+               PENTING: Gunakan alokasi JP per-aktivitas yang wajar (misal: 1, 2, atau 3 JP). Hindari membuat satu aktivitas dengan JP yang sangat besar yang tidak mungkin selesai dalam satu hari (kapasitas harian ${(selectedDays || []).map(d => `${d}: ${(classDailyJP[className] || {})[d] || 3} JP`).join(', ')}).
+            4. Gunakan field 'alur' untuk deskripsi aktivitas pembelajaran yang konkret.
+            5. Return JSON object dengan properti 'allocations' yang berisi array pemetaan tpId ke daftar aktivitas sesuai skema yang diberikan.
+        `;
+
+        const schema = {
+            type: Type.OBJECT,
+            properties: {
+                allocations: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            tpId: { type: Type.NUMBER, description: "ID dari daftar TP" },
+                            activities: {
+                                type: Type.ARRAY,
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        alur: { type: Type.STRING, description: "Deskripsi aktivitas pembelajaran" },
+                                        jp: { type: Type.NUMBER, description: "Estimasi JP" }
+                                    },
+                                    required: ["alur", "jp"]
+                                }
+                            }
+                        },
+                        required: ["tpId", "activities"]
+                    }
+                }
+            },
+            required: ["allocations"]
+        };
+
+        console.log("Memanggil AI untuk generate ATP...");
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: schema
+            }
+        });
+
+        let result: { allocations: { tpId: number, activities: { alur: string, jp: number }[] }[] };
+        try {
+            let cleanText = response.text || "{}";
+            cleanText = cleanText.replace(/```json/g, '').replace(/```/g, '').trim();
+            result = JSON.parse(cleanText);
+            if (!result || !result.allocations) {
+                throw new Error("Data kosong");
+            }
+            console.log(`AI berhasil generate ${result.allocations.length} alokasi TP.`);
+        } catch (e: any) {
+            console.error("JSON Parse Error:", e);
+            throw new Error("Gagal parsing respon JSON dari AI: " + e.message);
+        }
+
+        // 4. MAP RESULT BACK TO DATA STRUCTURE
+        const newData = JSON.parse(JSON.stringify(activeData));
+        
+        // Ensure structure exists
+        flatTPs.forEach(f => {
+             const el = newData.elements[f.elementIndex];
+             const alloc = el.allocations[f.allocIndex];
+             if (!alloc.structuredAtp) {
+                 alloc.structuredAtp = new Array(alloc.tujuanPembelajaran.length).fill(null).map((_, i) => ({
+                     tp: alloc.tujuanPembelajaran[i],
+                     atpItems: []
+                 }));
+             }
+        });
+
+        const N = timelineSlots.length;
+        const M = flatTPs.length;
+        const slotsPerTP = new Array(M).fill(0);
+
+        if (M <= N) {
+            const base = Math.floor(N / M);
+            const rem = N % M;
+            for (let i = 0; i < M; i++) {
+                slotsPerTP[i] = base + (i < rem ? 1 : 0);
+            }
+        } else {
+            // M > N: Give 1 slot to every TP
+            for (let i = 0; i < M; i++) {
+                slotsPerTP[i] = 1;
+            }
+        }
+
+        const paddedSlots = [...timelineSlots];
+        while (paddedSlots.length < M) {
+            paddedSlots.push(timelineSlots[timelineSlots.length - 1]);
+        }
+
+        let slotCursor = 0;
+        flatTPs.forEach((f, idx) => {
+            const numSlots = slotsPerTP[idx];
+            const processedItems: AtpItem[] = [];
+
+            if (numSlots > 0) {
+                const slots = paddedSlots.slice(slotCursor, slotCursor + numSlots);
+                slotCursor += numSlots;
+
+                const aiAllocation = result.allocations?.find(a => a.tpId === f.id);
+                const activities = aiAllocation?.activities || [];
+
+                if (activities.length > 0) {
+                    slots.forEach((slot, slotIdx) => {
+                         const startActIdx = Math.floor((slotIdx / slots.length) * activities.length);
+                         let endActIdx = Math.floor(((slotIdx + 1) / slots.length) * activities.length);
+                         if (endActIdx === startActIdx) endActIdx = startActIdx + 1;
+                         
+                         const assignedActivities = activities.slice(startActIdx, endActIdx);
+                         
+                         processedItems.push({
+                                alur: assignedActivities.map(a => "- " + a.alur).join('\n'),
+                                alokasiWaktu: `${slot.allocatedJP} JP`,
+                                planDate: slot.date
+                         });
+                    });
+                } else {
+                    slots.forEach(slot => {
+                        processedItems.push({
+                             alur: `Pembelajaran: ${f.tp}`,
+                             alokasiWaktu: `${slot.allocatedJP} JP`,
+                             planDate: slot.date
+                        });
+                    });
+                }
+            }
+
+            // Assign
+            const alloc = newData.elements[f.elementIndex].allocations[f.allocIndex];
+            alloc.structuredAtp[f.tpIndex] = {
+                tp: f.tp,
+                atpItems: processedItems
+            };
+        });
+
+        setData(newData);
+        addActivity('ATP_JP', newData.subject, `Penyusunan ATP & Jadwal Otomatis ${className}`, newData);
+    } catch (err: any) {
+        console.error(err);
+        setError("Gagal membuat ATP: " + formatAIError(err));
+    } finally {
+        setAtpLoading(null);
+    }
+  };
+
+  const openModulGeneratorForSelected = (className: string) => {
+      const rawItems: { el: any, tp: any, atpItem: any }[] = [];
+      const currentSelected = selectedAtps[className] || {};
+
+      (data?.elements || []).forEach((el, elIdx) => {
+          (el.allocations || []).forEach((alloc) => {
+              if (alloc.structuredAtp) {
+                  alloc.structuredAtp.forEach((grp: any, grpIdx) => {
+                       grp.atpItems.forEach((atpItem: any, itemIdx) => {
+                           const key = `${elIdx}-${grpIdx}-${itemIdx}`;
+                           if (currentSelected[key]) {
+                               rawItems.push({ el, tp: grp.tp, atpItem });
+                           }
+                       });
+                  });
+              }
+          });
+      });
+
+      if (rawItems.length === 0) {
+          alert("Silakan pilih minimal satu ATP (centang pada kolom Alur Tujuan Pembelajaran) untuk dibuatkan Modul Ajar.");
+          return;
+      }
+
+      const combinedTopics = rawItems.map((item, idx) => `${idx + 1}. ${item.atpItem.alur}`).join('\n');
+      const combinedTPs = Array.from(new Set(rawItems.map(item => item.tp))).join('\n');
+      const combinedCPs = Array.from(new Set(rawItems.map(item => item.el.capaianPembelajaran))).join('\n');
+      const combinedElements = Array.from(new Set(rawItems.map(item => item.el.elementName))).join(', ');
+      
+      let totalJP = 0;
+      rawItems.forEach(item => {
+          const match = String(item.atpItem.alokasiWaktu).match(/\d+/);
+          totalJP += match ? parseInt(match[0]) : 2;
+      });
+
+      const dates = rawItems.map(item => item.atpItem.planDate).filter(Boolean);
+      const dateString = dates.length > 0 ? Array.from(new Set(dates)).join(', ') : formatDateLocal(new Date());
+
+      setModulContext({
+          subject: data?.subject || '',
+          className,
+          fase: data?.fase || '',
+          elementName: combinedElements,
+          cp: combinedCPs,
+          tp: combinedTPs,
+          atpItem: {
+              alur: combinedTopics,
+              alokasiWaktu: `${totalJP} JP (${rawItems.length} Pertemuan)`,
+              planDate: dateString
+          },
+          selectedAtpItems: rawItems
+      });
+      setCurrentView('modul_ajar');
+  };
+
+  const handleBulkGenerateModulForClass = (className: string) => {
+      const currentSelected = selectedAtps[className] || {};
+      const hasSelection = Object.keys(currentSelected).length > 0 && Object.values(currentSelected).some(v => v);
+      
+      if (!hasSelection) {
+          alert("Silakan pilih minimal satu ATP (centang pada kolom Alur Tujuan Pembelajaran) untuk dibuatkan Modul Ajar.");
+          return;
+      }
+      
+      openModulGeneratorForSelected(className);
+  };
+
+  const runBulkGeneration = async (className: string, semChoice: '1' | '2') => {
+      
+      const rawItems: { el: any, tp: any, atpItem: any }[] = [];
+      const currentSelected = selectedAtps[className] || {};
+      const hasSelection = Object.keys(currentSelected).length > 0 && Object.values(currentSelected).some(v => v);
+
+      (data?.elements || []).forEach((el, elIdx) => {
+          (el.allocations || []).forEach((alloc) => {
+              if (alloc.structuredAtp) {
+                  alloc.structuredAtp.forEach((grp: any, grpIdx) => {
+                       grp.atpItems.forEach((atpItem: any, itemIdx) => {
+                           const key = `${elIdx}-${grpIdx}-${itemIdx}`;
+                           if (currentSelected[key]) {
+                               rawItems.push({ el, tp: grp.tp, atpItem });
+                           }
+                       });
+                  });
+              }
+          });
+      });
+
+
+      const itemsToGenerateFinal = rawItems.filter(item => {
+          const date = item.atpItem.planDate ? new Date(item.atpItem.planDate) : new Date();
+          const month = date.getMonth() + 1;
+          if (semChoice === '1') return month >= 7 && month <= 12;
+          return month >= 1 && month <= 6;
+      });
+
+      const allDates = getEffectiveDates(className);
+      const semDates = allDates.filter(d => {
+          const month = d.date.getMonth() + 1;
+          if (semChoice === '1') return month >= 7 && month <= 12;
+          return month >= 1 && month <= 6;
+      });
+
+      if (semDates.length === 0) {
+          alert(`Tidak ada hari efektif untuk Semester ${semChoice}.`);
+          return;
+      }
+
+      const maxModules = Math.min(itemsToGenerateFinal.length, semDates.length);
+      
+      if (maxModules === 0) {
+          alert(`Tidak ada ATP yang terpilih untuk Semester ${semChoice} yang memiliki tanggal rencana.`);
+          return;
+      }
+
+      setBulkGenerationStatus(prev => ({
+          ...prev,
+          [className]: { current: 0, total: maxModules, percent: 0, active: true, statusText: "Memulai proses..." }
+      }));
+
+      // Ensure that cancellation flag is reset for this class
+      (window as any).bulkAbortedMap = { ...((window as any).bulkAbortedMap || {}), [className]: false };
+      const collectedModulesData: any[] = [];
+      let collectedHtml = '';
+
+      try {
+          const apiKey = getApiKey();
+          if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
+          const ai = new GoogleGenAI({ apiKey });
+          
+          let combinedTopics = '';
+          let combinedTPs = '';
+          let totalJP = 0;
+          let combinedDates = [];
+          let combinedCPs = new Set<string>();
+
+          for (let i = 0; i < maxModules; i++) {
+              const { el, tp, atpItem } = itemsToGenerateFinal[i];
+              combinedTopics += `- ${atpItem.alur}\n`;
+              combinedTPs += `- ${tp}\n`;
+              const jpMatch = String(atpItem.alokasiWaktu).match(/(\d+)/);
+              if (jpMatch) totalJP += parseInt(jpMatch[1]);
+              if (atpItem.planDate) combinedDates.push(formatDateLocal(new Date(atpItem.planDate)));
+              combinedCPs.add(el.capaianPembelajaran);
+          }
+
+          const dateString = combinedDates.length > 0 ? Array.from(new Set(combinedDates)).join(', ') : formatDateLocal(new Date());
+          const combinedCPString = Array.from(combinedCPs).join('\n');
+
+          if ((window as any).bulkAbortedMap?.[className]) {
+              setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}));
+              return;
+          }
+
+          setBulkGenerationStatus(prev => ({
+              ...prev,
+              [className]: { ...prev[className], statusText: `Memilih model pembelajaran AI terbaik untuk topik gabungan...` }
+          }));
+
+          const modelPrompt = `Pilih 1 model pembelajaran yang paling efektif (misalnya: PjBL, PBL, Inkuiri, Discovery, TaRL, dll) untuk Kelas ${className}, Fase ${data?.fase}, Topik gabungan: \n${combinedTopics}. Karakteristik Peserta Didik: ${selectedCharacteristic}. Jawablah hanya dengan format: "Nama Model: [Nama Model]"`;
+          
+          let modelResponseText = "Tidak ditentukan";
+          try {
+            const modelRec = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: modelPrompt,
+            });
+             modelResponseText = modelRec.text || "Tidak ditentukan";
+          } catch (e) {
+            console.error("Model rec failed, fallback:", e);
+          }
+
+          setBulkGenerationStatus(prev => ({
+              ...prev,
+              [className]: { ...prev[className], statusText: `Model dipilih: ${modelResponseText}. Membuat konten modul gabungan...` }
+          }));
+
+          const prompt = `
+# MASTER PROMPT â€” GENERATOR RENCANA PEMBELAJARAN MENDALAM (RPM) GABUNGAN BERBASIS ATP
+
+## PERAN ANDA
+Anda adalah **AI Generator Rencana Pembelajaran Mendalam (RPM)** untuk guru SD/MI profesional. Anda menyusun dokumen perangkat ajar resmi yang utuh, konkret, aplikatif, dan menyeluruh, siap pakai dan siap dicetak ke Microsoft Word tanpa teks placeholder atau kerangka kosong.
+
+## LANDASAN PENYUSUNAN & REGULASI
+- **Permendikdasmen Nomor 13 Tahun 2025**
+- Pendekatan: **PEMBELAJARAN MENDALAM (DEEP LEARNING)**
+- **8 Dimensi Profil Lulusan**:
+  1. Keimanan dan Ketakwaan terhadap Tuhan Yang Maha Esa
+  2. Kewargaan
+  3. Penalaran Kritis
+  4. Kreativitas
+  5. Kolaborasi
+  6. Kemandirian
+  7. Kesehatan
+  8. Komunikasi
+- **3 Prinsip Pembelajaran Mendalam**:
+  1. Berkesadaran (Mindful)
+  2. Bermakna (Meaningful)
+  3. Menggembirakan (Joyful)
+- **3 Pengalaman Belajar (Wajib di Setiap Pertemuan)**:
+  1. Memahami (Acquiring & constructing understanding)
+  2. Mengaplikasi (Applying knowledge in real contexts)
+  3. Merefleksi (Evaluating process, difficulties, and self-growth)
+- **4 Kerangka Pembelajaran**:
+  1. Praktik Pedagogis (Model terpilih, sintaks lengkap, metode, alasan)
+  2. Kemitraan Pembelajaran (Guru-murid, antar-murid, orang tua, komunitas)
+  3. Lingkungan Pembelajaran (Fisik, sosial, psikologis/emosional)
+  4. Pemanfaatan Digital (Media & teknologi fungsional)
+
+## INFORMASI SUMBER DARI PENGGUNA & ATP:
+- Nama Guru / Penyusun: ${userIdentity.authorName}
+- NIP: [DIISI OLEH GURU]
+- Sekolah / Instansi: ${userIdentity.institutionName}
+- Tahun Pelajaran: ${userIdentity.academicYear || '2025/2026'}
+- Jenjang / Kelas: SD / ${className} (${data?.fase})
+- Semester: ${semChoice}
+- Mata Pelajaran: ${data?.subject}
+- Materi / Topik Gabungan (ATP): 
+${combinedTopics}
+- Capaian Pembelajaran (CP) Gabungan: 
+${combinedCPString}
+- Tujuan Pembelajaran (TP) Gabungan: 
+${combinedTPs}
+- Total Alokasi Waktu & Beban JP: ${totalJP} JP
+- Tanggal Pelaksanaan: ${dateString}
+- Model Pembelajaran: ${modelResponseText}
+- Karakteristik Peserta Didik: ${selectedCharacteristic || 'Beragam (Visual, Auditori, Kinestetik)'}
+
+## ATURAN WAJIB GENERASI KONTEN:
+1. **JANGAN MEMBUAT PLACEHOLDER / KERANGKA KOSONG**: Dilarang menggunakan "[isi materi]", "[masukkan soal]", "...", "dan lain-lain", teks dummy. Seluruh materi, soal, kunci jawaban, rubrik, dan LKPD wajib ditulis lengkap dan siap digunakan mengajar.
+2. **ATURAN TANGGAL & JP**: Gunakan tanggal dan total alokasi JP (${totalJP} JP, ${dateString}). 1 JP = 35 menit SD.
+3. **BREAKDOWN TUJUAN PEMBELAJARAN**: Analisis TP utama dari ATP dan pecah menjadi TP Turunan operasional terukur dengan pola: *Peserta didik + kata kerja operasional + kompetensi + kondisi/konteks + kriteria keberhasilan*.
+
+## STRUKTUR LENGKAP DOKUMEN RPM (WAJIB BERURUTAN DALAM HTML MURNI):
+
+Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan struktur rapi berikut:
+
+1. **COVER & HEADER RPM**:
+   - Judul: <h1 style="font-family: 'Yu Gothic UI', Arial, sans-serif; font-size: 16pt; font-weight: bold; text-align: center; color: #111827; margin: 0 0 4pt 0; text-transform: uppercase;">RENCANA PEMBELAJARAN MENDALAM (RPM) / MODUL AJAR</h1>
+   - Subjudul: <div style="text-align: center; font-style: italic; font-size: 11pt; color: #374151; margin-bottom: 12pt;">BERBASIS ATP & PERMENDIKDASMEN NOMOR 13 TAHUN 2025 (DEEP LEARNING)</div>
+   - Blok Identitas Cover: Sekolah (${userIdentity.institutionName}), Mata Pelajaran (${data?.subject}), Kelas (${className}), Semester (${semChoice}), Penyusun (${userIdentity.authorName}).
+
+2. **I. IDENTIFIKASI RPM / IDENTITAS UMUM**:
+   - Tabel HTML 2-kolom rapi (Nama Sekolah, Nama Guru, NIP [DIISI OLEH GURU], Mata Pelajaran, Kelas / Fase, Semester / Tahun Pelajaran, Topik Gabungan, Pertemuan, Tanggal Pelaksanaan: <span style="color: #dc2626; font-weight: bold;">${dateString}</span>, Alokasi Waktu: ${totalJP} JP, Total JP).
+
+3. **II. IDENTIFIKASI PESERTA DIDIK**:
+   - Tabel HTML 2-kolom:
+     | Aspek | Deskripsi Nyata |
+     | Pengetahuan Awal | (Uraikan kondisi awal dan prasyarat belajar yang relevan dengan ATP) |
+     | Minat Belajar | (Uraikan variasi minat peserta didik yang relevan dengan materi) |
+     | Kebutuhan Belajar & Diferensiasi | (Uraikan strategi scaffolding, diferensiasi konten/proses/produk) |
+
+4. **III. MATERI PEMBELAJARAN (4 DIMENSI MATERI)**:
+   - Tabel HTML:
+     | Dimensi Materi | Uraian Materi Konkret |
+     | Faktual | (Fakta-fakta nyata terkait materi) |
+     | Konseptual | (Konsep, teori, prinsip utama) |
+     | Prosedural | (Langkah-langkah kerja/metode) |
+     | Metakognitif | (Kesadaran strategi berpikir & refleksi penerapan diri) |
+
+5. **IV. 8 DIMENSI PROFIL LULUSAN**:
+   - Tabel HTML:
+     | Dimensi Profil Lulusan | Penerapan Konkret dalam Pembelajaran |
+     Pilih dan uraikan dimensi yang relevan secara nyata:
+     - Keimanan dan Ketakwaan terhadap Tuhan YME
+     - Kewargaan
+     - Penalaran Kritis
+     - Kreativitas
+     - Kolaborasi
+     - Kemandirian
+     - Kesehatan
+     - Komunikasi
+
+6. **V. DESAIN PEMBELAJARAN**:
+   - **A. Tujuan Pembelajaran**: Tabel (Pertemuan | Kode TP | Tujuan Pembelajaran - mencakup TP Utama dan TP Turunan operasional terukur).
+   - **B. Lintas Disiplin Ilmu**: Tabel (Mata Pelajaran Terkait | Keterkaitan Konkret).
+   - **C. Praktik Pedagogis**: Tabel (Pendekatan: Pembelajaran Mendalam | Model Terpilih | Sintaks Model Lengkap | Metode | Alasan Pedagogis).
+   - **D. Kemitraan Pembelajaran**: Tabel (Jenis Kemitraan [Guru-Murid, Murid-Murid, Orang Tua, Lingkungan] | Bentuk Kerja Sama Konkret).
+   - **E. Lingkungan Pembelajaran**: Tabel (Aspek Fisik, Sosial, Psikologis/Emosional | Kondisi & Penerapan Mendukung).
+   - **F. Pemanfaatan Digital**: Tabel (Media / Perangkat Digital | Cara Penggunaan Fungsional).
+
+7. **VI. LANGKAH-LANGKAH PEMBELAJARAN SETIAP PERTEMUAN**:
+   Buat rincian lengkap untuk SETIAP PERTEMUAN (mencakup seluruh rangkaian pertemuan dalam alokasi ${totalJP} JP dan tanggal ${dateString}):
+   - Header Pertemuan: **PERTEMUAN X** (Kode TP, Tanggal Pelaksanaan, Alokasi Waktu, Level Kognitif, TP, Model Pembelajaran, Sintaks).
+   - **KEGIATAN AWAL (15 menit)**: Salam, doa, presensi, apersepsi kontekstual, pertanyaan pemantik berpikir tingkat tinggi, motivasi, penyampaian tujuan belajar & aktivitas, pembuka menggembirakan. Disertai label: *(Berkesadaran)*, *(Bermakna)*, *(Menggembirakan)*, *(Penalaran Kritis)*, *(Komunikasi)*.
+   - **KEGIATAN INTI**: Wajib menggunakan Tabel HTML 3 Kolom:
+     | Pengalaman Belajar | Sintaks & Aktivitas Pembelajaran | Dimensi Profil Lulusan |
+     Terbagi menjadi 3 Pengalaman Belajar Pembelajaran Mendalam:
+     1. **MEMAHAMI**: Aktivitas nyata murid mengamati, membaca, menyimak, mengidentifikasi, mengajukan pertanyaan, menganalisis informasi secara mendalam.
+     2. **MENGAPLIKASI**: Aktivitas nyata murid memecahkan masalah kontekstual, berdiskusi kelompok, melakukan eksperimen/simulasi, menghasilkan produk/karya nyata.
+     3. **MEREFLEKSI**: Aktivitas nyata murid mengevaluasi proses belajar, menilai hasil, menyadari kesulitan, merumuskan strategi perbaikan diri.
+   - **KEGIATAN AKHIR (10 menit)**: Kesimpulan pembelajaran bersama murid, umpan balik konstruktif guru, refleksi pengalaman belajar, tindak lanjut, penyampaian materi berikutnya, doa penutup.
+
+8. **VII. ASESMEN PEMBELAJARAN SETIAP PERTEMUAN**:
+   - Tabel HTML:
+     | Jenis Asesmen | Bentuk & Teknik | Instrumen & Bukti Belajar |
+     | Asesmen Diagnostik (Awal) | Pertanyaan lisan / kuis diagnostik | Instrumen pertanyaan awal & pedoman tindak lanjut |
+     | Asesmen Formatif (Proses) | Observasi partisipasi, diskusi LKPD, unjuk kerja | Lembar observasi & checklist indikator kinerja |
+     | Asesmen Sumatif (Akhir) | Tes tertulis / produk / presentasi | Butir soal sumatif atau rubrik penilaian produk |
+
+9. **VIII. LAMPIRAN MODUL AJAR (LENGKAP & TANPA PLACEHOLDER)**:
+   - **LAMPIRAN 1 â€” RINGKASAN MATERI / BAHAN AJAR**: Materi lengkap, sistematis, dan aplikatif untuk guru dan peserta didik.
+   - **LAMPIRAN 2 â€” SOAL ASESMEN AWAL (DIAGNOSTIK)**: Minimal 5 soal nyata lengkap dengan kunci jawaban dan pedoman penskoran.
+   - **LAMPIRAN 3 â€” MEDIA PEMBELAJARAN**: Tabel (No | Nama Media | Deskripsi & Cara Penggunaan dalam Pembelajaran).
+   - **LAMPIRAN 4 â€” SOAL ASESMEN FORMATIF**: Tabel (Pertemuan/TP | Butir Soal Formatif | Bentuk & Kunci Jawaban).
+   - **LAMPIRAN 5 â€” RUBRIK PENILAIAN LENGKAP**:
+     * A. Rubrik Sikap / Profil Lulusan (Skala 1 - 4: Perlu Bimbingan, Cukup, Baik, Sangat Baik beserta deskriptor jelas).
+     * B. Rubrik Pengetahuan (Kriteria & rentang skor).
+     * C. Rubrik Keterampilan / Kinerja Produk (Aspek, kriteria, dan deskripsi capaian).
+   - **LAMPIRAN 6 â€” LEMBAR KERJA MURID (LKM / LKPD) PER PERTEMUAN**:
+     * Header LKPD: LKPD [MAPEL] | KELAS [X] | TOPIK: [MATERI]
+     * Identitas Murid: Nama, Kelas, Tanggal.
+     * A. Tujuan Pembelajaran
+     * B. Petunjuk Pengerjaan
+     * C. Aktivitas / Tugas / Tabel Pengamatan / Ruang Kerja
+     * D. Kesimpulan
+     * E. **REFLEKSIKU** (Pertanyaan refleksi pengalaman belajar bermakna dan menggembirakan).
+
+10. **IX. TABEL VALIDASI OTOMATIS & SUMMARY RPM**:
+    - Tabel Validasi HTML (3 kolom: ASPEK VALIDASI | STATUS [LENGKAP / SESUAI / KONSISTEN] | CATATAN KEPATUHAN PERMENDIKDASMEN NO. 13 TAHUN 2025).
+    - Ringkasan Checklist Pemenuhan Komponen RPM Pembelajaran Mendalam.
+
+## ATURAN STYLING HTML:
+- Judul Bab Utama: <h2 style="color: #059669; font-size: 13pt; font-weight: bold; margin-top: 22px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #059669; padding-bottom: 3px; font-family: 'Yu Gothic UI', Arial, sans-serif;">
+- Sub-Judul: <h3 style="color: #111827; font-size: 11pt; font-weight: bold; margin-top: 12px; margin-bottom: 4px; font-family: 'Yu Gothic UI', Arial, sans-serif;">
+- Seluruh TABEL HTML wajib berformat: border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; margin-top: 8px; margin-bottom: 14px; font-size: 10.5pt; font-family: 'Yu Gothic UI', Arial, sans-serif;
+- Header tabel (th): background-color: #f1f5f9; font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; color: #0f172a;
+- Sel tabel (td): padding: 6px 8px; border: 1px solid #cbd5e1; vertical-align: top;
+- Output HANYA berupa kode HTML div murni (tanpa tag <html>/<body>, tanpa triple backticks).
+`;
+
+          let response;
+          let retries = 6;
+          let success = false;
+          let delayMs = 20000;
+          
+          while (retries > 0 && !success) {
+              try {
+                  response = await ai.models.generateContent({
+                      model: 'gemini-3-flash-preview',
+                      contents: prompt,
+                      config: {
+                          maxOutputTokens: 8192,
+                      }
+                  });
+                  success = true;
+              } catch (e: any) {
+                  const errorString = JSON.stringify(e) + (e?.message || String(e)) + (e?.error?.status || '');
+                  const isRateLimit = errorString.includes('429') || errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('rate limit') || errorString.includes('RESOURCE_EXHAUSTED');
+                  if (isRateLimit && retries > 1) {
+                      let waitTime = Math.max(delayMs, 60000);
+                      console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s... (${retries - 1} retries left)`);
+                      setBulkGenerationStatus(prev => ({
+                          ...prev,
+                          [className]: { ...prev[className], statusText: `Mencegah limit server. Jeda pendinginan ${waitTime / 1000} detik... (${retries - 1} percobaan tersisa)` }
+                      }));
+                      await new Promise(res => setTimeout(res, waitTime));
+                      delayMs = waitTime + 15000;
+                      retries--;
+                  } else {
+                      throw e;
+                  }
+              }
+          }
+
+          if (!success) {
+               throw new Error(`Gagal memproses setelah percobaan berulang.`);
+          }
+
+          const html = response?.text || "<p>Gagal membuat konten.</p>";
+          collectedHtml += html + `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
+          collectedModulesData.push({ topic: 'Modul Gabungan', html });
+
+          setBulkGenerationStatus(prev => ({
+              ...prev,
+              [className]: { 
+                  current: maxModules, 
+                  total: maxModules, 
+                  percent: 100, 
+                  active: true,
+                  statusText: `Modul gabungan selesai.`
+              }
+          }));
+
+
+          saveActivityLog({
+              id: Date.now().toString() + Math.random().toString(36).substring(7),
+              timestamp: new Date(),
+              type: 'MODUL_AJAR',
+              subject: data?.subject || '',
+              details: `Kumpulan Modul Ajar: ${className} (Semester ${semChoice})`,
+              dataSnapshot: {
+                  className: className,
+                  semester: semChoice,
+                  isBulk: true,
+                  combinedHtml: collectedHtml,
+                  modulesList: collectedModulesData,
+                  components: {
+                      includeLKPD: true,
+                      includeMaterials: true,
+                      includeAssessment: true,
+                      generateImage: false,
+                  }
+              },
+              paperSizeSnapshot: 'A4'
+          });
+
+          alert('Berhasil membuat semua Modul Ajar untuk kelas ' + className + '. Silakan cek tab History.');
+      } catch (err: any) {
+          alert('Proses terhenti: ' + formatAIError(err) + '\n\nModul yang sudah berhasil dibuat dapat diunduh melalui tombol Unduh Semua Modul (Docx). Anda dapat mencobanya kembali nanti untuk menyelesaikan sisanya.');
+      } finally {
+          setBulkGenerationStatus(prev => ({
+              ...prev,
+              [className]: { ...prev[className], percent: 100, active: false, statusText: "" }
+          }));
+      }
+  };
+
+  const handleDownloadAllModulForClass = (className: string, semester: '1' | '2') => {
+      const classModules = activities.filter(a => 
+          a.type === 'MODUL_AJAR' && 
+          (a.dataSnapshot?.className === className || a.details.includes(className)) &&
+          (a.dataSnapshot?.semester || '1') === semester
+      );
+
+      if (classModules.length === 0) {
+          alert(`Belum ada Modul Ajar Semester ${semester} yang di-generate untuk kelas ini dalam riwayat aktivitas.`);
+          return;
+      }
+
+      // Check if there's a bulk activity
+      const bulkActivity = classModules.find(a => a.dataSnapshot?.isBulk);
+      let combinedHtml = '';
+      const size = PAPER_SIZES['A4'];
+      const footerText = `Kumpulan Modul Ajar - ${data?.subject || ''} - ${className} | Disusun oleh: ${userIdentity.authorName}`;
+
+      if (bulkActivity) {
+          combinedHtml = bulkActivity.dataSnapshot.combinedHtml;
+      } else {
+          // Re-sort them ascending by index/time (oldest to newest generated)
+          const chronologicalModules = [...classModules].reverse();
+
+          chronologicalModules.forEach((modActivity, index) => {
+              const modData = modActivity.dataSnapshot;
+              const html = modData.resultContent || modData.content || '<p>Tidak ada konten</p>';
+              combinedHtml += html;
+              if (index < chronologicalModules.length - 1) {
+                  combinedHtml += `<br><br><div style="page-break-after: always; clear: both;"></div><br><br>`;
+              }
+          });
+      }
+
+      const htmlContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>Kumpulan RPM Modul Ajar ${className}</title>
+          <style>
+            @page {
+              size: ${size.width} ${size.height};
+              mso-page-orientation: portrait;
+              margin: 2cm 2cm 2cm 2cm;
+              mso-header-margin: 36pt;
+              mso-footer-margin: 36pt;
+              mso-paper-source: 0;
+            }
+            body {
+              font-family: 'Yu Gothic UI', 'Segoe UI', Arial, 'Helvetica Neue', sans-serif;
+              font-size: 11pt;
+              line-height: 1.45;
+              color: #1f2937;
+            }
+            h1 {
+              font-family: 'Yu Gothic UI', Arial, sans-serif;
+              font-size: 15pt;
+              font-weight: bold;
+              text-align: center;
+              color: #111827;
+              margin: 0 0 4pt 0;
+              text-transform: uppercase;
+            }
+            h2 {
+              font-family: 'Yu Gothic UI', Arial, sans-serif;
+              font-size: 12.5pt;
+              font-weight: bold;
+              color: #059669;
+              text-transform: uppercase;
+              margin-top: 16pt;
+              margin-bottom: 6pt;
+              border-bottom: 2px solid #059669;
+              padding-bottom: 2pt;
+            }
+            h3 {
+              font-family: 'Yu Gothic UI', Arial, sans-serif;
+              font-size: 11pt;
+              font-weight: bold;
+              color: #111827;
+              margin-top: 10pt;
+              margin-bottom: 4pt;
+            }
+            p, li {
+              margin-top: 3pt;
+              margin-bottom: 4pt;
+              line-height: 1.45;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin-top: 6pt;
+              margin-bottom: 10pt;
+              font-size: 10.5pt;
+            }
+            td, th {
+              border: 1px solid #cbd5e1;
+              padding: 5pt 7pt;
+              vertical-align: top;
+            }
+            th {
+              background-color: #f1f5f9;
+              font-weight: bold;
+              color: #0f172a;
+              text-align: left;
+            }
+            ul, ol {
+              margin-top: 3pt;
+              margin-bottom: 5pt;
+              padding-left: 18pt;
+            }
+            img {
+              max-width: 100%;
+              height: auto;
+              margin: 10px 0;
+              border: 1px solid #cbd5e1;
+            }
+            div.f1 {
+              margin-top: 15pt;
+              font-size: 9pt;
+              text-align: right;
+              color: #6b7280;
+              border-top: 1px solid #cbd5e1;
+              padding-top: 5pt;
+            }
+          </style>
+        </head>
+        <body>
+          <div style="text-align: center; margin-bottom: 20pt;">
+              <h1 style="margin: 0; color: #059669;">KUMPULAN RENCANA PEMBELAJARAN MENDALAM (RPM) / MODUL AJAR</h1>
+              <h3 style="margin: 5pt 0; color: #374151;">${userIdentity.institutionName.toUpperCase()}</h3>
+              <p style="margin: 2pt 0; font-size: 10.5pt;">Mata Pelajaran: <b>${data?.subject || '-'}</b> | Kelas: <b>${className}</b> | Semester: <b>${semester}</b></p>
+          </div>
+          <hr style="border: 0; border-top: 1.5px solid #059669; margin-bottom: 15pt;"/>
+          ${combinedHtml}
+          <div style='mso-element:footer' id='f1'><div class='f1'>${footerText} - Halaman <span style='mso-field-code:" PAGE "'></span></div></div>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(['\ufeff', htmlContent], {
+          type: 'application/msword'
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Kumpulan_RPM_Modul_Ajar_${(data?.subject || 'Mapel').replace(/\s+/g, '_')}_${className.replace(/\s+/g, '_')}_Sem${semester}.doc`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  const handleUpdateDate = (className: string, elIdx: number, allocIdx: number, grpIdx: number, itemIdx: number, date: string) => {
+      if (!data) return;
+      const newData = { ...data };
+      newData.elements[elIdx].allocations[allocIdx].structuredAtp![grpIdx].atpItems[itemIdx].planDate = date;
+      setData(newData);
+  };
+
+  const openModulGenerator = (className: string, el: ElementData, tp: string, atp: AtpItem) => {
+      setModulContext({
+          subject: data?.subject || '',
+          className,
+          fase: data?.fase || '',
+          elementName: el.elementName,
+          cp: el.capaianPembelajaran,
+          tp,
+          atpItem: atp
+      });
+      setCurrentView('modul_ajar');
+  };
+
+  const handleDownloadProta = (className: string) => {
+      if (!data) return;
+      
+      const calAnalysis = calculateCalendarAnalysis(className, data.subject);
+      const savedAuthor = localStorage.getItem('prota_author_name') || 'Guru Kelas';
+      const savedInst = localStorage.getItem('prota_institution_name') || 'Sekolah Dasar';
+      
+      let tableRows = '';
+      let no = 1;
+      
+      (data.elements || []).forEach((el) => {
+          const alloc = (el.allocations || []).find(a => {
+              if (!a || !a.className || !className) return false;
+              const normalizedAllocClass = String(a.className).toLowerCase().replace(/\s+/g, '');
+              const normalizedTargetClass = String(className).toLowerCase().replace(/\s+/g, '');
+              return normalizedAllocClass === normalizedTargetClass;
+          });
+          if (!alloc || !alloc.structuredAtp) return;
+          
+          const groups = alloc.structuredAtp;
+          const totalItemsInElement = groups.reduce((acc, g) => acc + Math.max((g.atpItems || []).length, 1), 0);
+          
+          let elementFirstRow = true;
+
+          groups.forEach((grp) => {
+              const items = (grp.atpItems || []).length > 0 ? grp.atpItems : [{ alur: '', alokasiWaktu: '-' }];
+              let grpFirstRow = true;
+
+              items.forEach((item) => {
+                  let semester = 'Ganjil / Genap';
+                  if (item.planDate) {
+                      const d = new Date(item.planDate);
+                      const m = d.getMonth();
+                      const y = d.getFullYear();
+                      semester = (m >= 6 && y === academicYearStart) ? 'Ganjil (Sems 1)' : 'Genap (Sems 2)';
+                  }
+                  
+                  tableRows += `<tr>`;
+                  if (elementFirstRow) {
+                      tableRows += `<td rowspan="${totalItemsInElement}" style="text-align: center; vertical-align: top;">${no++}</td>`;
+                      tableRows += `<td rowspan="${totalItemsInElement}" style="vertical-align: top;"><b>${el.elementName}</b><br/><font size="2">${el.capaianPembelajaran}</font></td>`;
+                      elementFirstRow = false;
+                  }
+                  if (grpFirstRow) {
+                      tableRows += `<td rowspan="${items.length}" style="vertical-align: top;">${grp.tp}</td>`;
+                      grpFirstRow = false;
+                  }
+                  tableRows += `<td style="vertical-align: top;">${item.alur || '<i style="color: #999;">Belum digenerate</i>'}</td>`;
+                  tableRows += `<td style="text-align: center; vertical-align: top;">${item.alokasiWaktu || '-'}</td>`;
+                  tableRows += `<td style="text-align: center; vertical-align: top;">${item.planDate || '-'}</td>`;
+                  tableRows += `<td style="text-align: center; vertical-align: top;">${semester}</td>`;
+                  tableRows += `</tr>`;
+              });
+          });
+      });
+
+      const htmlContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>Program Tahunan (PROTA)</title>
+          <style>
+            @page { size: landscape; margin: 1cm; }
+            body { font-family: 'Arial', sans-serif; font-size: 10pt; line-height: 1.2; }
+            table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+            td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
+            th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
+            .header { text-align: center; margin-bottom: 15px; }
+            .identity { margin-bottom: 15px; }
+            .identity table { width: auto; border: none; margin-top: 0; }
+            .identity td { border: none; padding: 1px 10px 1px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+              <h2 style="margin: 0;">PROGRAM TAHUNAN (PROTA)</h2>
+              <h3 style="margin: 5px 0;">KURIKULUM MERDEKA</h3>
+          </div>
+          
+          <div class="identity">
+              <table>
+                  <tr><td>Mata Pelajaran</td><td>: ${data.subject}</td></tr>
+                  <tr><td>Instansi</td><td>: ${userIdentity.institutionName || '-'}</td></tr>
+                  <tr><td>Kelas/Fase</td><td>: ${className} / ${data.fase}</td></tr>
+                  <tr><td>Tahun Pelajaran</td><td>: ${userIdentity.academicYear || '-'}</td></tr>
+                  <tr><td>Penyusun</td><td>: ${userIdentity.authorName || '-'}</td></tr>
+              </table>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+              <h4 style="margin-bottom: 5px;">A. ALOKASI WAKTU SEMESTER</h4>
+              <table style="width: 100%; border: 1px solid black; border-collapse: collapse;">
+                  <thead style="background-color: #f2f2f2;">
+                      <tr>
+                          <th>Semester</th>
+                          <th>Jadwal</th>
+                          <th>Jml HBE</th>
+                          <th>Jam Pel (JP)</th>
+                          <th>Total JP</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      <tr>
+                          <td style="text-align: center;">Semester 1 (Ganjil)</td>
+                          <td style="text-align: center;">${(classSchedules[className] || []).join(', ')}</td>
+                          <td style="text-align: center;">${calAnalysis?.semester1.effectiveDays || 0}</td>
+                          <td style="text-align: center;">${(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
+                          <td style="text-align: center;">${calAnalysis?.semester1.availableJP || 0}</td>
+                      </tr>
+                      <tr>
+                          <td style="text-align: center;">Semester 2 (Genap)</td>
+                          <td style="text-align: center;">${(classSchedules[className] || []).join(', ')}</td>
+                          <td style="text-align: center;">${calAnalysis?.semester2.effectiveDays || 0}</td>
+                          <td style="text-align: center;">${(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
+                          <td style="text-align: center;">${calAnalysis?.semester2.availableJP || 0}</td>
+                      </tr>
+                      <tr style="background-color: #f9f9f9; font-weight: bold;">
+                          <td colspan="4" style="text-align: right; padding-right: 10px;">TOTAL JP SETAHUN</td>
+                          <td style="text-align: center;">${(calAnalysis?.semester1.availableJP || 0) + (calAnalysis?.semester2.availableJP || 0)}</td>
+                      </tr>
+                  </tbody>
+              </table>
+          </div>
+
+          <h4 style="margin-bottom: 5px;">B. PROGRAM TAHUNAN</h4>
+          <table>
+              <thead>
+                  <tr>
+                      <th width="3%">No</th>
+                      <th width="17%">Elemen & CP</th>
+                      <th width="20%">Tujuan Pembelajaran (TP)</th>
+                      <th width="30%">Alur Tujuan Pembelajaran (ATP)</th>
+                      <th width="7%">JP</th>
+                      <th width="13%">Rencana Tanggal</th>
+                      <th width="10%">Semester</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  ${tableRows}
+              </tbody>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(['\\ufeff', htmlContent], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `PROTA_${data.subject}_${className}.doc`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  // --- Render ---
+
+  if (appStage === 'admin') {
+      return <AdminDashboard onBack={() => setAppStage('login')} />;
+  }
+
+  if (appStage === 'login' || appStage === 'register') {
+    const isLogin = appStage === 'login';
+    return (
+        <div 
+            onClick={handleLoginTap}
+            className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4 relative overflow-hidden cursor-pointer"
+        >
+            {/* Background Decorations */}
+            <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob" style={{ animationDelay: '2s' }}></div>
+            
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className={`w-full ${isLogin ? 'max-w-md' : 'max-w-lg'} bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 relative z-10`}
+            >
+                <div className="flex justify-center mb-6">
+                    <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/30">
+                        <BookOpen className="w-8 h-8 text-white" />
+                    </div>
+                </div>
+                
+                <h2 className="font-display text-3xl font-extrabold text-center text-slate-800 mb-2">
+                    {isLogin ? 'Selamat Datang' : 'Pendaftaran Guru & Kelas'}
+                </h2>
+                <p className="text-center text-slate-500 mb-6 text-sm">
+                    {isLogin ? 'Masuk untuk mengakses ruang kerja kelas Anda' : 'Pilih kelas yang diampu untuk personalisasi otomatis Prota & Modul Ajar'}
+                </p>
+
+                
+  <form 
+      onSubmit={async (e) => {
+          e.preventDefault();
+          const form = e.currentTarget as HTMLFormElement;
+          const formData = new FormData(form);
+          const rawEmail = formData.get('email');
+          const email = typeof rawEmail === 'string' ? rawEmail : '';
+          const password = String(formData.get('password') || '');
+          const rawName = formData.get('name');
+          const name = (typeof rawName === 'string' && rawName.trim()) ? rawName.trim() : (email.includes('@') ? email.split('@')[0] : 'Guru');
+          const institution = String(formData.get('institution') || 'Sekolah Dasar');
+          const assignedClassToSave = registerClass || 'Kelas 1';
+          
+          const emailNormalized = String(email || '').toLowerCase().trim();
+          if (!emailNormalized) {
+              setError('Email tidak boleh kosong.');
+              return;
+          }
+          
+          try {
+              if (isLogin) {
+                  let userSnap: any = null;
+                  try {
+                      const userDocRef = doc(db, 'users', emailNormalized);
+                      userSnap = await getDoc(userDocRef);
+                  } catch (fsErr) {
+                      console.warn('Firestore not reachable during login check, fallback to local storage:', fsErr);
+                  }
+                  
+                  if (userSnap && userSnap.exists()) {
+                      const dbData = userSnap.data() || {};
+                      if (dbData && dbData.password === password) {
+                          const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
+                          try {
+                              const userDocRef = doc(db, 'users', emailNormalized);
+                              await updateDoc(userDocRef, { activeSessionId, lastActive: Date.now() });
+                          } catch (updateErr) {
+                              console.warn('Could not sync activeSessionId to cloud, stored locally:', updateErr);
+                          }
+                          
+                          const userClass = dbData.assignedClass || 'Kelas 1';
+                          const instName = dbData.institutionName || 'Sekolah Dasar';
+                          const userName = dbData.name || emailNormalized.split('@')[0];
+                          const acadYear = dbData.academicYear || '2025/2026';
+                          const sem = dbData.semester || 'Ganjil (Semester 1)';
+
+                          const userData = { email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName };
+                          await usersDB.setItem(emailNormalized, { ...dbData, activeSessionId, lastActive: Date.now() });
+                          
+                          localStorage.setItem('prota_user', JSON.stringify(userData));
+                          localStorage.setItem('prota_session_id', activeSessionId);
+                          localStorage.setItem('prota_assigned_class', userClass);
+                          localStorage.setItem('prota_author_name', userName);
+                          localStorage.setItem('prota_institution_name', instName);
+                          localStorage.setItem('prota_academic_year', acadYear);
+                          localStorage.setItem('prota_semester', sem);
+
+                          setUser(userData);
+                          setSelectedClass(userClass);
+                          setSelectedFase(getFaseForClass(userClass));
+                          setUserIdentity(prev => ({
+                              ...prev,
+                              authorName: userName,
+                              institutionName: instName,
+                              academicYear: acadYear,
+                              semester: sem,
+                              assignedClass: userClass
+                          }));
+                          setAppStage('generator');
+                      } else {
+                          alert('Email atau Password salah.');
+                      }
+                  } else {
+                      // Fallback & migration from local database
+                      const storedUser = await usersDB.getItem<any>(emailNormalized);
+                      if (storedUser && storedUser.password === password) {
+                          const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
+                          const userClass = storedUser.assignedClass || 'Kelas 1';
+                          const instName = storedUser.institutionName || 'Sekolah Dasar';
+                          const userName = storedUser.name || emailNormalized.split('@')[0];
+
+                          const userData = { 
+                              email: emailNormalized, 
+                              name: userName, 
+                              password: storedUser.password, 
+                              assignedClass: userClass,
+                              institutionName: instName,
+                              activeSessionId, 
+                              lastActive: Date.now() 
+                          };
+                          
+                          try {
+                              const userDocRef = doc(db, 'users', emailNormalized);
+                              await setDoc(userDocRef, userData);
+                          } catch (setErr) {
+                              console.warn('Could not sync user to cloud on login fallback:', setErr);
+                          }
+                          await usersDB.setItem(emailNormalized, userData);
+                          
+                          localStorage.setItem('prota_user', JSON.stringify({ email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName }));
+                          localStorage.setItem('prota_session_id', activeSessionId);
+                          localStorage.setItem('prota_assigned_class', userClass);
+                          localStorage.setItem('prota_author_name', userName);
+                          localStorage.setItem('prota_institution_name', instName);
+
+                          setUser({ email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName });
+                          setSelectedClass(userClass);
+                          setSelectedFase(getFaseForClass(userClass));
+                          setUserIdentity(prev => ({
+                              ...prev,
+                              authorName: userName,
+                              institutionName: instName,
+                              assignedClass: userClass
+                          }));
+                          setAppStage('generator');
+                      } else {
+                          alert('Email atau Password salah.');
+                      }
+                  }
+              } else {
+                  let userSnap: any = null;
+                  try {
+                      const userDocRef = doc(db, 'users', emailNormalized);
+                      userSnap = await getDoc(userDocRef);
+                  } catch (fsErr) {
+                      console.warn('Firestore not reachable during registration check:', fsErr);
+                  }
+                  const storedUser = await usersDB.getItem(emailNormalized);
+                  
+                  if ((userSnap && userSnap.exists()) || storedUser) {
+                      alert('Akun dengan email ini sudah ada.');
+                  } else {
+                      const activeSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
+                      const userData = { 
+                          email: emailNormalized, 
+                          password, 
+                          name, 
+                          assignedClass: assignedClassToSave,
+                          institutionName: institution,
+                          academicYear: '2025/2026',
+                          semester: 'Ganjil (Semester 1)',
+                          activeSessionId, 
+                          lastActive: Date.now() 
+                      };
+                      
+                      try {
+                          const userDocRef = doc(db, 'users', emailNormalized);
+                          await setDoc(userDocRef, userData);
+                      } catch (setErr) {
+                          console.warn('Could not sync registered user to cloud, saved locally:', setErr);
+                      }
+                      await usersDB.setItem(emailNormalized, userData);
+                      
+                      localStorage.setItem('prota_user', JSON.stringify({ name, email: emailNormalized, assignedClass: assignedClassToSave, institutionName: institution }));
+                      localStorage.setItem('prota_session_id', activeSessionId);
+                      localStorage.setItem('prota_assigned_class', assignedClassToSave);
+                      localStorage.setItem('prota_author_name', name);
+                      localStorage.setItem('prota_institution_name', institution);
+                      localStorage.setItem('prota_academic_year', '2025/2026');
+                      localStorage.setItem('prota_semester', 'Ganjil (Semester 1)');
+
+                      setUser({ name, email: emailNormalized, assignedClass: assignedClassToSave, institutionName: institution });
+                      setSelectedClass(assignedClassToSave);
+                      setSelectedFase(getFaseForClass(assignedClassToSave));
+                      setUserIdentity({
+                          authorName: name,
+                          institutionName: institution,
+                          academicYear: '2025/2026',
+                          semester: 'Ganjil (Semester 1)',
+                          assignedClass: assignedClassToSave,
+                          customApiKey: localStorage.getItem('prota_custom_api_key') || ''
+                      });
+                      setAppStage('tutorial');
+                  }
+              }
+          } catch(err) {
+              console.error(err);
+              alert('Terjadi kesalahan saat memproses akun');
+          }
+      }}
+      className="space-y-4"
+  >
+
+                    {!isLogin && (
+                        <>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Nama Lengkap &amp; Gelar</label>
+                                <input 
+                                    type="text" 
+                                    name="name"
+                                    required 
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/70 text-sm"
+                                    placeholder="Contoh: Budi Santoso, S.Pd."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Nama Sekolah / Instansi</label>
+                                <input 
+                                    type="text" 
+                                    name="institution"
+                                    required 
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/70 text-sm"
+                                    placeholder="Contoh: SD Negeri 1 Merdeka"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
+                                    <span>Pilih Kelas yang Diampu</span>
+                                    <span className="text-blue-600 font-semibold normal-case text-xs">Fokus Ruang Kerja Guru</span>
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {ALL_AVAILABLE_CLASSES.map((cls) => {
+                                        const isSelected = registerClass === cls.id;
+                                        return (
+                                            <button
+                                                key={cls.id}
+                                                type="button"
+                                                onClick={() => setRegisterClass(cls.id)}
+                                                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                                    isSelected
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                                                        : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-700'
+                                                }`}
+                                            >
+                                                <div className="font-bold text-sm leading-tight">{cls.id}</div>
+                                                <div className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                                    Fase {cls.faseId}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                    
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Email</label>
+                        <input 
+                            type="email" 
+                            name="email"
+                            required 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/70 text-sm"
+                            placeholder="guru@sekolah.sch.id"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Kata Sandi</label>
+                        <input 
+                            type="password" 
+                            name="password"
+                            required 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/70 text-sm"
+                            placeholder="Masukkan kata sandi"
+                        />
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5 mt-2 cursor-pointer"
+                    >
+                        {isLogin ? 'Masuk ke Ruang Kerja' : 'Daftar & Mulai Sekarang'}
+                    </button>
+                </form>
+
+                <div className="mt-8 text-center">
+                    <p className="text-slate-600">
+                        {isLogin ? 'Belum punya akun?' : 'Sudah punya akun?'}
+                        <button 
+                            onClick={() => setAppStage(isLogin ? 'register' : 'login')}
+                            className="ml-2 text-blue-600 font-bold hover:text-blue-800 transition-colors"
+                        >
+                            {isLogin ? 'Daftar di sini' : 'Masuk'}
+                        </button>
+                    </p>
+                </div>
+            </motion.div>
+
+            {/* Flashcard Video YouTube & Panduan (YouTube Thumbnail Style) */}
+            {loginFlashcards && loginFlashcards.length > 0 && (
+                <motion.div 
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.15 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full max-w-4xl mt-8 relative z-10"
+                >
+                    <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-5 sm:p-6 shadow-xl shadow-blue-900/5">
+                        <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-red-600 text-white rounded-xl shadow-md shadow-red-600/30 flex items-center justify-center">
+                                    <Play className="w-4 h-4 fill-white translate-x-0.5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                                        <span>Video Panduan & Tutorial Guru</span>
+                                        <span className="px-2.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                                            Flashcard Video
+                                        </span>
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-medium">Klik pada thumbnail video di bawah untuk memutar panduan langsung atau membuka tautan.</p>
+                                </div>
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 bg-slate-100/80 px-3 py-1 rounded-full border border-slate-200">
+                                {loginFlashcards.length} Flashcard
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {loginFlashcards.map((item, idx) => {
+                                const videoId = extractYoutubeVideoId(item.link);
+                                const thumbUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
+
+                                return (
+                                    <motion.div
+                                        key={item.id || idx}
+                                        whileHover={{ y: -6, scale: 1.02 }}
+                                        transition={{ duration: 0.2 }}
+                                        onClick={() => {
+                                            if (videoId) {
+                                                setActiveVideoModal(item);
+                                            } else {
+                                                window.open(item.link, '_blank', 'noopener,noreferrer');
+                                            }
+                                        }}
+                                        className="group bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-xl hover:border-red-200 transition-all overflow-hidden cursor-pointer flex flex-col relative"
+                                    >
+                                        {/* 16:9 Thumbnail Image */}
+                                        <div className="relative aspect-video w-full bg-slate-900 overflow-hidden flex items-center justify-center">
+                                            {thumbUrl ? (
+                                                <img 
+                                                    src={thumbUrl} 
+                                                    alt={item.title}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-br from-slate-800 via-indigo-950 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
+                                                    <Play className="w-8 h-8 text-red-500 fill-red-500 mb-1 opacity-80" />
+                                                    <span className="text-[10px] text-slate-300 font-mono font-bold uppercase tracking-wider">Tautan Panduan</span>
+                                                </div>
+                                            )}
+
+                                            {/* Gradient Overlay */}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity"></div>
+
+                                            {/* Centered Modern Play Button */}
+                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                <div className="w-11 h-11 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg shadow-red-600/50 group-hover:scale-110 group-hover:bg-red-500 transition-all duration-300">
+                                                    <Play className="w-4 h-4 fill-white translate-x-0.5" />
+                                                </div>
+                                            </div>
+
+                                            {/* Top Category Badge */}
+                                            <div className="absolute top-2.5 left-2.5 flex items-center gap-1">
+                                                <span className="px-2 py-0.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                                                    {item.category || 'Tutorial'}
+                                                </span>
+                                            </div>
+
+                                            {/* Bottom Duration Badge */}
+                                            <div className="absolute bottom-2.5 right-2.5">
+                                                <span className="px-1.5 py-0.5 bg-black/85 text-white text-[10px] font-mono font-bold rounded shadow-xs">
+                                                    {item.duration || 'YouTube'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Flashcard Details */}
+                                        <div className="p-3.5 flex-1 flex flex-col justify-between">
+                                            <h4 className="text-xs font-bold text-slate-800 group-hover:text-red-600 line-clamp-2 transition-colors leading-snug">
+                                                {item.title}
+                                            </h4>
+                                            
+                                            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-medium">
+                                                <span className="flex items-center gap-1 text-red-600 font-bold">
+                                                    <Play className="w-3 h-3 fill-red-600" /> Putar Video
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 flex items-center gap-1 group-hover:text-blue-600 transition-colors">
+                                                    <ExternalLink className="w-3 h-3" /> Buka
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Video Lightbox Modal */}
+            {activeVideoModal && (
+                <div 
+                    onClick={(e) => { e.stopPropagation(); setActiveVideoModal(null); }}
+                    className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+                >
+                    <div 
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 w-full max-w-3xl flex flex-col animate-in zoom-in-95"
+                    >
+                        <div className="p-4 bg-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+                            <div className="flex items-center gap-2.5 truncate pr-4">
+                                <div className="p-1.5 bg-red-600 text-white rounded-lg shrink-0">
+                                    <Play className="w-3.5 h-3.5 fill-white translate-x-0.25" />
+                                </div>
+                                <h3 className="font-bold text-sm truncate">{activeVideoModal.title}</h3>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <a
+                                    href={activeVideoModal.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 hover:bg-slate-700 rounded-xl text-slate-300 hover:text-white transition-colors text-xs flex items-center gap-1"
+                                    title="Buka di tab baru"
+                                >
+                                    <ExternalLink className="w-4 h-4" />
+                                </a>
+                                <button 
+                                    type="button"
+                                    onClick={() => setActiveVideoModal(null)}
+                                    className="p-1.5 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="relative aspect-video w-full bg-black">
+                            {extractYoutubeVideoId(activeVideoModal.link) ? (
+                                <iframe
+                                    src={`https://www.youtube-nocookie.com/embed/${extractYoutubeVideoId(activeVideoModal.link)}?autoplay=1&rel=0`}
+                                    title={activeVideoModal.title}
+                                    className="w-full h-full border-0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    allowFullScreen
+                                />
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center text-white">
+                                    <Play className="w-12 h-12 text-red-500 mb-3" />
+                                    <p className="font-bold text-base mb-2">{activeVideoModal.title}</p>
+                                    <a
+                                        href={activeVideoModal.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-red-600/30 transition-all"
+                                    >
+                                        <ExternalLink className="w-4 h-4" /> Buka Tautan di Tab Baru
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+  }
+
+  if (appStage === 'tutorial') {
+    return (
+        <div className="min-h-screen bg-slate-50 text-slate-800 relative overflow-hidden flex flex-col font-sans">
+            {/* Aurora Glassmorphism Background */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 bg-slate-50">
+                <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob"></div>
+                <div className="absolute top-[20%] -right-[10%] w-[35%] h-[35%] rounded-full bg-indigo-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob" style={{ animationDelay: '2s' }}></div>
+                <div className="absolute -bottom-[20%] left-[20%] w-[40%] h-[40%] rounded-full bg-purple-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob" style={{ animationDelay: '4s' }}></div>
+            </div>
+            
+            <div className="max-w-6xl mx-auto px-4 py-20 flex-1 w-full z-10 relative">
+                <button onClick={() => setAppStage('identity')} className="absolute top-8 left-4 flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition-colors bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-white/50 shadow-sm">
+                    <ArrowLeft className="w-4 h-4" /> Lewati Tutorial
+                </button>
+                <motion.div 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="text-center mb-20"
+                >
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 backdrop-blur-md border border-white/40 shadow-sm mb-6 text-sm font-medium text-blue-800">
+                        <Sparkles className="w-4 h-4 text-blue-600" /> Versi Beta - Terus Berkembang
+                    </div>
+                    <h1 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight text-slate-900 drop-shadow-sm">
+                        Halo, Rekan Pendidik! <br/><span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">Selamat Datang.</span>
+                    </h1>
+                    <p className="text-lg md:text-xl opacity-90 max-w-2xl mx-auto text-slate-700 leading-relaxed font-medium">
+                        Mari kenali sejenak bagaimana teman digital ini bekerja untuk membantu Anda merancang pembelajaran yang lebih cepat, bermakna, dan rapi sebelum kita mulai menyusun perangkat ajar.
+                    </p>
+                </motion.div>
+
+                {/* Bento Grid Features */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
+                    {/* Fungsi */}
+                    <motion.div 
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1, duration: 0.5 }}
+                        className="bg-white/60 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 group hover:bg-white/80 transition-all duration-300 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -z-10 group-hover:scale-150 transition-transform duration-500"></div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:-translate-y-1 transition-transform border border-blue-100/50">
+                            <Settings className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-2xl font-bold mb-4 text-slate-800 tracking-tight">Peran Asisten AI</h3>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                            Aplikasi ini dirancang sebagai asisten pribadi Anda. Dari memahami Capaian Pembelajaran (CP) hingga menyusun ATP, Modul Ajar, dan PROTA, semuanya kami rancang agar tugas administratif Anda menjadi jauh lebih ringan.
+                        </p>
+                    </motion.div>
+
+                    {/* Regulasi */}
+                    <motion.div 
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2, duration: 0.5 }}
+                        className="bg-white/60 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 group hover:bg-white/80 transition-all duration-300 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -z-10 group-hover:scale-150 transition-transform duration-500"></div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:-translate-y-1 transition-transform border border-emerald-100/50">
+                            <ShieldCheck className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-2xl font-bold mb-4 text-slate-800 tracking-tight">Kesesuaian Regulasi</h3>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                            Pikiran tenang, karena semua yang dihasilkan di sini sudah sejalan dengan denyut nadi kurikulum terbaru: panduan <strong>BSKAP 046/H/KR/2025</strong>. Strukturnya valid, alokasi waktunya pas, dan siap mendampingi Anda di kelas.
+                        </p>
+                    </motion.div>
+
+                    {/* Metode Pendekatan */}
+                    <motion.div 
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3, duration: 0.5 }}
+                        className="bg-white/60 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 group hover:bg-white/80 transition-all duration-300 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -z-10 group-hover:scale-150 transition-transform duration-500"></div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:-translate-y-1 transition-transform border border-purple-100/50">
+                            <Brain className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-2xl font-bold mb-4 text-slate-800 tracking-tight">Metode Pendekatan</h3>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                            Saat mengurai materi (TP menjadi ATP), asisten AI kami menggunakan kerangka berpikir <strong>Taksonomi Bloom revisi Anderson & Krathwohl</strong>, memastikan aktivitas yang tersusun memiliki gradasi kognitif yang tepat untuk anak didik kita.
+                        </p>
+                    </motion.div>
+                </div>
+
+                {/* Cara Menggunakan - Modern Timeline */}
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4, duration: 0.6 }}
+                    className="bg-white/80 backdrop-blur-2xl rounded-[3rem] p-8 md:p-16 shadow-[0_20px_50px_rgb(0,0,0,0.05)] mb-24 border border-white relative overflow-hidden"
+                >
+                    <h2 className="text-3xl md:text-4xl font-extrabold mb-12 text-center text-slate-900 tracking-tight">Langkah Mudah Memulai</h2>
+                    
+                    <div className="space-y-12 relative before:absolute before:inset-0 before:ml-6 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-1 before:bg-gradient-to-b before:from-blue-200 before:via-indigo-200 before:to-transparent">
+                        
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl border-[3px] border-white bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold shadow-lg shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 text-xl transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">1</div>
+                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-3xl bg-white shadow-sm border border-slate-100 group-hover:shadow-[0_8px_30px_rgb(59,130,246,0.1)] group-hover:-translate-y-1 transition-all duration-300">
+                                <h4 className="font-extrabold text-xl text-slate-800 mb-2">Beritahu Kelas Anda</h4>
+                                <p className="text-slate-500 font-medium leading-relaxed">Cukup beri tahu kami mata pelajaran dan kelas apa yang Anda ampu. Kami akan langsung mencari dan menyiapkan dokumen Capaian Pembelajaran (CP) terbarunya.</p>
+                            </div>
+                        </div>
+
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl border-[3px] border-white bg-gradient-to-br from-indigo-500 to-indigo-600 text-white font-bold shadow-lg shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 text-xl transform group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">2</div>
+                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-3xl bg-white shadow-sm border border-slate-100 group-hover:shadow-[0_8px_30px_rgb(99,102,241,0.1)] group-hover:-translate-y-1 transition-all duration-300">
+                                <h4 className="font-extrabold text-xl text-slate-800 mb-2">Biar AI Meracik TP</h4>
+                                <p className="text-slate-500 font-medium leading-relaxed">Klik tombol ajaib "Generate CP & TP". Asisten AI kami akan membaca CP tersebut dan meraciknya menjadi Tujuan Pembelajaran (TP) yang jelas dan terukur.</p>
+                            </div>
+                        </div>
+
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl border-[3px] border-white bg-gradient-to-br from-purple-500 to-purple-600 text-white font-bold shadow-lg shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 text-xl transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">3</div>
+                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-3xl bg-white shadow-sm border border-slate-100 group-hover:shadow-[0_8px_30px_rgb(168,85,247,0.1)] group-hover:-translate-y-1 transition-all duration-300">
+                                <h4 className="font-extrabold text-xl text-slate-800 mb-2">Tentukan Jadwal & ATP</h4>
+                                <p className="text-slate-500 font-medium leading-relaxed">Kapan jadwal mengajar Anda? Beri tahu sistem, dan klik "Susun ATP Otomatis". TP tadi akan langsung dirangkai menjadi draf jadwal mengajar harian yang rapi.</p>
+                            </div>
+                        </div>
+
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl border-[3px] border-white bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-bold shadow-lg shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 text-xl transform group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">4</div>
+                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-3xl bg-white shadow-sm border border-slate-100 group-hover:shadow-[0_8px_30px_rgb(16,185,129,0.1)] group-hover:-translate-y-1 transition-all duration-300">
+                                <h4 className="font-extrabold text-xl text-slate-800 mb-2">Simpan Modul & PROTA</h4>
+                                <p className="text-slate-500 font-medium leading-relaxed">Satu klik lagi di bagian tabel ATP, Modul Ajar pun jadi! Anda juga bisa langsung mengunduh Program Tahunan (PROTA) dalam format Word yang siap dicetak.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </motion.div>
+
+                {/* Kelebihan dan Kekurangan - Glassmorphic Cards */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5, duration: 0.6 }}
+                    className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-24"
+                >
+                    <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-10 border border-green-100 shadow-[0_8px_30px_rgb(34,197,94,0.06)] relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-green-50 rounded-full mix-blend-multiply blur-3xl opacity-60 -z-10 group-hover:scale-125 transition-transform duration-700"></div>
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="p-3 bg-green-100 rounded-2xl text-green-600"><ThumbsUp className="w-8 h-8" /></div>
+                            <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight">Kelebihan</h3>
+                        </div>
+                        <ul className="space-y-5 text-slate-600 font-medium">
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> Seperti asisten pribadi yang bekerja amat cepat, menyusun semuanya dari nol.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> Pintar! Ia paham hari libur karena terhubung langsung dengan kalender akademik.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> Output sangat terstruktur, rapi, dan siap unduh.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-green-500 shrink-0 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> Antarmuka yang kami usahakan sehangat dan semudah mungkin untuk digunakan.</li>
+                        </ul>
+                    </div>
+
+                    <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-10 border border-orange-100 shadow-[0_8px_30px_rgb(249,115,22,0.06)] relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-orange-50 rounded-full mix-blend-multiply blur-3xl opacity-60 -z-10 group-hover:scale-125 transition-transform duration-700"></div>
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="p-3 bg-orange-100 rounded-2xl text-orange-500"><Info className="w-8 h-8" /></div>
+                            <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight">Catatan & Limitasi</h3>
+                        </div>
+                        <ul className="space-y-5 text-slate-600 font-medium">
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Sangat membutuhkan koneksi internet yang ramah dan stabil.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Versi ini masih dihidupi oleh <strong>API AI versi gratis</strong>, sehingga mungkin sesekali ada batasan kuota jika sedang padat pengunjung.</li>
+                            <li className="flex items-start gap-3"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-500 shrink-0 shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div> Belum sepenuhnya menyediakan mata pelajaran spesifik Muatan Lokal Daerah tertentu (masih terus kami kembangkan!).</li>
+                            <li className="flex items-start gap-3 font-semibold italic text-orange-700"><div className="mt-1.5 w-2 h-2 rounded-full bg-orange-600 shrink-0"></div> Versi ini belumlah sempurna, namun kami berjanji akan terus bertumbuh untuk menjadi lebih baik.</li>
+                        </ul>
+                    </div>
+                </motion.div>
+
+                {/* Call to Action */}
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.7, duration: 0.6 }}
+                    className="text-center mb-10"
+                >
+                    <button 
+                        onClick={() => setAppStage('identity')}
+                        className="group relative inline-flex items-center justify-center px-10 py-5 font-bold text-white transition-all duration-300 bg-slate-900 rounded-[2rem] hover:bg-slate-800 hover:shadow-[0_20px_40px_rgba(15,23,42,0.2)] hover:-translate-y-1 overflow-hidden"
+                    >
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <span className="relative flex items-center text-lg">
+                            Mulai Buat Perangkat Ajar Sekarang
+                            <ArrowRight className="ml-3 w-6 h-6 group-hover:translate-x-1.5 transition-transform duration-300" />
+                        </span>
+                    </button>
+                    <p className="mt-6 text-sm font-medium text-slate-500">GRATIS â€¢ Tanpa Biaya Langganan</p>
+                </motion.div>
+            </div>
+
+            {/* Modern Footer / Donation */}
+            <div className="bg-white border-t border-slate-200 py-16 relative overflow-hidden mt-auto z-10 w-full">
+                <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-100 via-transparent to-transparent"></div>
+                <div className="max-w-5xl mx-auto px-4 relative z-10 text-center">
+                    <div className="inline-flex items-center gap-2 mb-8 px-6 py-2 rounded-full bg-slate-50 border border-slate-200">
+                        <Coffee className="w-5 h-5 text-amber-600" />
+                        <span className="font-bold text-slate-700 tracking-tight">Support The Developer</span>
+                    </div>
+                    
+                    <h4 className="text-2xl font-extrabold text-slate-800 mb-8 tracking-tight">Dukung Pengembangan Aplikasi Ini</h4>
+                    
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
+                        <div className="flex items-center gap-3 bg-white px-8 py-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group hover:-translate-y-1 duration-300">
+                            <span className="text-2xl group-hover:scale-110 group-hover:rotate-6 transition-transform">â˜•</span>
+                            <span className="text-slate-500 font-medium text-left">Traktir Kopi<br/><strong className="text-slate-800 text-lg">@Miftahsidik99</strong></span>
+                        </div>
+                        <div className="flex items-center gap-3 bg-white px-8 py-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group hover:-translate-y-1 duration-300">
+                            <span className="text-2xl group-hover:scale-110 group-hover:-rotate-6 transition-transform">ğŸ’³</span>
+                            <span className="text-slate-500 font-medium text-left">Rekening Dana<br/><strong className="text-slate-800 text-lg">082312194681</strong></span>
+                        </div>
+                        <div className="flex items-center gap-3 bg-white px-8 py-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group hover:-translate-y-1 duration-300">
+                            <span className="text-2xl group-hover:scale-110 transition-transform">âœ‰ï¸</span>
+                            <span className="text-slate-500 font-medium text-left">Saran & Kerjasama<br/><strong className="text-slate-800 text-lg">Miftahsidik695@gmail.com</strong></span>
+                        </div>
+                    </div>
+                    <div className="mt-16 text-sm font-bold text-slate-400">
+                        &copy; {new Date().getFullYear()} Miftah Sidik. All rights reserved.
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+  }
+
+  if (appStage === 'identity') {
+      return (
+          <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+             <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 bg-slate-50">
+                <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob"></div>
+                <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-indigo-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob animation-delay-2000"></div>
+                <div className="absolute -bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-purple-300 mix-blend-multiply opacity-30 blur-[100px] animate-blob animation-delay-4000"></div>
+             </div>
+
+             <motion.div
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 className="bg-white/80 backdrop-blur-xl p-8 md:p-10 rounded-[2rem] shadow-xl border border-white/50 w-full max-w-lg z-10"
+             >
+                 <div className="text-center mb-8">
+                     <div className="mx-auto w-16 h-16 bg-gradient-to-tr from-blue-100 to-indigo-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-white">
+                         <User className="w-8 h-8" />
+                     </div>
+                     <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Identitas Penyusun</h2>
+                     <p className="text-slate-500 mt-2 text-sm">Lengkapi data diri untuk disematkan otomatis pada seluruh dokumen perangkat ajar Anda.</p>
+                 </div>
+                 
+                 <div className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Penyusun</label>
+                        <input 
+                            type="text" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                            placeholder="Contoh: Budi Santoso, S.Pd."
+                            value={userIdentity.authorName}
+                            onChange={(e) => setUserIdentity(prev => ({...prev, authorName: e.target.value}))}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Instansi / Sekolah</label>
+                        <input 
+                            type="text" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                            placeholder="Contoh: SD Negeri 1 Merdeka"
+                            value={userIdentity.institutionName}
+                            onChange={(e) => setUserIdentity(prev => ({...prev, institutionName: e.target.value}))}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <span>Kelas yang Diampu</span>
+                            <span className="text-blue-600 font-semibold text-xs">Penetapan Otomatis Perangkat Ajar</span>
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {ALL_AVAILABLE_CLASSES.map((cls) => {
+                                const isSelected = userIdentity.assignedClass === cls.id;
+                                return (
+                                    <button
+                                        key={cls.id}
+                                        type="button"
+                                        onClick={() => setUserIdentity(prev => ({ ...prev, assignedClass: cls.id }))}
+                                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                            isSelected
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                                        }`}
+                                    >
+                                        <div className="font-bold text-sm leading-tight">{cls.id}</div>
+                                        <div className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                            Fase {cls.faseId}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Tahun Pelajaran</label>
+                            <input 
+                                type="text" 
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                                placeholder="Contoh: 2025/2026"
+                                value={userIdentity.academicYear}
+                                onChange={(e) => setUserIdentity(prev => ({...prev, academicYear: e.target.value}))}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Semester</label>
+                            <input 
+                                type="text" 
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                                placeholder="Contoh: Ganjil / Genap"
+                                value={userIdentity.semester}
+                                onChange={(e) => setUserIdentity(prev => ({...prev, semester: e.target.value}))}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">API Key Gemini Opsional <span className="text-xs text-slate-400 font-normal italic">(Diperlukan jika terkena limit Quota)</span></label>
+                        <input 
+                            type="password" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                            placeholder="AIzaSy..."
+                            value={userIdentity.customApiKey || ''}
+                            onChange={(e) => setUserIdentity(prev => ({...prev, customApiKey: e.target.value}))}
+                        />
+                        <p className="text-xs text-slate-500 mt-2">Dapatkan API Key gratis di <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Google AI Studio</a>.</p>
+                    </div>
+                    
+                    <div className="flex gap-3 pt-4">
+                        <button 
+                            onClick={() => {
+                                setUserIdentity({ authorName: '', institutionName: '', academicYear: '', semester: '', assignedClass: 'Kelas 1', customApiKey: '' });
+                                localStorage.removeItem('prota_author_name');
+                                localStorage.removeItem('prota_institution_name');
+                                localStorage.removeItem('prota_academic_year');
+                                localStorage.removeItem('prota_semester');
+                                localStorage.removeItem('prota_custom_api_key');
+                            }}
+                            className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+                        >
+                            Bersihkan
+                        </button>
+                        <button 
+                            onClick={async () => {
+                                const targetClass = userIdentity.assignedClass || 'Kelas 1';
+                                localStorage.setItem('prota_author_name', userIdentity.authorName);
+                                localStorage.setItem('prota_institution_name', userIdentity.institutionName);
+                                localStorage.setItem('prota_academic_year', userIdentity.academicYear);
+                                localStorage.setItem('prota_semester', userIdentity.semester);
+                                localStorage.setItem('prota_assigned_class', targetClass);
+                                
+                                setSelectedClass(targetClass);
+                                setSelectedFase(getFaseForClass(targetClass));
+
+                                if (userIdentity.customApiKey) {
+                                    localStorage.setItem('prota_custom_api_key', userIdentity.customApiKey);
+                                } else {
+                                    localStorage.removeItem('prota_custom_api_key');
+                                }
+
+                                if (user && user.email) {
+                                    try {
+                                        const emailNorm = String(user?.email || '').toLowerCase().trim();
+                                        if (!emailNorm) return;
+                                        const userDocRef = doc(db, 'users', emailNorm);
+                                        const updatePayload = {
+                                            name: userIdentity.authorName || user.name,
+                                            institutionName: userIdentity.institutionName,
+                                            assignedClass: targetClass,
+                                            academicYear: userIdentity.academicYear,
+                                            semester: userIdentity.semester,
+                                            lastActive: Date.now()
+                                        };
+                                        await updateDoc(userDocRef, updatePayload);
+                                        const localObj = await usersDB.getItem<any>(emailNorm);
+                                        if (localObj) {
+                                            await usersDB.setItem(emailNorm, { ...localObj, ...updatePayload });
+                                        }
+                                        const updatedUser = { ...user, name: userIdentity.authorName || user.name, assignedClass: targetClass, institutionName: userIdentity.institutionName };
+                                        setUser(updatedUser);
+                                        localStorage.setItem('prota_user', JSON.stringify(updatedUser));
+                                    } catch (err) {
+                                        console.error('Failed to sync updated identity to cloud', err);
+                                    }
+                                }
+
+                                setAppStage('generator');
+                            }}
+                            className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                            Konfirmasi &amp; Masuk Ruang Kerja <ArrowRight className="w-5 h-5"/>
+                        </button>
+                    </div>
+                    
+                    <button onClick={() => setAppStage('tutorial')} className="w-full mt-4 flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700 font-medium">
+                        <ArrowLeft className="w-4 h-4"/> Kembali ke Tutorial
+                    </button>
+                 </div>
+             </motion.div>
+          </div>
+      );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col relative bg-gray-50">
+      {/* API Key Modal */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100 animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-r from-blue-700 to-indigo-700 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-xl backdrop-blur-xs">
+                  <Key className="w-6 h-6 text-blue-200" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Pengaturan API Key Gemini</h3>
+                  <p className="text-xs text-blue-100">Kelola API Key pribadi Anda</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowApiKeyModal(false)}
+                className="p-1.5 hover:bg-white/20 rounded-full transition-colors text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 bg-slate-50/50">
+              {/* Active Status Badge */}
+              <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 ${
+                localStorage.getItem('prota_custom_api_key') 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                  : 'bg-blue-50 border-blue-200 text-blue-800'
+              }`}>
+                {localStorage.getItem('prota_custom_api_key') ? (
+                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <span className="font-bold block text-sm">
+                    {localStorage.getItem('prota_custom_api_key') ? 'Custom API Key Aktif' : 'Menggunakan API Key System (Default)'}
+                  </span>
+                  <p className="mt-0.5 leading-relaxed">
+                    {localStorage.getItem('prota_custom_api_key')
+                      ? 'Proses pemrosesan AI menggunakan API Key pribadi yang Anda simpan.'
+                      : 'Jika terjadi limit kuota pada server, Anda dapat memasukkan Gemini API Key pribadi di bawah ini.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Notification Message */}
+              {apiKeyMessage && (
+                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in ${
+                  apiKeyMessage.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+                  apiKeyMessage.type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
+                  'bg-amber-100 text-amber-800 border border-amber-200'
+                }`}>
+                  <span>{apiKeyMessage.text}</span>
+                  <button onClick={() => setApiKeyMessage(null)} className="text-gray-500 hover:text-gray-700 ml-2">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Input Field */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Gemini API Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showApiKeyText ? "text" : "password"}
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="Masukkan Gemini API Key (contoh: AIzaSy...)"
+                    className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm bg-white font-mono transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyText(!showApiKeyText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                    title={showApiKeyText ? "Sembunyikan Key" : "Tampilkan Key"}
+                  >
+                    {showApiKeyText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Key ini disimpan secara lokal di peramban (localStorage) dan tidak akan dikirim ke server pihak ketiga.
+                </p>
+              </div>
+
+              {/* External Link */}
+              <div className="pt-1">
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-semibold hover:underline"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Dapatkan API Key Gratis di Google AI Studio â†—
+                </a>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-2 justify-end">
+                {localStorage.getItem('prota_custom_api_key') && (
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('prota_custom_api_key');
+                      setApiKeyInput('');
+                      setUserIdentity(prev => ({ ...prev, customApiKey: '' }));
+                      setApiKeyMessage({ type: 'info', text: 'API Key dihapus. Menggunakan key system default.' });
+                    }}
+                    className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" /> Hapus Key
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowApiKeyModal(false)}
+                  className="px-4 py-2.5 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    const trimmed = apiKeyInput.trim();
+                    if (trimmed) {
+                      localStorage.setItem('prota_custom_api_key', trimmed);
+                      setUserIdentity(prev => ({ ...prev, customApiKey: trimmed }));
+                      setApiKeyMessage({ type: 'success', text: 'API Key berhasil disimpan dan diaktifkan!' });
+                    } else {
+                      localStorage.removeItem('prota_custom_api_key');
+                      setUserIdentity(prev => ({ ...prev, customApiKey: '' }));
+                      setApiKeyMessage({ type: 'info', text: 'API Key dikosongkan. Menggunakan key default system.' });
+                    }
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" /> Simpan API Key
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* JP Reference Modal */}
+      {showJpReference && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                 <div className="flex items-center gap-3"><BookOpen className="w-6 h-6 text-blue-600" /><div><h3 className="text-xl font-bold text-gray-900">Standar Alokasi JP Intrakurikuler</h3><p className="text-sm text-gray-500">Referensi: Permendikdasmen No. 13 Tahun 2025</p></div></div>
+                 <button onClick={() => setShowJpReference(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-6 h-6 text-gray-500" /></button>
+              </div>
+              <div className="p-6 overflow-y-auto">
+                 <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table className="w-full text-sm text-left">
+                       <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b border-gray-200">
+                          <tr><th className="px-4 py-3 font-bold border-r">Mata Pelajaran</th><th className="px-4 py-3 text-center border-r">Kelas 1</th><th className="px-4 py-3 text-center border-r">Kelas 2</th><th className="px-4 py-3 text-center border-r">Kelas 3</th><th className="px-4 py-3 text-center border-r">Kelas 4</th><th className="px-4 py-3 text-center border-r">Kelas 5</th><th className="px-4 py-3 text-center">Kelas 6</th></tr>
+                       </thead>
+                       <tbody className="divide-y divide-gray-200">
+                          {Object.entries(JP_STANDARDS).map(([subject, classes], idx) => (
+                             <tr key={subject} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}><td className="px-4 py-3 font-medium text-gray-900 border-r">{subject}</td><td className="px-4 py-3 text-center border-r">{classes['Kelas 1']}</td><td className="px-4 py-3 text-center border-r">{classes['Kelas 2']}</td><td className="px-4 py-3 text-center border-r">{classes['Kelas 3']}</td><td className="px-4 py-3 text-center border-r">{classes['Kelas 4']}</td><td className="px-4 py-3 text-center border-r">{classes['Kelas 5']}</td><td className="px-4 py-3 text-center">{classes['Kelas 6']}</td></tr>
+                          ))}
+                       </tbody>
+                    </table>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Calendar Modal */}
+      {showCalendar && (
+         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+               <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-blue-50 shrink-0">
+                  <div className="flex items-center gap-3"><CalendarDays className="w-6 h-6 text-blue-600" /><div><h3 className="text-xl font-bold text-gray-900">Kalender Akademik 2025/2026</h3><p className="text-sm text-gray-500">Sentuh/klik tanggal untuk menyesuaikan hari libur/non-efektif</p></div></div>
+                  <button onClick={() => setShowCalendar(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-6 h-6 text-gray-500" /></button>
+               </div>
+               <div className="p-6 overflow-y-auto bg-gray-50/50">
+                   <MasterCalendarConfig 
+                       calendarEvents={calendarEvents} 
+                       onDateClick={(dateStr, ev) => setEditingCalendarEvent({ dateStr, ev })} 
+                       onDateRangeClick={(startDateStr, endDateStr, ev) => setEditingCalendarEvent({ dateStr: startDateStr, endDateStr, ev })}
+                       academicYearStart={academicYearStart}
+                       setAcademicYearStart={setAcademicYearStart}
+                       schoolDaysCount={schoolDaysCount}
+                       setSchoolDaysCount={setSchoolDaysCount}
+                   />
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* Editing Event Modal */}
+      {editingCalendarEvent && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">{editingCalendarEvent.ev ? 'Ubah/Hapus Keterangan' : 'Tambah Keterangan Kalender'}</h3>
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Mulai</label>
+                          <input type="date" id="ev-start" defaultValue={editingCalendarEvent.ev?.start || editingCalendarEvent.dateStr} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Selesai</label>
+                          <input type="date" id="ev-end" defaultValue={editingCalendarEvent.ev?.end || editingCalendarEvent.endDateStr || editingCalendarEvent.dateStr} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Keterangan Kegiatan / Libur</label>
+                          <input type="text" id="ev-desc" defaultValue={editingCalendarEvent.ev?.description || ''} placeholder="Contoh: Libur Hari Raya, Penilaian Akhir Semester" className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Warna / Kategori</label>
+                          <select id="ev-color" defaultValue={editingCalendarEvent.ev?.color || 'bg-red-500'} className="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500">
+                              <option value="bg-red-500">Merah (Libur Nasional / Hari Besar)</option>
+                              <option value="bg-pink-500">Pink / Merah Muda (Libur Semester)</option>
+                              <option value="bg-orange-500">Oranye (Asesmen / Penilaian / Ujian)</option>
+                              <option value="bg-blue-500">Biru (Kegiatan Khusus / Classmeeting)</option>
+                              <option value="bg-purple-500">Ungu (Pengolahan Nilai & Pembagian Raport)</option>
+                              <option value="bg-green-500">Hijau (Awal Masuk Sekolah / MPLS)</option>
+                          </select>
+                      </div>
+                  </div>
+                  <div className="mt-6 flex justify-between gap-3">
+                      {editingCalendarEvent.ev ? (
+                          <button onClick={() => {
+                              const newEvents = calendarEvents.filter(e => e.id !== editingCalendarEvent.ev!.id);
+                              setCalendarEvents(newEvents);
+                              localStorage.setItem('prota_calendar_events', JSON.stringify(newEvents));
+                              setEditingCalendarEvent(null);
+                          }} className="px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 font-medium">Hapus</button>
+                      ) : <div></div>}
+                      <div className="flex gap-2">
+                          <button onClick={() => setEditingCalendarEvent(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium">Batal</button>
+                          <button onClick={() => {
+                              const title = (document.getElementById('ev-desc') as HTMLInputElement).value;
+                              if (!title) return alert("Keterangan tidak boleh kosong");
+                              const newEv: CalendarEvent = {
+                                  id: editingCalendarEvent.ev?.id || `ev-custom-${Date.now()}`,
+                                  start: (document.getElementById('ev-start') as HTMLInputElement).value,
+                                  end: (document.getElementById('ev-end') as HTMLInputElement).value,
+                                  description: title,
+                                  color: (document.getElementById('ev-color') as HTMLSelectElement).value,
+                                  type: 'holiday'
+                              };
+                              const newEvents = editingCalendarEvent.ev 
+                                  ? calendarEvents.map(e => e.id === newEv.id ? newEv : e) 
+                                  : [...calendarEvents, newEv];
+                              setCalendarEvents(newEvents);
+                              localStorage.setItem('prota_calendar_events', JSON.stringify(newEvents));
+                              setEditingCalendarEvent(null);
+                          }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Simpan</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Semester Selection Modal */}
+      {pendingSemesterSelection && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Konfigurasi Modul</h3>
+            <p className="text-sm text-gray-600 mb-4 text-center">Tentukan karakteristik peserta didik dan pilih semester untuk menghasilkan modul ajar.</p>
+            
+            <div className="mb-6">
+                <label className="block text-xs font-bold text-gray-700 mb-2">Karakteristik Peserta Didik</label>
+                <select 
+                    value={selectedCharacteristic}
+                    onChange={(e) => setSelectedCharacteristic(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                    <option value="Beragam (Visual, Auditori, Kinestetik)">Beragam (Visual, Auditori, Kinestetik)</option>
+                    <option value="Sangat Aktif dan Suka Bermain (Kinestetik dominan)">Sangat Aktif dan Suka Bermain (Kinestetik dominan)</option>
+                    <option value="Cenderung Pasif/Pemalu (Membutuhkan dorongan interaksi)">Cenderung Pasif/Pemalu (Membutuhkan dorongan interaksi)</option>
+                    <option value="Pemahaman Cepat (Membutuhkan tantangan/pengayaan lebih)">Pemahaman Cepat (Membutuhkan tantangan/pengayaan lebih)</option>
+                    <option value="Membutuhkan Pendampingan Khusus (Instruksi bertahap)">Membutuhkan Pendampingan Khusus (Instruksi bertahap)</option>
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1">Model pembelajaran akan disesuaikan otomatis oleh AI.</p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  const className = pendingSemesterSelection;
+                  setPendingSemesterSelection(null);
+                  runBulkGeneration(className, '1');
+                }}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-md transform hover:scale-[1.02] transition-all"
+              >
+                Semester 1
+              </button>
+              <button 
+                onClick={() => {
+                  const className = pendingSemesterSelection;
+                  setPendingSemesterSelection(null);
+                  runBulkGeneration(className, '2');
+                }}
+                className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-md transform hover:scale-[1.02] transition-all"
+              >
+                Semester 2
+              </button>
+              <button 
+                onClick={() => setPendingSemesterSelection(null)}
+                className="w-full py-2 text-gray-500 hover:text-gray-700 font-medium text-sm mt-2"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analysis Modal */}
+      {analysisModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-indigo-50">
+                 <div className="flex items-center gap-3"><BarChart3 className="w-6 h-6 text-indigo-600" /><div><h3 className="text-xl font-bold text-gray-900">Analisis Kalender & Beban JP</h3><p className="text-sm text-gray-500">Kelas: {analysisModal} â€¢ {data?.subject}</p></div></div>
+                 <button onClick={() => setAnalysisModal(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-6 h-6 text-gray-500" /></button>
+              </div>
+              <div className="p-6 overflow-y-auto bg-gray-50 flex flex-col md:flex-row gap-6">
+                {(() => {
+                    if (!data) return null;
+                    const result = calculateCalendarAnalysis(analysisModal, data.subject);
+                    if (!result) return <div className="text-center py-10 w-full">Jadwal Belum Dipilih</div>;
+
+                    return (
+                        <>
+                            <div className="w-full md:w-1/3 space-y-6">
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100">
+                                    <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2"><Target className="w-4 h-4 text-indigo-600"/> Ringkasan Alokasi</h4>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
+                                            <span className="text-sm font-medium text-gray-600">Total Hari Efektif</span>
+                                            <span className="text-lg font-bold text-indigo-700">{result.totalAvailableSlots} Hari</span>
+                                        </div>
+                                        <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                                            <span className="text-sm font-medium text-gray-600">Total Pekan Efektif</span>
+                                            <span className="text-lg font-bold text-green-700">{result.totalEffectiveWeeks} Pekan</span>
+                                        </div>
+                                        <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                            <span className="text-sm font-medium text-gray-600">Target Kurikulum</span>
+                                            <span className="text-lg font-bold text-blue-700">{result.totalTargetJP} JP/Thn</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                                    <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2"><Table className="w-4 h-4 text-gray-500"/> Rincian Semester</h4>
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-gray-100 text-gray-700 font-bold uppercase">
+                                            <tr><th className="p-2 rounded-tl">Uraian</th><th className="p-2 text-center">Smt 1</th><th className="p-2 text-center rounded-tr">Smt 2</th></tr>
+                                        </thead>
+                                        <tbody className="divide-y text-gray-600">
+                                            <tr><td className="p-2 font-medium">Hari Efektif</td><td className="p-2 text-center font-bold">{result.semester1.effectiveDays}</td><td className="p-2 text-center font-bold">{result.semester2.effectiveDays}</td></tr>
+                                            <tr><td className="p-2 font-medium">Pekan Efektif</td><td className="p-2 text-center font-bold">{result.semester1.effectiveWeeks}</td><td className="p-2 text-center font-bold">{result.semester2.effectiveWeeks}</td></tr>
+                                            <tr><td className="p-2 font-medium text-red-500">Libur/Non-Efektif</td><td className="p-2 text-center text-red-500">{result.semester1.nonEffectiveDays} hari</td><td className="p-2 text-center text-red-500">{result.semester2.nonEffectiveDays} hari</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                                    <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2"><CalendarCheck className="w-4 h-4 text-green-600"/> Distribusi Hari</h4>
+                                    <div className="space-y-2">
+                                        {Object.entries(result.dayDistribution).map(([day, count]) => (
+                                            <div key={day} className="flex justify-between items-center text-xs">
+                                                <span className="font-medium text-gray-600">{day}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-green-500 rounded-full" style={{ width: `${(count/30)*100}%` }}></div>
+                                                    </div>
+                                                    <span className="font-bold text-gray-800 w-6 text-right">{count}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="w-full md:w-2/3 space-y-4">
+                                <h4 className="font-bold text-gray-800 flex items-center justify-between">
+                                    <span>Visualisasi Kalender Akademik</span>
+                                    <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Gerakkan kursor pada tanggal untuk detail</span>
+                                </h4>
+                                <VisualCalendar scheduledDays={classSchedules[analysisModal] || []} calendarEvents={calendarEvents} academicYearStart={academicYearStart} schoolDaysCount={schoolDaysCount} />
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 flex items-start gap-2">
+                                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                                    <p>Perhitungan pekan efektif menggunakan standar ISO-8601. Konfigurasi libur dapat diubah pada menu utama.</p>
+                                </div>
+                            </div>
+                        </>
+                    );
+                })()}
+              </div>
+           </div>
+        </div>
+      )}
+
+
+
+      {/* Main Container with Collapsible App Sidebar */}
+      <div className="flex-1 flex max-w-7xl mx-auto w-full p-4 md:p-6 gap-6 relative">
+        {/* App Sidebar */}
+        {isSidebarOpen && (
+            <>
+                {/* Mobile backdrop */}
+                <div 
+                    onClick={() => setIsSidebarOpen(false)} 
+                    className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-xs" 
+                />
+
+                <aside className="fixed lg:static top-0 bottom-0 left-0 z-50 w-80 lg:w-[300px] bg-white border-r lg:border border-slate-200/90 shadow-2xl lg:shadow-xs lg:rounded-3xl shrink-0 flex flex-col max-h-[100vh] lg:max-h-[calc(100vh-100px)] sticky lg:top-20 overflow-hidden transition-all duration-300">
+                    {/* Sidebar Header (Matching screenshot style) */}
+                    <div className="p-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-emerald-600/20">
+                                <GraduationCap className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h2 className="font-extrabold text-slate-900 text-sm tracking-tight leading-tight">PERANGKAT AJAR</h2>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SD ASSISTANT</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => setIsSidebarOpen(false)}
+                            className="p-1.5 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
+                            title="Tutup Sidebar"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Pengguna Card Badge */}
+                    <div className="p-4 border-b border-slate-100 shrink-0 bg-slate-50/50">
+                        <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">PENGGUNA</div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                <User className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 className="font-bold text-xs text-slate-900 truncate">{userIdentity.authorName || 'Acep Miftah Hilah Ash-shidiq, S.Pd.'}</h3>
+                                <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/60">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>{userIdentity.employmentStatus || 'Full Time'} â€¢ Guru {userIdentity.assignedClass || 'Kelas 1'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Navigation Items List */}
+                    <div className="flex-1 overflow-y-auto p-3 space-y-4">
+                        {/* Section 1: Menu Utama */}
+                        <div className="space-y-1">
+                            <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 mb-1.5">MENU UTAMA</div>
+
+                            {/* Menu 1: Dashboard */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('dashboard');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'dashboard' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Home className={`w-4 h-4 ${currentView === 'dashboard' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Dashboard</span>
+                            </button>
+
+                            {/* Menu 2: Daftar Siswa */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('daftar_siswa');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'daftar_siswa' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Users className={`w-4 h-4 ${currentView === 'daftar_siswa' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Daftar Siswa</span>
+                            </button>
+
+                            {/* Menu 3: Kalender Akademik */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('calendar');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'calendar' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Calendar className={`w-4 h-4 ${currentView === 'calendar' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Kalender Akademik</span>
+                            </button>
+
+                            {/* Menu 4: Jadwal Mengajar */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('jadwal_mengajar');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'jadwal_mengajar' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <CalendarCheck className={`w-4 h-4 ${currentView === 'jadwal_mengajar' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Jadwal Mengajar</span>
+                            </button>
+
+                            {/* Menu 5: Hari Efektif */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('hari_efektif');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'hari_efektif' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <BookOpen className={`w-4 h-4 ${currentView === 'hari_efektif' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Hari Efektif</span>
+                            </button>
+
+                            {/* Menu 6: Presensi */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('presensi');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'presensi' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <ClipboardCheck className={`w-4 h-4 ${currentView === 'presensi' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Presensi Siswa</span>
+                            </button>
+
+                            {/* Menu 7: Program Tahunan (Prota) */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('generator');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'generator' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <FileText className={`w-4 h-4 ${currentView === 'generator' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Program Tahunan</span>
+                            </button>
+
+                            {/* Menu 8: Modul Ajar (RPM) */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('modul_ajar');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'modul_ajar' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Sparkles className={`w-4 h-4 ${currentView === 'modul_ajar' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Modul Ajar RPM</span>
+                            </button>
+
+                            {/* Menu 9: KKTP */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('kktp');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'kktp' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Target className={`w-4 h-4 ${currentView === 'kktp' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>KKTP & Interval</span>
+                            </button>
+
+                            {/* Menu 10: Jurnal */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('jurnal');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'jurnal' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <BookMarked className={`w-4 h-4 ${currentView === 'jurnal' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Jurnal Mengajar</span>
+                            </button>
+
+
+                        </div>
+
+                        {/* Section 2: Data & Pencadangan */}
+                        <div className="space-y-1 pt-3 border-t border-slate-100">
+                            <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 mb-1.5">DATA & PENCADANGAN</div>
+                            
+                            <button
+                                onClick={handleBackup}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                                <Download className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Backup Data</span>
+                            </button>
+
+                            <label className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer">
+                                <Upload className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Restore Data</span>
+                                <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
+                            </label>
+
+                            <button
+                                onClick={() => {
+                                    setApiKeyInput(localStorage.getItem('prota_custom_api_key') || '');
+                                    setApiKeyMessage(null);
+                                    setShowApiKeyModal(true);
+                                }}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                                <Key className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Pengaturan API</span>
+                            </button>
+
+                            <button
+                                onClick={handleLogout}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors cursor-pointer mt-2"
+                            >
+                                <LogOut className="w-3.5 h-3.5 text-red-500" />
+                                <span>Keluar</span>
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+            </>
+        )}
+
+        {/* Main Content Workspace */}
+        <main className="flex-1 min-w-0 w-full space-y-6">
+            {showEditProfileModal && (
+                <EditProfileModal 
+                    identity={userIdentity} 
+                    onSave={handleSaveIdentity} 
+                    onClose={() => setShowEditProfileModal(false)} 
+                />
+            )}
+
+            {!isSidebarOpen && (
+                <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-2xl p-3 shadow-2xs">
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
+                    >
+                        <Menu className="w-4 h-4" /> Buka Menu Navigasi
+                    </button>
+                    <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+                        <span className="font-bold text-emerald-800">{userIdentity.authorName || 'Guru S.Pd.'}</span>
+                        <span>â€¢</span>
+                        <span>{selectedClass}</span>
+                    </div>
+                </div>
+            )}
+
+        {currentView === 'dashboard' ? (
+            <DashboardView 
+                identity={userIdentity}
+                onEditProfile={() => setShowEditProfileModal(true)}
+                onNavigate={setCurrentView}
+            />
+        ) : currentView === 'daftar_siswa' ? (
+            <DaftarSiswaView 
+                selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                identity={userIdentity}
+            />
+        ) : currentView === 'presensi' ? (
+            <PresensiView 
+                selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
+                classSchedules={classSchedules}
+                calendarEvents={calendarEvents}
+                academicYearStart={academicYearStart}
+                schoolDaysCount={schoolDaysCount}
+                identity={userIdentity}
+            />
+        ) : currentView === 'jadwal_mengajar' ? (
+            <JadwalMengajarView 
+                selectedClass={selectedClass}
+                classSchedules={classSchedules}
+                toggleScheduleDay={toggleScheduleDay}
+                classDailyJP={classDailyJP}
+                updateDailyJP={updateDailyJP}
+                schoolDaysCount={schoolDaysCount}
+                setSchoolDaysCount={setSchoolDaysCount}
+                identity={userIdentity}
+            />
+        ) : currentView === 'hari_efektif' ? (
+            <HariEfektifView 
+                selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
+                classSchedules={classSchedules}
+                classDailyJP={classDailyJP}
+                calendarEvents={calendarEvents}
+                academicYearStart={academicYearStart}
+                schoolDaysCount={schoolDaysCount}
+                identity={userIdentity}
+            />
+        ) : currentView === 'kktp' ? (
+            <KKTPView 
+                selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
+                selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                classSchedules={classSchedules}
+                calendarEvents={calendarEvents}
+                academicYearStart={academicYearStart}
+                schoolDaysCount={schoolDaysCount}
+                identity={userIdentity}
+                data={data}
+                activities={activities}
+                onNavigate={setCurrentView}
+            />
+        ) : currentView === 'jurnal' ? (
+            <JurnalView 
+                selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
+                selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                classSchedules={classSchedules}
+                calendarEvents={calendarEvents}
+                academicYearStart={academicYearStart}
+                schoolDaysCount={schoolDaysCount}
+                identity={userIdentity}
+                data={data}
+                activities={activities}
+                onNavigate={setCurrentView}
+            />
+        ) : currentView === 'calendar' ? (
+            <CalendarPageView 
+                selectedClass={selectedClass}
+                setSelectedClass={setSelectedClass}
+                selectedSubject={selectedSubject}
+                setSelectedSubject={setSelectedSubject}
+                availableClasses={selectedFase.classes}
+                availableSubjects={SUBJECTS}
+                classSchedules={classSchedules}
+                toggleScheduleDay={toggleScheduleDay}
+                classDailyJP={classDailyJP}
+                updateDailyJP={updateDailyJP}
+                calendarEvents={calendarEvents}
+                setCalendarEvents={setCalendarEvents}
+                onDateClick={(dateStr, ev) => setEditingCalendarEvent({ dateStr, ev })}
+                onDateRangeClick={(startDateStr, endDateStr, ev) => setEditingCalendarEvent({ dateStr: startDateStr, endDateStr, ev })}
+                academicYearStart={academicYearStart}
+                setAcademicYearStart={setAcademicYearStart}
+                schoolDaysCount={schoolDaysCount}
+                setSchoolDaysCount={setSchoolDaysCount}
+                calculateCalendarAnalysis={calculateCalendarAnalysis}
+                activeTab={calendarPageTab}
+                setActiveTab={setCalendarPageTab}
+                onBackToGenerator={() => setCurrentView('generator')}
+                userIdentity={userIdentity}
+                saveActivityLog={saveActivityLog}
+            />
+        ) : currentView === 'modul_ajar' && modulContext ? (
+            <ModulAjarGenerator 
+                context={modulContext} 
+                userIdentity={userIdentity}
+                onBack={() => {
+                    setCurrentView('modul_ajar');
+                    setModulContext(null);
+                }}
+                onSave={saveActivityLog}
+            />
+        ) : currentView === 'history' ? (
+            <div className="bg-white rounded-xl shadow p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-3">
+                        Riwayat Aktivitas
+                        {activities.length > 0 && (
+                            
+                            <div className="flex items-center gap-2">
+                                <button onClick={handleBackup} className="text-xs flex items-center gap-1 font-semibold bg-green-50 text-green-600 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors">
+                                    <FileDown className="w-3.5 h-3.5" /> Backup Database
+                                </button>
+                                <label className="text-xs flex items-center gap-1 font-semibold bg-orange-50 text-orange-600 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+                                    <FileOutput className="w-3.5 h-3.5" /> Restore Database
+                                    <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
+                                </label>
+                                <button onClick={clearAllActivities} className="text-xs flex items-center gap-1 font-semibold bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" /> Hapus Semua
+                                </button>
+                            </div>
+
+                        )}
+                    </h2>
+                    <button onClick={() => setCurrentView('generator')} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium text-sm">
+                        <ArrowLeft className="w-4 h-4" /> Kembali ke Generator
+                    </button>
+                </div>
+                <div className="space-y-4">
+                    {activities.map(act => (
+                        <div key={act.id} className="border p-4 rounded-lg flex justify-between items-center hover:bg-gray-50 transition-colors group">
+                            <div className="flex-1 min-w-0 pr-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${act.type === 'MODUL_AJAR' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{act.type}</span>
+                                    <span className="text-xs text-gray-500">{act.timestamp.toLocaleString()}</span>
+                                </div>
+                                <h4 className="font-bold text-gray-800 truncate">{act.subject}</h4>
+                                <p className="text-sm text-gray-600 truncate">{act.details}</p>
+                            </div>
+                            <div className="flex items-center justify-end gap-3 shrink-0">
+                                {act.type === 'MODUL_AJAR' && (
+                                    <>
+                                        <button onClick={() => {
+                                            const printWindow = window.open('', '_blank');
+                                            if (printWindow) {
+                                                const content = act.dataSnapshot.isBulk ? act.dataSnapshot.combinedHtml : act.dataSnapshot.resultContent;
+                                                printWindow.document.write(`
+                                                    <html>
+                                                        <head>
+                                                            <title>${act.subject} - ${act.dataSnapshot.isBulk ? 'Kumpulan Modul Ajar' : 'Modul Ajar'}</title>
+                                                            <style>
+                                                                @page { size: A4; margin: 20mm; }
+                                                                body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #333; }
+                                                                .content { width: 100%; }
+                                                                table { border-collapse: collapse; width: 100%; }
+                                                                td, th { border: 1px solid #000; padding: 5px; }
+                                                            </style>
+                                                        </head>
+                                                        <body>
+                                                            <div class="content">${content}</div>
+                                                            <script>
+                                                                window.onload = () => { window.print(); };
+                                                            </script>
+                                                        </body>
+                                                    </html>
+                                                `);
+                                                printWindow.document.close();
+                                            }
+                                        }} className="text-purple-600 hover:text-purple-800 text-sm font-medium bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors">
+                                            Preview {act.dataSnapshot.isBulk ? 'Semua' : 'PDF'}
+                                        </button>
+                                        <button onClick={() => {
+                                             const size = PAPER_SIZES['A4'];
+                                             const htmlContent = `
+                                              <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                                              <head>
+                                                <meta charset='utf-8'>
+                                                <title>Modul Ajar</title>
+                                                <style>
+                                                  @page { size: ${size.width} ${size.height}; mso-page-orientation: portrait; margin: 2.54cm; }
+                                                  body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; }
+                                                  table { border-collapse: collapse; width: 100%; }
+                                                  td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
+                                                </style>
+                                              </head>
+                                              <body>
+                                                ${act.dataSnapshot.isBulk ? act.dataSnapshot.combinedHtml : act.dataSnapshot.resultContent}
+                                              </body>
+                                              </html>`;
+                                              const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+                                              const url = URL.createObjectURL(blob);
+                                              const link = document.createElement('a');
+                                              link.href = url;
+                                              link.download = `Modul_Ajar_${act.subject.replace(/\s+/g, '_')}.doc`;
+                                              document.body.appendChild(link);
+                                              link.click();
+                                              document.body.removeChild(link);
+                                        }} className="text-green-600 hover:text-green-800 text-sm font-medium bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors">
+                                            Unduh Word
+                                        </button>
+                                    </>
+                                )}
+                                <button onClick={() => { setData(act.dataSnapshot); setCurrentView('generator'); }} className="text-blue-600 hover:blue-800 text-sm font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                                    Pulihkan
+                                </button>
+                                <button onClick={() => deleteActivity(act.id)} className="text-gray-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Hapus Riwayat">
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {activities.length === 0 && (
+                        <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                            <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-500 font-medium">Belum ada aktivitas.</p>
+                            <p className="text-gray-400 text-sm mt-1">Riwayat pembuatan perangkat Anda akan muncul di sini.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+                    ) : (
+                <div className="space-y-6">
+                    {/* Header Card matching the uploaded image */}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="space-y-1">
+                            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                                <Sparkles className="w-6 h-6 text-emerald-600 animate-pulse" />
+                                <span>{currentView === 'modul_ajar' ? 'Modul Ajar (RPM)' : 'Program Tahunan (Prota)'}</span>
+                            </h2>
+                            <p className="text-xs font-semibold text-slate-500">
+                                {currentView === 'modul_ajar' 
+                                    ? 'Pilih ATP Untuk membuat modul ajar RPM' 
+                                    : 'Buat Prota otomatis dengan AI berdasarkan referensi CP dan TP.'}
+                            </p>
+                        </div>
+
+                        {/* Right side controls matching the layout and labels */}
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Paper size toggle selector */}
+                            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/40">
+                                <button 
+                                    onClick={() => setPaperSize('A4')} 
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${paperSize === 'A4' ? 'bg-white text-emerald-800 shadow-2xs border border-slate-200' : 'text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    A4
+                                </button>
+                                <button 
+                                    onClick={() => setPaperSize('F4')} 
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${paperSize === 'F4' ? 'bg-white text-emerald-800 shadow-2xs border border-slate-200' : 'text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    F4 (Folio)
+                                </button>
+                            </div>
+
+                            {/* Button: Hasilkan Prota / Hasilkan modul ajar */}
+                            {currentView !== 'modul_ajar' && (
+                                <button 
+                                    onClick={() => generateContent()} 
+                                    disabled={loading}
+                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-sm shadow-emerald-600/10"
+                                >
+                                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                                    <span>Hasilkan Prota</span>
+                                </button>
+                            )}
+
+                            {/* Button: Simpan */}
+                            <button 
+                                onClick={() => setShowSaveToast(true)}
+                                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:scale-95 rounded-full transition-all cursor-pointer border border-emerald-100"
+                            >
+                                <span>Simpan</span>
+                            </button>
+
+                            {/* Button: Unduh Word */}
+                            {currentView !== 'modul_ajar' && (
+                                <button 
+                                    onClick={() => handleDownloadProta(selectedClass)} 
+                                    disabled={!data}
+                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 active:scale-95 rounded-full transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    <span>Unduh Word</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Horizontal Pill List of Mata Pelajaran (replacing Class buttons) */}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">PILIHAN MATA PELAJARAN ({selectedClass})</span>
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">Fase {selectedFase.name}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {getScheduledSubjects().map((sub) => {
+                                const isActive = selectedSubject === sub;
+                                return (
+                                    <button
+                                        key={sub}
+                                        onClick={() => setSelectedSubject(sub)}
+                                        className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer border ${
+                                            isActive
+                                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {sub}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+                            <p className="font-medium">Terjadi Kesalahan</p>
+                            <p className="text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    {!data ? (
+                        <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                                <Sparkles className="w-8 h-8 animate-pulse" />
+                            </div>
+                            <div className="max-w-md mx-auto">
+                                <h3 className="text-lg font-bold text-gray-800">Program Tahunan Belum Dihasilkan</h3>
+                                <p className="text-gray-500 text-sm mt-1.5">Pilih Mata Pelajaran pada tab di atas, lalu klik "Hasilkan Prota" untuk memulai penyusunan otomatis berbasis AI.</p>
+                            </div>
+                            <button 
+                                onClick={() => generateContent()}
+                                disabled={loading}
+                                className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all flex items-center gap-2 mx-auto cursor-pointer"
+                            >
+                                {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                                Hasilkan Prota ({selectedSubject})
+                            </button>
+                        </div>
+                    ) : (() => {
+                        const className = selectedClass;
+                        const hasATP = (data.elements || []).some(el => (el.allocations || []).find(a => isSameClass(a.className, className))?.structuredAtp);
+                        
+                        // Helper to label the semester dynamically
+                        const getSemesterLabel = (dateStr: string): string => {
+                            if (!dateStr) return '';
+                            const d = new Date(dateStr);
+                            const m = d.getMonth();
+                            return (m >= 6) ? 'Smt 1 (Ganjil)' : 'Smt 2 (Genap)';
+                        };
+
+                        return (
+                            <div key={className} className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
+                                <div className="p-4 bg-slate-50 border-b flex flex-wrap justify-between items-center gap-4">
+                                    <div>
+                                        <h3 className="font-bold text-lg border-l-4 border-emerald-600 pl-3 text-slate-800">{className} â€” {data.subject}</h3>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {currentView === 'modul_ajar' && hasATP && (
+                                            <>
+                                                <button 
+                                                    onClick={() => handleBulkGenerateModulForClass(className)} 
+                                                    disabled={bulkGenerationStatus[className]?.active}
+                                                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none"
+                                                >
+                                                    {bulkGenerationStatus[className]?.active ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />} 
+                                                    {bulkGenerationStatus[className]?.active ? 'Sedang Membuat Modul...' : 'Buat Modul Ajar'}
+                                                </button>
+                                                {bulkGenerationStatus[className]?.active && (
+                                                    <button 
+                                                        onClick={() => { (window as any).bulkAbortedMap = { ...((window as any).bulkAbortedMap || {}), [className]: true }; setBulkGenerationStatus(prev => ({...prev, [className]: {...prev[className], active: false, statusText: "Proses dibatalkan."}}))}}
+                                                        className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-red-700 transition-all border border-red-700 shadow-sm"
+                                                    >
+                                                        <X className="w-4 h-4" /> Batal
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+
+                                        {activities.some(a => a.type === 'MODUL_AJAR' && (a.dataSnapshot?.className === className || a.details.includes(className))) && (
+                                            <div className="flex gap-2">
+                                                {activities.filter(a => a.type === 'MODUL_AJAR' && a.dataSnapshot?.className === className && a.dataSnapshot?.semester === '1').length > 0 && (
+                                                    <button 
+                                                        onClick={() => handleDownloadAllModulForClass(className, '1')} 
+                                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all border border-indigo-700 shadow-sm"
+                                                    >
+                                                        <Download className="w-4 h-4" /> Unduh Modul Sem 1
+                                                    </button>
+                                                )}
+                                                {activities.filter(a => a.type === 'MODUL_AJAR' && a.dataSnapshot?.className === className && a.dataSnapshot?.semester === '2').length > 0 && (
+                                                    <button 
+                                                        onClick={() => handleDownloadAllModulForClass(className, '2')} 
+                                                        className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-sky-700 transition-all border border-sky-700 shadow-sm"
+                                                    >
+                                                        <Download className="w-4 h-4" /> Unduh Modul Sem 2
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                {bulkGenerationStatus[className]?.active && (
+                                    <div className="p-6 bg-purple-50/50 border-b border-purple-200">
+                                        <div className="max-w-xl mx-auto space-y-3">
+                                            <div className="flex justify-between text-sm font-bold text-purple-900">
+                                                <span className="flex items-center gap-2">
+                                                    <Loader2 className="animate-spin w-4 h-4" />
+                                                    Memproses Modul Ajar ({bulkGenerationStatus[className].current} dari {bulkGenerationStatus[className].total} ATP)
+                                                </span>
+                                                <span>{bulkGenerationStatus[className].percent}%</span>
+                                            </div>
+                                            <div className="w-full bg-purple-200 rounded-full h-4 overflow-hidden shadow-inner">
+                                                <div 
+                                                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-300 ease-out flex items-center justify-center relative overflow-hidden" 
+                                                    style={{ width: `${bulkGenerationStatus[className].percent}%` }}
+                                                >
+                                                    <div className="absolute inset-0 bg-white/20 animate-pulse w-full"></div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-purple-700 italic text-center font-medium">
+                                                {bulkGenerationStatus[className].statusText || "Harap tunggu, proses ini dapat memakan waktu beberapa menit. Jangan menutup tab browser Anda."}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left border-collapse border border-slate-200">
+                                        <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-4 py-3 text-center border-r border-b border-slate-200 text-xs w-12">No</th>
+                                                <th className="px-4 py-3 border-r border-b border-slate-200 text-xs w-1/6">Elemen</th>
+                                                <th className="px-4 py-3 border-r border-b border-slate-200 text-xs w-1/4">Capaian Pembelajaran (CP)</th>
+                                                <th className="px-4 py-3 border-r border-b border-slate-200 text-xs w-1/4">Tujuan Pembelajaran (TP)</th>
+                                                <th className="px-4 py-3 border-r border-b border-slate-200 text-xs w-1/4">Alur Tujuan Pembelajaran (ATP)</th>
+                                                <th className="px-4 py-3 text-center border-r border-b border-slate-200 text-xs w-20">Alokasi JP</th>
+                                                <th className="px-4 py-3 text-center border-b border-slate-200 text-xs w-52">Rencana Tanggal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {(data.elements || []).map((el, elIdx) => {
+                                                let allocIdx = (el.allocations || []).findIndex(a => isSameClass(a.className, className));
+                                                if (allocIdx < 0 && (el.allocations || []).length === 1) allocIdx = 0;
+                                                const alloc = (el.allocations || [])[allocIdx];
+                                                if (!alloc) return null;
+
+                                                const groups = alloc.structuredAtp || (alloc.tujuanPembelajaran || []).map(tp => ({ tp, atpItems: [] }));
+                                                const rowSpan = groups.reduce((acc, g) => acc + Math.max(g.atpItems.length, 1), 0);
+
+                                                return groups.map((grp, grpIdx) => {
+                                                    const items = grp.atpItems.length > 0 ? grp.atpItems : [{ alur: '', alokasiWaktu: '-' }];
+                                                    return items.map((item, itemIdx) => {
+                                                        const nonEffective = item.planDate ? checkNonEffectiveDate(item.planDate) : null;
+                                                        return (
+                                                            <tr key={`${elIdx}-${grpIdx}-${itemIdx}`} className="hover:bg-slate-50/50 transition-colors">
+                                                                {grpIdx === 0 && itemIdx === 0 && (
+                                                                    <>
+                                                                        <td rowSpan={rowSpan} className="px-4 py-3 border border-slate-200 text-center align-top font-bold text-slate-800 text-sm">
+                                                                            {elIdx + 1}
+                                                                        </td>
+                                                                        <td rowSpan={rowSpan} className="px-4 py-3 border border-slate-200 align-top font-bold text-slate-800 text-sm">
+                                                                            {el.elementName}
+                                                                        </td>
+                                                                        <td rowSpan={rowSpan} className="px-4 py-3 border border-slate-200 align-top text-xs text-slate-600 leading-relaxed">
+                                                                            {el.capaianPembelajaran}
+                                                                        </td>
+                                                                        <td rowSpan={rowSpan} className="px-4 py-3 border border-slate-200 align-top bg-slate-50/20">
+                                                                            <ul className="list-disc pl-4 space-y-1 text-xs text-slate-700 font-medium">
+                                                                                {groups.map((g, idx) => (
+                                                                                    <li key={idx}>{g.tp}</li>
+                                                                                ))}
+                                                                            </ul>
+                                                                        </td>
+                                                                    </>
+                                                                )}
+                                                                
+                                                                <td className={`px-4 py-3 border border-slate-200 align-top text-xs leading-normal ${activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur?.substring(0, 30) || 'xxx')) ? 'bg-indigo-50/50' : 'bg-emerald-50/10'}`}>
+                                                                    {item.alur ? (
+                                                                        <div className="flex gap-2.5 items-start">
+                                                                            {currentView === 'modul_ajar' && (
+                                                                                <input 
+                                                                                    type="checkbox" 
+                                                                                    checked={!!(selectedAtps[className] && selectedAtps[className][`${elIdx}-${grpIdx}-${itemIdx}`])}
+                                                                                    onChange={(e) => {
+                                                                                        const checked = e.target.checked;
+                                                                                        setSelectedAtps(prev => ({
+                                                                                            ...prev,
+                                                                                            [className]: {
+                                                                                                ...(prev[className] || {}),
+                                                                                                [`${elIdx}-${grpIdx}-${itemIdx}`]: checked
+                                                                                            }
+                                                                                        }));
+                                                                                    }}
+                                                                                    className="mt-0.5 h-4 w-4 rounded-md border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                                                />
+                                                                            )}
+                                                                            <div className="flex flex-col gap-1">
+                                                                                <div className="flex gap-1.5 items-start">
+                                                                                    <span className="font-bold text-emerald-600">{itemIdx+1}.</span>
+                                                                                    <span className="text-slate-700 font-medium">{item.alur}</span>
+                                                                                </div>
+                                                                                {activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur.substring(0, 30))) && (
+                                                                                    <span className="inline-block text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md w-fit">
+                                                                                        âœ“ Modul Dibuat
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : <span className="text-slate-400 italic">Belum digenerate</span>}
+                                                                </td>
+
+                                                                <td className="px-4 py-3 border border-slate-200 text-center align-middle font-extrabold text-emerald-700 text-xs">
+                                                                    {item.alokasiWaktu ? (
+                                                                        <span className="inline-block whitespace-nowrap bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 shadow-3xs">
+                                                                            {item.alokasiWaktu.toLowerCase().includes('jp') ? item.alokasiWaktu : `${item.alokasiWaktu} JP`}
+                                                                        </span>
+                                                                    ) : '-'}
+                                                                </td>
+
+                                                                <td className="px-4 py-3 border border-slate-200 align-top">
+                                                                    {item.alur ? (
+                                                                        <div className="flex flex-col gap-1.5">
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <input 
+                                                                                    type="date" 
+                                                                                    className={`flex-1 text-xs p-1.5 border rounded-lg focus:ring-emerald-500 focus:border-emerald-500 ${nonEffective ? 'border-red-400 bg-red-50 text-red-700 font-bold' : 'border-slate-200 text-slate-700'}`}
+                                                                                    value={item.planDate || ''}
+                                                                                    onChange={(e) => handleUpdateDate(className, elIdx, allocIdx, grpIdx, itemIdx, e.target.value)}
+                                                                                />
+                                                                            </div>
+                                                                            {item.planDate && (
+                                                                                <div className="text-center mt-1">
+                                                                                    <div className="text-xs font-bold text-slate-800">
+                                                                                        {getDayName(new Date(item.planDate))}, {new Date(item.planDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                                                    </div>
+                                                                                    <div className={`text-[10px] font-bold mt-0.5 ${
+                                                                                        getSemesterLabel(item.planDate).includes('1') ? 'text-emerald-600' : 'text-blue-600'
+                                                                                    }`}>
+                                                                                        {getSemesterLabel(item.planDate)}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                            {nonEffective && (
+                                                                                <div className="text-[10px] text-red-600 bg-red-100 p-1.5 rounded-lg flex gap-1 items-start mt-1 leading-normal">
+                                                                                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-red-500"/> 
+                                                                                    <span>{nonEffective.description}</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : '-'}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
+                                                });
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                    
+                    {/* Beautiful success toast notification */}
+                    {showSaveToast && (
+                        <div className="fixed bottom-5 right-5 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-2.5 animate-bounce">
+                            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                            <span className="text-xs font-bold font-sans">Semua perubahan pada Program Tahunan berhasil disimpan!</span>
+                        </div>
+                    )}
+                </div>
+            )}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+
+// Create or get the root element
+const rootElement = document.getElementById('root')!;
+const root = (window as any).__REACT_ROOT__ || createRoot(rootElement);
+(window as any).__REACT_ROOT__ = root;
+
+root.render(<App />);
