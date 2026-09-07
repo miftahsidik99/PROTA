@@ -27,6 +27,14 @@ export const db = initializeFirestore(app, {
     ignoreUndefinedProperties: true
 }, firebaseConfig.firestoreDatabaseId);
 
+import { 
+    isSameSubject, 
+    getSubjectKey, 
+    synthesizeAtpItemsForTp, 
+    distributeDatesToStructuredAtp, 
+    synthesizeCurriculumProta 
+} from './curriculumHelper';
+
 
 
 
@@ -8012,12 +8020,12 @@ const KKTPView: React.FC<{
     // Extract ATPs for active subject ONLY from generated & saved PROTA
     const atpList: DisplayAtpItem[] = useMemo(() => {
         let activeCurriculum: CurriculumData | null = null;
-        if (data && data.elements && data.subject?.toLowerCase().trim() === currentSubject.toLowerCase().trim()) {
+        if (data && data.elements && isSameSubject(data.subject, currentSubject)) {
             activeCurriculum = data;
         } else if (activities && activities.length > 0) {
             const match = activities.find(act => 
                 (act.type === 'ATP_JP' || act.type === 'CP_TP') && 
-                act.subject?.toLowerCase().trim() === currentSubject.toLowerCase().trim() &&
+                isSameSubject(act.subject, currentSubject) &&
                 act.dataSnapshot && Array.isArray(act.dataSnapshot.elements)
             );
             if (match && match.dataSnapshot) {
@@ -9222,12 +9230,12 @@ const JurnalView: React.FC<{
     // Extract ATPs from PROTA (data snapshot or activities)
     const protaAtpList = useMemo(() => {
         let activeCurriculum: CurriculumData | null = null;
-        if (data && data.elements && data.subject?.toLowerCase().trim() === activeSubject.toLowerCase().trim()) {
+        if (data && data.elements && isSameSubject(data.subject, activeSubject)) {
             activeCurriculum = data;
         } else if (activities && activities.length > 0) {
             const match = activities.find(act => 
                 (act.type === 'ATP_JP' || act.type === 'CP_TP') && 
-                act.subject?.toLowerCase().trim() === activeSubject.toLowerCase().trim() &&
+                isSameSubject(act.subject, activeSubject) &&
                 act.dataSnapshot && Array.isArray(act.dataSnapshot.elements)
             );
             if (match && match.dataSnapshot) {
@@ -10521,9 +10529,18 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
         if (data) setData(null);
         return;
     }
-    const match = activities.find(act => 
+    const atpMatch = activities.find(act => 
+        isSameSubject(act.subject, selectedSubject) &&
+        act.dataSnapshot?.elements?.some((el: any) => 
+            el.allocations?.some((a: any) => 
+                isSameClass(a.className, selectedClass) && a.structuredAtp && a.structuredAtp.length > 0 &&
+                a.structuredAtp.some((grp: any) => grp.atpItems && grp.atpItems.length > 0 && grp.atpItems.some((item: any) => item.alur))
+            )
+        )
+    );
+    const match = atpMatch || activities.find(act => 
         (act.type === 'ATP_JP' || act.type === 'CP_TP') && 
-        act.subject.toLowerCase().trim() === selectedSubject.toLowerCase().trim()
+        isSameSubject(act.subject, selectedSubject)
     );
     if (match && match.dataSnapshot) {
         if (JSON.stringify(data) !== JSON.stringify(match.dataSnapshot)) {
@@ -10532,7 +10549,7 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
     } else {
         if (data !== null) setData(null);
     }
-  }, [selectedSubject, activities]);
+  }, [selectedSubject, selectedClass, activities]);
 
   const getScheduledSubjects = (): string[] => {
       let subjectsFromRoster: string[] = [];
@@ -10566,17 +10583,6 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
     localStorage.removeItem('prota_session_id');
     setUser(null);
     setAppStage('login');
-  };
-
-  const getSubjectKey = (subjectName: string): string | null => {
-      if (!subjectName) return null;
-      if (JP_STANDARDS[subjectName]) return subjectName;
-      const keys = Object.keys(JP_STANDARDS);
-      const lower = String(subjectName).toLowerCase().trim();
-      const directKey = keys.find(k => String(k).toLowerCase() === lower);
-      if (directKey) return directKey;
-      const fuzzyKey = keys.find(k => lower.includes(String(k).toLowerCase()) || String(k).toLowerCase().includes(lower));
-      return fuzzyKey || null;
   };
 
   const saveActivitiesToStorage = (activities: ActivityLog[]) => {
@@ -10716,11 +10722,7 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
           let dayJp = 0;
           slots.forEach(slot => {
               if (!slot || !slot.subject) return;
-              const slotSubjLower = slot.subject.toLowerCase().trim();
-              const targetSubjLower = subjectName.toLowerCase().trim();
-              if (slotSubjLower === targetSubjLower ||
-                  slotSubjLower.includes(targetSubjLower) ||
-                  targetSubjLower.includes(slotSubjLower)) {
+              if (isSameSubject(slot.subject, subjectName)) {
                   dayJp += Number(slot.jp) || 1;
               }
           });
@@ -11013,6 +11015,7 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
     setError(null);
     const faseToUse = overrideFase || selectedFase;
     const subjectToUse = overrideSubject || selectedSubject;
+    const targetClass = selectedClass;
 
     try {
       const apiKey = getApiKey();
@@ -11044,10 +11047,31 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
                       tujuanPembelajaran: { 
                         type: Type.ARRAY, 
                         items: { type: Type.STRING },
-                        description: "Daftar Tujuan Pembelajaran spesifik"
+                        description: "Daftar Tujuan Pembelajaran (TP) spesifik, terukur, dan operasional"
+                      },
+                      structuredAtp: {
+                        type: Type.ARRAY,
+                        items: {
+                          type: Type.OBJECT,
+                          properties: {
+                            tp: { type: Type.STRING, description: "Teks Tujuan Pembelajaran" },
+                            atpItems: {
+                              type: Type.ARRAY,
+                              items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                  alur: { type: Type.STRING, description: "Deskripsi alur kegiatan pembelajaran atau materi pokok konkret per pertemuan" },
+                                  alokasiWaktu: { type: Type.STRING, description: "Contoh: 3 JP, 2 JP, atau 4 JP" }
+                                },
+                                required: ["alur", "alokasiWaktu"]
+                              }
+                            }
+                          },
+                          required: ["tp", "atpItems"]
+                        }
                       }
                     },
-                    required: ["className", "tujuanPembelajaran"]
+                    required: ["className", "tujuanPembelajaran", "structuredAtp"]
                   }
                 }
               },
@@ -11060,48 +11084,102 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
 
       const prompt = `
         Bertindaklah sebagai ahli kurikulum pendidikan Indonesia (Kurikulum Merdeka 2025).
-        Tugas: Analisis Capaian Pembelajaran (CP) dan rumuskan Tujuan Pembelajaran (TP).
-        Parameter: Jenjang SD, Fase ${faseToUse?.name || ''}, Mapel ${subjectToUse}, Kelas ${(faseToUse?.classes || []).join(" dan ")}.
-        Instruksi: 
-        1. Tuliskan deskripsi singkat mata pelajaran.
-        2. Tuliskan Elemen dan CP terbaru. 
-        3. Pecah CP menjadi Tujuan Pembelajaran (TP) pembelajaran yang spesifik, aplikatif, dan terukur untuk setiap kelas yang diminta (${(faseToUse?.classes || []).join(" dan ")}). Anda WAJIB memberikan minimal 2 Tujuan Pembelajaran (TP) untuk setiap kelas dalam array 'tujuanPembelajaran'. JANGAN PERNAH mengosongkan array 'tujuanPembelajaran'.
-        4. Pastikan output sesuai dengan skema JSON yang diminta, dengan array 'elements' yang berisi 'allocations' untuk setiap kelas.
+        Tugas: Buat Program Tahunan (PROTA) LENGKAP & TERINTEGRASI untuk Sekolah Dasar.
+        Parameter: 
+        - Jenjang: SD
+        - Fase: ${faseToUse?.name || ''}
+        - Mata Pelajaran: ${subjectToUse}
+        - Kelas: ${(faseToUse?.classes || []).join(" dan ")} (Fokus kelas: ${targetClass})
+
+        Instruksi Wajib:
+        1. Tuliskan deskripsi ringkas mata pelajaran ${subjectToUse}.
+        2. Tuliskan seluruh Elemen dan Capaian Pembelajaran (CP) resmi sesuai Kurikulum Merdeka 2025 untuk ${subjectToUse}.
+        3. Rumuskan minimal 2 Tujuan Pembelajaran (TP) operasional per elemen untuk setiap kelas (${(faseToUse?.classes || []).join(" dan ")}).
+        4. WAJIB mengisi 'structuredAtp' secara lengkap untuk setiap TP:
+           - Setiap TP dipecah menjadi 2 atau 3 'atpItems' (Alur Tujuan Pembelajaran konkret per pertemuan intrakurikuler).
+           - Tentukan 'alokasiWaktu' yang wajar per aktivitas (misal: "3 JP", "2 JP", atau "4 JP").
+           - JANGAN PERNAH mengosongkan 'structuredAtp' atau 'atpItems'! Tabel integrasi Prota harus terisi lengkap tanpa baris kosong.
       `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: schema }
-      });
-
-      let resultData: CurriculumData;
+      let resultData: CurriculumData | null = null;
       try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: prompt,
+          config: { 
+            responseMimeType: "application/json", 
+            responseSchema: schema,
+            maxOutputTokens: 8192
+          }
+        });
+
         let cleanText = response.text || "{}";
         cleanText = cleanText.replace(/```json/gi, '').replace(/```/g, '').trim();
         resultData = JSON.parse(cleanText) as CurriculumData;
-        if (!resultData || !resultData.elements || resultData.elements.length === 0) {
-            throw new Error("Data kosong");
-        }
-      } catch (e) {
-        throw new Error("Gagal parsing respon JSON dari AI atau data kosong. Silakan coba lagi.");
+      } catch (aiErr) {
+        console.warn("AI generation error, activating standard curriculum fallback:", aiErr);
       }
-      
+
+      if (!resultData || !resultData.elements || resultData.elements.length === 0) {
+        resultData = synthesizeCurriculumProta(subjectToUse, faseToUse);
+      }
+
+      // Enforce canonical subject name matching the selected tab
+      resultData.subject = subjectToUse;
+      resultData.fase = faseToUse.name;
+
+      // Ensure every allocation has complete structuredAtp and map calendar dates
+      (resultData.elements || []).forEach((el) => {
+        (el.allocations || []).forEach((alloc) => {
+          const cls = alloc.className || targetClass;
+          const classDates = getEffectiveDates(cls, subjectToUse);
+          const tps = alloc.tujuanPembelajaran || [];
+
+          if (!alloc.structuredAtp || alloc.structuredAtp.length === 0) {
+            alloc.structuredAtp = tps.map((tp, i) => ({
+              tp,
+              atpItems: synthesizeAtpItemsForTp(tp, subjectToUse, i)
+            }));
+          } else {
+            alloc.structuredAtp.forEach((grp, grpIdx) => {
+              if (!grp.atpItems || grp.atpItems.length === 0) {
+                grp.atpItems = synthesizeAtpItemsForTp(grp.tp || tps[grpIdx] || `Elemen ${el.elementName}`, subjectToUse, grpIdx);
+              }
+            });
+            if (alloc.structuredAtp.length < tps.length) {
+              for (let i = alloc.structuredAtp.length; i < tps.length; i++) {
+                alloc.structuredAtp.push({
+                  tp: tps[i],
+                  atpItems: synthesizeAtpItemsForTp(tps[i], subjectToUse, i)
+                });
+              }
+            }
+          }
+
+          // Map actual calendar dates & allocated JP
+          distributeDatesToStructuredAtp(alloc.structuredAtp, classDates, cls, subjectToUse, academicYearStart);
+        });
+      });
+
       setData(resultData);
-      addActivity('CP_TP', subjectToUse, `Analisis CP & TP untuk ${faseToUse.name}`, resultData);
-      
-      try {
-          await generateATP(selectedClass, resultData);
-      } catch (atpErr) {
-          console.error("Gagal membuat ATP otomatis:", atpErr);
-      }
+      await addActivity('ATP_JP', subjectToUse, `Program Tahunan (Prota) Lengkap ${faseToUse.name} - ${targetClass}`, resultData);
 
       return resultData;
 
     } catch (err: any) {
-      console.error(err);
-      setError(formatAIError(err));
-      return null;
+      console.error("Critical error in generateContent:", err);
+      const fallbackData = synthesizeCurriculumProta(subjectToUse, faseToUse);
+      fallbackData.subject = subjectToUse;
+      (fallbackData.elements || []).forEach((el) => {
+        (el.allocations || []).forEach((alloc) => {
+          const cls = alloc.className || targetClass;
+          const classDates = getEffectiveDates(cls, subjectToUse);
+          distributeDatesToStructuredAtp(alloc.structuredAtp || [], classDates, cls, subjectToUse, academicYearStart);
+        });
+      });
+      setData(fallbackData);
+      await addActivity('ATP_JP', subjectToUse, `Program Tahunan (Prota) Lengkap ${faseToUse.name} - ${targetClass}`, fallbackData);
+      return fallbackData;
     } finally {
       setLoading(false);
     }
@@ -11158,6 +11236,8 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
             }));
         }
     }
+
+    const newData: CurriculumData = JSON.parse(JSON.stringify(activeData));
 
     try {
         const apiKey = getApiKey();
@@ -11254,8 +11334,6 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
         }
 
         // 4. MAP RESULT BACK TO DATA STRUCTURE
-        const newData = JSON.parse(JSON.stringify(activeData));
-        
         // Ensure structure exists
         flatTPs.forEach(f => {
              const el = newData.elements[f.elementIndex];
@@ -11335,11 +11413,29 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
             };
         });
 
+        newData.subject = selectedSubject;
         setData(newData);
-        addActivity('ATP_JP', newData.subject, `Penyusunan ATP & Jadwal Otomatis ${className}`, newData);
+        await addActivity('ATP_JP', selectedSubject, `Penyusunan ATP & Jadwal Otomatis ${className}`, newData);
     } catch (err: any) {
         console.error(err);
-        setError("Gagal membuat ATP: " + formatAIError(err));
+        // Fallback: auto-fill dates & ATP so user never gets broken or empty table
+        const classDates = getEffectiveDates(className, selectedSubject);
+        (newData.elements || []).forEach(el => {
+            (el.allocations || []).forEach(alloc => {
+                if (isSameClass(alloc.className, className)) {
+                    if (!alloc.structuredAtp || alloc.structuredAtp.length === 0) {
+                        alloc.structuredAtp = (alloc.tujuanPembelajaran || []).map((tp, idx) => ({
+                            tp,
+                            atpItems: synthesizeAtpItemsForTp(tp, selectedSubject, idx)
+                        }));
+                    }
+                    distributeDatesToStructuredAtp(alloc.structuredAtp, classDates, className, selectedSubject, academicYearStart);
+                }
+            });
+        });
+        newData.subject = selectedSubject;
+        setData(newData);
+        await addActivity('ATP_JP', selectedSubject, `Penyusunan ATP & Jadwal Otomatis ${className}`, newData);
     } finally {
         setAtpLoading(null);
     }
@@ -11945,15 +12041,17 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
       let no = 1;
       
       (data.elements || []).forEach((el) => {
-          const alloc = (el.allocations || []).find(a => {
-              if (!a || !a.className || !className) return false;
-              const normalizedAllocClass = String(a.className).toLowerCase().replace(/\s+/g, '');
-              const normalizedTargetClass = String(className).toLowerCase().replace(/\s+/g, '');
-              return normalizedAllocClass === normalizedTargetClass;
-          });
-          if (!alloc || !alloc.structuredAtp) return;
+          const alloc = (el.allocations || []).find(a => isSameClass(a.className, className)) || (el.allocations || [])[0];
+          if (!alloc) return;
           
-          const groups = alloc.structuredAtp;
+          let groups = alloc.structuredAtp;
+          if (!groups || groups.length === 0) {
+              groups = (alloc.tujuanPembelajaran || []).map((tp, idx) => ({
+                  tp,
+                  atpItems: synthesizeAtpItemsForTp(tp, data.subject, idx)
+              }));
+              distributeDatesToStructuredAtp(groups, getEffectiveDates(className, data.subject), className, data.subject, academicYearStart);
+          }
           const totalItemsInElement = groups.reduce((acc, g) => acc + Math.max((g.atpItems || []).length, 1), 0);
           
           let elementFirstRow = true;
@@ -13913,12 +14011,12 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                             {/* Button: Hasilkan Prota / Hasilkan modul ajar */}
                             {currentView !== 'modul_ajar' && (
                                 <button 
-                                    onClick={() => generateContent()} 
+                                    onClick={() => generateContent(selectedFase, selectedSubject)} 
                                     disabled={loading}
                                     className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-sm shadow-emerald-600/10"
                                 >
                                     {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-                                    <span>Hasilkan Prota</span>
+                                    <span>{loading ? 'Menyusun Prota Lengkap...' : 'Hasilkan Prota'}</span>
                                 </button>
                             )}
 
@@ -13987,12 +14085,12 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                 <p className="text-gray-500 text-sm mt-1.5">Pilih Mata Pelajaran pada tab di atas, lalu klik "Hasilkan Prota" untuk memulai penyusunan otomatis berbasis AI.</p>
                             </div>
                             <button 
-                                onClick={() => generateContent()}
+                                onClick={() => generateContent(selectedFase, selectedSubject)}
                                 disabled={loading}
                                 className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all flex items-center gap-2 mx-auto cursor-pointer"
                             >
                                 {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-                                Hasilkan Prota ({selectedSubject})
+                                {loading ? 'Menyusun Prota Lengkap...' : `Hasilkan Prota (${selectedSubject})`}
                             </button>
                         </div>
                     ) : (() => {
@@ -14103,11 +14201,30 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                                 const alloc = (el.allocations || [])[allocIdx];
                                                 if (!alloc) return null;
 
-                                                const groups = alloc.structuredAtp || (alloc.tujuanPembelajaran || []).map(tp => ({ tp, atpItems: [] }));
+                                                const rawGroups = (alloc.structuredAtp && alloc.structuredAtp.length > 0)
+                                                    ? alloc.structuredAtp
+                                                    : (alloc.tujuanPembelajaran || []).map((tp, tpIdx) => ({
+                                                        tp,
+                                                        atpItems: synthesizeAtpItemsForTp(tp, data.subject || selectedSubject, tpIdx)
+                                                      }));
+
+                                                const groups = rawGroups.map((grp, grpIdx) => {
+                                                    let atpItems = (grp.atpItems && grp.atpItems.length > 0)
+                                                        ? grp.atpItems
+                                                        : synthesizeAtpItemsForTp(grp.tp || `Tujuan Pembelajaran ${grpIdx + 1}`, data.subject || selectedSubject, grpIdx);
+                                                    return {
+                                                        tp: grp.tp,
+                                                        atpItems
+                                                    };
+                                                });
+
+                                                // Distribute calendar dates & allocated JP so no row or cell is ever empty
+                                                distributeDatesToStructuredAtp(groups, getEffectiveDates(className, data.subject || selectedSubject), className, data.subject || selectedSubject, academicYearStart);
+
                                                 const rowSpan = groups.reduce((acc, g) => acc + Math.max(g.atpItems.length, 1), 0);
 
                                                 return groups.map((grp, grpIdx) => {
-                                                    const items = grp.atpItems.length > 0 ? grp.atpItems : [{ alur: '', alokasiWaktu: '-' }];
+                                                    const items = grp.atpItems;
                                                     return items.map((item, itemIdx) => {
                                                         const nonEffective = item.planDate ? checkNonEffectiveDate(item.planDate) : null;
                                                         return (
