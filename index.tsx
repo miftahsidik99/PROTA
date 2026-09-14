@@ -9,7 +9,7 @@ import {
     Zap, Star, FileOutput, CalendarCheck, GraduationCap, SlidersHorizontal, Info, 
     Table, Lightbulb, TrendingUp, AlertTriangle, Check, CalendarDays, BarChart3, 
     ChevronDown, ChevronUp, Target, ChevronLeft, FilePlus, Save, Image as ImageIcon, 
-    Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2, Search, Lock, 
+    Printer, User, Edit, Brain, ThumbsUp, Coffee, LogOut, Trash2, Search, Lock, Unlock, 
     Plus, Menu, Users, ClipboardCheck, BookMarked, CalendarRange, Award, CheckSquare, 
     Layers, PenLine, CheckCheck, Upload, RotateCcw, ClipboardPaste, FileSpreadsheet, Copy,
     Play, ExternalLink, Video, Youtube, Tv, Link as LinkIcon
@@ -879,7 +879,10 @@ const MasterCalendarConfig = ({
     setSchoolDaysCount,
     onAddNewEvent,
     onSaveCalendar,
-    onDownloadDoc
+    onDownloadDoc,
+    isYearLocked,
+    onLockYear,
+    onUnlockYear
 }: { 
     calendarEvents: CalendarEvent[], 
     onDateClick: (dateStr: string, ev: CalendarEvent | undefined) => void,
@@ -890,7 +893,10 @@ const MasterCalendarConfig = ({
     setSchoolDaysCount: (count: 5 | 6) => void,
     onAddNewEvent?: () => void,
     onSaveCalendar?: () => void,
-    onDownloadDoc?: () => void
+    onDownloadDoc?: () => void,
+    isYearLocked?: boolean,
+    onLockYear?: (year: number) => void,
+    onUnlockYear?: () => void
 }) => {
     // Drag-to-select state
     const [isDragging, setIsDragging] = useState(false);
@@ -992,13 +998,48 @@ const MasterCalendarConfig = ({
                         <span className="text-xs font-bold text-gray-700">Tahun Ajaran:</span>
                         <select 
                             value={academicYearStart} 
-                            onChange={(e) => setAcademicYearStart(Number(e.target.value))}
-                            className="p-1.5 border border-gray-300 rounded-lg text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                            onChange={(e) => {
+                                const newYr = Number(e.target.value);
+                                setAcademicYearStart(newYr);
+                                if (isYearLocked && onUnlockYear) {
+                                    onUnlockYear();
+                                }
+                            }}
+                            className="p-1.5 border border-gray-300 rounded-lg text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                         >
                             {[2024, 2025, 2026, 2027, 2028].map(y => (
                                 <option key={y} value={y}>{y}/{y+1}</option>
                             ))}
                         </select>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (isYearLocked && onUnlockYear) {
+                                    onUnlockYear();
+                                } else if (onLockYear) {
+                                    onLockYear(academicYearStart);
+                                }
+                            }}
+                            title={isYearLocked ? "Tahun ajaran ini terkunci agar tidak berubah. Klik untuk membuka kunci jika ingin mengganti." : "Kunci tahun ajaran pilihan agar tersimpan dan tidak berubah-ubah"}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 border ${
+                                isYearLocked 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400' 
+                                    : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:shadow-emerald-600/20'
+                            }`}
+                        >
+                            {isYearLocked ? (
+                                <>
+                                    <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Tahun Ajaran Terkunci</span>
+                                    <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded font-medium">Buka</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Lock className="w-3.5 h-3.5 text-white" />
+                                    <span>Kunci Tahun Ajaran</span>
+                                </>
+                            )}
+                        </button>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-gray-700">Sistem Hari:</span>
@@ -1281,6 +1322,9 @@ interface CalendarPageViewProps {
     onDateRangeClick: (startDateStr: string, endDateStr: string, ev?: CalendarEvent) => void;
     academicYearStart: number;
     setAcademicYearStart: (year: number) => void;
+    isYearLocked?: boolean;
+    onLockYear?: (year: number) => void;
+    onUnlockYear?: () => void;
     schoolDaysCount: 5 | 6;
     setSchoolDaysCount: (count: 5 | 6) => void;
     calculateCalendarAnalysis: (className: string, subject: string) => AnalysisResult | null;
@@ -1308,6 +1352,9 @@ const CalendarPageView = ({
     onDateRangeClick,
     academicYearStart,
     setAcademicYearStart,
+    isYearLocked,
+    onLockYear,
+    onUnlockYear,
     schoolDaysCount,
     setSchoolDaysCount,
     calculateCalendarAnalysis,
@@ -1362,6 +1409,22 @@ const CalendarPageView = ({
     const handleAddNewEventDirect = () => {
         const defaultDate = `${academicYearStart}-07-15`;
         onDateRangeClick(defaultDate, defaultDate, undefined);
+    };
+
+    const handleLockYearWithFeedback = (year: number) => {
+        if (onLockYear) onLockYear(year);
+        setSaveToast(`Tahun Ajaran ${year}/${year + 1} Berhasil Disimpan & Dikunci!`);
+        setTimeout(() => {
+            setSaveToast(null);
+        }, 3500);
+    };
+
+    const handleUnlockYearWithFeedback = () => {
+        if (onUnlockYear) onUnlockYear();
+        setSaveToast('Kunci Tahun Ajaran dibuka. Silakan pilih tahun ajaran baru.');
+        setTimeout(() => {
+            setSaveToast(null);
+        }, 3500);
     };
 
     return (
@@ -1429,6 +1492,9 @@ const CalendarPageView = ({
                     onAddNewEvent={handleAddNewEventDirect}
                     onSaveCalendar={handleSaveCalendar}
                     onDownloadDoc={handleDownloadWord}
+                    isYearLocked={isYearLocked}
+                    onLockYear={handleLockYearWithFeedback}
+                    onUnlockYear={handleUnlockYearWithFeedback}
                 />
             </div>
         </div>
@@ -9941,6 +10007,9 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
     return DEFAULT_CALENDAR_EVENTS;
   });
   const [editingCalendarEvent, setEditingCalendarEvent] = useState<{dateStr: string, endDateStr?: string, ev?: CalendarEvent} | null>(null);
+  const [isYearLocked, setIsYearLocked] = useState<boolean>(() => {
+      return localStorage.getItem('prota_academic_year_locked') === 'true';
+  });
   const [academicYearStart, setAcademicYearStart] = useState<number>(() => {
       const saved = localStorage.getItem('prota_academic_year_start');
       if (saved && !isNaN(Number(saved))) return Number(saved);
@@ -9956,6 +10025,24 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
       return saved ? parseInt(saved, 10) as 5 | 6 : 6;
   });
 
+  const handleLockAcademicYear = (year: number) => {
+      setAcademicYearStart(year);
+      setIsYearLocked(true);
+      const yearStr = `${year}/${year + 1}`;
+      localStorage.setItem('prota_academic_year_locked', 'true');
+      localStorage.setItem('prota_academic_year_start', year.toString());
+      localStorage.setItem('prota_academic_year', yearStr);
+      setUserIdentity(prev => ({
+          ...prev,
+          academicYear: yearStr
+      }));
+  };
+
+  const handleUnlockAcademicYear = () => {
+      setIsYearLocked(false);
+      localStorage.removeItem('prota_academic_year_locked');
+  };
+
   useEffect(() => {
       localStorage.setItem('prota_school_days_count', schoolDaysCount.toString());
   }, [schoolDaysCount]);
@@ -9965,7 +10052,7 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
   }, [academicYearStart]);
 
   useEffect(() => {
-      if (userIdentity?.academicYear) {
+      if (!isYearLocked && userIdentity?.academicYear) {
           const m = userIdentity.academicYear.match(/\b(20\d\d)\b/);
           if (m) {
               const yr = parseInt(m[1], 10);
@@ -9974,7 +10061,17 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
               }
           }
       }
-  }, [userIdentity?.academicYear]);
+  }, [userIdentity?.academicYear, isYearLocked]);
+
+  useEffect(() => {
+      if (isYearLocked) {
+          const expectedStr = `${academicYearStart}/${academicYearStart + 1}`;
+          if (userIdentity?.academicYear !== expectedStr) {
+              setUserIdentity(prev => ({ ...prev, academicYear: expectedStr }));
+              localStorage.setItem('prota_academic_year', expectedStr);
+          }
+      }
+  }, [isYearLocked, academicYearStart, userIdentity?.academicYear]);
 
   // Helper
   useEffect(() => {
@@ -11533,11 +11630,13 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
           });
       });
 
+      const activeAcademicYear = `${academicYearStart}/${academicYearStart + 1}`;
+
       const htmlContent = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
         <head>
           <meta charset='utf-8'>
-          <title>Program Tahunan (PROTA)</title>
+          <title>Program Tahunan (PROTA) - ${data.subject} ${className} - TA ${activeAcademicYear}</title>
           <style>
             @page { size: landscape; margin: 1cm; }
             body { font-family: 'Arial', sans-serif; font-size: 10pt; line-height: 1.2; }
@@ -11547,22 +11646,25 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
             .header { text-align: center; margin-bottom: 15px; }
             .identity { margin-bottom: 15px; }
             .identity table { width: auto; border: none; margin-top: 0; }
-            .identity td { border: none; padding: 1px 10px 1px 0; }
+            .identity td { border: none; padding: 2px 12px 2px 0; font-size: 10pt; }
           </style>
         </head>
         <body>
           <div class="header">
-              <h2 style="margin: 0;">PROGRAM TAHUNAN (PROTA)</h2>
-              <h3 style="margin: 5px 0;">KURIKULUM MERDEKA</h3>
+              <h2 style="margin: 0; font-size: 16pt;">PROGRAM TAHUNAN (PROTA)</h2>
+              <h3 style="margin: 4px 0 2px 0; font-size: 13pt;">KURIKULUM MERDEKA</h3>
+              <div style="font-size: 11pt; font-weight: bold; color: #1e3a8a; margin-top: 4px;">TAHUN PELAJARAN ${activeAcademicYear}</div>
           </div>
           
           <div class="identity">
               <table>
-                  <tr><td>Mata Pelajaran</td><td>: ${data.subject}</td></tr>
-                  <tr><td>Instansi</td><td>: ${userIdentity.institutionName || '-'}</td></tr>
-                  <tr><td>Kelas/Fase</td><td>: ${className} / ${data.fase}</td></tr>
-                  <tr><td>Tahun Pelajaran</td><td>: ${userIdentity.academicYear || '-'}</td></tr>
-                  <tr><td>Penyusun</td><td>: ${userIdentity.authorName || '-'}</td></tr>
+                  <tr><td style="width: 170px; font-weight: bold;">Satuan Pendidikan</td><td>: ${userIdentity.institutionName || savedInst || '-'}</td></tr>
+                  <tr><td style="font-weight: bold;">Mata Pelajaran</td><td>: ${data.subject}</td></tr>
+                  <tr><td style="font-weight: bold;">Kelas / Fase</td><td>: ${className} / ${data.fase}</td></tr>
+                  <tr><td style="font-weight: bold;">Tahun Pelajaran</td><td>: ${activeAcademicYear}</td></tr>
+                  <tr><td style="font-weight: bold;">Tanggal Pelaksanaan</td><td>: Juli ${academicYearStart} s.d. Juni ${academicYearStart + 1}</td></tr>
+                  <tr><td style="font-weight: bold;">Penyusun</td><td>: ${userIdentity.authorName || savedAuthor || '-'}</td></tr>
+                  <tr><td style="font-weight: bold;">NIP</td><td>: ${userIdentity.nip || '-'}</td></tr>
               </table>
           </div>
 
@@ -11572,6 +11674,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                   <thead style="background-color: #f2f2f2;">
                       <tr>
                           <th>Semester</th>
+                          <th>Periode</th>
                           <th>Jadwal</th>
                           <th>Jml HBE</th>
                           <th>Jam Pel (JP)</th>
@@ -11581,6 +11684,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                   <tbody>
                       <tr>
                           <td style="text-align: center;">Semester 1 (Ganjil)</td>
+                          <td style="text-align: center;">Juli - Desember ${academicYearStart}</td>
                           <td style="text-align: center;">${(classSchedules[className] || []).join(', ')}</td>
                           <td style="text-align: center;">${calAnalysis?.semester1.effectiveDays || 0}</td>
                           <td style="text-align: center;">${(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
@@ -11588,13 +11692,14 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                       </tr>
                       <tr>
                           <td style="text-align: center;">Semester 2 (Genap)</td>
+                          <td style="text-align: center;">Januari - Juni ${academicYearStart + 1}</td>
                           <td style="text-align: center;">${(classSchedules[className] || []).join(', ')}</td>
                           <td style="text-align: center;">${calAnalysis?.semester2.effectiveDays || 0}</td>
                           <td style="text-align: center;">${(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
                           <td style="text-align: center;">${calAnalysis?.semester2.availableJP || 0}</td>
                       </tr>
                       <tr style="background-color: #f9f9f9; font-weight: bold;">
-                          <td colspan="4" style="text-align: right; padding-right: 10px;">TOTAL JP SETAHUN</td>
+                          <td colspan="5" style="text-align: right; padding-right: 10px;">TOTAL JP SETAHUN</td>
                           <td style="text-align: center;">${(calAnalysis?.semester1.availableJP || 0) + (calAnalysis?.semester2.availableJP || 0)}</td>
                       </tr>
                   </tbody>
@@ -11618,15 +11723,35 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                   ${tableRows}
               </tbody>
           </table>
+
+          <!-- Tanda Tangan & Titimangsa Pengesahan -->
+          <table style="width: 100%; border: none; margin-top: 35px; font-size: 9.5pt;">
+            <tr style="border: none;">
+              <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                Mengetahui,<br/>
+                <b>Kepala ${(userIdentity.institutionName || savedInst || 'Sekolah')}</b>
+                <br/><br/><br/><br/><br/>
+                <u><b>${(userIdentity as any).kepalaSekolah || 'Yuni Sri Rahayu, S.Pd.'}</b></u><br/>
+                NIP. ${(userIdentity as any).nipKepalaSekolah || '198706162019032007'}
+              </td>
+              <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                ${(userIdentity as any).city || 'Sukatinggal'}, 14 Juli ${academicYearStart}<br/>
+                <b>Guru Kelas / Mata Pelajaran</b>
+                <br/><br/><br/><br/><br/>
+                <u><b>${userIdentity.authorName || savedAuthor || 'Acep Miftah Hilah Ash-shidiq, S.Pd.'}</b></u><br/>
+                NIP. ${(userIdentity as any).nip || '199602152025211094'}
+              </td>
+            </tr>
+          </table>
         </body>
         </html>
       `;
 
-      const blob = new Blob(['\\ufeff', htmlContent], { type: 'application/msword' });
+      const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `PROTA_${data.subject}_${className}.doc`;
+      link.download = `PROTA_${data.subject}_${className}_TA_${academicYearStart}_${academicYearStart + 1}.doc`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -12713,7 +12838,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
                <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-blue-50 shrink-0">
-                  <div className="flex items-center gap-3"><CalendarDays className="w-6 h-6 text-blue-600" /><div><h3 className="text-xl font-bold text-gray-900">Kalender Akademik 2025/2026</h3><p className="text-sm text-gray-500">Sentuh/klik tanggal untuk menyesuaikan hari libur/non-efektif</p></div></div>
+                  <div className="flex items-center gap-3"><CalendarDays className="w-6 h-6 text-blue-600" /><div><h3 className="text-xl font-bold text-gray-900">Kalender Akademik {academicYearStart}/{academicYearStart + 1}</h3><p className="text-sm text-gray-500">Sentuh/klik tanggal untuk menyesuaikan hari libur/non-efektif</p></div></div>
                   <button onClick={() => setShowCalendar(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-6 h-6 text-gray-500" /></button>
                </div>
                <div className="p-6 overflow-y-auto bg-gray-50/50">
@@ -12725,6 +12850,9 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                        setAcademicYearStart={setAcademicYearStart}
                        schoolDaysCount={schoolDaysCount}
                        setSchoolDaysCount={setSchoolDaysCount}
+                       isYearLocked={isYearLocked}
+                       onLockYear={handleLockAcademicYear}
+                       onUnlockYear={handleUnlockAcademicYear}
                    />
                </div>
             </div>
@@ -13282,6 +13410,9 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                 onDateRangeClick={(startDateStr, endDateStr, ev) => setEditingCalendarEvent({ dateStr: startDateStr, endDateStr, ev })}
                 academicYearStart={academicYearStart}
                 setAcademicYearStart={setAcademicYearStart}
+                isYearLocked={isYearLocked}
+                onLockYear={handleLockAcademicYear}
+                onUnlockYear={handleUnlockAcademicYear}
                 schoolDaysCount={schoolDaysCount}
                 setSchoolDaysCount={setSchoolDaysCount}
                 calculateCalendarAnalysis={calculateCalendarAnalysis}
