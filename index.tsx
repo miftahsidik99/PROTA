@@ -33,6 +33,7 @@ import {
     getSubjectKey, 
     synthesizeAtpItemsForTp, 
     distributeDatesToStructuredAtp, 
+    distributeEffectiveDatesToCurriculum,
     synthesizeCurriculumProta,
     STUDENT_CHARACTERISTICS_OPTIONS,
     LEARNING_METHODS_OPTIONS,
@@ -9940,7 +9941,16 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
     return DEFAULT_CALENDAR_EVENTS;
   });
   const [editingCalendarEvent, setEditingCalendarEvent] = useState<{dateStr: string, endDateStr?: string, ev?: CalendarEvent} | null>(null);
-  const [academicYearStart, setAcademicYearStart] = useState<number>(2025);
+  const [academicYearStart, setAcademicYearStart] = useState<number>(() => {
+      const saved = localStorage.getItem('prota_academic_year_start');
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+      const savedAcadYear = localStorage.getItem('prota_academic_year');
+      if (savedAcadYear) {
+          const m = savedAcadYear.match(/\b(20\d\d)\b/);
+          if (m) return parseInt(m[1], 10);
+      }
+      return 2026;
+  });
   const [schoolDaysCount, setSchoolDaysCount] = useState<5 | 6>(() => {
       const saved = localStorage.getItem('prota_school_days_count');
       return saved ? parseInt(saved, 10) as 5 | 6 : 6;
@@ -9949,6 +9959,22 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
   useEffect(() => {
       localStorage.setItem('prota_school_days_count', schoolDaysCount.toString());
   }, [schoolDaysCount]);
+
+  useEffect(() => {
+      localStorage.setItem('prota_academic_year_start', academicYearStart.toString());
+  }, [academicYearStart]);
+
+  useEffect(() => {
+      if (userIdentity?.academicYear) {
+          const m = userIdentity.academicYear.match(/\b(20\d\d)\b/);
+          if (m) {
+              const yr = parseInt(m[1], 10);
+              if (!isNaN(yr) && yr !== academicYearStart) {
+                  setAcademicYearStart(yr);
+              }
+          }
+      }
+  }, [userIdentity?.academicYear]);
 
   // Helper
   useEffect(() => {
@@ -9988,8 +10014,13 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
         isSameSubject(act.subject, selectedSubject)
     );
     if (match && match.dataSnapshot) {
-        if (JSON.stringify(data) !== JSON.stringify(match.dataSnapshot)) {
-            setData(match.dataSnapshot);
+        const snapshot = JSON.parse(JSON.stringify(match.dataSnapshot));
+        const effectiveDates = getEffectiveDates(selectedClass, snapshot.subject || selectedSubject);
+        if (effectiveDates && effectiveDates.length > 0) {
+            distributeEffectiveDatesToCurriculum(snapshot, selectedClass, effectiveDates, academicYearStart);
+        }
+        if (JSON.stringify(data) !== JSON.stringify(snapshot)) {
+            setData(snapshot);
         }
     } else {
         if (data !== null) setData(null);
@@ -10167,7 +10198,12 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
           let dayJp = 0;
           slots.forEach(slot => {
               if (!slot || !slot.subject) return;
-              if (isSameSubject(slot.subject, subjectName)) {
+              const slotSubjLower = slot.subject.toLowerCase().trim();
+              const targetSubjLower = (subjectName || '').toLowerCase().trim();
+              if (isSameSubject(slot.subject, subjectName) ||
+                  slotSubjLower === targetSubjLower ||
+                  slotSubjLower.includes(targetSubjLower) ||
+                  targetSubjLower.includes(slotSubjLower)) {
                   dayJp += Number(slot.jp) || 1;
               }
           });
@@ -10573,37 +10609,11 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
       resultData.subject = subjectToUse;
       resultData.fase = faseToUse.name;
 
-      // Ensure every allocation has complete structuredAtp and map calendar dates
-      (resultData.elements || []).forEach((el) => {
-        (el.allocations || []).forEach((alloc) => {
-          const cls = alloc.className || targetClass;
-          const classDates = getEffectiveDates(cls, subjectToUse);
-          const tps = alloc.tujuanPembelajaran || [];
-
-          if (!alloc.structuredAtp || alloc.structuredAtp.length === 0) {
-            alloc.structuredAtp = tps.map((tp, i) => ({
-              tp,
-              atpItems: synthesizeAtpItemsForTp(tp, subjectToUse, i)
-            }));
-          } else {
-            alloc.structuredAtp.forEach((grp, grpIdx) => {
-              if (!grp.atpItems || grp.atpItems.length === 0) {
-                grp.atpItems = synthesizeAtpItemsForTp(grp.tp || tps[grpIdx] || `Elemen ${el.elementName}`, subjectToUse, grpIdx);
-              }
-            });
-            if (alloc.structuredAtp.length < tps.length) {
-              for (let i = alloc.structuredAtp.length; i < tps.length; i++) {
-                alloc.structuredAtp.push({
-                  tp: tps[i],
-                  atpItems: synthesizeAtpItemsForTp(tps[i], subjectToUse, i)
-                });
-              }
-            }
-          }
-
-          // Map actual calendar dates & allocated JP
-          distributeDatesToStructuredAtp(alloc.structuredAtp, classDates, cls, subjectToUse, academicYearStart);
-        });
+      // Ensure every class has complete structuredAtp and map calendar dates sequentially across all elements
+      const targetClasses = (faseToUse?.classes && faseToUse.classes.length > 0) ? faseToUse.classes : [targetClass];
+      targetClasses.forEach(cls => {
+        const classDates = getEffectiveDates(cls, subjectToUse);
+        distributeEffectiveDatesToCurriculum(resultData, cls, classDates, academicYearStart);
       });
 
       setData(resultData);
@@ -10615,12 +10625,10 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
       console.error("Critical error in generateContent:", err);
       const fallbackData = synthesizeCurriculumProta(subjectToUse, faseToUse);
       fallbackData.subject = subjectToUse;
-      (fallbackData.elements || []).forEach((el) => {
-        (el.allocations || []).forEach((alloc) => {
-          const cls = alloc.className || targetClass;
-          const classDates = getEffectiveDates(cls, subjectToUse);
-          distributeDatesToStructuredAtp(alloc.structuredAtp || [], classDates, cls, subjectToUse, academicYearStart);
-        });
+      const targetClasses = (faseToUse?.classes && faseToUse.classes.length > 0) ? faseToUse.classes : [targetClass];
+      targetClasses.forEach(cls => {
+        const classDates = getEffectiveDates(cls, subjectToUse);
+        distributeEffectiveDatesToCurriculum(fallbackData, cls, classDates, academicYearStart);
       });
       setData(fallbackData);
       await addActivity('ATP_JP', subjectToUse, `Program Tahunan (Prota) Lengkap ${faseToUse.name} - ${targetClass}`, fallbackData);
@@ -10865,19 +10873,7 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
         console.error(err);
         // Fallback: auto-fill dates & ATP so user never gets broken or empty table
         const classDates = getEffectiveDates(className, selectedSubject);
-        (newData.elements || []).forEach(el => {
-            (el.allocations || []).forEach(alloc => {
-                if (isSameClass(alloc.className, className)) {
-                    if (!alloc.structuredAtp || alloc.structuredAtp.length === 0) {
-                        alloc.structuredAtp = (alloc.tujuanPembelajaran || []).map((tp, idx) => ({
-                            tp,
-                            atpItems: synthesizeAtpItemsForTp(tp, selectedSubject, idx)
-                        }));
-                    }
-                    distributeDatesToStructuredAtp(alloc.structuredAtp, classDates, className, selectedSubject, academicYearStart);
-                }
-            });
-        });
+        distributeEffectiveDatesToCurriculum(newData, className, classDates, academicYearStart);
         newData.subject = selectedSubject;
         setData(newData);
         await addActivity('ATP_JP', selectedSubject, `Penyusunan ATP & Jadwal Otomatis ${className}`, newData);
@@ -11482,6 +11478,11 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
       const savedAuthor = localStorage.getItem('prota_author_name') || 'Guru Kelas';
       const savedInst = localStorage.getItem('prota_institution_name') || 'Sekolah Dasar';
       
+      if (data) {
+          const classDates = getEffectiveDates(className, data.subject);
+          distributeEffectiveDatesToCurriculum(data, className, classDates, academicYearStart);
+      }
+
       let tableRows = '';
       let no = 1;
       
@@ -11495,7 +11496,6 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                   tp,
                   atpItems: synthesizeAtpItemsForTp(tp, data.subject, idx)
               }));
-              distributeDatesToStructuredAtp(groups, getEffectiveDates(className, data.subject), className, data.subject, academicYearStart);
           }
           const totalItemsInElement = groups.reduce((acc, g) => acc + Math.max((g.atpItems || []).length, 1), 0);
           
@@ -13557,6 +13557,19 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                         <h3 className="font-bold text-lg border-l-4 border-emerald-600 pl-3 text-slate-800">{className} — {data.subject}</h3>
                                     </div>
                                     <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                const classDates = getEffectiveDates(className, data.subject || selectedSubject);
+                                                const clonedData = JSON.parse(JSON.stringify(data));
+                                                distributeEffectiveDatesToCurriculum(clonedData, className, classDates, academicYearStart);
+                                                setData(clonedData);
+                                            }}
+                                            title="Sinkronkan tanggal rencana belajar dan alokasi JP secara berurutan sesuai Hari Efektif Belajar"
+                                            className="px-3.5 py-2 bg-white text-slate-700 hover:bg-slate-100 rounded-lg text-sm font-medium flex items-center gap-2 border border-slate-300 shadow-sm transition-all hover:text-emerald-700 hover:border-emerald-300"
+                                        >
+                                            <RefreshCw className="w-4 h-4 text-emerald-600" /> 
+                                            <span className="hidden sm:inline">Sinkronkan Tanggal</span>
+                                        </button>
                                         {currentView === 'modul_ajar' && hasATP && (
                                             <>
                                                 <button 
@@ -13640,6 +13653,18 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-200">
+                                            {(() => {
+                                                const classEffectiveDates = getEffectiveDates(className, data.subject || selectedSubject);
+                                                const totalExistingItems = (data.elements || []).reduce((acc, el) => {
+                                                    const alloc = (el.allocations || []).find(a => isSameClass(a.className, className));
+                                                    return acc + ((alloc?.structuredAtp || []).reduce((gAcc, g) => gAcc + (g.atpItems || []).length, 0));
+                                                }, 0);
+
+                                                if (classEffectiveDates.length > 0 && totalExistingItems !== classEffectiveDates.length) {
+                                                    distributeEffectiveDatesToCurriculum(data, className, classEffectiveDates, academicYearStart);
+                                                }
+                                                return null;
+                                            })()}
                                             {(data.elements || []).map((el, elIdx) => {
                                                 let allocIdx = (el.allocations || []).findIndex(a => isSameClass(a.className, className));
                                                 if (allocIdx < 0 && (el.allocations || []).length === 1) allocIdx = 0;
@@ -13662,9 +13687,6 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                                         atpItems
                                                     };
                                                 });
-
-                                                // Distribute calendar dates & allocated JP so no row or cell is ever empty
-                                                distributeDatesToStructuredAtp(groups, getEffectiveDates(className, data.subject || selectedSubject), className, data.subject || selectedSubject, academicYearStart);
 
                                                 const rowSpan = groups.reduce((acc, g) => acc + Math.max(g.atpItems.length, 1), 0);
 

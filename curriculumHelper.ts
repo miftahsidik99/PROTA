@@ -205,8 +205,28 @@ export const synthesizeAtpItemsForTp = (tp: string, subject: string, index: numb
     return items;
 };
 
+export const normalizeClassStr = (str: string): string => {
+    if (!str) return '';
+    let s = String(str).toLowerCase().trim().replace(/\s+/g, '');
+    s = s.replace(/kelas/g, '').replace(/kls/g, '').replace(/sd/g, '');
+    const romanMap: Record<string, string> = {
+        'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6'
+    };
+    if (romanMap[s]) return romanMap[s];
+    const numMatch = s.match(/\d/);
+    if (numMatch) return numMatch[0];
+    return s;
+};
+
+export const isSameClass = (classA: string, classB: string): boolean => {
+    if (!classA || !classB) return false;
+    const normA = normalizeClassStr(classA);
+    const normB = normalizeClassStr(classB);
+    return normA !== '' && normA === normB;
+};
+
 /**
- * Maps academic calendar effective date slots to structured ATP items.
+ * Maps academic calendar effective date slots to structured ATP items sequentially.
  * Guarantees that every item receives a valid ISO planDate (YYYY-MM-DD) and standardized JP.
  */
 export const distributeDatesToStructuredAtp = (
@@ -214,7 +234,7 @@ export const distributeDatesToStructuredAtp = (
     classDates: { date: Date, jp: number }[],
     className: string,
     subjectName: string,
-    academicYearStart: number = 2025
+    academicYearStart: number = 2026
 ) => {
     if (!structuredAtp || structuredAtp.length === 0) return;
 
@@ -227,7 +247,7 @@ export const distributeDatesToStructuredAtp = (
 
     if (allItems.length === 0) return;
 
-    let datesList = classDates;
+    let datesList = (classDates || []).slice().sort((a, b) => a.date.getTime() - b.date.getTime());
     if (!datesList || datesList.length === 0) {
         const start = new Date(academicYearStart, 6, 14); // 14 July
         const end = new Date(academicYearStart + 1, 5, 27); // 27 June
@@ -242,11 +262,9 @@ export const distributeDatesToStructuredAtp = (
     }
 
     const totalSlots = datesList.length;
-    const totalItems = allItems.length;
 
     allItems.forEach((item, idx) => {
-        const slotIdx = Math.min(Math.floor((idx / totalItems) * totalSlots), totalSlots - 1);
-        const slot = datesList[slotIdx];
+        const slot = datesList[idx % totalSlots];
         if (slot) {
             const d = slot.date;
             const year = d.getFullYear();
@@ -256,6 +274,182 @@ export const distributeDatesToStructuredAtp = (
             item.alokasiWaktu = `${slot.jp || 3} JP`;
             item.semester = (d.getMonth() >= 6 && year === academicYearStart) ? 1 : 2;
         }
+    });
+};
+
+/**
+ * Maps all academic calendar effective dates (HEB) sequentially across the entire curriculum (all elements & TPs)
+ * for the specified class. Guarantees:
+ * 1. Total ATP items equals the total number of effective learning days (HEB) from the effective days tab.
+ * 2. Dates are strictly sequential and chronological without duplicates, leaps, or overlaps across elements.
+ * 3. Daily JP and semester distribution are accurately synchronized.
+ */
+export const distributeEffectiveDatesToCurriculum = (
+    curriculumData: CurriculumData,
+    className: string,
+    classDates: { date: Date, jp: number }[],
+    academicYearStart: number = 2026
+): void => {
+    if (!curriculumData || !curriculumData.elements || curriculumData.elements.length === 0) return;
+
+    // 1. Sort effective dates chronologically
+    let datesList = (classDates || []).slice().sort((a, b) => a.date.getTime() - b.date.getTime());
+    if (datesList.length === 0) {
+        // Fallback dates: every Monday across academic year
+        const start = new Date(academicYearStart, 6, 14); // 14 July
+        const end = new Date(academicYearStart + 1, 5, 27); // 27 June
+        const cur = new Date(start);
+        datesList = [];
+        while (cur <= end) {
+            if (cur.getDay() === 1) { // Monday
+                datesList.push({ date: new Date(cur), jp: 3 });
+            }
+            cur.setDate(cur.getDate() + 1);
+        }
+    }
+
+    const totalHeb = datesList.length;
+    const subjectName = curriculumData.subject || "Mata Pelajaran";
+
+    // 2. Identify all elements and their TP groups for this className
+    interface TpRef {
+        el: ElementData;
+        alloc: Allocation;
+        grp: TpGroup;
+        elIdx: number;
+        grpIdx: number;
+    }
+
+    const tpRefs: TpRef[] = [];
+
+    curriculumData.elements.forEach((el, elIdx) => {
+        let alloc = (el.allocations || []).find(a => isSameClass(a.className, className));
+        if (!alloc) {
+            alloc = {
+                className,
+                tujuanPembelajaran: [],
+                structuredAtp: []
+            };
+            if (!el.allocations) el.allocations = [];
+            el.allocations.push(alloc);
+        }
+
+        // Ensure tujuanPembelajaran is not empty
+        if (!alloc.tujuanPembelajaran || alloc.tujuanPembelajaran.length === 0) {
+            alloc.tujuanPembelajaran = [
+                `Memahami dan menerapkan konsep esensial pada elemen ${el.elementName} secara kontekstual`,
+                `Menganalisis, mengevaluasi, dan merefleksikan hasil pembelajaran elemen ${el.elementName}`
+            ];
+        }
+
+        // Ensure structuredAtp has a TpGroup for each TP
+        if (!alloc.structuredAtp || alloc.structuredAtp.length === 0) {
+            alloc.structuredAtp = alloc.tujuanPembelajaran.map((tp, tpIdx) => ({
+                tp,
+                atpItems: synthesizeAtpItemsForTp(tp, subjectName, tpIdx)
+            }));
+        } else {
+            // Fill any missing TP groups
+            while (alloc.structuredAtp.length < alloc.tujuanPembelajaran.length) {
+                const idx = alloc.structuredAtp.length;
+                alloc.structuredAtp.push({
+                    tp: alloc.tujuanPembelajaran[idx],
+                    atpItems: synthesizeAtpItemsForTp(alloc.tujuanPembelajaran[idx], subjectName, idx)
+                });
+            }
+        }
+
+        alloc.structuredAtp.forEach((grp, grpIdx) => {
+            tpRefs.push({
+                el,
+                alloc,
+                grp,
+                elIdx,
+                grpIdx
+            });
+        });
+    });
+
+    if (tpRefs.length === 0) return;
+
+    // 3. Distribute the totalHeb effective date slots among all TPs proportionally
+    const totalTps = tpRefs.length;
+    const baseCount = Math.floor(totalHeb / totalTps);
+    const remainder = totalHeb % totalTps;
+
+    let currentSlotIdx = 0;
+
+    tpRefs.forEach((tpRef, tpIdx) => {
+        const slotsForThisTp = baseCount + (tpIdx < remainder ? 1 : 0);
+        const { grp, el } = tpRef;
+        const existingItems = grp.atpItems || [];
+
+        // Clean topic description from TP
+        const cleanTp = (grp.tp || el.elementName || '').replace(/^-\s*/, '').replace(/^\d+[\.\)]\s*/, '').trim();
+
+        // Topic connectors extraction
+        let coreTopic = cleanTp;
+        const connectors = [" dalam ", " dengan ", " pada ", " melalui ", " secara ", " tentang "];
+        for (const conn of connectors) {
+            if (cleanTp.toLowerCase().includes(conn)) {
+                const parts = cleanTp.split(new RegExp(conn, 'i'));
+                if (parts[1] && parts[1].length > 8) {
+                    coreTopic = parts[1].trim();
+                    break;
+                }
+            }
+        }
+        if (coreTopic.length > 80) coreTopic = coreTopic.substring(0, 80) + '...';
+
+        // Pedagogical step templates for meeting progression
+        const stepTemplates = [
+            `Eksplorasi Konsep: Mengidentifikasi prinsip dasar, terminologi, dan langkah-langkah ${coreTopic}`,
+            `Pendalaman Materi: Menganalisis contoh kontekstual dan mengkaji penerapan ${coreTopic}`,
+            `Latihan Terbimbing: Mempraktikkan keterampilan dan mendemonstrasikan langkah kerja materi ${cleanTp}`,
+            `Diskusi Kelompok: Menemukan solusi pemecahan masalah kontekstual materi ${coreTopic}`,
+            `Penerapan Kontekstual: Menyelesaikan penugasan aplikatif dan lembar kerja materi ${cleanTp}`,
+            `Kolaborasi Proyek Mini: Bekerja sama merancang karya/laporan sederhana terkait ${coreTopic}`,
+            `Presentasi & Apresiasi: Mempresentasikan hasil karya dan memberi tanggapan santun materi ${coreTopic}`,
+            `Penguatan Kompetensi: Membahas kesulitan belajar dan pemantapan konsep materi ${cleanTp}`,
+            `Asesmen Formatif: Melakukan evaluasi pemahaman berkala materi ${cleanTp}`,
+            `Refleksi & Pengayaan: Refleksi capaian belajar dan pendampingan remedial/pengayaan materi ${coreTopic}`,
+            `Konsolidasi Hasil Belajar: Asesmen sumatif lingkup materi dan kesimpulan pembelajaran ${cleanTp}`
+        ];
+
+        const newAtpItems: AtpItem[] = [];
+
+        for (let m = 0; m < slotsForThisTp; m++) {
+            const slot = datesList[currentSlotIdx++];
+            if (!slot) break;
+
+            const d = slot.date;
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const planDate = `${year}-${month}-${day}`;
+            const alokasiWaktu = `${slot.jp || 3} JP`;
+            const semester = (d.getMonth() >= 6 && year === academicYearStart) ? 1 : 2;
+
+            // Determine alur text
+            let alur = '';
+            if (existingItems[m] && existingItems[m].alur && existingItems[m].alur.trim() !== '') {
+                alur = existingItems[m].alur;
+            } else if (m < stepTemplates.length) {
+                alur = stepTemplates[m];
+            } else {
+                const stepNum = m + 1;
+                alur = `Pertemuan ${stepNum}: Penerapan mendalam, diskusi pemantapan, dan evaluasi hasil belajar ${coreTopic}`;
+            }
+
+            newAtpItems.push({
+                alur,
+                alokasiWaktu,
+                planDate,
+                semester
+            });
+        }
+
+        grp.atpItems = newAtpItems;
     });
 };
 
