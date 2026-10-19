@@ -8232,7 +8232,7 @@ const KKTPView: React.FC<{
                         <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-5 md:p-6 space-y-3">
                             <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
                                 <Table className="w-4 h-4 text-emerald-600" />
-                                <span>Rubrik Penilaian (SOLO Taxonomy)</span>
+                                <span>Rubrik Penilaian</span>
                             </div>
                             <div className="text-xs font-bold text-slate-800 border-b border-emerald-200/50 pb-2">
                                 {activeAssessmentAtp.title}
