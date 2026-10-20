@@ -827,7 +827,7 @@ const generateCalendarDocHtml = (
                 NIP. ${(userIdentity as any).nipKepalaSekolah || '...........................................'}
               </td>
               <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
-                ${(userIdentity as any).city || '................'}, ${todayStr}<br/>
+                ${userIdentity.location || userIdentity.city || localStorage.getItem('prota_location') || 'Sukatinggal'}, ${todayStr}<br/>
                 <b>Guru Kelas / Pengampu</b>
                 <br/><br/><br/><br/><br/>
                 <u><b>${userIdentity.authorName || '...........................................'}</b></u><br/>
@@ -2334,6 +2334,8 @@ interface UserIdentity {
     assignedClass: string;
     employmentStatus?: string;
     customApiKey?: string;
+    location?: string;
+    city?: string;
 }
 
 interface StudentRecord {
@@ -2395,12 +2397,19 @@ const EditProfileModal: React.FC<{
         semester: identity.semester || 'Ganjil (Semester 1)',
         assignedClass: identity.assignedClass || 'Kelas 1',
         employmentStatus: identity.employmentStatus || 'Full Time',
-        customApiKey: identity.customApiKey || ''
+        customApiKey: identity.customApiKey || '',
+        location: identity.location || identity.city || localStorage.getItem('prota_location') || 'Sukatinggal',
+        city: identity.city || identity.location || localStorage.getItem('prota_location') || 'Sukatinggal'
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(form);
+        const loc = (form.location || form.city || 'Sukatinggal').trim();
+        onSave({
+            ...form,
+            location: loc,
+            city: loc
+        });
     };
 
     return (
@@ -2540,6 +2549,21 @@ const EditProfileModal: React.FC<{
                                 <option value="Guru Honorer">Guru Honorer</option>
                             </select>
                         </div>
+
+                        <div className="md:col-span-2">
+                            <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                                <span>Lokasi Titi Mangsa (Kota / Tempat Penetapan Dokumen)</span>
+                                <span className="text-[10px] text-emerald-600 font-semibold">Tersinkron ke Seluruh Dokumen</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                value={form.location || form.city || ''} 
+                                onChange={e => setForm({...form, location: e.target.value, city: e.target.value})}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                                placeholder="Contoh: Sukatinggal, Bandung, Cianjur, dsb."
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">Dicantumkan pada titimangsa dokumen output yang diunduh (misal: Sukatinggal, 14 Juli 2026).</p>
+                        </div>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -2568,7 +2592,35 @@ const DashboardView: React.FC<{
     identity: UserIdentity;
     onEditProfile: () => void;
     onNavigate: (view: any) => void;
-}> = ({ identity, onEditProfile, onNavigate }) => {
+    onSaveIdentity?: (updated: UserIdentity) => void;
+}> = ({ identity, onEditProfile, onNavigate, onSaveIdentity }) => {
+    const [locationInput, setLocationInput] = useState<string>(() => {
+        return identity.location || identity.city || localStorage.getItem('prota_location') || 'Sukatinggal';
+    });
+    const [locToast, setLocToast] = useState<string | null>(null);
+
+    useEffect(() => {
+        const currentLoc = identity.location || identity.city || localStorage.getItem('prota_location');
+        if (currentLoc) {
+            setLocationInput(currentLoc);
+        }
+    }, [identity.location, identity.city]);
+
+    const handleSaveLocation = () => {
+        const cleanLoc = locationInput.trim() || 'Sukatinggal';
+        localStorage.setItem('prota_location', cleanLoc);
+        localStorage.setItem('prota_city', cleanLoc);
+        if (onSaveIdentity) {
+            onSaveIdentity({
+                ...identity,
+                location: cleanLoc,
+                city: cleanLoc
+            });
+        }
+        setLocToast(`Lokasi titi mangsa "${cleanLoc}" berhasil disimpan & terdistribusikan ke seluruh dokumen unduhan!`);
+        setTimeout(() => setLocToast(null), 4000);
+    };
+
     return (
         <div className="max-w-5xl mx-auto w-full space-y-8 animate-in fade-in duration-300">
             {/* Main Profile Card (Mirroring screenshot) */}
@@ -2619,13 +2671,68 @@ const DashboardView: React.FC<{
                         <div className="text-sm font-bold text-slate-800 mt-1">{identity.nipKepalaSekolah || '198706162019032007'}</div>
                     </div>
 
-                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 md:col-span-2 transition-all hover:bg-slate-50">
+                    <div className="bg-slate-50/60 border border-slate-200/70 rounded-2xl p-4 transition-all hover:bg-slate-50">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TAHUN PELAJARAN & KELAS AMPU</div>
                         <div className="text-sm font-bold text-slate-800 mt-1 flex items-center justify-between">
                             <span>{identity.academicYear || '2026-2027'} • {identity.semester || 'Ganjil (Semester 1)'}</span>
                             <span className="text-xs bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full font-extrabold">{identity.assignedClass || 'Kelas 1'}</span>
                         </div>
                     </div>
+
+                    <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 transition-all hover:bg-emerald-50">
+                        <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <Target className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>LOKASI TITI MANGSA DOKUMEN</span>
+                        </div>
+                        <div className="text-sm font-bold text-emerald-900 mt-1 flex items-center justify-between">
+                            <span>{identity.location || identity.city || 'Sukatinggal'}</span>
+                            <span className="text-[10px] bg-emerald-200/70 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">Aktif di Unduhan</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Kolom Input Manual: Entri Lokasi Titi Mangsa Dokumen */}
+                <div className="mt-6 p-4 md:p-5 bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-slate-50 border border-emerald-200/90 rounded-2xl shadow-3xs">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                                <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                                    Kolom Entri Manual Lokasi Titi Mangsa
+                                </label>
+                                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                                    Tersinkron Otomatis
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-600 max-w-xl">
+                                Entri manual data lokasi / tempat penetapan dokumen (contoh: <em>Sukatinggal</em>, <em>Bandung</em>, <em>Cianjur</em>). Data ini langsung tersimpan dan terdistribusikan secara otomatis ke format titimangsa semua dokumen output yang dapat diunduh (PROTA Word, Modul Ajar RPM, Presensi, Analisis Hari Efektif, KKTP, Jurnal, dan Kalender Akademik).
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+                            <input 
+                                type="text"
+                                value={locationInput}
+                                onChange={(e) => setLocationInput(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveLocation(); }}
+                                placeholder="Contoh: Sukatinggal / Bandung"
+                                className="flex-1 md:w-60 px-3.5 py-2.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-2xs"
+                            />
+                            <button
+                                type="button"
+                                onClick={handleSaveLocation}
+                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-emerald-600/20 transition-all cursor-pointer whitespace-nowrap"
+                            >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Simpan Lokasi</span>
+                            </button>
+                        </div>
+                    </div>
+                    {locToast && (
+                        <div className="mt-3 p-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 shadow-2xs animate-in fade-in">
+                            <CheckCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>{locToast}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -4057,7 +4164,7 @@ const PresensiView: React.FC<{
                         </td>
                         <td style="border: none; width: 10%;"></td>
                         <td style="border: none; text-align: center; width: 45%; vertical-align: top;">
-                            Santosa, ${effectiveDates.length > 0 ? effectiveDates[effectiveDates.length - 1].formatted : `31 ${activeMonthObj.monthName} ${activeMonthObj.year}`}<br>
+                            ${identity?.location || identity?.city || localStorage.getItem('prota_location') || 'Sukatinggal'}, ${effectiveDates.length > 0 ? effectiveDates[effectiveDates.length - 1].formatted : `31 ${activeMonthObj.monthName} ${activeMonthObj.year}`}<br>
                             <b>Guru Kelas / Mata Pelajaran</b>
                             <br><br><br><br>
                             <b><u>${teacherName}</u></b><br>
@@ -4209,7 +4316,7 @@ const PresensiView: React.FC<{
                         </td>
                         <td style="border: none; width: 10%;"></td>
                         <td style="border: none; text-align: center; width: 45%; vertical-align: top;">
-                            Santosa, Juni ${academicYearStart + 1}<br>
+                            ${identity?.location || identity?.city || localStorage.getItem('prota_location') || 'Sukatinggal'}, Juni ${academicYearStart + 1}<br>
                             <b>Guru Kelas / Mata Pelajaran</b>
                             <br><br><br><br>
                             <b><u>${teacherName}</u></b><br>
@@ -7030,14 +7137,14 @@ const HariEfektifView: React.FC<HariEfektifViewProps> = ({
                     <td width="50%">
                         Mengetahui,<br/>
                         Kepala ${schoolName}<br/><br/><br/><br/>
-                        <b><u>..........................................</u></b><br/>
-                        NIP. ..........................................
+                        <b><u>${identity.kepalaSekolah || '..........................................'}</u></b><br/>
+                        NIP. ${identity.nipKepalaSekolah || '..........................................'}
                     </td>
                     <td width="50%">
-                        ${schoolName.replace(/SDN|SD|Sekolah/gi, '').trim()}, .................... 2025<br/>
+                        ${identity.location || identity.city || localStorage.getItem('prota_location') || 'Sukatinggal'}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>
                         Guru Mata Pelajaran / Kelas<br/><br/><br/><br/>
                         <b><u>${teacherName}</u></b><br/>
-                        NIP. ..........................................
+                        NIP. ${identity.nip || '..........................................'}
                     </td>
                 </tr>
             </table>
@@ -7933,7 +8040,7 @@ const KKTPView: React.FC<{
                         NIP. ${headmasterNip}
                     </td>
                     <td style="width: 50%;">
-                        Ditetapkan di Sukatinggal,<br/>
+                        Ditetapkan di ${identity?.location || identity?.city || localStorage.getItem('prota_location') || 'Sukatinggal'},<br/>
                         Guru Mata Pelajaran / Kelas
                         <br/><br/><br/><br/><br/>
                         <b><u>${teacherName}</u></b><br/>
@@ -9162,7 +9269,7 @@ const JurnalView: React.FC<{
                             </td>
                             <td style="border: none; width: 10%;"></td>
                             <td style="border: none; text-align: center; width: 45%; vertical-align: top; font-size: 9pt;">
-                                Santosa, ${activeMonthObj.monthName} ${activeMonthObj.year}<br>
+                                ${identity?.location || identity?.city || localStorage.getItem('prota_location') || 'Sukatinggal'}, ${activeMonthObj.monthName} ${activeMonthObj.year}<br>
                                 <b>Guru Kelas / Pengampu</b>
                                 <br><br><br><br>
                                 <b><u>${teacherName}</u></b><br>
@@ -9943,10 +10050,72 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
   const [analysisModal, setAnalysisModal] = useState<string | null>(null);
   const [bulkGenerationStatus, setBulkGenerationStatus] = useState<Record<string, { current: number, total: number, percent: number, active: boolean, statusText?: string }>>({});
   const [showSaveToast, setShowSaveToast] = useState(false);
+  const [saveToastMessage, setSaveToastMessage] = useState('Semua perubahan pada Program Tahunan berhasil disimpan!');
+  const [lockedProtas, setLockedProtas] = useState<Record<string, boolean>>(() => {
+      try {
+          const saved = localStorage.getItem('prota_locked_map');
+          return saved ? JSON.parse(saved) : {};
+      } catch (e) {
+          return {};
+      }
+  });
+
+  const isCurrentProtaLocked = !!(data && lockedProtas[`${selectedSubject}_${selectedClass}`]);
+
+  const handleToggleLockProta = () => {
+      if (!data) return;
+      const key = `${selectedSubject}_${selectedClass}`;
+      const nextLocked = !lockedProtas[key];
+      const newMap = { ...lockedProtas, [key]: nextLocked };
+      setLockedProtas(newMap);
+      try {
+          localStorage.setItem('prota_locked_map', JSON.stringify(newMap));
+      } catch (e) {}
+      if (nextLocked) {
+          setSaveToastMessage(`Program Tahunan (Prota) ${selectedSubject} (${selectedClass}) Berhasil Dikunci & Diamankan!`);
+      } else {
+          setSaveToastMessage(`Kunci Prota ${selectedSubject} (${selectedClass}) Berhasil Dibuka.`);
+      }
+      setShowSaveToast(true);
+  };
+
+  const isAtpModulCreated = (subject: string, className: string, alurText: string): boolean => {
+      if (!alurText) return false;
+      const cleanTarget = alurText.trim().toLowerCase();
+      
+      return activities.some(act => {
+          if (act.type !== 'MODUL_AJAR') return false;
+          if (!isSameSubject(act.subject, subject)) return false;
+          
+          const snap = act.dataSnapshot;
+          if (!snap) return false;
+          
+          if (snap.className && !isSameClass(snap.className, className)) return false;
+          
+          // 1. Check explicit atpList from finished module generator or bulk generator
+          if (Array.isArray(snap.atpList) && snap.atpList.length > 0) {
+              return snap.atpList.some((atpAlur: string) => {
+                  if (!atpAlur) return false;
+                  const cleanAtp = atpAlur.trim().toLowerCase();
+                  return cleanAtp === cleanTarget || 
+                         cleanAtp.includes(cleanTarget) || 
+                         cleanTarget.includes(cleanAtp);
+              });
+          }
+          
+          // 2. Check in snap.topic only if it matches
+          const snapTopic = (snap.topic || '').trim().toLowerCase();
+          if (snapTopic && (snapTopic === cleanTarget || snapTopic.includes(cleanTarget))) {
+              return true;
+          }
+          
+          return false;
+      });
+  };
 
   useEffect(() => {
       if (showSaveToast) {
-          const t = setTimeout(() => setShowSaveToast(false), 3000);
+          const t = setTimeout(() => setShowSaveToast(false), 3500);
           return () => clearTimeout(t);
       }
   }, [showSaveToast]);
@@ -9960,22 +10129,33 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
   }, []);
 
 
-  const [userIdentity, setUserIdentity] = useState<UserIdentity>(() => ({
-      authorName: localStorage.getItem('prota_author_name') || 'Acep Miftah Hilah Ash-shidiq, S.Pd.',
-      nip: localStorage.getItem('prota_nip') || '199602152025211094',
-      institutionName: localStorage.getItem('prota_institution_name') || 'SDN SUKATINGGAL',
-      npsn: localStorage.getItem('prota_npsn') || '20206022',
-      kepalaSekolah: localStorage.getItem('prota_kepala_sekolah') || 'Yuni Sri Rahayu, S.Pd.',
-      nipKepalaSekolah: localStorage.getItem('prota_nip_kepala_sekolah') || '198706162019032007',
-      academicYear: localStorage.getItem('prota_academic_year') || '2026-2027',
-      semester: localStorage.getItem('prota_semester') || 'Ganjil (Semester 1)',
-      assignedClass: localStorage.getItem('prota_assigned_class') || 'Kelas 1',
-      employmentStatus: localStorage.getItem('prota_employment_status') || 'Full Time',
-      customApiKey: localStorage.getItem('prota_custom_api_key') || ''
-  }));
+  const [userIdentity, setUserIdentity] = useState<UserIdentity>(() => {
+      const savedLoc = localStorage.getItem('prota_location') || localStorage.getItem('prota_city') || 'Sukatinggal';
+      return {
+          authorName: localStorage.getItem('prota_author_name') || 'Acep Miftah Hilah Ash-shidiq, S.Pd.',
+          nip: localStorage.getItem('prota_nip') || '199602152025211094',
+          institutionName: localStorage.getItem('prota_institution_name') || 'SDN SUKATINGGAL',
+          npsn: localStorage.getItem('prota_npsn') || '20206022',
+          kepalaSekolah: localStorage.getItem('prota_kepala_sekolah') || 'Yuni Sri Rahayu, S.Pd.',
+          nipKepalaSekolah: localStorage.getItem('prota_nip_kepala_sekolah') || '198706162019032007',
+          academicYear: localStorage.getItem('prota_academic_year') || '2026-2027',
+          semester: localStorage.getItem('prota_semester') || 'Ganjil (Semester 1)',
+          assignedClass: localStorage.getItem('prota_assigned_class') || 'Kelas 1',
+          employmentStatus: localStorage.getItem('prota_employment_status') || 'Full Time',
+          customApiKey: localStorage.getItem('prota_custom_api_key') || '',
+          location: savedLoc,
+          city: savedLoc
+      };
+  });
 
   const handleSaveIdentity = (updated: UserIdentity) => {
-      setUserIdentity(updated);
+      const cleanLoc = (updated.location || updated.city || 'Sukatinggal').trim();
+      const nextIdentity: UserIdentity = {
+          ...updated,
+          location: cleanLoc,
+          city: cleanLoc
+      };
+      setUserIdentity(nextIdentity);
       localStorage.setItem('prota_author_name', updated.authorName);
       if (updated.nip) localStorage.setItem('prota_nip', updated.nip);
       localStorage.setItem('prota_institution_name', updated.institutionName);
@@ -9986,6 +10166,8 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
       localStorage.setItem('prota_semester', updated.semester);
       localStorage.setItem('prota_assigned_class', updated.assignedClass);
       if (updated.employmentStatus) localStorage.setItem('prota_employment_status', updated.employmentStatus);
+      localStorage.setItem('prota_location', cleanLoc);
+      localStorage.setItem('prota_city', cleanLoc);
       setShowEditProfileModal(false);
   };
 
@@ -10604,11 +10786,18 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
 };
 
   const generateContent = async (overrideFase?: typeof FASES[0], overrideSubject?: string): Promise<CurriculumData | null> => {
-    setLoading(true);
-    setError(null);
     const faseToUse = overrideFase || selectedFase;
     const subjectToUse = overrideSubject || selectedSubject;
     const targetClass = selectedClass;
+
+    const lockKey = `${subjectToUse}_${targetClass}`;
+    if (lockedProtas[lockKey]) {
+      alert(`Program Tahunan (Prota) untuk ${subjectToUse} (${targetClass}) sedang dikunci untuk mencegah penimpaan tidak disengaja.\n\nJika Anda ingin menyusun atau menghasilkan ulang, silakan klik tombol "Buka Kunci" terlebih dahulu pada halaman Prota.`);
+      return null;
+    }
+
+    setLoading(true);
+    setError(null);
 
     try {
       const apiKey = getApiKey();
@@ -11391,6 +11580,8 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                   isBulk: true,
                   combinedHtml: collectedHtml,
                   modulesList: collectedModulesData,
+                  atpList: itemsToGenerateFinal.map(item => item.atpItem.alur),
+                  location: userIdentity.location || userIdentity.city || localStorage.getItem('prota_location') || 'Sukatinggal',
                   components: {
                       includeLKPD: true,
                       includeMaterials: true,
@@ -11750,7 +11941,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                 NIP. ${(userIdentity as any).nipKepalaSekolah || '198706162019032007'}
               </td>
               <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
-                ${(userIdentity as any).city || 'Sukatinggal'}, 14 Juli ${academicYearStart}<br/>
+                ${userIdentity.location || userIdentity.city || localStorage.getItem('prota_location') || 'Sukatinggal'}, 14 Juli ${academicYearStart}<br/>
                 <b>Guru Kelas / Mata Pelajaran</b>
                 <br/><br/><br/><br/><br/>
                 <u><b>${userIdentity.authorName || savedAuthor || 'Acep Miftah Hilah Ash-shidiq, S.Pd.'}</b></u><br/>
@@ -13334,6 +13525,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                 identity={userIdentity}
                 onEditProfile={() => setShowEditProfileModal(true)}
                 onNavigate={setCurrentView}
+                onSaveIdentity={handleSaveIdentity}
             />
         ) : currentView === 'daftar_siswa' ? (
             <DaftarSiswaView 
@@ -13602,18 +13794,59 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                             {/* Button: Hasilkan Prota / Hasilkan modul ajar */}
                             {currentView !== 'modul_ajar' && (
                                 <button 
-                                    onClick={() => generateContent(selectedFase, selectedSubject)} 
+                                    onClick={() => {
+                                        if (isCurrentProtaLocked) {
+                                            alert(`Program Tahunan (Prota) ${selectedSubject} (${selectedClass}) sedang dikunci untuk mencegah penimpaan tidak disengaja.\n\nSilakan klik tombol "Buka" pada status kunci di samping untuk membuka kunci jika ingin menghasilkan ulang.`);
+                                            return;
+                                        }
+                                        generateContent(selectedFase, selectedSubject);
+                                    }} 
                                     disabled={loading}
-                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-sm shadow-emerald-600/10"
+                                    className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-sm shadow-emerald-600/10 active:scale-95 ${
+                                        isCurrentProtaLocked 
+                                            ? 'bg-slate-500 hover:bg-slate-600' 
+                                            : 'bg-emerald-600 hover:bg-emerald-700'
+                                    }`}
+                                    title={isCurrentProtaLocked ? "Prota terkunci" : "Hasilkan Prota Otomatis"}
                                 >
-                                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-                                    <span>{loading ? 'Menyusun Prota Lengkap...' : 'Hasilkan Prota'}</span>
+                                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : isCurrentProtaLocked ? <Lock className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                                    <span>{loading ? 'Menyusun Prota Lengkap...' : isCurrentProtaLocked ? 'Prota Terkunci' : 'Hasilkan Prota'}</span>
+                                </button>
+                            )}
+
+                            {/* Button: Kunci / Buka Prota */}
+                            {currentView !== 'modul_ajar' && data && (
+                                <button 
+                                    type="button"
+                                    onClick={handleToggleLockProta}
+                                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-full transition-all cursor-pointer border shadow-2xs active:scale-95 ${
+                                        isCurrentProtaLocked 
+                                            ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 hover:border-amber-400' 
+                                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400'
+                                    }`}
+                                    title={isCurrentProtaLocked ? "Prota terkunci agar data tidak terubah atau tertimpa tidak sengaja. Klik untuk membuka kunci." : "Kunci Prota ini agar aman dari perubahan atau regenerasi tidak disengaja."}
+                                >
+                                    {isCurrentProtaLocked ? (
+                                        <>
+                                            <Lock className="w-3.5 h-3.5 text-amber-600" />
+                                            <span>Prota Terkunci</span>
+                                            <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded-md font-bold">Buka</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Unlock className="w-3.5 h-3.5 text-slate-500" />
+                                            <span>Kunci Prota</span>
+                                        </>
+                                    )}
                                 </button>
                             )}
 
                             {/* Button: Simpan */}
                             <button 
-                                onClick={() => setShowSaveToast(true)}
+                                onClick={() => {
+                                    setSaveToastMessage(`Program Tahunan (Prota) ${selectedSubject} (${selectedClass}) berhasil disimpan!`);
+                                    setShowSaveToast(true);
+                                }}
                                 className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:scale-95 rounded-full transition-all cursor-pointer border border-emerald-100"
                             >
                                 <span>Simpan</span>
@@ -13706,11 +13939,37 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                         };
 
                         return (
-                            <div key={className} className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
-                                <div className="p-4 bg-slate-50 border-b flex flex-wrap justify-between items-center gap-4">
-                                    <div>
-                                        <h3 className="font-bold text-lg border-l-4 border-emerald-600 pl-3 text-slate-800">{className} — {data.subject}</h3>
+                            <div key={className} className="space-y-4">
+                                {isCurrentProtaLocked && currentView === 'generator' && (
+                                    <div className="bg-amber-50/95 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 font-medium shadow-3xs animate-in fade-in">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-amber-200/90 text-amber-800 flex items-center justify-center shrink-0">
+                                                <Lock className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <span className="font-extrabold text-amber-900">Program Tahunan Terkunci:</span> Dokumen Prota {data.subject} ({className}) ini telah dikunci dan tersimpan aman dari perubahan maupun penimpaan regenerasi.
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={handleToggleLockProta}
+                                            className="px-3.5 py-1.5 bg-amber-200/90 hover:bg-amber-300 active:scale-95 text-amber-950 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto border border-amber-300 shadow-2xs"
+                                        >
+                                            Buka Kunci Prota
+                                        </button>
                                     </div>
+                                )}
+                                <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
+                                    <div className="p-4 bg-slate-50 border-b flex flex-wrap justify-between items-center gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <h3 className="font-bold text-lg border-l-4 border-emerald-600 pl-3 text-slate-800">{className} — {data.subject}</h3>
+                                            {isCurrentProtaLocked && currentView === 'generator' && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                                                    <Lock className="w-3 h-3 text-amber-600" />
+                                                    <span>Terkunci</span>
+                                                </span>
+                                            )}
+                                        </div>
                                     <div className="flex gap-2">
                                         <button 
                                             onClick={() => {
@@ -13872,7 +14131,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                                                     </>
                                                                 )}
                                                                 
-                                                                <td className={`px-4 py-3 border border-slate-200 align-top text-xs leading-normal ${activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur?.substring(0, 30) || 'xxx')) ? 'bg-indigo-50/50' : 'bg-emerald-50/10'}`}>
+                                                                <td className={`px-4 py-3 border border-slate-200 align-top text-xs leading-normal ${isAtpModulCreated(data.subject, className, item.alur) ? 'bg-indigo-50/50' : 'bg-emerald-50/10'}`}>
                                                                     {item.alur ? (
                                                                         <div className="flex gap-2.5 items-start">
                                                                             {currentView === 'modul_ajar' && (
@@ -13897,9 +14156,10 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                                                                     <span className="font-bold text-emerald-600">{itemIdx+1}.</span>
                                                                                     <span className="text-slate-700 font-medium">{item.alur}</span>
                                                                                 </div>
-                                                                                {activities.some(a => a.type === 'MODUL_AJAR' && a.subject === data.subject && a.details.includes(item.alur.substring(0, 30))) && (
-                                                                                    <span className="inline-block text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md w-fit">
-                                                                                        ✓ Modul Dibuat
+                                                                                {isAtpModulCreated(data.subject, className, item.alur) && (
+                                                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-100/80 border border-indigo-200/80 px-2 py-0.5 rounded-md w-fit shadow-3xs">
+                                                                                        <Check className="w-3 h-3 text-indigo-600" />
+                                                                                        <span>✓ Modul Dibuat</span>
                                                                                     </span>
                                                                                 )}
                                                                             </div>
@@ -13956,16 +14216,17 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                     </table>
                                 </div>
                             </div>
-                        );
-                    })()}
-                    
-                    {/* Beautiful success toast notification */}
-                    {showSaveToast && (
-                        <div className="fixed bottom-5 right-5 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-2.5 animate-bounce">
-                            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
-                            <span className="text-xs font-bold font-sans">Semua perubahan pada Program Tahunan berhasil disimpan!</span>
                         </div>
-                    )}
+                    );
+                })()}
+                
+                {/* Beautiful success toast notification */}
+                {showSaveToast && (
+                    <div className="fixed bottom-5 right-5 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-2.5 animate-bounce">
+                        <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                        <span className="text-xs font-bold font-sans">{saveToastMessage}</span>
+                    </div>
+                )}
                 </div>
             )}
         </main>

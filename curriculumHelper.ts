@@ -957,6 +957,11 @@ export const synthesizeRpmDocumentHtml = (params: {
   model: string;
   methods: string[];
   recommendationReason: string;
+  location?: string;
+  city?: string;
+  kepalaSekolah?: string;
+  nipKepalaSekolah?: string;
+  nip?: string;
 }): string => {
   const {
     authorName,
@@ -976,7 +981,12 @@ export const synthesizeRpmDocumentHtml = (params: {
     manualCharacteristic,
     model,
     methods,
-    recommendationReason
+    recommendationReason,
+    location,
+    city,
+    kepalaSekolah,
+    nipKepalaSekolah,
+    nip
   } = params;
 
   const charJoined = [...selectedCharacteristics, manualCharacteristic].filter(Boolean).join(', ') || 'Heterogen, senang belajar melalui praktik dan visual, membutuhkan instruksi bertahap.';
@@ -1362,14 +1372,14 @@ export const synthesizeRpmDocumentHtml = (params: {
       <td style="width: 50%; text-align: center; vertical-align: top; border: none;">
         Mengetahui,<br/>
         Kepala ${institutionName || 'Sekolah Dasar'}<br/><br/><br/><br/>
-        <strong>......................................................</strong><br/>
-        NIP. ..............................................
+        <strong><u>${kepalaSekolah || '......................................................'}</u></strong><br/>
+        NIP. ${nipKepalaSekolah || '..............................................'}
       </td>
       <td style="width: 50%; text-align: center; vertical-align: top; border: none;">
-        Dibuat di: ........................, ${date || '........................'}<br/>
+        ${location || city || 'Sukatinggal'}, ${date || '........................'}<br/>
         Guru Kelas / Guru Mata Pelajaran<br/><br/><br/><br/>
-        <strong>${authorName || '......................................................'}</strong><br/>
-        NIP. [DIISI OLEH GURU]
+        <strong><u>${authorName || '......................................................'}</u></strong><br/>
+        NIP. ${nip || '..............................................'}
       </td>
     </tr>
   </table>

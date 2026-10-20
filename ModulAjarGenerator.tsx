@@ -84,6 +84,7 @@ export interface UserIdentity {
     semester?: string;
     nip?: string;
     city?: string;
+    location?: string;
     kepalaSekolah?: string;
     nipKepalaSekolah?: string;
 }
@@ -227,6 +228,7 @@ export const ModulAjarGenerator: React.FC<ModulAjarGeneratorProps> = ({
         const activeModel = modelMode === 'manual' && customModelInput.trim() ? customModelInput.trim() : selectedModel;
         const allMethods = [...selectedMethods, customMethodInput.trim()].filter(Boolean);
         const methodsText = allMethods.length > 0 ? allMethods.join(', ') : 'Diskusi, tanya jawab, demonstrasi, praktik, kerja kelompok';
+        const docLocation = (userIdentity as any).location || userIdentity.city || localStorage.getItem('prota_location') || 'Sukatinggal';
 
         try {
             const apiKey = getApiKey();
@@ -246,7 +248,9 @@ Anda adalah pakar kurikulum Sekolah Dasar (SD) yang menyusun Rencana Pembelajara
 
 INFORMASI SPESIFIK PEMBELAJARAN:
 - Satuan Pendidikan: ${userIdentity.institutionName || 'SD Negeri'}
-- Penyusun / Guru: ${userIdentity.authorName || 'Guru Kelas'}
+- Penyusun / Guru: ${userIdentity.authorName || 'Guru Kelas'} (NIP: ${userIdentity.nip || '-'})
+- Kepala Sekolah: ${userIdentity.kepalaSekolah || 'Kepala Sekolah'} (NIP: ${userIdentity.nipKepalaSekolah || '-'})
+- Lokasi Titimangsa Penetapan: ${docLocation}
 - Tahun Ajaran / Semester: ${userIdentity.academicYear || '2025/2026'} / Semester ${userIdentity.semester || '1'}
 - Mata Pelajaran: ${formData.subject}
 - Fase / Kelas: ${formData.fase} / ${formData.className}
@@ -279,6 +283,10 @@ XI. LAMPIRAN LENGKAP SIAP PAKAI:
   3. Rubrik Penilaian Autentik (Sikap, Pengetahuan, Keterampilan)
   4. Soal Asesmen Formatif & Sumatif beserta Kunci Jawaban
 XII. TABEL VALIDASI OTOMATIS & KEPATUHAN REGULASI 2025 (Checklist kepatuhan Permendikdasmen 13/2025)
+XIII. TANDA TANGAN & TITIMANGSA PENGESAHAN:
+  Tabel 2 kolom tanda tangan:
+  - Kiri: Mengetahui, Kepala ${userIdentity.institutionName || 'Sekolah Dasar'} (NIP: ${userIdentity.nipKepalaSekolah || '-'})
+  - Kanan: ${docLocation}, ${formData.date} - Guru Kelas / Mata Pelajaran (NIP: ${userIdentity.nip || '-'})
 
 ATURAN PENTING:
 - DILARANG menggunakan placeholder seperti '[masukkan materi]', '[isi soal]', atau '...'. Seluruh materi, soal, rubrik, dan LKPD harus tertulis utuh.
@@ -318,7 +326,12 @@ ATURAN PENTING:
                     manualCharacteristic,
                     model: activeModel,
                     methods: allMethods,
-                    recommendationReason: smartRec.reason
+                    recommendationReason: smartRec.reason,
+                    location: docLocation,
+                    city: docLocation,
+                    kepalaSekolah: userIdentity.kepalaSekolah,
+                    nipKepalaSekolah: userIdentity.nipKepalaSekolah,
+                    nip: userIdentity.nip
                 });
             }
 
@@ -332,6 +345,11 @@ ATURAN PENTING:
                 [formData.topic]
             );
             setValidationResult(validation);
+
+            // Extract processed ATP list for precise marking
+            const processedAtps = context.selectedAtpItems && context.selectedAtpItems.length > 0
+                ? context.selectedAtpItems.map(item => item.atpItem.alur)
+                : [context.atpItem.alur];
 
             // Save to activity log
             onSave({
@@ -347,7 +365,9 @@ ATURAN PENTING:
                     karakteristikPesertaDidik: characteristicsText,
                     modelPembelajaran: activeModel,
                     metodePembelajaran: methodsText,
-                    validationScore: validation.score
+                    validationScore: validation.score,
+                    location: docLocation,
+                    atpList: processedAtps
                 },
                 paperSizeSnapshot: paperSize
             });
@@ -364,6 +384,30 @@ ATURAN PENTING:
     const handleDownloadDoc = () => {
         if (!resultContent) return;
         const footerText = `RPM Modul Ajar SD (Deep Learning) - ${formData.subject} - ${formData.className} | Disusun oleh: ${userIdentity.authorName || 'Guru Kelas'}`;
+        const docLocation = (userIdentity as any).location || userIdentity.city || localStorage.getItem('prota_location') || 'Sukatinggal';
+        
+        let bodyContent = resultContent;
+        if (!bodyContent.includes('Mengetahui')) {
+            bodyContent += `
+              <br/><br/>
+              <table style="width: 100%; margin-top: 30px; font-size: 11pt; border: none;">
+                <tr>
+                  <td style="width: 50%; text-align: center; vertical-align: top; border: none;">
+                    Mengetahui,<br/>
+                    Kepala ${userIdentity.institutionName || 'Sekolah Dasar'}<br/><br/><br/><br/>
+                    <strong><u>${userIdentity.kepalaSekolah || '......................................................'}</u></strong><br/>
+                    NIP. ${userIdentity.nipKepalaSekolah || '..............................................'}
+                  </td>
+                  <td style="width: 50%; text-align: center; vertical-align: top; border: none;">
+                    ${docLocation}, ${formData.date || '........................'}<br/>
+                    Guru Kelas / Guru Mata Pelajaran<br/><br/><br/><br/>
+                    <strong><u>${userIdentity.authorName || '......................................................'}</u></strong><br/>
+                    NIP. ${userIdentity.nip || '..............................................'}
+                  </td>
+                </tr>
+              </table>
+            `;
+        }
 
         const htmlContent = `
           <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -393,7 +437,7 @@ ATURAN PENTING:
             </style>
           </head>
           <body>
-            ${resultContent}
+            ${bodyContent}
             <div style='mso-element:footer' id='f1'><div class='f1'>${footerText} - Halaman <span style='mso-field-code:" PAGE "'></span></div></div>
           </body>
           </html>
