@@ -10151,6 +10151,21 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
       return subjectsFromRoster;
   };
 
+  useEffect(() => {
+    if (currentView === 'generator' || currentView === 'modul_ajar') {
+      const lower = (selectedSubject || '').toLowerCase();
+      if (lower.includes('agama islam')) {
+        const available = getScheduledSubjects().filter(sub => {
+          const l = sub.toLowerCase();
+          return !(l.includes('agama islam') || l.includes('pendidikan agama islam'));
+        });
+        if (available.length > 0) {
+          setSelectedSubject(available[0]);
+        }
+      }
+    }
+  }, [currentView, selectedSubject]);
+
   const handleLogout = () => {
     localStorage.removeItem('prota_user');
     localStorage.removeItem('prota_session_id');
@@ -13625,7 +13640,16 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                             <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">Fase {selectedFase.name}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            {getScheduledSubjects().map((sub) => {
+                            {getScheduledSubjects()
+                                .filter((sub) => {
+                                    // Hanya hapus pilihan button Pendidikan Agama Islam dan Budi Pekerti pada halaman PROTA dan Modul Ajar
+                                    if (currentView === 'generator' || currentView === 'modul_ajar') {
+                                        const lower = sub.toLowerCase();
+                                        return !(lower.includes('agama islam') || lower.includes('pendidikan agama islam'));
+                                    }
+                                    return true;
+                                })
+                                .map((sub) => {
                                 const isActive = selectedSubject === sub;
                                 return (
                                     <button
