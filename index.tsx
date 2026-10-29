@@ -4732,47 +4732,59 @@ export const MAPEL_CATEGORIES = [
 
 const ALL_MAPEL_OPTIONS = MAPEL_CATEGORIES.flatMap(cat => cat.options);
 
-const getDefaultScheduleForClass = (workingDays: number): Record<string, ScheduleSlot[]> => {
+const getDefaultScheduleForClass = (workingDays: number, targetClass: string = 'Kelas 5'): Record<string, ScheduleSlot[]> => {
     const days = workingDays === 5 ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const isLowerGrade = targetClass.includes('1') || targetClass.includes('2');
+    
+    // For Kelas 1 and 2, IPAS is not taught (0 JP in standard curriculum). Foundational subjects are allocated appropriately.
     const defaultData: Record<string, ScheduleSlot[]> = {
         'Senin': [
             { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Istirahat / Upacara', jp: 1, notes: 'Lapangan Sekolah' },
             { id: '2', jamKe: '2', time: '07.40 - 08.15', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Bangun Pagi', jp: 1, notes: 'Ruang Kelas' },
             { id: '3', jamKe: '3 - 5', time: '08.15 - 10.00', subject: 'PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan)', jp: 3, notes: 'Lapangan Sekolah' },
             { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
-            { id: '5', jamKe: '7 - 10', time: '10.45 - 13.05', subject: 'Bahasa Indonesia', jp: 4, notes: 'Ruang Kelas' },
-            { id: '6', jamKe: '11', time: '13.05 - 13.40', subject: 'Koding & Kecerdasan Artifisial', jp: 1, notes: 'Lab Komputer' }
+            { id: '5', jamKe: '7 - 9', time: '10.45 - 12.30', subject: 'Bahasa Indonesia', jp: 3, notes: 'Ruang Kelas' },
+            { id: '6', jamKe: '10 - 11', time: '12.30 - 13.40', subject: 'Koding & Kecerdasan Artifisial', jp: 2, notes: 'Lab Komputer' }
         ],
         'Selasa': [
             { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Gemar Belajar', jp: 1, notes: 'Ruang Kelas' },
-            { id: '2', jamKe: '2 - 5', time: '07.40 - 10.00', subject: 'Pendidikan Pancasila', jp: 4, notes: 'Ruang Kelas' },
-            { id: '3', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
-            { id: '4', jamKe: '7 - 10', time: '10.45 - 13.05', subject: 'Matematika', jp: 4, notes: 'Ruang Kelas' }
+            { id: '2', jamKe: '2 - 3', time: '07.40 - 08.50', subject: 'Pendidikan Pancasila', jp: 2, notes: 'Ruang Kelas' },
+            { id: '3', jamKe: '4 - 5', time: '08.50 - 10.00', subject: 'Matematika', jp: targetClass.includes('1') ? 2 : 3, notes: 'Ruang Kelas' },
+            { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
+            { id: '5', jamKe: '7 - 8', time: '10.45 - 11.55', subject: 'Pendidikan Pancasila', jp: 2, notes: 'Ruang Kelas' }
         ],
         'Rabu': [
             { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Berolahraga', jp: 1, notes: 'Lapangan' },
             { id: '2', jamKe: '2', time: '07.40 - 08.15', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Bermasyarakat', jp: 1, notes: 'Ruang Kelas' },
-            { id: '3', jamKe: '3 - 4', time: '08.15 - 09.25', subject: 'IPAS (Ilmu Pengetahuan Alam dan Sosial)', jp: 2, notes: 'Ruang Kelas / Lab' },
-            { id: '4', jamKe: '5', time: '09.25 - 10.00', subject: 'Seni Rupa', jp: 1, notes: 'Ruang Kelas' },
-            { id: '5', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
-            { id: '6', jamKe: '7', time: '10.45 - 11.20', subject: 'IPAS (Ilmu Pengetahuan Alam dan Sosial)', jp: 1, notes: 'Ruang Kelas' },
-            { id: '7', jamKe: '8 - 9', time: '11.20 - 12.30', subject: 'Seni Rupa', jp: 2, notes: 'Ruang Kelas' },
-            { id: '8', jamKe: '10 - 12', time: '12.30 - 14.15', subject: 'Bahasa Indonesia', jp: 3, notes: 'Ruang Kelas' }
+            ...(isLowerGrade ? [
+                { id: '3', jamKe: '3 - 5', time: '08.15 - 10.00', subject: 'Bahasa Indonesia', jp: 3, notes: 'Ruang Kelas' },
+                { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
+                { id: '5', jamKe: '7 - 9', time: '10.45 - 12.30', subject: 'Seni Rupa', jp: 3, notes: 'Ruang Kelas' }
+            ] : [
+                { id: '3', jamKe: '3 - 5', time: '08.15 - 10.00', subject: 'IPAS (Ilmu Pengetahuan Alam dan Sosial)', jp: 3, notes: 'Ruang Kelas / Lab' },
+                { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
+                { id: '5', jamKe: '7 - 9', time: '10.45 - 12.30', subject: 'Seni Rupa', jp: 3, notes: 'Ruang Kelas' },
+                { id: '6', jamKe: '10 - 12', time: '12.30 - 14.15', subject: 'Bahasa Indonesia', jp: 3, notes: 'Ruang Kelas' }
+            ])
         ],
         'Kamis': [
             { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Makan Sehat dan Bergizi', jp: 1, notes: 'Ruang Kelas' },
             { id: '2', jamKe: '2 - 3', time: '07.40 - 08.50', subject: 'Bahasa Inggris', jp: 2, notes: 'Ruang Kelas' },
-            { id: '3', jamKe: '4 - 5', time: '08.50 - 10.00', subject: 'Muatan Lokal (Bahasa Daerah / Bahasa Sunda / Jawa)', jp: 2, notes: 'Ruang Kelas' },
+            { id: '3', jamKe: '4 - 5', time: '08.50 - 10.00', subject: 'Matematika', jp: 2, notes: 'Ruang Kelas' },
             { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
-            { id: '5', jamKe: '7 - 9', time: '10.45 - 12.30', subject: 'Pendidikan Agama Islam dan Budi Pekerti', jp: 3, notes: 'Musholla / Kelas' },
-            { id: '6', jamKe: '10 - 11', time: '12.30 - 13.40', subject: 'Ekstrakurikuler / Pembiasaan', jp: 2, notes: 'Pramuka / Lapangan' }
+            { id: '5', jamKe: '7 - 8', time: '10.45 - 11.55', subject: 'Muatan Lokal (Bahasa Daerah / Bahasa Sunda / Jawa)', jp: 2, notes: 'Ruang Kelas' },
+            { id: '6', jamKe: '9 - 10', time: '11.55 - 13.05', subject: 'Ekstrakurikuler / Pembiasaan', jp: 2, notes: 'Pramuka / Lapangan' }
         ],
         'Jumat': [
             { id: '1', jamKe: '1', time: '07.00 - 07.40', subject: 'Kokurikuler 7 Kebiasaan Indonesia Hebat: Beribadah', jp: 1, notes: 'Musholla' },
             { id: '2', jamKe: '2 - 3', time: '07.40 - 08.50', subject: 'Muatan Lokal (Guru Mengaji)', jp: 2, notes: 'Musholla' },
-            { id: '3', jamKe: '4 - 5', time: '08.50 - 10.00', subject: 'IPAS (Ilmu Pengetahuan Alam dan Sosial)', jp: 2, notes: 'Ruang Kelas' },
-            { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' },
-            { id: '5', jamKe: '7', time: '10.45 - 11.20', subject: 'Pendidikan Pancasila', jp: 1, notes: 'Ruang Kelas' }
+            ...(isLowerGrade ? [
+                { id: '3', jamKe: '4', time: '08.50 - 09.25', subject: 'Seni Musik', jp: 1, notes: 'Ruang Kelas' },
+                { id: '4', jamKe: '5', time: '09.25 - 10.00', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' }
+            ] : [
+                { id: '3', jamKe: '4 - 5', time: '08.50 - 10.00', subject: 'IPAS (Ilmu Pengetahuan Alam dan Sosial)', jp: 2, notes: 'Ruang Kelas' },
+                { id: '4', jamKe: '6', time: '10.00 - 10.45', subject: 'Istirahat / Upacara', jp: 1, notes: 'Kantin / Istirahat' }
+            ])
         ],
         'Sabtu': [
             { id: '1', jamKe: '1 - 3', time: '07.00 - 08.45', subject: 'Ekstrakurikuler / Pembiasaan', jp: 3, notes: 'Pramuka / Kebersihan' },
@@ -4858,7 +4870,7 @@ const JadwalMengajarView: React.FC<{
             const saved = localStorage.getItem(storageKey);
             if (saved) return JSON.parse(saved);
         } catch (e) {}
-        return getDefaultScheduleForClass(schoolDaysCount);
+        return getDefaultScheduleForClass(schoolDaysCount, selectedClass);
     });
 
     const [dayStartTimes, setDayStartTimes] = useState<Record<string, string>>({
@@ -4886,7 +4898,7 @@ const JadwalMengajarView: React.FC<{
                 return;
             }
         } catch (e) {}
-        setWeeklySchedule(getDefaultScheduleForClass(schoolDaysCount));
+        setWeeklySchedule(getDefaultScheduleForClass(schoolDaysCount, selectedClass));
     }, [selectedClass, schoolDaysCount]);
 
     const saveSchedule = (newSched: Record<string, ScheduleSlot[]>) => {
@@ -10477,8 +10489,18 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
       let weeklyRoster: Record<string, any[]> = {};
       try {
           const saved = localStorage.getItem(`prota_weekly_roster_${className}`);
-          if (saved) weeklyRoster = JSON.parse(saved);
+          if (saved) {
+              const parsed = JSON.parse(saved);
+              if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                  weeklyRoster = parsed;
+              }
+          }
       } catch (e) {}
+
+      // Fallback to default schedule for that specific class if not explicitly saved in storage
+      if (!weeklyRoster || Object.keys(weeklyRoster).length === 0) {
+          weeklyRoster = getDefaultScheduleForClass(schoolDaysCount, className);
+      }
 
       const daysList = schoolDaysCount === 5 
           ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
@@ -10498,7 +10520,7 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
                   slotSubjLower === targetSubjLower ||
                   slotSubjLower.includes(targetSubjLower) ||
                   targetSubjLower.includes(slotSubjLower)) {
-                  dayJp += Number(slot.jp) || 1;
+                  dayJp += Math.max(1, Number(slot.jp) || 1);
               }
           });
           if (dayJp > 0) {
@@ -10507,13 +10529,27 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
           }
       });
 
-      const selectedDays = subjectScheduledDays.length > 0 
-          ? subjectScheduledDays 
-          : (classSchedules[className] || []);
+      // If this subject is not in the weekly timetable roster at all, fallback to official Kurikulum Merdeka standards
+      if (subjectScheduledDays.length === 0) {
+          const subKey = getSubjectKey(subjectName);
+          const annualTarget = subKey ? (JP_STANDARDS[subKey]?.[className] || JP_STANDARDS[subKey]?.["Kelas 5"] || 108) : 108;
+          let stdJp = 3;
+          if (annualTarget >= 216) stdJp = 3;
+          else if (annualTarget >= 144) stdJp = 4;
+          else if (annualTarget >= 96) stdJp = 3;
+          else if (annualTarget > 0) stdJp = 2;
 
-      const dailyJP = subjectScheduledDays.length > 0 
-          ? subjectDailyJpMap 
-          : (classDailyJP[className] || {});
+          const defDay = subKey?.includes('PJOK') ? 'Senin' :
+                         subKey?.includes('Pancasila') ? 'Selasa' :
+                         subKey?.includes('Matematika') ? 'Selasa' :
+                         subKey?.includes('IPAS') ? 'Rabu' :
+                         subKey?.includes('Inggris') ? 'Kamis' : 'Senin';
+          subjectScheduledDays.push(defDay);
+          subjectDailyJpMap[defDay] = stdJp;
+      }
+
+      const selectedDays = subjectScheduledDays;
+      const dailyJP = subjectDailyJpMap;
 
       const dates: { date: Date, jp: number }[] = [];
       const academicStartStr = `${academicYearStart}-07-14`;
@@ -10527,7 +10563,9 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
       while (current <= endDate) {
           const dayName = getDayName(current);
           const dateStr = formatDateLocal(current);
-          const conflict = checkNonEffectiveDate(dateStr);
+          const isSabtu = dayName === 'Sabtu';
+          const isSabtuNonEffective = schoolDaysCount === 5 && isSabtu;
+          const conflict = checkNonEffectiveDate(dateStr) || (isSabtuNonEffective ? { description: 'Libur Sabtu', type: 'holiday' as const, id: 'sat', start: dateStr, end: dateStr, color: 'bg-red-500' } : null);
           if (validDays.includes(dayName) && (!conflict)) {
               const jp = dailyJP[dayName] || 3;
               if (jp > 0) {
@@ -10605,8 +10643,18 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
         let weeklyRoster: Record<string, any[]> = {};
         try {
             const saved = localStorage.getItem(`prota_weekly_roster_${className}`);
-            if (saved) weeklyRoster = JSON.parse(saved);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                    weeklyRoster = parsed;
+                }
+            }
         } catch (e) {}
+
+        // Fallback to class-specific default schedule if not found in storage
+        if (!weeklyRoster || Object.keys(weeklyRoster).length === 0) {
+            weeklyRoster = getDefaultScheduleForClass(schoolDaysCount, className);
+        }
 
         const daysList = schoolDaysCount === 5 
             ? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] 
@@ -10622,10 +10670,11 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
                 if (!slot || !slot.subject) return;
                 const slotSubjLower = slot.subject.toLowerCase().trim();
                 const targetSubjLower = subject.toLowerCase().trim();
-                if (slotSubjLower === targetSubjLower ||
+                if (isSameSubject(slot.subject, subject) ||
+                    slotSubjLower === targetSubjLower ||
                     slotSubjLower.includes(targetSubjLower) ||
                     targetSubjLower.includes(slotSubjLower)) {
-                    dayJp += Number(slot.jp) || 1;
+                    dayJp += Math.max(1, Number(slot.jp) || 1);
                 }
             });
             if (dayJp > 0) {
@@ -10634,16 +10683,30 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
             }
         });
 
-        const rawSelectedDays = subjectScheduledDays.length > 0 
-            ? subjectScheduledDays 
-            : (classSchedules[className] || []);
+        // If subject is not in roster, fallback to official Kurikulum Merdeka standards
+        if (subjectScheduledDays.length === 0) {
+            const subKey = getSubjectKey(subject);
+            const annualTarget = subKey ? (JP_STANDARDS[subKey]?.[className] || JP_STANDARDS[subKey]?.["Kelas 5"] || 108) : 108;
+            let stdJp = 3;
+            if (annualTarget >= 216) stdJp = 3;
+            else if (annualTarget >= 144) stdJp = 4;
+            else if (annualTarget >= 96) stdJp = 3;
+            else if (annualTarget > 0) stdJp = 2;
 
+            const defDay = subKey?.includes('PJOK') ? 'Senin' :
+                           subKey?.includes('Pancasila') ? 'Selasa' :
+                           subKey?.includes('Matematika') ? 'Selasa' :
+                           subKey?.includes('IPAS') ? 'Rabu' :
+                           subKey?.includes('Inggris') ? 'Kamis' : 'Senin';
+            subjectScheduledDays.push(defDay);
+            subjectDailyJpMap[defDay] = stdJp;
+        }
+
+        const rawSelectedDays = subjectScheduledDays;
         const selectedDays = schoolDaysCount === 5 ? rawSelectedDays.filter(d => d !== 'Sabtu') : rawSelectedDays;
         
         const finalDays = selectedDays.length > 0 ? selectedDays : ["Senin"];
-        const dailyJpSource = subjectScheduledDays.length > 0 
-            ? subjectDailyJpMap 
-            : (classDailyJP[className] || {});
+        const dailyJpSource = subjectDailyJpMap;
 
         const subjectKey = getSubjectKey(subject);
         const annualTargetJP = subjectKey ? JP_STANDARDS[subjectKey]?.[className] || 0 : 0;
@@ -10658,9 +10721,6 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
         let semester2Data = { effectiveDays: 0, nonEffectiveDays: 0, effectiveWeeks: 0, uniqueWeeks: new Set<string>(), availableJP: 0 };
         const monthDetails: Record<string, MonthAnalysis> = {};
         const dayDistribution: Record<string, number> = {};
-
-        // Calculate JP per meeting (usually 2-3 JP depending on load)
-        const estJPPerMeeting = className.includes('6') ? 2 : 3;
 
         let current = new Date(startDate);
         while (current <= endDate) {
@@ -10682,7 +10742,7 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
             const isSabtuNonEffective = schoolDaysCount === 5 && isSabtu;
 
             if (finalDays.includes(dayName)) {
-                 const conflict = checkNonEffectiveDate(dateStr) || (isSabtuNonEffective ? { description: 'Libur Sabtu', type: 'holiday' } : null);
+                 const conflict = checkNonEffectiveDate(dateStr) || (isSabtuNonEffective ? { description: 'Libur Sabtu', type: 'holiday' as const, id: 'sat', start: dateStr, end: dateStr, color: 'bg-red-500' } : null);
                  if (!conflict) {
                      const dailyJPVal = dailyJpSource[dayName] || 3;
                      totalAvailableSlots++;
@@ -11838,6 +11898,32 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
 
       const activeAcademicYear = `${academicYearStart}/${academicYearStart + 1}`;
 
+      let rosterForExport: Record<string, any[]> = {};
+      try {
+          const saved = localStorage.getItem(`prota_weekly_roster_${className}`);
+          if (saved) rosterForExport = JSON.parse(saved);
+      } catch(e) {}
+      if (!rosterForExport || Object.keys(rosterForExport).length === 0) {
+          rosterForExport = getDefaultScheduleForClass(schoolDaysCount, className);
+      }
+      const scheduledDaysList: string[] = [];
+      const scheduledJpList: number[] = [];
+      ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].forEach(day => {
+          const slots = rosterForExport[day] || [];
+          let dayJp = 0;
+          slots.forEach(slot => {
+              if (slot?.subject && isSameSubject(slot.subject, data.subject)) {
+                  dayJp += Math.max(1, Number(slot.jp) || 1);
+              }
+          });
+          if (dayJp > 0) {
+              scheduledDaysList.push(day);
+              scheduledJpList.push(dayJp);
+          }
+      });
+      const scheduledDaysDisplay = scheduledDaysList.length > 0 ? scheduledDaysList.join(', ') : ((classSchedules[className] || []).join(', ') || 'Senin');
+      const scheduledJpDisplay = scheduledJpList.length > 0 ? scheduledJpList.map(j => `${j} JP`).join(' / ') : ((classSchedules[className] || []).map(day => `${(classDailyJP[className] || {})[day] || 3} JP`).join(' / ') || '3 JP');
+
       const htmlContent = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
         <head>
@@ -11891,17 +11977,17 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                       <tr>
                           <td style="text-align: center;">Semester 1 (Ganjil)</td>
                           <td style="text-align: center;">Juli - Desember ${academicYearStart}</td>
-                          <td style="text-align: center;">${(classSchedules[className] || []).join(', ')}</td>
+                          <td style="text-align: center;">${scheduledDaysDisplay}</td>
                           <td style="text-align: center;">${calAnalysis?.semester1.effectiveDays || 0}</td>
-                          <td style="text-align: center;">${(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
+                          <td style="text-align: center;">${scheduledJpDisplay}</td>
                           <td style="text-align: center;">${calAnalysis?.semester1.availableJP || 0}</td>
                       </tr>
                       <tr>
                           <td style="text-align: center;">Semester 2 (Genap)</td>
                           <td style="text-align: center;">Januari - Juni ${academicYearStart + 1}</td>
-                          <td style="text-align: center;">${(classSchedules[className] || []).join(', ')}</td>
+                          <td style="text-align: center;">${scheduledDaysDisplay}</td>
                           <td style="text-align: center;">${calAnalysis?.semester2.effectiveDays || 0}</td>
-                          <td style="text-align: center;">${(classSchedules[className] || []).map(day => (classDailyJP[className] || {})[day] || 3).join('/')}</td>
+                          <td style="text-align: center;">${scheduledJpDisplay}</td>
                           <td style="text-align: center;">${calAnalysis?.semester2.availableJP || 0}</td>
                       </tr>
                       <tr style="background-color: #f9f9f9; font-weight: bold;">
@@ -13961,7 +14047,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                 )}
                                 <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
                                     <div className="p-4 bg-slate-50 border-b flex flex-wrap justify-between items-center gap-4">
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex flex-wrap items-center gap-3">
                                             <h3 className="font-bold text-lg border-l-4 border-emerald-600 pl-3 text-slate-800">{className} — {data.subject}</h3>
                                             {isCurrentProtaLocked && currentView === 'generator' && (
                                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
@@ -13969,6 +14055,45 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                                     <span>Terkunci</span>
                                                 </span>
                                             )}
+                                            {(() => {
+                                                const classDates = getEffectiveDates(className, data.subject || selectedSubject);
+                                                const totalJp = classDates.reduce((acc, curr) => acc + (curr.jp || 0), 0);
+                                                let weeklyRoster: Record<string, any[]> = {};
+                                                try {
+                                                    const saved = localStorage.getItem(`prota_weekly_roster_${className}`);
+                                                    if (saved) weeklyRoster = JSON.parse(saved);
+                                                } catch(e) {}
+                                                if (!weeklyRoster || Object.keys(weeklyRoster).length === 0) {
+                                                    weeklyRoster = getDefaultScheduleForClass(schoolDaysCount, className);
+                                                }
+                                                let weeklyJp = 0;
+                                                const daysWithSubj: string[] = [];
+                                                ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].forEach(d => {
+                                                    let dJp = 0;
+                                                    (weeklyRoster[d] || []).forEach(slot => {
+                                                        if (slot?.subject && isSameSubject(slot.subject, data.subject || selectedSubject)) {
+                                                            dJp += Math.max(1, Number(slot.jp) || 1);
+                                                        }
+                                                    });
+                                                    if (dJp > 0) {
+                                                        weeklyJp += dJp;
+                                                        daysWithSubj.push(d);
+                                                    }
+                                                });
+                                                if (weeklyJp === 0 && classDates.length > 0) {
+                                                    weeklyJp = classDates[0].jp;
+                                                }
+                                                return (
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200 text-xs shadow-3xs">
+                                                            🗓️ Beban Jadwal: {weeklyJp} JP/Pekan {daysWithSubj.length > 0 ? `(${daysWithSubj.join(', ')})` : ''}
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-800 font-semibold border border-sky-200 text-xs shadow-3xs">
+                                                            ⏱️ Total Prota: {totalJp} JP ({classDates.length} Pertemuan)
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     <div className="flex gap-2">
                                         <button 
@@ -14069,12 +14194,22 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                         <tbody className="divide-y divide-slate-200">
                                             {(() => {
                                                 const classEffectiveDates = getEffectiveDates(className, data.subject || selectedSubject);
-                                                const totalExistingItems = (data.elements || []).reduce((acc, el) => {
+                                                const allExistingItems: { alokasiWaktu?: string; planDate?: string }[] = [];
+                                                (data.elements || []).forEach(el => {
                                                     const alloc = (el.allocations || []).find(a => isSameClass(a.className, className));
-                                                    return acc + ((alloc?.structuredAtp || []).reduce((gAcc, g) => gAcc + (g.atpItems || []).length, 0));
-                                                }, 0);
+                                                    (alloc?.structuredAtp || []).forEach(g => {
+                                                        (g.atpItems || []).forEach(it => allExistingItems.push(it));
+                                                    });
+                                                });
 
-                                                if (classEffectiveDates.length > 0 && totalExistingItems !== classEffectiveDates.length) {
+                                                const hasJpMismatch = classEffectiveDates.length > 0 && allExistingItems.length > 0 && allExistingItems.some((it, idx) => {
+                                                    if (idx >= classEffectiveDates.length) return false;
+                                                    const expectedJpStr = `${classEffectiveDates[idx].jp} JP`;
+                                                    const currentJpStr = it.alokasiWaktu ? (it.alokasiWaktu.toLowerCase().includes('jp') ? it.alokasiWaktu : `${it.alokasiWaktu} JP`) : '';
+                                                    return currentJpStr !== expectedJpStr;
+                                                });
+
+                                                if (classEffectiveDates.length > 0 && (allExistingItems.length !== classEffectiveDates.length || hasJpMismatch)) {
                                                     distributeEffectiveDatesToCurriculum(data, className, classEffectiveDates, academicYearStart);
                                                 }
                                                 return null;
