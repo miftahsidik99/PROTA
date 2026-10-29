@@ -10514,12 +10514,10 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
           let dayJp = 0;
           slots.forEach(slot => {
               if (!slot || !slot.subject) return;
+              if (isExcludedSubject(slot.subject) && !isExcludedSubject(subjectName)) return;
               const slotSubjLower = slot.subject.toLowerCase().trim();
               const targetSubjLower = (subjectName || '').toLowerCase().trim();
-              if (isSameSubject(slot.subject, subjectName) ||
-                  slotSubjLower === targetSubjLower ||
-                  slotSubjLower.includes(targetSubjLower) ||
-                  targetSubjLower.includes(slotSubjLower)) {
+              if (isSameSubject(slot.subject, subjectName) || slotSubjLower === targetSubjLower) {
                   dayJp += Math.max(1, Number(slot.jp) || 1);
               }
           });
@@ -10668,12 +10666,10 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
             let dayJp = 0;
             slots.forEach(slot => {
                 if (!slot || !slot.subject) return;
+                if (isExcludedSubject(slot.subject) && !isExcludedSubject(subject)) return;
                 const slotSubjLower = slot.subject.toLowerCase().trim();
                 const targetSubjLower = subject.toLowerCase().trim();
-                if (isSameSubject(slot.subject, subject) ||
-                    slotSubjLower === targetSubjLower ||
-                    slotSubjLower.includes(targetSubjLower) ||
-                    targetSubjLower.includes(slotSubjLower)) {
+                if (isSameSubject(slot.subject, subject) || slotSubjLower === targetSubjLower) {
                     dayJp += Math.max(1, Number(slot.jp) || 1);
                 }
             });
@@ -11912,7 +11908,9 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
           const slots = rosterForExport[day] || [];
           let dayJp = 0;
           slots.forEach(slot => {
-              if (slot?.subject && isSameSubject(slot.subject, data.subject)) {
+              if (!slot || !slot.subject) return;
+              if (isExcludedSubject(slot.subject) && !isExcludedSubject(data.subject)) return;
+              if (isSameSubject(slot.subject, data.subject) || slot.subject.toLowerCase().trim() === data.subject.toLowerCase().trim()) {
                   dayJp += Math.max(1, Number(slot.jp) || 1);
               }
           });
@@ -14071,7 +14069,9 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                                 ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].forEach(d => {
                                                     let dJp = 0;
                                                     (weeklyRoster[d] || []).forEach(slot => {
-                                                        if (slot?.subject && isSameSubject(slot.subject, data.subject || selectedSubject)) {
+                                                        if (!slot || !slot.subject) return;
+                                                        if (isExcludedSubject(slot.subject) && !isExcludedSubject(data.subject || selectedSubject)) return;
+                                                        if (isSameSubject(slot.subject, data.subject || selectedSubject) || slot.subject.toLowerCase().trim() === (data.subject || selectedSubject).toLowerCase().trim()) {
                                                             dJp += Math.max(1, Number(slot.jp) || 1);
                                                         }
                                                     });
@@ -14209,7 +14209,13 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                                     return currentJpStr !== expectedJpStr;
                                                 });
 
-                                                if (classEffectiveDates.length > 0 && (allExistingItems.length !== classEffectiveDates.length || hasJpMismatch)) {
+                                                const hasDateMismatch = classEffectiveDates.length > 0 && allExistingItems.length > 0 && allExistingItems.some((it, idx) => {
+                                                    if (idx >= classEffectiveDates.length) return false;
+                                                    const expectedDateStr = formatDateLocal(classEffectiveDates[idx].date);
+                                                    return it.planDate && it.planDate !== expectedDateStr;
+                                                });
+
+                                                if (classEffectiveDates.length > 0 && (allExistingItems.length !== classEffectiveDates.length || hasJpMismatch || hasDateMismatch)) {
                                                     distributeEffectiveDatesToCurriculum(data, className, classEffectiveDates, academicYearStart);
                                                 }
                                                 return null;

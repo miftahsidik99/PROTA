@@ -59,6 +59,27 @@ export const getSubjectKey = (subjectName: string): string | null => {
     if (!subjectName) return null;
     const lower = String(subjectName).toLowerCase().trim();
 
+    // 1. Guard against non-academic or non-lesson activities (e.g. Kokurikuler 7 Kebiasaan, P5, Upacara, Istirahat)
+    if (
+        lower.includes('kokurikuler') ||
+        lower.includes('kebiasaan') ||
+        lower.includes('bangun pagi') ||
+        lower.includes('gemar belajar') ||
+        lower.includes('makan sehat') ||
+        lower.includes('bermasyarakat') ||
+        lower.includes('tidur cepat') ||
+        lower.includes('beribadah') ||
+        lower.includes('p5') ||
+        lower.includes('profil pelajar') ||
+        lower.includes('istirahat') ||
+        lower.includes('upacara') ||
+        lower.includes('ekstrakurikuler') ||
+        lower.includes('pembiasaan') ||
+        lower.includes('pramuka')
+    ) {
+        return null;
+    }
+
     if (JP_STANDARDS[subjectName]) return subjectName;
     const keys = Object.keys(JP_STANDARDS);
     const directKey = keys.find(k => String(k).toLowerCase() === lower);
@@ -66,12 +87,12 @@ export const getSubjectKey = (subjectName: string): string | null => {
 
     const fuzzyKey = keys.find(k => {
         const kLower = String(k).toLowerCase();
-        return lower.includes(kLower) || kLower.includes(lower);
+        return lower === kLower || lower.startsWith(kLower) || kLower.startsWith(lower);
     });
     if (fuzzyKey) return fuzzyKey;
 
     // Direct domain mappings
-    if (lower.includes('pjok') || lower.includes('jasmani') || lower.includes('olahraga')) {
+    if (lower.includes('pjok') || lower.includes('jasmani') || (lower.includes('olahraga') && !lower.includes('kebiasaan'))) {
         return "PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan)";
     }
     if (lower.includes('pancasila') || lower.includes('ppkn') || lower.includes('pkn')) {
@@ -80,7 +101,16 @@ export const getSubjectKey = (subjectName: string): string | null => {
     if (lower.includes('ipas') || lower.includes('alam dan sosial') || lower.includes('sains')) {
         return "IPAS (Ilmu Pengetahuan Alam dan Sosial)";
     }
-    if (lower.includes('indonesia')) {
+    // Strict match for Bahasa Indonesia
+    if (
+        lower.includes('bahasa indonesia') ||
+        lower === 'b. indonesia' ||
+        lower === 'b.indo' ||
+        lower === 'bindo' ||
+        lower === 'b indo' ||
+        lower === 'b indonesia' ||
+        (lower.includes('indonesia') && !lower.includes('kebiasaan') && !lower.includes('kokurikuler') && !lower.includes('pancasila'))
+    ) {
         return "Bahasa Indonesia";
     }
     if (lower.includes('matematika') || lower.includes('mtk')) {
@@ -92,7 +122,7 @@ export const getSubjectKey = (subjectName: string): string | null => {
     if (lower.includes('koding') || lower.includes('kecerdasan artifisial') || lower.includes('ai') || lower.includes('informatika')) {
         return "Koding & Kecerdasan Artifisial";
     }
-    if (lower.includes('seni rupa') || lower.includes('rupa')) {
+    if (lower.includes('seni rupa') || (lower.includes('rupa') && !lower.includes('berupa'))) {
         return "Seni Rupa";
     }
     if (lower.includes('seni musik') || lower.includes('musik')) {
@@ -125,7 +155,7 @@ export const getSubjectKey = (subjectName: string): string | null => {
     if (lower.includes('khonghucu')) {
         return "Pendidikan Agama Khonghucu";
     }
-    if (lower.includes('muatan lokal') || lower.includes('mulok') || lower.includes('daerah') || lower.includes('sunda') || lower.includes('jawa')) {
+    if (lower.includes('muatan lokal') || lower.includes('mulok') || lower.includes('daerah') || lower.includes('sunda') || lower.includes('jawa') || lower.includes('mengaji')) {
         return "Muatan Lokal";
     }
 
@@ -138,20 +168,54 @@ export const isSameSubject = (subA: string, subB: string): boolean => {
     const cleanB = String(subB).toLowerCase().trim();
     if (cleanA === cleanB) return true;
 
+    // Check if either is non-academic / kokurikuler / pembiasaan
+    const isSpecialActivity = (s: string) => 
+        s.includes('kokurikuler') || 
+        s.includes('kebiasaan') || 
+        s.includes('istirahat') || 
+        s.includes('upacara') || 
+        s.includes('ekstrakurikuler') || 
+        s.includes('pembiasaan') || 
+        s.includes('pramuka') || 
+        s.includes('p5');
+
+    const specialA = isSpecialActivity(cleanA);
+    const specialB = isSpecialActivity(cleanB);
+    if (specialA !== specialB) {
+        return false;
+    }
+
+    // Specific check for Bahasa Indonesia to prevent cross-matching with Kokurikuler or other subjects
+    const isIndoA = cleanA.includes('bahasa indonesia') || cleanA === 'b. indonesia' || cleanA === 'b.indo' || cleanA === 'bindo' || cleanA === 'b indo' || cleanA === 'b indonesia';
+    const isIndoB = cleanB.includes('bahasa indonesia') || cleanB === 'b. indonesia' || cleanB === 'b.indo' || cleanB === 'bindo' || cleanB === 'b indo' || cleanB === 'b indonesia';
+    if (isIndoA || isIndoB) {
+        return isIndoA && isIndoB;
+    }
+
     const keyA = getSubjectKey(subA);
     const keyB = getSubjectKey(subB);
     if (keyA && keyB && keyA === keyB) return true;
 
     // Word token overlap check
-    const extractTokens = (s: string) => s.replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+    const extractTokens = (s: string) => s.replace(/[^a-z0-9]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !['dan', 'yang', 'untuk', 'pada', 'hebat', 'anak'].includes(w));
     const tokensA = extractTokens(cleanA);
     const tokensB = extractTokens(cleanB);
     const shared = tokensA.filter(t => tokensB.includes(t));
+
+    // Never match only on "indonesia" without "bahasa"
+    if (shared.length === 1 && shared[0] === 'indonesia') {
+        return false;
+    }
+
     if (shared.length >= 2 || (shared.length === 1 && (shared[0] === 'pjok' || shared[0] === 'ipas' || shared[0] === 'matematika' || shared[0] === 'pancasila' || shared[0] === 'koding' || shared[0] === 'inggris'))) {
         return true;
     }
 
-    if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) return true;
+    if (cleanA.length > 5 && cleanB.length > 5) {
+        if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) return true;
+    }
 
     return false;
 };
