@@ -1518,157 +1518,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [deletingUser, setDeletingUser] = useState<any>(null);
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
 
-  // --- Flashcard Links & Titles State ---
-  const [flashcards, setFlashcards] = useState<LoginFlashcardItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('prota_login_flashcards');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {}
-    return DEFAULT_LOGIN_FLASHCARDS;
-  });
-  const [fcTitle, setFcTitle] = useState('');
-  const [fcLink, setFcLink] = useState('');
-  const [fcCategory, setFcCategory] = useState('Tutorial Guru');
-  const [fcDuration, setFcDuration] = useState('');
-  const [editingFcId, setEditingFcId] = useState<string | null>(null);
-  const [fcNotification, setFcNotification] = useState<{ message: string; type: 'success' | 'warning' | 'info' } | null>(null);
-  const [isSavingFc, setIsSavingFc] = useState(false);
 
-  const notifyFc = (message: string, type: 'success' | 'warning' | 'info' = 'success') => {
-    setFcNotification({ message, type });
-    setTimeout(() => setFcNotification(null), 3500);
-  };
-
-  // Fetch flashcards from Firestore cloud config
-  const fetchCloudFlashcards = async () => {
-    try {
-      const docSnap = await getDoc(doc(db, 'app_config', 'login_flashcards'));
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && Array.isArray(data.items) && data.items.length > 0) {
-          setFlashcards(data.items);
-          localStorage.setItem('prota_login_flashcards', JSON.stringify(data.items));
-        }
-      }
-    } catch (e) {
-      console.warn('Could not fetch cloud flashcards, using local cache:', e);
-    }
-  };
-
-  useEffect(() => {
-    fetchCloudFlashcards();
-  }, []);
-
-  const handleAddOrUpdateFlashcard = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!fcTitle.trim()) {
-      notifyFc('Judul flashcard/video tidak boleh kosong.', 'warning');
-      return;
-    }
-    if (!fcLink.trim()) {
-      notifyFc('Link/tautan URL tidak boleh kosong.', 'warning');
-      return;
-    }
-
-    if (editingFcId) {
-      // Update existing item
-      const updated = flashcards.map(item => {
-        if (item.id === editingFcId) {
-          return {
-            ...item,
-            title: fcTitle.trim(),
-            link: fcLink.trim(),
-            category: fcCategory.trim() || 'Tutorial Guru',
-            duration: fcDuration.trim() || (extractYoutubeVideoId(fcLink.trim()) ? 'YouTube' : 'Tautan')
-          };
-        }
-        return item;
-      });
-      setFlashcards(updated);
-      setEditingFcId(null);
-      setFcTitle('');
-      setFcLink('');
-      setFcCategory('Tutorial Guru');
-      setFcDuration('');
-      notifyFc('Flashcard berhasil diperbarui di tabel! Klik "Simpan ke Server" untuk menyimpannya.', 'info');
-    } else {
-      // Add new item
-      const newItem: LoginFlashcardItem = {
-        id: 'fc-' + Date.now(),
-        title: fcTitle.trim(),
-        link: fcLink.trim(),
-        category: fcCategory.trim() || 'Tutorial Guru',
-        duration: fcDuration.trim() || (extractYoutubeVideoId(fcLink.trim()) ? 'YouTube' : 'Tautan'),
-        createdAt: Date.now()
-      };
-      setFlashcards([newItem, ...flashcards]);
-      setFcTitle('');
-      setFcLink('');
-      setFcCategory('Tutorial Guru');
-      setFcDuration('');
-      notifyFc('Flashcard baru berhasil ditambahkan ke tabel! Klik "Simpan ke Server" untuk menampilkannya di login.', 'info');
-    }
-  };
-
-  const handleEditFlashcard = (item: LoginFlashcardItem) => {
-    setEditingFcId(item.id);
-    setFcTitle(item.title);
-    setFcLink(item.link);
-    setFcCategory(item.category || 'Tutorial Guru');
-    setFcDuration(item.duration || '');
-    const formEl = document.getElementById('flashcard-form-section');
-    if (formEl) {
-      formEl.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const handleCancelEditFc = () => {
-    setEditingFcId(null);
-    setFcTitle('');
-    setFcLink('');
-    setFcCategory('Tutorial Guru');
-    setFcDuration('');
-  };
-
-  const handleDeleteFlashcard = (id: string) => {
-    if (confirm('Hapus item flashcard ini?')) {
-      const updated = flashcards.filter(f => f.id !== id);
-      setFlashcards(updated);
-      if (editingFcId === id) {
-        handleCancelEditFc();
-      }
-      notifyFc('Flashcard berhasil dihapus dari tabel.', 'info');
-    }
-  };
-
-  const handleSaveFlashcardsToCloud = async () => {
-    setIsSavingFc(true);
-    try {
-      localStorage.setItem('prota_login_flashcards', JSON.stringify(flashcards));
-      await setDoc(doc(db, 'app_config', 'login_flashcards'), {
-        items: flashcards,
-        updatedAt: Date.now()
-      });
-      notifyFc(`Sukses! ${flashcards.length} Flashcard & Video tersimpan ke server dan siap muncul di halaman login.`, 'success');
-    } catch (e: any) {
-      console.error('Error saving flashcards to Firestore:', e);
-      localStorage.setItem('prota_login_flashcards', JSON.stringify(flashcards));
-      notifyFc('Tersimpan di cache lokal browser (' + (e?.message || 'Offline') + ')', 'warning');
-    } finally {
-      setIsSavingFc(false);
-    }
-  };
-
-  const handleResetDefaultFlashcards = () => {
-    if (confirm('Kembalikan flashcard ke data panduan bawaan sistem?')) {
-      setFlashcards(DEFAULT_LOGIN_FLASHCARDS);
-      handleCancelEditFc();
-      notifyFc('Flashcard dikembalikan ke data awal.', 'info');
-    }
-  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -1961,258 +1811,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
           )}
         </div>
 
-        {/* Flashcard & Video YouTube Manager Card */}
-        <div id="flashcard-form-section" className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs space-y-6 p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-red-50 text-red-600 rounded-xl">
-                <Youtube className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-extrabold text-slate-900 text-lg">
-                    Kelola Flashcard & Video YouTube (Halaman Login)
-                  </h3>
-                  <span className="px-2.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
-                    Thumbnail Otomatis
-                  </span>
-                </div>
-                <p className="text-slate-500 text-xs mt-0.5">
-                  Tabel input judul & tautan video/link. Saat disimpan, akan tampil sebagai flashcard thumbnail YouTube animatif & modern di halaman login.
-                </p>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                onClick={handleResetDefaultFlashcards}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset Default
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveFlashcardsToCloud}
-                disabled={isSavingFc}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md shadow-red-600/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                {isSavingFc ? 'Menyimpan...' : 'Simpan ke Server'}
-              </button>
-            </div>
-          </div>
-
-          {/* Toast Notification */}
-          {fcNotification && (
-            <div className={`p-3.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${
-              fcNotification.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
-              fcNotification.type === 'warning' ? 'bg-amber-50 text-amber-800 border-amber-200' :
-              'bg-blue-50 text-blue-800 border-blue-200'
-            }`}>
-              {fcNotification.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-              <span>{fcNotification.message}</span>
-            </div>
-          )}
-
-          {/* Input Form Section */}
-          <form onSubmit={handleAddOrUpdateFlashcard} className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                {editingFcId ? <Edit className="w-4 h-4 text-blue-600" /> : <Plus className="w-4 h-4 text-red-600" />}
-                {editingFcId ? 'Edit Judul / Link Flashcard' : 'Input Judul & Link Baru'}
-              </span>
-              {editingFcId && (
-                <span className="text-[11px] bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full font-bold">
-                  Sedang Mengedit Baris
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
-              <div className="md:col-span-5 space-y-1">
-                <label className="font-bold text-slate-700">Judul Flashcard / Video <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Tutorial Penyusunan Modul Ajar BSKAP 046"
-                  value={fcTitle}
-                  onChange={e => setFcTitle(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-red-500 text-xs"
-                />
-              </div>
-
-              <div className="md:col-span-4 space-y-1">
-                <label className="font-bold text-slate-700">Link URL / Video YouTube <span className="text-red-500">*</span></label>
-                <input
-                  type="url"
-                  placeholder="https://www.youtube.com/watch?v=... atau link web"
-                  value={fcLink}
-                  onChange={e => setFcLink(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-
-              <div className="md:col-span-3 space-y-1">
-                <label className="font-bold text-slate-700">Kategori / Label</label>
-                <select
-                  value={fcCategory}
-                  onChange={e => setFcCategory(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-xs outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
-                >
-                  <option value="Tutorial Guru">Tutorial Guru</option>
-                  <option value="Panduan Praktis">Panduan Praktis</option>
-                  <option value="Kurikulum Merdeka">Kurikulum Merdeka</option>
-                  <option value="Tips & Trik">Tips & Trik</option>
-                  <option value="Informasi Resmi">Informasi Resmi</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Live YouTube Thumbnail Detection Bar */}
-            {fcLink && extractYoutubeVideoId(fcLink) && (
-              <div className="flex items-center gap-3 p-3 bg-red-50/80 border border-red-200/80 rounded-xl">
-                <img
-                  src={`https://img.youtube.com/vi/${extractYoutubeVideoId(fcLink)}/hqdefault.jpg`}
-                  alt="Preview thumbnail"
-                  className="w-20 h-12 object-cover rounded-lg shadow-xs border border-red-300"
-                />
-                <div className="text-xs">
-                  <p className="font-bold text-red-900 flex items-center gap-1.5">
-                    <Youtube className="w-4 h-4 text-red-600" />
-                    <span>ID YouTube Terverifikasi:</span>
-                    <span className="font-mono bg-white px-2 py-0.5 rounded border border-red-200 text-red-700">{extractYoutubeVideoId(fcLink)}</span>
-                  </p>
-                  <p className="text-slate-500 text-[11px] mt-0.5">Thumbnail YouTube di atas akan otomatis menjadi gambar flashcard di halaman login.</p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              {editingFcId && (
-                <button
-                  type="button"
-                  onClick={handleCancelEditFc}
-                  className="px-4 py-2 border border-slate-300 hover:bg-white rounded-xl text-xs font-bold text-slate-700 transition-colors cursor-pointer"
-                >
-                  Batal Edit
-                </button>
-              )}
-              <button
-                type="submit"
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md shadow-red-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                {editingFcId ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                <span>{editingFcId ? 'Simpan Perubahan Baris' : 'Tambahkan ke Tabel'}</span>
-              </button>
-            </div>
-          </form>
-
-          {/* Table List of Flashcards */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <Table className="w-4 h-4 text-slate-500" />
-                <span>Tabel Judul & Link Flashcard ({flashcards.length} Item)</span>
-              </h4>
-              <span className="text-xs text-slate-500 font-medium">
-                Kelola item: Edit atau Hapus baris di bawah ini
-              </span>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-[#0f172a] text-white font-bold uppercase text-[11px] tracking-wider">
-                  <tr>
-                    <th className="py-3 px-3 text-center w-12">NO</th>
-                    <th className="py-3 px-3 w-28 text-center">THUMBNAIL</th>
-                    <th className="py-3 px-4 min-w-[200px]">JUDUL FLASHCARD</th>
-                    <th className="py-3 px-4 min-w-[240px]">LINK / TAUTAN</th>
-                    <th className="py-3 px-3 text-center min-w-[120px]">KATEGORI</th>
-                    <th className="py-3 px-3 text-center min-w-[110px]">AKSI</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {flashcards.map((item, idx) => {
-                    const videoId = extractYoutubeVideoId(item.link);
-                    const thumbUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
-                    const isEditingThis = editingFcId === item.id;
-
-                    return (
-                      <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors ${isEditingThis ? 'bg-blue-50/60' : ''}`}>
-                        <td className="py-3 px-3 text-center font-bold text-slate-400">{idx + 1}</td>
-                        <td className="py-2 px-3 text-center">
-                          <div className="w-20 aspect-video rounded-lg overflow-hidden bg-slate-900 mx-auto relative border border-slate-200 shadow-2xs group">
-                            {thumbUrl ? (
-                              <img src={thumbUrl} alt={item.title} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400">
-                                <Play className="w-4 h-4" />
-                              </div>
-                            )}
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Play className="w-4 h-4 text-white fill-white" />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-slate-800 leading-snug">{item.title}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1.5 font-mono text-[11px] text-blue-600">
-                            <span className="truncate max-w-[220px]" title={item.link}>{item.link}</span>
-                            <a
-                              href={item.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1 hover:bg-blue-100 rounded text-blue-700 transition-colors"
-                              title="Buka tautan di tab baru"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <span className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-100 rounded-full font-bold text-[10px]">
-                            {item.category || 'Tutorial Guru'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleEditFlashcard(item)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded-lg transition-colors cursor-pointer"
-                              title="Edit Judul & Link"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteFlashcard(item.id)}
-                              className="p-1.5 text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-lg transition-colors cursor-pointer"
-                              title="Hapus Flashcard"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-
-                  {flashcards.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-400">
-                        Belum ada data judul dan link flashcard. Silakan tambahkan pada form di atas.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Edit Modal */}
@@ -12364,119 +11963,104 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                 </div>
             </motion.div>
 
-            {/* Flashcard Video YouTube & Panduan (YouTube Thumbnail Style) */}
-            {loginFlashcards && loginFlashcards.length > 0 && (
-                <motion.div 
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.15 }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full max-w-4xl mt-8 relative z-10"
-                >
-                    <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-5 sm:p-6 shadow-xl shadow-blue-900/5">
-                        <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 bg-red-600 text-white rounded-xl shadow-md shadow-red-600/30 flex items-center justify-center">
-                                    <Play className="w-4 h-4 fill-white translate-x-0.5" />
-                                </div>
-                                <div>
-                                    <h3 className="text-base font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                                        <span>Video Panduan & Tutorial Guru</span>
-                                        <span className="px-2.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                                            Flashcard Video
-                                        </span>
-                                    </h3>
-                                    <p className="text-xs text-slate-500 font-medium">Klik pada thumbnail video di bawah untuk memutar panduan langsung atau membuka tautan.</p>
-                                </div>
-                            </div>
-                            <span className="text-xs font-bold text-slate-500 bg-slate-100/80 px-3 py-1 rounded-full border border-slate-200">
-                                {loginFlashcards.length} Flashcard
+            {/* Kanal Informasi & Tutorial Sosial Media MIFTAHSIDIK99 */}
+            <motion.div 
+                initial={{ opacity: 0, y: 25 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.15 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-3xl mt-6 mb-8 relative z-10"
+            >
+                <div className="bg-white/90 backdrop-blur-xl border border-white/80 rounded-3xl p-6 sm:p-8 shadow-xl shadow-blue-900/5 text-center flex flex-col items-center">
+                    {/* Main Sentence - Simple, modern, and attractive */}
+                    <h3 className="text-slate-800 text-base sm:text-lg lg:text-xl font-medium leading-relaxed max-w-2xl">
+                        Ikuti kanal sosial media{' '}
+                        <span className="font-black tracking-wide bg-gradient-to-r from-red-600 via-indigo-600 to-pink-600 bg-clip-text text-transparent px-2.5 py-0.5 rounded-lg bg-slate-100/70 border border-slate-200/60 inline-block shadow-2xs mx-1">
+                            MIFTAHSIDIK99
+                        </span>{' '}
+                        Sharing informasi dan tutorial seputar dunia pendidikan jenjang Dikdas
+                    </h3>
+
+                    {/* Social Media Logos Grid */}
+                    <div className="mt-6 pt-5 border-t border-slate-100/90 w-full flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+                        {/* YouTube */}
+                        <a 
+                            href="https://www.youtube.com/@miftahsidik99" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-red-600 border border-slate-200 hover:border-red-600 text-slate-700 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-lg hover:shadow-red-600/25 hover:-translate-y-0.5 cursor-pointer"
+                            title="Kunjungi YouTube MIFTAHSIDIK99"
+                        >
+                            <span className="w-8 h-8 rounded-xl bg-red-600 group-hover:bg-white text-white group-hover:text-red-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                </svg>
                             </span>
-                        </div>
+                            <div className="text-left">
+                                <span className="block text-[10px] text-slate-400 group-hover:text-red-100 font-semibold uppercase leading-none">YouTube</span>
+                                <span className="font-bold text-xs sm:text-sm tracking-tight leading-tight">MIFTAHSIDIK99</span>
+                            </div>
+                        </a>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                            {loginFlashcards.map((item, idx) => {
-                                const videoId = extractYoutubeVideoId(item.link);
-                                const thumbUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
+                        {/* TikTok */}
+                        <a 
+                            href="https://www.tiktok.com/@miftahsidik99" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-black border border-slate-200 hover:border-black text-slate-700 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-lg hover:shadow-black/25 hover:-translate-y-0.5 cursor-pointer"
+                            title="Kunjungi TikTok MIFTAHSIDIK99"
+                        >
+                            <span className="w-8 h-8 rounded-xl bg-black group-hover:bg-white text-white group-hover:text-black flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.32a6.34 6.34 0 0 0-.86-.06 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.41a8.28 8.28 0 0 0 4.84 1.54V6.5a4.83 4.83 0 0 1-1.07-.31z"/>
+                                </svg>
+                            </span>
+                            <div className="text-left">
+                                <span className="block text-[10px] text-slate-400 group-hover:text-slate-300 font-semibold uppercase leading-none">TikTok</span>
+                                <span className="font-bold text-xs sm:text-sm tracking-tight leading-tight">MIFTAHSIDIK99</span>
+                            </div>
+                        </a>
 
-                                return (
-                                    <motion.div
-                                        key={item.id || idx}
-                                        whileHover={{ y: -6, scale: 1.02 }}
-                                        transition={{ duration: 0.2 }}
-                                        onClick={() => {
-                                            if (videoId) {
-                                                setActiveVideoModal(item);
-                                            } else {
-                                                window.open(item.link, '_blank', 'noopener,noreferrer');
-                                            }
-                                        }}
-                                        className="group bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-xl hover:border-red-200 transition-all overflow-hidden cursor-pointer flex flex-col relative"
-                                    >
-                                        {/* 16:9 Thumbnail Image */}
-                                        <div className="relative aspect-video w-full bg-slate-900 overflow-hidden flex items-center justify-center">
-                                            {thumbUrl ? (
-                                                <img 
-                                                    src={thumbUrl} 
-                                                    alt={item.title}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                    loading="lazy"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gradient-to-br from-slate-800 via-indigo-950 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
-                                                    <Play className="w-8 h-8 text-red-500 fill-red-500 mb-1 opacity-80" />
-                                                    <span className="text-[10px] text-slate-300 font-mono font-bold uppercase tracking-wider">Tautan Panduan</span>
-                                                </div>
-                                            )}
+                        {/* Facebook */}
+                        <a 
+                            href="https://www.facebook.com/search/top?q=MIFTAHSIDIK99" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-[#1877F2] border border-slate-200 hover:border-[#1877F2] text-slate-700 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-lg hover:shadow-blue-600/25 hover:-translate-y-0.5 cursor-pointer"
+                            title="Kunjungi Facebook MIFTAHSIDIK99"
+                        >
+                            <span className="w-8 h-8 rounded-xl bg-[#1877F2] group-hover:bg-white text-white group-hover:text-[#1877F2] flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                                </svg>
+                            </span>
+                            <div className="text-left">
+                                <span className="block text-[10px] text-slate-400 group-hover:text-blue-100 font-semibold uppercase leading-none">Facebook</span>
+                                <span className="font-bold text-xs sm:text-sm tracking-tight leading-tight">MIFTAHSIDIK99</span>
+                            </div>
+                        </a>
 
-                                            {/* Gradient Overlay */}
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity"></div>
-
-                                            {/* Centered Modern Play Button */}
-                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                <div className="w-11 h-11 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg shadow-red-600/50 group-hover:scale-110 group-hover:bg-red-500 transition-all duration-300">
-                                                    <Play className="w-4 h-4 fill-white translate-x-0.5" />
-                                                </div>
-                                            </div>
-
-                                            {/* Top Category Badge */}
-                                            <div className="absolute top-2.5 left-2.5 flex items-center gap-1">
-                                                <span className="px-2 py-0.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                                                    {item.category || 'Tutorial'}
-                                                </span>
-                                            </div>
-
-                                            {/* Bottom Duration Badge */}
-                                            <div className="absolute bottom-2.5 right-2.5">
-                                                <span className="px-1.5 py-0.5 bg-black/85 text-white text-[10px] font-mono font-bold rounded shadow-xs">
-                                                    {item.duration || 'YouTube'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Flashcard Details */}
-                                        <div className="p-3.5 flex-1 flex flex-col justify-between">
-                                            <h4 className="text-xs font-bold text-slate-800 group-hover:text-red-600 line-clamp-2 transition-colors leading-snug">
-                                                {item.title}
-                                            </h4>
-                                            
-                                            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-medium">
-                                                <span className="flex items-center gap-1 text-red-600 font-bold">
-                                                    <Play className="w-3 h-3 fill-red-600" /> Putar Video
-                                                </span>
-                                                <span className="text-[10px] text-slate-400 flex items-center gap-1 group-hover:text-blue-600 transition-colors">
-                                                    <ExternalLink className="w-3 h-3" /> Buka
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                );
-                            })}
-                        </div>
+                        {/* Instagram */}
+                        <a 
+                            href="https://www.instagram.com/miftahsidik99" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-pink-600 hover:to-orange-500 border border-slate-200 hover:border-pink-500 text-slate-700 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-lg hover:shadow-pink-600/25 hover:-translate-y-0.5 cursor-pointer"
+                            title="Kunjungi Instagram MIFTAHSIDIK99"
+                        >
+                            <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-yellow-500 via-pink-600 to-purple-600 group-hover:bg-white text-white group-hover:text-pink-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                                </svg>
+                            </span>
+                            <div className="text-left">
+                                <span className="block text-[10px] text-slate-400 group-hover:text-pink-100 font-semibold uppercase leading-none">Instagram</span>
+                                <span className="font-bold text-xs sm:text-sm tracking-tight leading-tight">MIFTAHSIDIK99</span>
+                            </div>
+                        </a>
                     </div>
-                </motion.div>
-            )}
+                </div>
+            </motion.div>
 
             {/* Video Lightbox Modal */}
             {activeVideoModal && (
