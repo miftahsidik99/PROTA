@@ -11657,7 +11657,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
     return (
         <div 
             onClick={handleLoginTap}
-            className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4 relative overflow-hidden cursor-pointer"
+            className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-between p-4 py-6 sm:py-8 relative overflow-x-hidden cursor-pointer"
         >
             {/* Background Decorations */}
             <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
@@ -11667,7 +11667,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className={`w-full ${isLogin ? 'max-w-md' : 'max-w-lg'} bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 relative z-10`}
+                className={`w-full ${isLogin ? 'max-w-md' : 'max-w-lg'} bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 relative z-10 my-auto`}
             >
                 <div className="flex justify-center mb-6">
                     <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/30">
@@ -11965,41 +11965,38 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
 
             {/* Kanal Informasi & Tutorial Sosial Media MIFTAHSIDIK99 */}
             <motion.div 
-                initial={{ opacity: 0, y: 25 }}
+                initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.15 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-3xl mt-6 mb-8 relative z-10"
+                className="w-full max-w-2xl mt-auto pt-6 pb-2 relative z-10"
             >
-                <div className="bg-white/90 backdrop-blur-xl border border-white/80 rounded-3xl p-6 sm:p-8 shadow-xl shadow-blue-900/5 text-center flex flex-col items-center">
-                    {/* Main Sentence - Simple, modern, and attractive */}
-                    <h3 className="text-slate-800 text-base sm:text-lg lg:text-xl font-medium leading-relaxed max-w-2xl">
+                <div className="bg-white/80 backdrop-blur-md border border-white/80 rounded-2xl p-3.5 sm:p-4 shadow-sm text-center flex flex-col items-center gap-2.5">
+                    {/* Main Sentence - Small, neat, and modern */}
+                    <p className="text-slate-700 text-xs sm:text-[13px] font-medium leading-relaxed max-w-xl">
                         Ikuti kanal sosial media{' '}
-                        <span className="font-black tracking-wide bg-gradient-to-r from-red-600 via-indigo-600 to-pink-600 bg-clip-text text-transparent px-2.5 py-0.5 rounded-lg bg-slate-100/70 border border-slate-200/60 inline-block shadow-2xs mx-1">
+                        <span className="font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60 inline-block shadow-2xs mx-0.5">
                             MIFTAHSIDIK99
                         </span>{' '}
                         Sharing informasi dan tutorial seputar dunia pendidikan jenjang Dikdas
-                    </h3>
+                    </p>
 
-                    {/* Social Media Logos Grid */}
-                    <div className="mt-6 pt-5 border-t border-slate-100/90 w-full flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+                    {/* Social Media Logos Grid - Compact & Modern */}
+                    <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 w-full">
                         {/* YouTube */}
                         <a 
                             href="https://www.youtube.com/@miftahsidik99" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-red-600 border border-slate-200 hover:border-red-600 text-slate-700 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-lg hover:shadow-red-600/25 hover:-translate-y-0.5 cursor-pointer"
-                            title="Kunjungi YouTube MIFTAHSIDIK99"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-red-50 border border-slate-200 hover:border-red-300 text-slate-700 hover:text-red-700 transition-all text-xs font-semibold shadow-2xs group cursor-pointer"
+                            title="YouTube MIFTAHSIDIK99"
                         >
-                            <span className="w-8 h-8 rounded-xl bg-red-600 group-hover:bg-white text-white group-hover:text-red-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
-                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <span className="w-5 h-5 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0">
+                                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                                     <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                                 </svg>
                             </span>
-                            <div className="text-left">
-                                <span className="block text-[10px] text-slate-400 group-hover:text-red-100 font-semibold uppercase leading-none">YouTube</span>
-                                <span className="font-bold text-xs sm:text-sm tracking-tight leading-tight">MIFTAHSIDIK99</span>
-                            </div>
+                            <span className="text-[11px] font-bold">YouTube</span>
                         </a>
 
                         {/* TikTok */}
@@ -12007,18 +12004,15 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                             href="https://www.tiktok.com/@miftahsidik99" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-black border border-slate-200 hover:border-black text-slate-700 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-lg hover:shadow-black/25 hover:-translate-y-0.5 cursor-pointer"
-                            title="Kunjungi TikTok MIFTAHSIDIK99"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-900 border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-white transition-all text-xs font-semibold shadow-2xs group cursor-pointer"
+                            title="TikTok MIFTAHSIDIK99"
                         >
-                            <span className="w-8 h-8 rounded-xl bg-black group-hover:bg-white text-white group-hover:text-black flex items-center justify-center transition-colors shadow-2xs shrink-0">
-                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <span className="w-5 h-5 rounded-lg bg-black text-white flex items-center justify-center shrink-0">
+                                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                                     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.32a6.34 6.34 0 0 0-.86-.06 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.41a8.28 8.28 0 0 0 4.84 1.54V6.5a4.83 4.83 0 0 1-1.07-.31z"/>
                                 </svg>
                             </span>
-                            <div className="text-left">
-                                <span className="block text-[10px] text-slate-400 group-hover:text-slate-300 font-semibold uppercase leading-none">TikTok</span>
-                                <span className="font-bold text-xs sm:text-sm tracking-tight leading-tight">MIFTAHSIDIK99</span>
-                            </div>
+                            <span className="text-[11px] font-bold">TikTok</span>
                         </a>
 
                         {/* Facebook */}
@@ -12026,18 +12020,15 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                             href="https://www.facebook.com/search/top?q=MIFTAHSIDIK99" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-[#1877F2] border border-slate-200 hover:border-[#1877F2] text-slate-700 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-lg hover:shadow-blue-600/25 hover:-translate-y-0.5 cursor-pointer"
-                            title="Kunjungi Facebook MIFTAHSIDIK99"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-blue-50 border border-slate-200 hover:border-[#1877F2] text-slate-700 hover:text-[#1877F2] transition-all text-xs font-semibold shadow-2xs group cursor-pointer"
+                            title="Facebook MIFTAHSIDIK99"
                         >
-                            <span className="w-8 h-8 rounded-xl bg-[#1877F2] group-hover:bg-white text-white group-hover:text-[#1877F2] flex items-center justify-center transition-colors shadow-2xs shrink-0">
-                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <span className="w-5 h-5 rounded-lg bg-[#1877F2] text-white flex items-center justify-center shrink-0">
+                                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                                     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                                 </svg>
                             </span>
-                            <div className="text-left">
-                                <span className="block text-[10px] text-slate-400 group-hover:text-blue-100 font-semibold uppercase leading-none">Facebook</span>
-                                <span className="font-bold text-xs sm:text-sm tracking-tight leading-tight">MIFTAHSIDIK99</span>
-                            </div>
+                            <span className="text-[11px] font-bold">Facebook</span>
                         </a>
 
                         {/* Instagram */}
@@ -12045,19 +12036,29 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                             href="https://www.instagram.com/miftahsidik99" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-gradient-to-r hover:from-purple-600 hover:via-pink-600 hover:to-orange-500 border border-slate-200 hover:border-pink-500 text-slate-700 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-lg hover:shadow-pink-600/25 hover:-translate-y-0.5 cursor-pointer"
-                            title="Kunjungi Instagram MIFTAHSIDIK99"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-pink-50 border border-slate-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all text-xs font-semibold shadow-2xs group cursor-pointer"
+                            title="Instagram MIFTAHSIDIK99"
                         >
-                            <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-yellow-500 via-pink-600 to-purple-600 group-hover:bg-white text-white group-hover:text-pink-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
-                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <span className="w-5 h-5 rounded-lg bg-gradient-to-tr from-yellow-500 via-pink-600 to-purple-600 text-white flex items-center justify-center shrink-0">
+                                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                                     <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
                                 </svg>
                             </span>
-                            <div className="text-left">
-                                <span className="block text-[10px] text-slate-400 group-hover:text-pink-100 font-semibold uppercase leading-none">Instagram</span>
-                                <span className="font-bold text-xs sm:text-sm tracking-tight leading-tight">MIFTAHSIDIK99</span>
-                            </div>
+                            <span className="text-[11px] font-bold">Instagram</span>
                         </a>
+                    </div>
+
+                    {/* Developer Attribution */}
+                    <div className="pt-2.5 border-t border-slate-200/70 w-full flex flex-col items-center justify-center gap-1 text-[11px] sm:text-xs text-slate-500 font-medium">
+                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                            <span className="font-bold text-slate-700">Developer :</span>
+                            <span className="text-slate-600">PTK :</span>
+                            <span className="font-bold text-slate-800">A. Miftah Hilah Ash-Shidiq, S.Pd.</span>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10.5px] sm:text-[11.5px] text-slate-500">
+                            <span className="text-slate-600">Pengawas Pembina Kec. Kertasari :</span>
+                            <span className="font-bold text-blue-700">Bapak H. Oma, S.Pd.</span>
+                        </div>
                     </div>
                 </div>
             </motion.div>
