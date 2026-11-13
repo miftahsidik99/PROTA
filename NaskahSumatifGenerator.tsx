@@ -17,6 +17,7 @@ import {
     generateAuthenticIsianQuestions as generateAuthenticIsianQuestionsFromBank,
     generateAuthenticUraianQuestions as generateAuthenticUraianQuestionsFromBank
 } from './questionBankHelper';
+import { exportAssessmentDocx, DocExportType } from './docxAssessmentExporter';
 
 export interface UserIdentity {
     authorName: string;
@@ -83,6 +84,9 @@ export interface QuestionIsian {
     tp: string;
     indikator: string;
     materi: string;
+    visualType?: VisualType;
+    visualTitle?: string;
+    visualSvg?: string;
 }
 
 export interface QuestionUraian {
@@ -94,6 +98,9 @@ export interface QuestionUraian {
     tp: string;
     indikator: string;
     materi: string;
+    visualType?: VisualType;
+    visualTitle?: string;
+    visualSvg?: string;
     rubric: {
         score3: string;
         score2: string;
@@ -163,10 +170,11 @@ const getApiKey = (): string => {
 };
 
 // --- AUTHENTIC ELEMENTARY VISUAL GENERATOR LIBRARY ---
-export const renderVisualSvg = (type?: VisualType, title?: string): string => {
-    if (!type || type === 'none') return '';
+export const renderVisualSvg = (type?: VisualType | string, _title?: string): string => {
+    const normalizedType = (String(type || 'none').trim().toLowerCase() || 'none') as VisualType;
+    if (!normalizedType || normalizedType === 'none') return '';
 
-    switch (type) {
+    switch (normalizedType) {
         case 'clock_0900':
             return `
             <svg viewBox="0 0 160 160" width="130" height="130" xmlns="http://www.w3.org/2000/svg" style="display:block; margin:6px auto;">
@@ -310,6 +318,11 @@ export const renderVisualSvg = (type?: VisualType, title?: string): string => {
         case 'water_cycle':
             return `
             <svg viewBox="0 0 200 140" width="165" height="115" xmlns="http://www.w3.org/2000/svg" style="display:block; margin:6px auto;">
+                <defs>
+                    <marker id="arrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                        <path d="M0,0 L6,3 L0,6 Z" fill="#ef4444"/>
+                    </marker>
+                </defs>
                 <!-- Sun -->
                 <circle cx="30" cy="25" r="14" fill="#f59e0b" stroke="#d97706" stroke-width="2"/>
                 <!-- Cloud -->
@@ -366,7 +379,7 @@ export const renderVisualSvg = (type?: VisualType, title?: string): string => {
                 <rect x="62" y="45" width="28" height="20" rx="5" fill="none" stroke="#facc15" stroke-width="5"/>
                 <circle cx="88" cy="75" r="16" fill="none" stroke="#facc15" stroke-width="5"/>
                 <text x="70" y="112" font-size="9.5" font-weight="bold" text-anchor="middle" fill="#ffffff">Sila Kedua</text>
-                <text x="70" y="123" font-size="8" text-anchor="middle" fill="#fecaca">Kemanusiaan Adil & Beradab</text>
+                <text x="70" y="123" font-size="8" text-anchor="middle" fill="#fecaca">Kemanusiaan Adil &amp; Beradab</text>
             </svg>`;
 
         case 'garuda_beringin':
@@ -394,7 +407,7 @@ export const renderVisualSvg = (type?: VisualType, title?: string): string => {
                 <circle cx="63" cy="74" r="2.5" fill="#ffffff"/>
                 <circle cx="77" cy="74" r="2.5" fill="#ffffff"/>
                 <text x="70" y="112" font-size="9.5" font-weight="bold" text-anchor="middle" fill="#ffffff">Sila Keempat</text>
-                <text x="70" y="123" font-size="8" text-anchor="middle" fill="#fecaca">Kerakyatan & Musyawarah</text>
+                <text x="70" y="123" font-size="8" text-anchor="middle" fill="#fecaca">Kerakyatan &amp; Musyawarah</text>
             </svg>`;
 
         case 'garuda_padi_kapas':
@@ -675,6 +688,7 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
     // UI View State
     const [activeDocTab, setActiveDocTab] = useState<'naskah_soal' | 'kisi_kisi' | 'kunci_jawaban' | 'rubrik_skor'>('naskah_soal');
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
+    const [isExporting, setIsExporting] = useState<boolean>(false);
     const [generatedAssessment, setGeneratedAssessment] = useState<GeneratedAssessmentData | null>(null);
 
     // Editing State for manual refinements
@@ -917,52 +931,67 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                     }
                     const parsed = JSON.parse(rawJson);
                     if (Array.isArray(parsed.pg) && parsed.pg.length > 0) {
-                        generatedPg = parsed.pg.map((q: any, idx: number) => ({
-                            no: idx + 1,
-                            stimulus: q.stimulus || '',
-                            question: q.question,
-                            options: q.options || [],
-                            correctAnswer: q.correctAnswer || 'A',
-                            explanation: q.explanation || '',
-                            cognitiveLevel: q.cognitiveLevel || 'MOTS',
-                            tp: q.tp || targetTps[0].tp,
-                            indikator: q.indikator || `Peserta didik mampu menjawab butir soal terkait ${targetTps[0].element}`,
-                            materi: q.materi || targetTps[0].element,
-                            visualType: q.visualType || 'none',
-                            visualTitle: q.visualTitle || '',
-                            visualSvg: renderVisualSvg(q.visualType, q.visualTitle)
-                        }));
-
-                        if (Array.isArray(parsed.isian)) {
-                            generatedIsian = parsed.isian.map((q: any, idx: number) => ({
+                        generatedPg = parsed.pg.map((q: any, idx: number) => {
+                            const normVisualType = (String(q.visualType || 'none').trim().toLowerCase() || 'none') as VisualType;
+                            return {
                                 no: idx + 1,
                                 stimulus: q.stimulus || '',
                                 question: q.question,
-                                correctAnswer: q.correctAnswer,
-                                cognitiveLevel: q.cognitiveLevel || 'LOTS',
+                                options: q.options || [],
+                                correctAnswer: q.correctAnswer || 'A',
+                                explanation: q.explanation || '',
+                                cognitiveLevel: q.cognitiveLevel || 'MOTS',
                                 tp: q.tp || targetTps[0].tp,
-                                indikator: q.indikator || `Peserta didik mampu melengkapi isian terkait ${targetTps[0].element}`,
-                                materi: q.materi || targetTps[0].element
-                            }));
+                                indikator: q.indikator || `Peserta didik mampu menjawab butir soal terkait ${targetTps[0].element}`,
+                                materi: q.materi || targetTps[0].element,
+                                visualType: normVisualType,
+                                visualTitle: q.visualTitle || '',
+                                visualSvg: renderVisualSvg(normVisualType, q.visualTitle)
+                            };
+                        });
+
+                        if (Array.isArray(parsed.isian)) {
+                            generatedIsian = parsed.isian.map((q: any, idx: number) => {
+                                const normVisualType = (String(q.visualType || 'none').trim().toLowerCase() || 'none') as VisualType;
+                                return {
+                                    no: idx + 1,
+                                    stimulus: q.stimulus || '',
+                                    question: q.question,
+                                    correctAnswer: q.correctAnswer,
+                                    cognitiveLevel: q.cognitiveLevel || 'LOTS',
+                                    tp: q.tp || targetTps[0].tp,
+                                    indikator: q.indikator || `Peserta didik mampu melengkapi isian terkait ${targetTps[0].element}`,
+                                    materi: q.materi || targetTps[0].element,
+                                    visualType: normVisualType,
+                                    visualTitle: q.visualTitle || '',
+                                    visualSvg: renderVisualSvg(normVisualType, q.visualTitle)
+                                };
+                            });
                         }
 
                         if (Array.isArray(parsed.uraian)) {
-                            generatedUraian = parsed.uraian.map((q: any, idx: number) => ({
-                                no: idx + 1,
-                                stimulus: q.stimulus || '',
-                                question: q.question,
-                                correctAnswer: q.correctAnswer,
-                                cognitiveLevel: q.cognitiveLevel || 'HOTS',
-                                tp: q.tp || targetTps[0].tp,
-                                indikator: q.indikator || `Peserta didik mampu menguraikan solusi terkait ${targetTps[0].element}`,
-                                materi: q.materi || targetTps[0].element,
-                                rubric: q.rubric || {
-                                    score3: 'Jawaban sangat lengkap, benar secara konsep dan runtut.',
-                                    score2: 'Jawaban benar secara umum namun kurang mendalam.',
-                                    score1: 'Jawaban hanya menyebutkan sebagian kecil fakta.',
-                                    score0: 'Jawaban salah atau tidak menjawab.'
-                                }
-                            }));
+                            generatedUraian = parsed.uraian.map((q: any, idx: number) => {
+                                const normVisualType = (String(q.visualType || 'none').trim().toLowerCase() || 'none') as VisualType;
+                                return {
+                                    no: idx + 1,
+                                    stimulus: q.stimulus || '',
+                                    question: q.question,
+                                    correctAnswer: q.correctAnswer,
+                                    cognitiveLevel: q.cognitiveLevel || 'HOTS',
+                                    tp: q.tp || targetTps[0].tp,
+                                    indikator: q.indikator || `Peserta didik mampu menguraikan solusi terkait ${targetTps[0].element}`,
+                                    materi: q.materi || targetTps[0].element,
+                                    visualType: normVisualType,
+                                    visualTitle: q.visualTitle || '',
+                                    visualSvg: renderVisualSvg(normVisualType, q.visualTitle),
+                                    rubric: q.rubric || {
+                                        score3: 'Jawaban sangat lengkap, benar secara konsep dan runtut.',
+                                        score2: 'Jawaban benar secara umum namun kurang mendalam.',
+                                        score1: 'Jawaban hanya menyebutkan sebagian kecil fakta.',
+                                        score0: 'Jawaban salah atau tidak menjawab.'
+                                    }
+                                };
+                            });
                         }
 
                         aiSucceeded = true;
@@ -1084,528 +1113,38 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
         notify("Perubahan butir soal berhasil disimpan!", "success");
     };
 
-    // 6. Word Document Export Engines (.doc with MSOffice XML namespaces & CSS)
-    const exportWordDocument = (type: 'kisi_kisi' | 'naskah_soal' | 'kunci_jawaban' | 'rubrik_skor' | 'all') => {
+    // 6. Genuine Word Document Export Engine (.docx with embedded rasterized PNG images)
+    const exportWordDocument = async (type: DocExportType) => {
         if (!generatedAssessment) {
             notify("Silakan hasilkan naskah asesmen terlebih dahulu.", "warning");
             return;
         }
+        if (isExporting) return;
 
-        const data = generatedAssessment;
-        const fontName = data.fontFamily;
-        const fontSizeStr = data.fontSize;
-        const locationStr = userIdentity.location || localStorage.getItem('prota_location') || 'Sukatinggal';
-        const schoolName = userIdentity.institutionName || 'SDN SUKATINGGAL';
-        const teacherName = userIdentity.authorName || 'A. Miftah Hilah Ash-Shidiq, S.Pd.';
-        const teacherNip = userIdentity.nip || '199602152025211094';
-        const headmasterName = userIdentity.kepalaSekolah || 'Yuni Sri Rahayu, S.Pd.';
-        const headmasterNip = userIdentity.nipKepalaSekolah || '198706162019032007';
-
-        const typeLabel = 
-            data.assessmentType === 'harian' ? 'ASESMEN SUMATIF HARIAN' :
-            data.assessmentType === 'asas' ? 'ASESMEN SUMATIF AKHIR SEMESTER (ASAS)' :
-            data.assessmentType === 'asat' ? 'ASESMEN SUMATIF AKHIR TAHUN (ASAT)' :
-            'ASESMEN SUMATIF AKHIR JENJANG (ASAJ)';
-
-        const isLandscape = type === 'kisi_kisi';
-        const paperWidth = paperSize === 'F4' ? '21.5cm' : '21.0cm';
-        const paperHeight = paperSize === 'F4' ? '33.0cm' : '29.7cm';
-
-        const commonKop = `
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; border-bottom: 3px double #000; padding-bottom: 8px;">
-                <tr>
-                    <td style="width: 15%; text-align: center; vertical-align: middle;">
-                        <div style="font-size: 26pt; font-weight: bold; color: #1e3a8a;">SD</div>
-                    </td>
-                    <td style="width: 85%; text-align: center; vertical-align: middle;">
-                        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">PEMERINTAH KABUPATEN BANDUNG</div>
-                        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">DINAS PENDIDIKAN</div>
-                        <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">${schoolName}</div>
-                        <div style="font-size: 9pt; font-style: italic;">Kurikulum Merdeka BSKAP 046 - Panduan Pembelajaran dan Asesmen (PPA) Jenjang SD 2026</div>
-                    </td>
-                </tr>
-            </table>
-        `;
-
-        const renderSignatures = () => {
-            const today = new Date();
-            const indonesianMonths = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-            const formattedDate = `${today.getDate()} ${indonesianMonths[today.getMonth()]} ${today.getFullYear()}`;
-
-            return `
-                <table style="width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 10pt; page-break-inside: avoid;">
-                    <tr>
-                        <td style="width: 50%; text-align: center; vertical-align: top;">
-                            <div>Mengetahui,</div>
-                            <div style="font-weight: bold;">Kepala Sekolah</div>
-                            <div style="height: 60px;"></div>
-                            <div style="font-weight: bold; text-decoration: underline;">${headmasterName}</div>
-                            <div>NIP. ${headmasterNip}</div>
-                        </td>
-                        <td style="width: 50%; text-align: center; vertical-align: top;">
-                            <div>${locationStr}, ${formattedDate}</div>
-                            <div style="font-weight: bold;">Guru Kelas / Penyusun</div>
-                            <div style="height: 60px;"></div>
-                            <div style="font-weight: bold; text-decoration: underline;">${teacherName}</div>
-                            <div>NIP. ${teacherNip}</div>
-                        </td>
-                    </tr>
-                </table>
-            `;
-        };
-
-        // 1. KISI-KISI HTML
-        const renderKisiKisiHtml = () => `
-            <div style="page-break-after: always;">
-                ${commonKop}
-                <div style="text-align: center; font-weight: bold; font-size: 12pt; text-transform: uppercase; margin-bottom: 4px;">
-                    KISI-KISI PENULISAN SOAL ${typeLabel}
-                </div>
-                <div style="text-align: center; font-size: 10pt; font-weight: bold; margin-bottom: 14px;">
-                    MATA PELAJARAN: ${data.subject.toUpperCase()} | KELAS: ${data.className.toUpperCase()} | TAHUN AJARAN: ${data.academicYear}
-                </div>
-
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 9.5pt;">
-                    <thead>
-                        <tr style="background-color: #f1f5f9; text-align: center;">
-                            <th style="border: 1px solid #000; padding: 6px; width: 5%;">No</th>
-                            <th style="border: 1px solid #000; padding: 6px; width: 22%;">Tujuan Pembelajaran (TP)</th>
-                            <th style="border: 1px solid #000; padding: 6px; width: 18%;">Lingkup Materi</th>
-                            <th style="border: 1px solid #000; padding: 6px; width: 32%;">Indikator Soal</th>
-                            <th style="border: 1px solid #000; padding: 6px; width: 9%;">Level</th>
-                            <th style="border: 1px solid #000; padding: 6px; width: 8%;">Bentuk</th>
-                            <th style="border: 1px solid #000; padding: 6px; width: 6%;">No Soal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.pgQuestions.map((q, idx) => `
-                            <tr>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center;">${idx + 1}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.tp}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.materi}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.indikator}</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${q.cognitiveLevel}</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center;">PG</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${q.no}</td>
-                            </tr>
-                        `).join('')}
-                        ${data.isianQuestions.map((q, idx) => `
-                            <tr>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center;">${data.pgQuestions.length + idx + 1}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.tp}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.materi}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.indikator}</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${q.cognitiveLevel}</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center;">Isian</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${q.no}</td>
-                            </tr>
-                        `).join('')}
-                        ${data.uraianQuestions.map((q, idx) => `
-                            <tr>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center;">${data.pgQuestions.length + data.isianQuestions.length + idx + 1}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.tp}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.materi}</td>
-                                <td style="border: 1px solid #000; padding: 5px;">${q.indikator}</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${q.cognitiveLevel}</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center;">Uraian</td>
-                                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${q.no}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-
-                ${renderSignatures()}
-            </div>
-        `;
-
-        // 2. NASKAH SOAL HTML
-        const renderNaskahSoalHtml = () => `
-            <div style="page-break-after: always;">
-                ${commonKop}
-                <div style="text-align: center; font-weight: bold; font-size: 13pt; text-transform: uppercase; margin-bottom: 2px;">
-                    ${typeLabel}
-                </div>
-                <div style="text-align: center; font-size: 10pt; font-weight: bold; margin-bottom: 12px;">
-                    TAHUN AJARAN ${data.academicYear}
-                </div>
-
-                <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; margin-bottom: 14px; font-size: 10pt;">
-                    <tr>
-                        <td style="padding: 4px 8px; width: 18%; font-weight: bold;">Mata Pelajaran</td>
-                        <td style="padding: 4px 8px; width: 32%;">: ${data.subject}</td>
-                        <td style="padding: 4px 8px; width: 18%; font-weight: bold;">Nama Siswa</td>
-                        <td style="padding: 4px 8px; width: 32%;">: ............................................</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 4px 8px; font-weight: bold;">Kelas / Semester</td>
-                        <td style="padding: 4px 8px;">: ${data.className} / Semester ${data.semester}</td>
-                        <td style="padding: 4px 8px; font-weight: bold;">Nomor Absen</td>
-                        <td style="padding: 4px 8px;">: ............................................</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 4px 8px; font-weight: bold;">Hari / Tanggal</td>
-                        <td style="padding: 4px 8px;">: ............................................</td>
-                        <td style="padding: 4px 8px; font-weight: bold;">Waktu</td>
-                        <td style="padding: 4px 8px;">: 90 Menit</td>
-                    </tr>
-                </table>
-
-                <div style="font-weight: bold; font-size: 10pt; margin-bottom: 6px; text-decoration: underline;">PETUNJUK UMUM:</div>
-                <ol style="margin-top: 0; padding-left: 18px; font-size: 9.5pt; margin-bottom: 16px; line-height: 1.4;">
-                    <li>Berdoalah sebelum mengerjakan soal.</li>
-                    <li>Tuliskan nama dan nomor absen pada lembar identitas yang disediakan.</li>
-                    <li>Bacalah setiap butir soal dengan teliti dan cermat.</li>
-                    <li>Kerjakan terlebih dahulu soal-soal yang kamu anggap mudah.</li>
-                    <li>Periksa kembali semua jawabanmu sebelum diserahkan kepada Bapak/Ibu Guru.</li>
-                </ol>
-
-                <!-- BAGIAN I: PILIHAN GANDA -->
-                <div style="font-weight: bold; font-size: 11pt; margin-bottom: 10px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                    I. Berilah tanda silang (X) pada huruf ${data.className.includes('1') || data.className.includes('2') ? 'A, B, atau C' : 'A, B, C, atau D'} di depan jawaban yang paling tepat!
-                </div>
-
-                <div style="margin-bottom: 20px;">
-                    ${data.pgQuestions.map(q => `
-                        <div style="margin-bottom: 14px; page-break-inside: avoid;">
-                            <div style="display: flex; gap: 8px;">
-                                <div style="font-weight: bold; width: 22px;">${q.no}.</div>
-                                <div style="flex: 1;">
-                                    ${q.stimulus ? `<div style="font-style: italic; color: #334155; margin-bottom: 4px;">${q.stimulus}</div>` : ''}
-                                    ${q.visualSvg ? `
-                                        <div style="text-align: center; margin: 6px 0;">
-                                            ${q.visualTitle ? `<div style="font-size: 9pt; font-weight: bold; color: #475569; margin-bottom: 3px;">${q.visualTitle}</div>` : ''}
-                                            ${q.visualSvg}
-                                        </div>
-                                    ` : ''}
-                                    <div style="margin-bottom: 6px; font-weight: 500;">${q.question}</div>
-                                    
-                                    ${data.optionsLayout === 'horizontal' ? `
-                                        <table style="width: 100%; border-collapse: collapse; margin-top: 4px;">
-                                            <tr>
-                                                ${q.options.map(opt => `
-                                                    <td style="padding: 2px 8px 2px 0; vertical-align: top; width: ${100 / q.options.length}%;">
-                                                        <b>${opt.key}.</b> ${opt.text}
-                                                    </td>
-                                                `).join('')}
-                                            </tr>
-                                        </table>
-                                    ` : `
-                                        <div style="margin-top: 4px; padding-left: 4px;">
-                                            ${q.options.map(opt => `
-                                                <div style="padding: 2px 0;">
-                                                    <b>${opt.key}.</b> ${opt.text}
-                                                </div>
-                                            `).join('')}
-                                        </div>
-                                    `}
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-
-                <!-- BAGIAN II: ISIAN SINGKAT -->
-                ${data.isianQuestions.length > 0 ? `
-                    <div style="font-weight: bold; font-size: 11pt; margin-top: 16px; margin-bottom: 10px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                        II. Isilah titik-titik di bawah ini dengan jawaban yang singkat dan tepat!
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        ${data.isianQuestions.map(q => `
-                            <div style="margin-bottom: 10px; page-break-inside: avoid; display: flex; gap: 8px;">
-                                <div style="font-weight: bold; width: 22px;">${q.no}.</div>
-                                <div style="flex: 1;">
-                                    ${q.stimulus ? `<div style="font-style: italic; color: #334155; margin-bottom: 2px;">${q.stimulus}</div>` : ''}
-                                    ${q.question}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-
-                <!-- BAGIAN III: URAIAN -->
-                ${data.uraianQuestions.length > 0 ? `
-                    <div style="font-weight: bold; font-size: 11pt; margin-top: 16px; margin-bottom: 10px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                        III. Jawablah pertanyaan-pertanyaan berikut dengan jelas, tepat, dan runtut!
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        ${data.uraianQuestions.map(q => `
-                            <div style="margin-bottom: 18px; page-break-inside: avoid; display: flex; gap: 8px;">
-                                <div style="font-weight: bold; width: 22px;">${q.no}.</div>
-                                <div style="flex: 1;">
-                                    ${q.stimulus ? `<div style="font-style: italic; color: #334155; margin-bottom: 3px;">${q.stimulus}</div>` : ''}
-                                    <div style="margin-bottom: 6px;">${q.question}</div>
-                                    <div style="border-bottom: 1px dotted #94a3b8; height: 24px; width: 100%;"></div>
-                                    <div style="border-bottom: 1px dotted #94a3b8; height: 24px; width: 100%;"></div>
-                                    <div style="border-bottom: 1px dotted #94a3b8; height: 24px; width: 100%;"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-
-        // 3. KUNCI JAWABAN HTML
-        const renderKunciJawabanHtml = () => `
-            <div style="page-break-after: always;">
-                ${commonKop}
-                <div style="text-align: center; font-weight: bold; font-size: 13pt; text-transform: uppercase; margin-bottom: 2px;">
-                    KUNCI JAWABAN & PEDOMAN KOREKSI ${typeLabel}
-                </div>
-                <div style="text-align: center; font-size: 10pt; font-weight: bold; margin-bottom: 14px;">
-                    MATA PELAJARAN: ${data.subject.toUpperCase()} | KELAS: ${data.className.toUpperCase()}
-                </div>
-
-                <div style="font-weight: bold; font-size: 11pt; margin-bottom: 6px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                    I. KUNCI JAWABAN PILIHAN GANDA (PG)
-                </div>
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10pt; text-align: center;">
-                    <tr style="background-color: #f8fafc; font-weight: bold;">
-                        ${data.pgQuestions.slice(0, 10).map(q => `<th style="border: 1px solid #000; padding: 4px;">No ${q.no}</th>`).join('')}
-                    </tr>
-                    <tr style="font-weight: bold; font-size: 11pt; color: #1e3a8a;">
-                        ${data.pgQuestions.slice(0, 10).map(q => `<td style="border: 1px solid #000; padding: 6px;">${q.correctAnswer}</td>`).join('')}
-                    </tr>
-                    ${data.pgQuestions.length > 10 ? `
-                        <tr style="background-color: #f8fafc; font-weight: bold;">
-                            ${data.pgQuestions.slice(10, 20).map(q => `<th style="border: 1px solid #000; padding: 4px;">No ${q.no}</th>`).join('')}
-                        </tr>
-                        <tr style="font-weight: bold; font-size: 11pt; color: #1e3a8a;">
-                            ${data.pgQuestions.slice(10, 20).map(q => `<td style="border: 1px solid #000; padding: 6px;">${q.correctAnswer}</td>`).join('')}
-                        </tr>
-                    ` : ''}
-                    ${data.pgQuestions.length > 20 ? `
-                        <tr style="background-color: #f8fafc; font-weight: bold;">
-                            ${data.pgQuestions.slice(20, 30).map(q => `<th style="border: 1px solid #000; padding: 4px;">No ${q.no}</th>`).join('')}
-                        </tr>
-                        <tr style="font-weight: bold; font-size: 11pt; color: #1e3a8a;">
-                            ${data.pgQuestions.slice(20, 30).map(q => `<td style="border: 1px solid #000; padding: 6px;">${q.correctAnswer}</td>`).join('')}
-                        </tr>
-                    ` : ''}
-                </table>
-
-                ${data.isianQuestions.length > 0 ? `
-                    <div style="font-weight: bold; font-size: 11pt; margin-top: 14px; margin-bottom: 6px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                        II. KUNCI JAWABAN ISIAN SINGKAT
-                    </div>
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10pt;">
-                        <thead>
-                            <tr style="background-color: #f8fafc;">
-                                <th style="border: 1px solid #000; padding: 5px; width: 10%; text-align: center;">No Soal</th>
-                                <th style="border: 1px solid #000; padding: 5px; text-align: left;">Kunci Jawaban</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.isianQuestions.map(q => `
-                                <tr>
-                                    <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${q.no}</td>
-                                    <td style="border: 1px solid #000; padding: 5px; font-weight: bold; color: #047857;">${q.correctAnswer}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                ` : ''}
-
-                ${data.uraianQuestions.length > 0 ? `
-                    <div style="font-weight: bold; font-size: 11pt; margin-top: 14px; margin-bottom: 6px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                        III. PEDOMAN JAWABAN SOAL URAIAN
-                    </div>
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10pt;">
-                        <thead>
-                            <tr style="background-color: #f8fafc;">
-                                <th style="border: 1px solid #000; padding: 5px; width: 10%; text-align: center;">No Soal</th>
-                                <th style="border: 1px solid #000; padding: 5px; text-align: left;">Rambu-rambu Kunci Jawaban & Penjelasan</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.uraianQuestions.map(q => `
-                                <tr>
-                                    <td style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; vertical-align: top;">${q.no}</td>
-                                    <td style="border: 1px solid #000; padding: 6px; line-height: 1.4;">
-                                        <div style="white-space: pre-line; color: #1e3a8a; font-weight: 500;">${q.correctAnswer}</div>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                ` : ''}
-            </div>
-        `;
-
-        // 4. RUBRIK PENILAIAN & PENSKORAN HTML
-        const renderRubrikSkorHtml = () => `
-            <div>
-                ${commonKop}
-                <div style="text-align: center; font-weight: bold; font-size: 13pt; text-transform: uppercase; margin-bottom: 2px;">
-                    PEDOMAN PENSKORAN & RUBRIK PENILAIAN ${typeLabel}
-                </div>
-                <div style="text-align: center; font-size: 10pt; font-weight: bold; margin-bottom: 14px;">
-                    KURIKULUM MERDEKA SESUAI PANDUAN PEMBELAJARAN DAN ASESMEN (PPA) 2026
-                </div>
-
-                <div style="font-weight: bold; font-size: 11pt; margin-bottom: 6px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                    A. BOBOT NILAI DAN SKOR MAKSIMAL TIAP BENTUK SOAL
-                </div>
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10pt; text-align: center;">
-                    <thead>
-                        <tr style="background-color: #f8fafc;">
-                            <th style="border: 1px solid #000; padding: 6px;">Bentuk Soal</th>
-                            <th style="border: 1px solid #000; padding: 6px;">Jumlah Butir</th>
-                            <th style="border: 1px solid #000; padding: 6px;">Skor Tiap Butir</th>
-                            <th style="border: 1px solid #000; padding: 6px;">Skor Maksimal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: left; font-weight: bold;">I. Pilihan Ganda (PG)</td>
-                            <td style="border: 1px solid #000; padding: 6px;">${data.pgQuestions.length}</td>
-                            <td style="border: 1px solid #000; padding: 6px;">1</td>
-                            <td style="border: 1px solid #000; padding: 6px; font-weight: bold;">${data.pgQuestions.length * 1}</td>
-                        </tr>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: left; font-weight: bold;">II. Isian Singkat</td>
-                            <td style="border: 1px solid #000; padding: 6px;">${data.isianQuestions.length}</td>
-                            <td style="border: 1px solid #000; padding: 6px;">2</td>
-                            <td style="border: 1px solid #000; padding: 6px; font-weight: bold;">${data.isianQuestions.length * 2}</td>
-                        </tr>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: left; font-weight: bold;">III. Uraian</td>
-                            <td style="border: 1px solid #000; padding: 6px;">${data.uraianQuestions.length}</td>
-                            <td style="border: 1px solid #000; padding: 6px;">3</td>
-                            <td style="border: 1px solid #000; padding: 6px; font-weight: bold;">${data.uraianQuestions.length * 3}</td>
-                        </tr>
-                        <tr style="background-color: #f1f5f9; font-weight: bold;">
-                            <td style="border: 1px solid #000; padding: 6px; text-align: left;" colspan="3">TOTAL SKOR MAKSIMAL</td>
-                            <td style="border: 1px solid #000; padding: 6px; font-size: 11pt; color: #1e3a8a;">${data.totalScoreMax}</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div style="font-weight: bold; font-size: 11pt; margin-bottom: 6px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                    B. FORMULA PERHITUNGAN NILAI AKHIR (NA)
-                </div>
-                <div style="border: 1px solid #cbd5e1; background-color: #f8fafc; padding: 12px; margin-bottom: 16px; border-radius: 4px; font-size: 10.5pt; text-align: center;">
-                    <div style="font-weight: bold; margin-bottom: 4px;">
-                        Nilai Akhir (NA) = <span style="display: inline-block; vertical-align: middle; text-align: center;"><span style="border-bottom: 1px solid #000; display: block;">Skor Perolehan Siswa</span><span style="display: block;">Skor Maksimal (${data.totalScoreMax})</span></span> &times; 100
-                    </div>
-                </div>
-
-                <div style="font-weight: bold; font-size: 11pt; margin-bottom: 6px; background-color: #f1f5f9; padding: 4px 8px; border-left: 4px solid #0284c7;">
-                    C. PEDOMAN PEMBERIAN SKOR SOAL URAIAN
-                </div>
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 9.5pt;">
-                    <thead>
-                        <tr style="background-color: #f8fafc;">
-                            <th style="border: 1px solid #000; padding: 6px; width: 12%;">Skor</th>
-                            <th style="border: 1px solid #000; padding: 6px; width: 25%;">Kategori</th>
-                            <th style="border: 1px solid #000; padding: 6px; width: 63%;">Deskripsi Ketercapaian Indikator</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; font-size: 11pt; color: #047857;">3</td>
-                            <td style="border: 1px solid #000; padding: 6px; font-weight: bold;">Sangat Lengkap & Tepat</td>
-                            <td style="border: 1px solid #000; padding: 6px;">Jawaban sangat lengkap, tepat sesuai konsep, langkah terstruktur dan mencerminkan pemahaman mendalam.</td>
-                        </tr>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; font-size: 11pt; color: #0284c7;">2</td>
-                            <td style="border: 1px solid #000; padding: 6px; font-weight: bold;">Cukup Lengkap</td>
-                            <td style="border: 1px solid #000; padding: 6px;">Jawaban benar secara umum namun penjelasan kurang mendalam atau langkah penyelesaian belum tuntas.</td>
-                        </tr>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; font-size: 11pt; color: #d97706;">1</td>
-                            <td style="border: 1px solid #000; padding: 6px; font-weight: bold;">Kurang Lengkap</td>
-                            <td style="border: 1px solid #000; padding: 6px;">Hanya menyebutkan sebagian kecil fakta, masih terdapat kekeliruan konsep pokok.</td>
-                        </tr>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; font-size: 11pt; color: #dc2626;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; font-weight: bold;">Tidak Menjawab / Salah</td>
-                            <td style="border: 1px solid #000; padding: 6px;">Tidak ada jawaban yang relevan atau tidak menjawab sama sekali.</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                ${renderSignatures()}
-            </div>
-        `;
-
-        let docBody = '';
-        let fileSuffix = '';
-        if (type === 'kisi_kisi') {
-            docBody = renderKisiKisiHtml();
-            fileSuffix = 'Kisi_Kisi';
-        } else if (type === 'naskah_soal') {
-            docBody = renderNaskahSoalHtml();
-            fileSuffix = 'Naskah_Soal';
-        } else if (type === 'kunci_jawaban') {
-            docBody = renderKunciJawabanHtml();
-            fileSuffix = 'Kunci_Jawaban';
-        } else if (type === 'rubrik_skor') {
-            docBody = renderRubrikSkorHtml();
-            fileSuffix = 'Rubrik_Penilaian';
-        } else {
-            docBody = `
-                ${renderKisiKisiHtml()}
-                ${renderNaskahSoalHtml()}
-                ${renderKunciJawabanHtml()}
-                ${renderRubrikSkorHtml()}
-            `;
-            fileSuffix = 'Paket_Lengkap_Asesmen';
-        }
-
-        const fullHtml = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-            <head>
-                <meta charset="utf-8">
-                <title>${typeLabel} - ${data.subject}</title>
-                <!--[if gte mso 9]>
-                <xml>
-                    <w:WordDocument>
-                        <w:View>Print</w:View>
-                        <w:Zoom>100</w:Zoom>
-                        <w:DoNotOptimizeForBrowser/>
-                    </w:WordDocument>
-                </xml>
-                <![endif]-->
-                <style>
-                    @page {
-                        size: ${isLandscape ? `${paperHeight} ${paperWidth}` : `${paperWidth} ${paperHeight}`};
-                        margin: 2.0cm 2.0cm 2.0cm 2.0cm;
-                        mso-page-orientation: ${isLandscape ? 'landscape' : 'portrait'};
-                    }
-                    body {
-                        font-family: '${fontName}', serif;
-                        font-size: ${fontSizeStr};
-                        line-height: 1.35;
-                        color: #000;
-                    }
-                    table {
-                        border-collapse: collapse;
-                    }
-                </style>
-            </head>
-            <body>
-                ${docBody}
-            </body>
-            </html>
-        `;
-
+        setIsExporting(true);
         try {
-            const blob = new Blob(['\ufeff', fullHtml], { type: 'application/msword;charset=utf-8' });
+            const { blob, filename } = await exportAssessmentDocx({
+                data: generatedAssessment,
+                type,
+                userIdentity,
+                paperSize,
+                resolveVisualSvg: renderVisualSvg
+            });
+
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            const sanitizedSubject = data.subject.replace(/[^a-zA-Z0-9]/g, '_');
-            const sanitizedClass = data.className.replace(/[^a-zA-Z0-9]/g, '_');
-            a.download = `${fileSuffix}_${data.assessmentType.toUpperCase()}_${sanitizedSubject}_${sanitizedClass}_${paperSize}.doc`;
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            notify(`Dokumen Word (${fileSuffix}) siap pakai berhasil diunduh!`, 'success');
+            notify(`Dokumen Word (.docx) lengkap beserta gambar soal berhasil diunduh!`, 'success');
         } catch (e) {
             console.error("Export error:", e);
             notify("Gagal mengunduh dokumen. Silakan coba kembali.", "error");
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -2200,11 +1739,12 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                         <div className="flex items-center gap-2 flex-wrap">
                             <button
                                 onClick={() => exportWordDocument('all')}
-                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
-                                title="Unduh Paket Lengkap (Kisi-kisi, Naskah Soal, Kunci Jawaban, dan Rubrik)"
+                                disabled={isExporting}
+                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+                                title="Unduh Paket Lengkap (Kisi-kisi, Naskah Soal dengan Gambar, Kunci Jawaban, dan Rubrik)"
                             >
                                 <FileDown className="w-4 h-4" />
-                                <span>Unduh Paket Lengkap (4 Dokumen .doc)</span>
+                                <span>{isExporting ? 'Menyiapkan Dokumen...' : 'Unduh Paket Lengkap (4 Dokumen .docx)'}</span>
                             </button>
                         </div>
                     </div>
@@ -2263,10 +1803,11 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                         <div className="ml-auto">
                             <button
                                 onClick={() => exportWordDocument(activeDocTab)}
-                                className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                                disabled={isExporting}
+                                className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 disabled:opacity-60 border border-blue-200 text-blue-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                             >
                                 <Download className="w-3.5 h-3.5" />
-                                <span>Unduh Dokumen Ini (.doc)</span>
+                                <span>{isExporting ? 'Memproses...' : 'Unduh Dokumen Ini (.docx)'}</span>
                             </button>
                         </div>
                     </div>
@@ -2369,6 +1910,16 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                     <span className="font-bold">{q.no}.</span>
                                                     <span className="flex-1">
                                                         {q.stimulus && <span className="italic text-slate-600 block mb-1">{q.stimulus}</span>}
+                                                        {q.visualSvg && (
+                                                            <div className="my-2 p-2.5 bg-white border border-slate-200 rounded-xl text-center max-w-xs mx-auto">
+                                                                {q.visualTitle && (
+                                                                    <div className="text-[11px] font-bold text-slate-700 mb-1">
+                                                                        {q.visualTitle}
+                                                                    </div>
+                                                                )}
+                                                                <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
+                                                            </div>
+                                                        )}
                                                         {q.question}
                                                     </span>
                                                     <button
@@ -2396,6 +1947,16 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                         <span className="font-bold">{q.no}.</span>
                                                         <span className="flex-1">
                                                             {q.stimulus && <span className="italic text-slate-600 block mb-1">{q.stimulus}</span>}
+                                                            {q.visualSvg && (
+                                                                <div className="my-2 p-2.5 bg-white border border-slate-200 rounded-xl text-center max-w-xs mx-auto">
+                                                                    {q.visualTitle && (
+                                                                        <div className="text-[11px] font-bold text-slate-700 mb-1">
+                                                                            {q.visualTitle}
+                                                                        </div>
+                                                                    )}
+                                                                    <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
+                                                                </div>
+                                                            )}
                                                             {q.question}
                                                         </span>
                                                         <button
