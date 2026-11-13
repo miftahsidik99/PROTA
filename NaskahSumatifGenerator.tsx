@@ -18,7 +18,8 @@ import {
     getQuestionCoreFingerprint,
     generateAuthenticPgQuestions as generateAuthenticPgQuestionsFromBank,
     generateAuthenticIsianQuestions as generateAuthenticIsianQuestionsFromBank,
-    generateAuthenticUraianQuestions as generateAuthenticUraianQuestionsFromBank
+    generateAuthenticUraianQuestions as generateAuthenticUraianQuestionsFromBank,
+    isBahasaSundaSubject
 } from './questionBankHelper';
 import { exportAssessmentDocx, DocExportType } from './docxAssessmentExporter';
 
@@ -913,6 +914,15 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
                     ? `\n5. LARANGAN REDAKSI KEMBAR DENGAN KELAS LAIN (WAJIB UNIK PER KELAS):\n   - Buat redaksi kalimat soal, nama tokoh cerita, konteks situasi, dan angka yang 100% BARU khusus untuk ${activeClass} (Kode Sesi: ${sessionNonce}).\n   - JANGAN MENYALIN ATAU MEMBUAT REDAKSI MIRIP dengan soal yang sudah pernah dipakai kelas lain berikut:\n${otherClassSamples.map(s => `     * "${s}"`).join('\n')}`
                     : `\n5. VARIASI UNIK SESI ${sessionNonce}: Susun redaksi soal, nama tokoh, konteks, dan angka yang segar dan spesifik untuk ${activeClass}.`;
 
+                const isSundanese = isBahasaSundaSubject(activeSubject);
+                const sundaneseInstructionBlock = isSundanese
+                    ? `\nATURAN MUTLAK MATA PELAJARAN BAHASA SUNDA (WAJIB DIPATUHI 100%):
+- SELURUH BUTIR SOAL (kolom "stimulus", "question", seluruh "options" A-B-C/A-B-C-D, soal Isian Singkat, soal Uraian, dan "correctAnswer" Isian/Uraian) WAJIB DITULIS MENGGUNAKAN BASA SUNDA YANG BAIK, BAKU, DAN SANTUN (dominasi Basa Sunda, BUKAN Bahasa Indonesia!).
+- DILARANG KERAS menulis deskripsi petunjuk/meta dalam Bahasa Indonesia seperti "Siswa membaca cerita rakyat...", "Tujuan utama mempelajari cerita rakyat...", atau "Dalam pelajaran muatan lokal...".
+- Apabila butir soal membahas dongéng, carita pondok, paguneman/dialog, pupuh, biantara, sisindiran, atawa warta, TULISKAN TEKS BACAAN/NARASI ASLINYA SECARA LENGKAP (minimal 3–6 kalimah dina Basa Sunda) di dalam kolom "stimulus", lalu ajukan pertanyaan berdasarkan teks tersebut!
+- Sesuaikan materi dengan kelas ${activeClass}: ${activeGradeNum <= 2 ? 'Paguneman énjing-énjing, ngawanohkeun diri, ngaran sasatoan, bubuahan, warna, anggota awak (soca/panangan/sampéan), kaulinan oray-orayan, dongéng fabel pondok, basa lemes dasar' : activeGradeNum <= 4 ? 'Dongéng Sasakala (Situ Bagendit), carita Si Kabayan, Pupuh Pucung, undak-usuk basa (wangsul/mulih, neda/tuang), kasenian angklung, kadaharan has Sunda, sabilulungan' : 'Biantara Basa Sunda, warta, Pupuh Kinanti (guru wilangan & guru lagu), babasan jeung paribasa Sunda, sisindiran paparikan, Aksara Sunda Kaganga (ngalagena & rarangkén), kecap rajékan dwipurwa'}.`
+                    : '';
+
                 const prompt = `Anda adalah Tim Ahli Penyusun Naskah Asesmen Sumatif Standar Nasional Jenjang Sekolah Dasar (SD) Berdasarkan Panduan Pembelajaran dan Asesmen (PPA) Tahun 2026 Kurikulum Merdeka.
 Tugas Anda: Susunlah naskah soal asesmen sumatif yang SAH, VALID, RELEVAN, MENDIDIK, dan 100% SIAP PAKAI untuk dibagikan kepada peserta didik ${activeClass}.
 
@@ -926,7 +936,7 @@ ${tpSummary}
 ATURAN KEPATUHAN MATA PELAJARAN & TINGKAT KELAS (MUTLAK):
 - SELURUH BUTIR SOAL (PG, Isian, dan Uraian) HARUS 100% SESUAI BIDANG ILMU MATA PELAJARAN "${activeSubject}" DAN KHUSUS UNTUK TINGKAT "${activeClass}" (${activeFaseInfo.name}).
 - DILARANG KERAS memasukkan materi atau soal dari mata pelajaran lain (misalnya soal teks Bahasa Indonesia ke dalam PJOK/Matematika/Seni/Inggris).
-${gradeRestrictionNote}
+${gradeRestrictionNote}${sundaneseInstructionBlock}
 
 JUMLAH BUTIR SOAL YANG WAJIB DISUSUN:
 - Pilihan Ganda (PG): ${pgCount} butir soal
@@ -1095,6 +1105,19 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                 } else {
                     notify(`Proses AI terganggu (${aiFallbackReason || 'batas waktu/kuota'}). Naskah otomatis dilengkapi dari Bank Soal ${activeSubject}.`, "info");
                 }
+            }
+
+            // Reject Indonesian meta-description questions if subject is Bahasa Sunda
+            if (isBahasaSundaSubject(activeSubject)) {
+                const isIndonesianMetaSlop = (qText?: string, stimText?: string): boolean => {
+                    const combined = `${stimText || ''} ${qText || ''}`.toLowerCase();
+                    const hasGenericIndonesianMeta = /siswa membaca cerita|tujuan utama mempelajari cerita rakyat|dalam pelajaran muatan lokal|manfaat utama membiasakan berbicara|keuntungan mengonsumsi dan melestarikan makanan khas tradisional|penggunaan bahasa daerah yang halus ketika berbicara|permainan tradisional nusantara|berikut ini yang bukan merupakan/.test(combined);
+                    const hasSundaneseMarkers = /\b(nyaéta|nyaeta|jeung|anu|dina|ku|ka|pikeun|sangkan|tina|naon|saha|kumaha|iraha|pék|pek|titénan|titenan|kecap|kalimah|dongéng|dongeng|pupuh|sunda|wilujeng|abdi|hidep|urang|lembur|barudak|bapa|ibu|lemes|loma|sasatoan|kaulinan)\b/.test(combined);
+                    return hasGenericIndonesianMeta || !hasSundaneseMarkers;
+                };
+                generatedPg = generatedPg.filter(q => !isIndonesianMetaSlop(q.question, q.stimulus));
+                generatedIsian = generatedIsian.filter(q => !isIndonesianMetaSlop(q.question, q.stimulus));
+                generatedUraian = generatedUraian.filter(q => !isIndonesianMetaSlop(q.question, q.stimulus));
             }
 
             // --- GUARANTEED ZERO-DUPLICATE & CROSS-CLASS DEDUPLICATION PASS ---
@@ -1937,7 +1960,11 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
 
                                 {/* Bagian I: PG */}
                                 <div className="font-bold text-sm mb-4 bg-slate-100 p-2 rounded flex items-center justify-between">
-                                    <span>I. Berilah tanda silang (X) pada huruf {generatedAssessment.className.includes('1') || generatedAssessment.className.includes('2') ? 'A, B, atau C' : 'A, B, C, atau D'} pada jawaban yang paling benar!</span>
+                                    <span>
+                                        {isBahasaSundaSubject(generatedAssessment.subject)
+                                            ? `I. Cakra (X) aksara ${generatedAssessment.className.includes('1') || generatedAssessment.className.includes('2') ? 'A, B, atawa C' : 'A, B, C, atawa D'} dina jawaban anu pangbenerna!`
+                                            : `I. Berilah tanda silang (X) pada huruf ${generatedAssessment.className.includes('1') || generatedAssessment.className.includes('2') ? 'A, B, atau C' : 'A, B, C, atau D'} pada jawaban yang paling benar!`}
+                                    </span>
                                 </div>
 
                                 <div className="space-y-6">
@@ -1947,7 +1974,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                 <span className="font-bold">{q.no}.</span>
                                                 <div className="flex-1">
                                                     {q.stimulus && (
-                                                        <div className="italic text-slate-700 font-medium mb-1.5 leading-relaxed bg-slate-50 p-2 rounded-lg border-l-3 border-blue-400">
+                                                        <div className="italic text-slate-700 font-medium mb-1.5 leading-relaxed bg-slate-50 p-2 rounded-lg border-l-3 border-blue-400 whitespace-pre-line">
                                                             {q.stimulus}
                                                         </div>
                                                     )}
@@ -1961,7 +1988,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                             <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
                                                         </div>
                                                     )}
-                                                    <div className="font-semibold text-slate-900 leading-snug">{q.question}</div>
+                                                    <div className="font-semibold text-slate-900 leading-snug whitespace-pre-line">{q.question}</div>
 
                                                     {generatedAssessment.optionsLayout === 'horizontal' ? (
                                                         <div className="flex flex-wrap gap-4 mt-2.5">
@@ -1999,14 +2026,16 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                 {generatedAssessment.isianQuestions.length > 0 && (
                                     <div className="mt-8 space-y-4">
                                         <div className="font-bold text-sm bg-slate-100 p-2 rounded">
-                                            II. Isilah titik-titik di bawah ini dengan jawaban yang singkat dan tepat!
+                                            {isBahasaSundaSubject(generatedAssessment.subject)
+                                                ? 'II. Eusian titik-titik di handap ieu ku jawaban anu singget tur bener!'
+                                                : 'II. Isilah titik-titik di bawah ini dengan jawaban yang singkat dan tepat!'}
                                         </div>
                                         <div className="space-y-3">
                                             {generatedAssessment.isianQuestions.map((q, idx) => (
                                                 <div key={q.no} className="flex gap-2 text-xs sm:text-sm p-2 rounded-lg hover:bg-slate-50 group">
                                                     <span className="font-bold">{q.no}.</span>
                                                     <span className="flex-1">
-                                                        {q.stimulus && <span className="italic text-slate-600 block mb-1">{q.stimulus}</span>}
+                                                        {q.stimulus && <span className="italic text-slate-600 block mb-1 whitespace-pre-line">{q.stimulus}</span>}
                                                         {q.visualSvg && (
                                                             <div className="my-2 p-2.5 bg-white border border-slate-200 rounded-xl text-center max-w-xs mx-auto">
                                                                 {q.visualTitle && (
@@ -2017,7 +2046,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                                 <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
                                                             </div>
                                                         )}
-                                                        {q.question}
+                                                        <span className="whitespace-pre-line">{q.question}</span>
                                                     </span>
                                                     <button
                                                         onClick={() => setEditingQuestionModal({ type: 'isian', index: idx, data: { ...q } })}
@@ -2035,7 +2064,9 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                 {generatedAssessment.uraianQuestions.length > 0 && (
                                     <div className="mt-8 space-y-4">
                                         <div className="font-bold text-sm bg-slate-100 p-2 rounded">
-                                            III. Jawablah pertanyaan-pertanyaan berikut dengan jelas, tepat, dan runtut!
+                                            {isBahasaSundaSubject(generatedAssessment.subject)
+                                                ? 'III. Jawab pananya-pananya di handap ieu kalawan jéntré tur bener!'
+                                                : 'III. Jawablah pertanyaan-pertanyaan berikut dengan jelas, tepat, dan runtut!'}
                                         </div>
                                         <div className="space-y-5">
                                             {generatedAssessment.uraianQuestions.map((q, idx) => (
@@ -2043,7 +2074,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                     <div className="flex gap-2">
                                                         <span className="font-bold">{q.no}.</span>
                                                         <span className="flex-1">
-                                                            {q.stimulus && <span className="italic text-slate-600 block mb-1">{q.stimulus}</span>}
+                                                            {q.stimulus && <span className="italic text-slate-600 block mb-1 whitespace-pre-line">{q.stimulus}</span>}
                                                             {q.visualSvg && (
                                                                 <div className="my-2 p-2.5 bg-white border border-slate-200 rounded-xl text-center max-w-xs mx-auto">
                                                                     {q.visualTitle && (
@@ -2054,7 +2085,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                                     <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
                                                                 </div>
                                                             )}
-                                                            {q.question}
+                                                            <span className="whitespace-pre-line">{q.question}</span>
                                                         </span>
                                                         <button
                                                             onClick={() => setEditingQuestionModal({ type: 'uraian', index: idx, data: { ...q } })}

@@ -1054,6 +1054,94 @@ export const synthesizeCurriculumProta = (
                 ]
             }
         ];
+    } else if (
+        subKey === "Muatan Lokal" ||
+        subKey.toLowerCase().includes("sunda") ||
+        subKey.toLowerCase().includes("daerah") ||
+        subKey.toLowerCase().includes("mulok")
+    ) {
+        if (isFaseA) {
+            elementsList = [
+                {
+                    name: "Ngaregepkeun & Nyarita (Paguneman Basa Sunda)",
+                    cp: "Peserta didik mampu memahami dan mempraktikkan sapaan santun, perkenalan diri, serta percakapan sederhana dalam Basa Sunda sehari-hari.",
+                    tps: [
+                        "Merespons dan mengucapkan salam sapaan Basa Sunda (Wilujeng énjing/siang/sonten) serta memperkenalkan diri dan anggota keluarga secara santun.",
+                        "Menggunakan kosakata Basa Sunda lemes dasar mengenai anggota awak (soca, panangan, sampéan) dan tata krama berbicara dengan orang tua atau guru."
+                    ]
+                },
+                {
+                    name: "Maca & Mikawanoh Dongéng Sato sarta Kosakata Sabudeureun",
+                    cp: "Peserta didik mampu menyimak dan membaca dongéng fabel Sunda sederhana serta mengenal nama hewan, buah-buahan, warna, dan bilangan dalam Basa Sunda.",
+                    tps: [
+                        "Memahami isi dan tokoh dalam dongéng sasatoan (fabel Sunda seperti Sakadang Kuya jeung Monyét) serta menyebutkan sikap baik yang patut ditiru.",
+                        "Mengidentifikasi nama sasatoan, bubuahan, warna (beureum, bodas, hideung, konéng), bilangan 1–10, dan kaulinan barudak (oray-orayan) dalam Basa Sunda."
+                    ]
+                },
+                {
+                    name: "Nulis Basa Sunda Basajan & Miara Kabersihan",
+                    cp: "Peserta didik mampu menyusun kalimat sederhana dalam Basa Sunda serta membiasakan pola hidup bersih di rumah dan sekolah.",
+                    tps: [
+                        "Menuliskan kalimat pendek Basa Sunda bertema kegiatan menjaga kebersihan kelas (sasapu, miceun runtah) dan membantu orang tua di rumah.",
+                        "Membedakan ragam kecap loma dan kecap lemes sederhana dalam kalimat sehari-hari (tuang/neda, mios/angkat)."
+                    ]
+                }
+            ];
+        } else if (isFaseB) {
+            elementsList = [
+                {
+                    name: "Maca & Ngaguar Dongéng Sasakala sarta Si Kabayan",
+                    cp: "Peserta didik mampu membaca, memahami alur, watak tokoh, dan amanat dalam dongéng Sasakala Tatar Sunda serta carita Si Kabayan.",
+                    tps: [
+                        "Mengidentifikasi watak tokoh, latar tempat, dan amanat moral dari dongéng Sasakala Situ Bagendit dan carita Si Kabayan.",
+                        "Menuliskan tanggapan sederhana dan kalimat tanya Basa Sunda (Saha, Di mana, Iraha, Kunaon, Kumaha) berdasarkan teks cerita Sunda."
+                    ]
+                },
+                {
+                    name: "Pupuh Sunda, Kasenian, & Kaulinan Tradisional",
+                    cp: "Peserta didik mampu mengenal rumpaka Pupuh dasar (Pucung), alat musik tradisional Sunda, makanan khas, dan permainan rakyat Sunda.",
+                    tps: [
+                        "Memahami isi nasihat (eusi) dalam rumpaka Pupuh Pucung serta mengenal kasenian Sunda (angklung, suling, kacapi).",
+                        "Mendeskripsikan kaulinan tradisional (bébénténgan, congklak, éngklé) serta kadaharan has Sunda (peuyeum, surabi, awug) dalam Basa Sunda."
+                    ]
+                },
+                {
+                    name: "Undak-Usuk Basa Sunda & Budaya Sabilulungan",
+                    cp: "Peserta didik mampu menerapkan undak-usuk Basa Sunda untuk diri sendiri dan orang yang lebih tua serta menghidupkan nilai sabilulungan.",
+                    tps: [
+                        "Membedakan penggunaan kecap lemes untuk diri sendiri dan orang lain/sepuh (wangsul-mulih, neda-tuang, rorompok-bumi).",
+                        "Menggunakan kecap sabalikna (antonim), kecap saharti (sinonim), dan ungkapan budaya sabilulungan (gotong royong) dalam kalimat Basa Sunda."
+                    ]
+                }
+            ];
+        } else {
+            elementsList = [
+                {
+                    name: "Biantara, Warta, & Carita Pondok (Carpon)",
+                    cp: "Peserta didik mampu memahami struktur biantara (pidato), menyimak warta (berita) berbahasa Sunda, serta menganalisis unsur carpon dan Sasakala.",
+                    tps: [
+                        "Mengidentifikasi struktur biantara Basa Sunda (bubuka, eusi, panutup) serta pokok informasi dalam warta Basa Sunda bertema lingkungan dan sekolah.",
+                        "Menganalisis amanat dan karakter tokoh dalam carita pondok (carpon) serta dongéng Sasakala Tangkuban Parahu."
+                    ]
+                },
+                {
+                    name: "Pupuh Kinanti, Sisindiran, & Babasan Paribasa Sunda",
+                    cp: "Peserta didik mampu menganalisis patokan pupuh (guru wilangan jeung guru lagu), sisindiran (paparikan/rarakitan), serta makna babasan dan paribasa Sunda.",
+                    tps: [
+                        "Menentukan guru wilangan, guru lagu, dan amanat pada rumpaka Pupuh Kinanti serta membedakan bagian cangkang jeung eusi dalam sisindiran.",
+                        "Menjelaskan arti dan penggunaan babasan sarta paribasa Sunda (hampang birit, gedé hulu, cikaracak ninggang batu) dalam konteks kalimat."
+                    ]
+                },
+                {
+                    name: "Aksara Sunda Kaganga & Tata Basa Sunda (Kecap Rajékan)",
+                    cp: "Peserta didik mampu membaca dan menulis Aksara Sunda Kaganga dasar (ngalagena jeung rarangkén) serta memahami kaidah kecap rajékan.",
+                    tps: [
+                        "Mengidentifikasi aksara ngalagena dasar dan fungsi rarangkén Aksara Sunda (panghulu, panyuku, panéléng, panolong).",
+                        "Membedakan bentuk dan makna kecap rajékan dwipurwa (sasapu, momobilan) dan dwilingga serta menerapkan undak-usuk basa hormat secara tepat."
+                    ]
+                }
+            ];
+        }
     } else {
         const levelLabel = isFaseA ? 'tingkat dasar (Fase A)' : isFaseB ? 'tingkat menengah (Fase B)' : 'tingkat lanjut (Fase C)';
         elementsList = [

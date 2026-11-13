@@ -2643,119 +2643,610 @@ const KODING_PG_BANK: QuestionBankItemPG[] = [
 // 4G. QUESTION BANK: MUATAN LOKAL (BAHASA & BUDAYA DAERAH)
 // ==========================================
 const MULOK_PG_BANK: QuestionBankItemPG[] = [
+    // --- FASE A: KELAS 1 - 2 ---
     {
-        stimulus: 'Di lingkungan sekolah dan keluarga, siswa dibiasakan menggunakan bahasa daerah yang halus dan sopan saat berbicara kepada orang tua maupun Bapak/Ibu guru.',
-        question: 'Manfaat utama membiasakan berbicara menggunakan ragam bahasa daerah yang santun kepada orang yang lebih tua adalah ...',
+        minGrade: 1, maxGrade: 2,
+        stimulus: 'Pék baca paguneman ieu di handap:\nUjang: "Wilujeng énjing, Bu Guru!"\nBu Guru: "Wilujeng énjing ogé, Ujang. Kumaha damang?"\nUjang: "Alhamdulillah, pangésto, Bu."',
+        question: 'Dina paguneman di luhur, kecap "Wilujeng énjing" diucapkeun nalika panggih dina waktu ...',
         optionsFaseA: [
-            { key: 'A', text: 'Menunjukkan rasa hormat, budi pekerti luhur, dan melestarikan budaya daerah' },
-            { key: 'B', text: 'Membuat percakapan menjadi sulit dimengerti teman sebaya' },
-            { key: 'C', text: 'Menghilangkan kebiasaan berbahasa Indonesia baku' }
+            { key: 'A', text: 'Isuk-isuk méméh asup ka kelas' },
+            { key: 'B', text: 'Peuting méméh saré' },
+            { key: 'C', text: 'Beurang keur panas poé' }
         ],
         optionsFaseBC: [
-            { key: 'A', text: 'Menumbuhkan sikap sopan santun (unggah-ungguh), rasa hormat, sekaligus melestarikan bahasa daerah' },
-            { key: 'B', text: 'Membatasi pergaulan dengan siswa dari daerah lain' },
-            { key: 'C', text: 'Menggantikan kedudukan bahasa persatuan Indonesia di sekolah' },
-            { key: 'D', text: 'Mengurangi minat membaca buku perpustakaan' }
+            { key: 'A', text: 'Isuk-isuk méméh diajar di kelas' },
+            { key: 'B', text: 'Peuting méméh indit saré' },
+            { key: 'C', text: 'Pasosoré sanggeus ulin' },
+            { key: 'D', text: 'Tengah peuting keur tiiseun' }
         ],
         correctAnswer: 'A',
-        explanation: 'Penggunaan bahasa daerah yang santun mencerminkan tata krama (adab) dan menjaga kelestarian warisan budaya lokal.',
-        cognitiveLevel: 'MOTS',
-        topic: 'Tata Krama dan Bahasa Daerah'
-    },
-    {
-        stimulus: 'Pada jam istirahat, anak-anak bermain permainan tradisional "Gobak Sodor" dan "Engklek" di halaman sekolah dengan gembira.',
-        question: 'Nilai karakter positif yang dilatih melalui permainan tradisional daerah bersama teman-teman tersebut adalah ...',
-        optionsFaseA: [
-            { key: 'A', text: 'Kerja sama, sportivitas, ketangkasan, dan kerukunan' },
-            { key: 'B', text: 'Sikap egois ingin menang sendiri' },
-            { key: 'C', text: 'Kecanduan menatap layar gawai sepanjang hari' }
-        ],
-        optionsFaseBC: [
-            { key: 'A', text: 'Kerja sama tim, kejujuran, sportivitas, dan kebugaran fisik' },
-            { key: 'B', text: 'Sikap individualis tanpa peduli teman' },
-            { key: 'C', text: 'Kebiasaan bertengkar jika mengalami kekalahan' },
-            { key: 'D', text: 'Ketergantungan bermain permainan daring sendirian' }
-        ],
-        correctAnswer: 'A',
-        explanation: 'Permainan tradisional mengajarkan interaksi sosial langsung, kejujuran terhadap aturan, kekompakan, dan kebugaran fisik.',
+        explanation: 'Wilujeng énjing hartina salam patepang dina waktu isuk-isuk (pagi hari).',
         cognitiveLevel: 'LOTS',
-        topic: 'Permainan Tradisional Daerah'
+        topic: 'Paguneman Sapopoé'
     },
     {
-        stimulus: 'Dalam acara pentas budaya sekolah, kelompok seni daerah menampilkan alat musik tradisional berbahan bilah bambu yang menghasilkan nada indah ketika digoyangkan (Angklung).',
-        question: 'Sikap yang tepat sebagai generasi muda terhadap kesenian dan alat musik tradisional daerah di Nusantara adalah ...',
+        minGrade: 1, maxGrade: 2,
+        stimulus: 'Baca dongéng pondok ieu:\n"Sakadang Kuya jeung Sakadang Monyét melak cau di sisi kebon. Kuya rajin nyiram tangkal cauna unggal isuk. Ari Monyét mah kedul, tangkal cauna kalah dipanggang nepi ka layu. Sanggeus sababaraha bulan, tangkal cau Kuya buahan loba pisan."',
+        question: 'Naha tangkal cau milik Sakadang Kuya bisa buahan loba dina dongéng di luhur?',
         optionsFaseA: [
-            { key: 'A', text: 'Bangga mempelajari, menjaga, dan memperkenalkan kesenian daerah' },
-            { key: 'B', text: 'Meninggalkannya karena dianggap kuno' },
-            { key: 'C', text: 'Merusak alat musik tradisional di sanggar' }
+            { key: 'A', text: 'Sabab Kuya rajin nyiram jeung miara tangkalna' },
+            { key: 'B', text: 'Sabab Kuya mindeng ngaruksak kebon batur' },
+            { key: 'C', text: 'Sabab Monyét nu sok nyiram unggal isuk' }
         ],
         optionsFaseBC: [
-            { key: 'A', text: 'Turut bangga mempelajari, melestarikan, dan menghargai keunikan kesenian daerah' },
-            { key: 'B', text: 'Menganggap budaya daerah tidak berguna di masa modern' },
-            { key: 'C', text: 'Hanya menyukai budaya asing dan melupakan budaya sendiri' },
-            { key: 'D', text: 'Melarang teman berlatih tarian tradisional di sekolah' }
+            { key: 'A', text: 'Sabab Kuya rajin nyiram tur sabar miara tangkalna' },
+            { key: 'B', text: 'Sabab Monyét mantuan ngala buahna' },
+            { key: 'C', text: 'Sabab tangkal cauna teu kungsi diciram' },
+            { key: 'D', text: 'Sabab Kuya resep saré di handapeun tangkal' }
         ],
         correctAnswer: 'A',
-        explanation: 'Melestarikan kesenian daerah menjaga jati diri bangsa agar warisan leluhur tidak punah tergerus zaman.',
+        explanation: 'Dina dongéng Sakadang Kuya jeung Monyét, sipat rajin jeung sabar ngahasilkeun panén nu alus.',
         cognitiveLevel: 'MOTS',
-        topic: 'Kesenian Tradisional Daerah'
+        topic: 'Dongéng Sasatoan (Fabel)'
     },
     {
-        stimulus: 'Siswa membaca cerita rakyat nusantara tentang seorang anak yang patuh kepada ibunya dan rajin menolong warga desa yang sedang kesusahan.',
-        question: 'Tujuan utama mempelajari cerita rakyat dan dongeng daerah dalam pelajaran muatan lokal adalah ...',
+        minGrade: 1, maxGrade: 2,
+        stimulus: 'Pék titénan bacaan ieu:\n"Nami abdi Nénég. Abdi kelas hiji di SDN Sukatinggal. Unggal énjing sateuacan mios ka sakola, abdi sok nyium panangan Ibu sareng Bapa."',
+        question: 'Kecap basa lemes tina "leungeun" anu dituduhkeun dina bacaan di luhur nyaéta ...',
         optionsFaseA: [
-            { key: 'A', text: 'Mengambil teladan amanat moral dan mengenal kearifan lokal' },
-            { key: 'B', text: 'Menghafalkan nama tokoh untuk mengejek teman' },
-            { key: 'C', text: 'Membuktikan cerita fiksi selalu nyata' }
+            { key: 'A', text: 'Panangan' },
+            { key: 'B', text: 'Sampéan' },
+            { key: 'C', text: 'Soca' }
         ],
         optionsFaseBC: [
-            { key: 'A', text: 'Memetik nilai moral, budi pekerti luhur, serta memahami kearifan lokal masyarakat' },
-            { key: 'B', text: 'Mengabaikan pesan kebaikan yang tersirat di dalamnya' },
-            { key: 'C', text: 'Meniru sifat tokoh jahat dalam cerita' },
-            { key: 'D', text: 'Membandingkan mana daerah yang paling unggul' }
+            { key: 'A', text: 'Panangan' },
+            { key: 'B', text: 'Sampéan' },
+            { key: 'C', text: 'Cepil' },
+            { key: 'D', text: 'Mastaka' }
         ],
         correctAnswer: 'A',
-        explanation: 'Cerita rakyat sarat akan pesan moral (amanat) dan nilai kearifan lokal yang membentuk karakter baik peserta didik.',
+        explanation: 'Dina basa Sunda lemes, leungeun disebut panangan, suku disebut sampéan, panon disebut soca.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Anggota Awak & Basa Lemes'
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        stimulus: 'Di buruan imah aki aya rupa-rupa sasatoan piaraan. Aya hayam jago anu kongkorongok unggal subuh, aya ogé ucing hideung anu resep ulin bal benang.',
+        question: 'Sora sasatoan "kongkorongok" dina bacaan di luhur téh sora tina ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Hayam jago' },
+            { key: 'B', text: 'Ucing hideung' },
+            { key: 'C', text: 'Émbé bikang' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Hayam jago' },
+            { key: 'B', text: 'Ucing garong' },
+            { key: 'C', text: 'Domba jalu' },
+            { key: 'D', text: 'Lauk emas' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Hayam jago disadana kongkorongok nalika subuh atawa isuk-isuk.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Sasatoan di Sabudeureun'
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        stimulus: 'Barudak kelas dua keur ulin di buruan sakola bari ngawihkeun lagu kaulinan:\n"Oray-orayan luar-léor mapay sawah,\nEntong ka sawah paréna keur sedeng beukah."',
+        question: 'Ngaran kaulinan barudak anu sok dibarengan ku kawih di luhur nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Oray-orayan' },
+            { key: 'B', text: 'Congklak' },
+            { key: 'C', text: 'Gatrik' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Oray-orayan' },
+            { key: 'B', text: 'Congklak' },
+            { key: 'C', text: 'Béklen' },
+            { key: 'D', text: 'Luncat tali' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Oray-orayan nyaéta kaulinan barudak Sunda bari ngantay nyekelan taktak babaturan siga oray.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Kaulinan Barudak Sunda'
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        stimulus: 'Dina meja makan aya rupa-rupa bubuahan seger. Aya gedang anu warnana oranyeu, cau anu warnana konéng, jeung samangka anu eusina beureum.',
+        question: 'Numutkeun bacaan di luhur, bubuahan anu warnana konéng nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Cau' },
+            { key: 'B', text: 'Gedang' },
+            { key: 'C', text: 'Samangka' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Cau' },
+            { key: 'B', text: 'Gedang' },
+            { key: 'C', text: 'Samangka' },
+            { key: 'D', text: 'Jambu' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Cau asak warnana konéng (kuning), gedang (pepaya) oranyeu, samangka eusina beureum (merah).',
+        cognitiveLevel: 'LOTS',
+        topic: 'Bubuahan jeung Warna'
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        stimulus: 'Ibu nyarios ka Adé: "Adé, anggo sapatu hideung sateuacan angkat ka sakola, teras ulah hilap sarapan heula."',
+        question: 'Kecap basa Sunda "hideung" dina kalimah di luhur hartina warna ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Hitam' },
+            { key: 'B', text: 'Bodas (Putih)' },
+            { key: 'C', text: 'Héjo (Hijau)' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Hitam' },
+            { key: 'B', text: 'Putih' },
+            { key: 'C', text: 'Biru' },
+            { key: 'D', text: 'Cokelat' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Hideung hartina hitam, bodas hartina putih, héjo hartina hijau.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Kosakata Warna'
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        stimulus: 'Isuk-isuk méméh bel disada, Dadan jeung Imas sasapu di jero kelas. Runtah keretas dikumpulkeun tuluy dipiceun kana wadah runtah di juru kelas.',
+        question: 'Naon anu kudu dipigawé sangkan kelas jadi beresih tur nyaman pikeun diajar?',
+        optionsFaseA: [
+            { key: 'A', text: 'Sasapu jeung miceun runtah kana wadahna' },
+            { key: 'B', text: 'Ngabalangkeun keretas di handapeun méja' },
+            { key: 'C', text: 'Ulin lumpat di jero kelas' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Sasapu rutin jeung miceun runtah kana tempatna' },
+            { key: 'B', text: 'Nunda runtah di luhur korsi' },
+            { key: 'C', text: 'Ngaruksak kembang di buruan' },
+            { key: 'D', text: 'Ngotoran témbok kelas' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Miara kabersihan kelas dimimitian ku sasapu sarta miceun runtah kana wadah runtah.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Miara Kabersihan Lingkungan'
+    },
+    {
+        minGrade: 1, maxGrade: 3,
+        stimulus: 'Bapa nuju tuang sangu goréng di ruang makan. Ari abdi mah nembé réngsé neda roti sareng susu haneut.',
+        question: 'Tina kalimah di luhur, kecap lemes pikeun dahar anu dipaké keur kolot (Bapa) nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Tuang' },
+            { key: 'B', text: 'Neda' },
+            { key: 'C', text: 'Nyatu' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Tuang' },
+            { key: 'B', text: 'Neda' },
+            { key: 'C', text: 'Lelumpatan' },
+            { key: 'D', text: 'Mondok' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Dina undak-usuk basa Sunda, "tuang" dipaké keur batur/kolot anu dipikahormat, ari "neda" keur diri sorangan.',
         cognitiveLevel: 'MOTS',
-        topic: 'Cerita Rakyat Daerah'
+        topic: 'Undak-Usuk Basa Dasar'
     },
     {
-        stimulus: 'Setiap daerah di Indonesia memiliki makanan tradisional khas berbahan pangan lokal, seperti singkong, sagu, ketan, dan rempah-rempah.',
-        question: 'Keuntungan mengonsumsi dan melestarikan makanan khas tradisional daerah buatan masyarakat sekitar adalah ...',
+        minGrade: 1, maxGrade: 3,
+        stimulus: 'Asép mawa lima siki kaléci biru. Tuluy dibéré tilu siki deui ku lanceukna. Ayeuna kaléci Asép nambahan loba.',
+        question: 'Sabaraha jumlah sakabéh kaléci Asép dina carita di luhur?',
         optionsFaseA: [
-            { key: 'A', text: 'Mendukung perekonomian warga lokal dan menjaga cita rasa kuliner daerah' },
-            { key: 'B', text: 'Mengurangi penghasilan petani daerah sendiri' },
-            { key: 'C', text: 'Menghilangkan bahan pangan alami Nusantara' }
+            { key: 'A', text: 'Dalapan (8) siki' },
+            { key: 'B', text: 'Genep (6) siki' },
+            { key: 'C', text: 'Sapuluh (10) siki' }
         ],
         optionsFaseBC: [
-            { key: 'A', text: 'Memberdayakan petani dan pengrajin lokal serta melestarikan kekayaan kuliner daerah' },
-            { key: 'B', text: 'Membuat produk pangan impor semakin sulit dicari' },
-            { key: 'C', text: 'Mengurangi variasi bahan makanan bergizi' },
-            { key: 'D', text: 'Meningkatkan ketergantungan makanan cepat saji' }
+            { key: 'A', text: 'Dalapan (8) siki' },
+            { key: 'B', text: 'Tujuh (7) siki' },
+            { key: 'C', text: 'Salapan (9) siki' },
+            { key: 'D', text: 'Sapuluh (10) siki' }
         ],
         correctAnswer: 'A',
-        explanation: 'Membeli dan melestarikan kuliner tradisional membantu ekonomi lokal sekaligus merawat identitas budaya daerah.',
+        explanation: 'Lima (5) ditambah tilu (3) sarua jeung dalapan (8).',
+        cognitiveLevel: 'LOTS',
+        topic: 'Wilangan Basa Sunda'
+    },
+
+    // --- FASE B: KELAS 3 - 4 (Serta bisa dipakai lintas dasar menengah) ---
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Baca dongéng Sasakala ieu:\n"Jaman baheula di hiji lembur aya awéwé beunghar pisan ngaranna Nyi Endit. Tapi hanjakal, Nyi Endit téh kacida korétna jeung sombong ka tatangga nu miskin. Hiji poé datang aki-aki nu lapar ménta cai, tapi kalah diusir jeung dicacampah. Teu lila, tina tanceuban iteuk éta aki-aki kaluar cai ngaburial nepi ka ngeueum lembur Nyi Endit jadi situ anu lega."',
+        question: 'Sipat goréng Nyi Endit dina dongéng "Sasakala Situ Bagendit" di luhur anu teu meunang ditiru nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Korét (pelit), sombong, jeung teu nyaah ka nu susah' },
+            { key: 'B', text: 'Bageur jeung daék tutulung ka tatangga' },
+            { key: 'C', text: 'Rajin digawé di sawah unggal poé' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Korét (medit), sombong, sarta ngahina ka jalma nu butuh pitulung' },
+            { key: 'B', text: 'Sabar tur handap asor ka sémah anu datang' },
+            { key: 'C', text: 'Resep babagi dahareun ka aki-aki nu kalaparan' },
+            { key: 'D', text: 'Getol ngaraksa kabersihan cai di lembur' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Dongéng Sasakala Situ Bagendit ngajarkeun sangkan urang teu korét jeung teu sombong ka sasama.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Dongéng Sasakala Sunda'
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Baca carita Si Kabayan ieu:\n"Hiji poé mitohana nitah Si Kabayan ngala nangka nu geus kolot di kebon. Sanggeus manggih nangka gedé nu asak, Si Kabayan kalah ngagubragkeun éta nangka kana walungan bari ngomong, \'Pek balik ti heula ka imah, engké kuring nuturkeun!\' Atuh nangka téh palid kabawa cai walungan."',
+        question: 'Kumaha watek Si Kabayan dina carita "Si Kabayan Ngala Nangka" di luhur?',
+        optionsFaseA: [
+            { key: 'A', text: 'Lugu, pangedulan, jeung sok heureuy teu mikir panjang' },
+            { key: 'B', text: 'Pinter pisan ngitung panghasilan kebon' },
+            { key: 'C', text: 'Galak jeung teu resep ngobrol jeung sasaha' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Lugu, pikaseurieun, tapi kedul jeung kurang taliti dina digawé' },
+            { key: 'B', text: 'Disiplin pisan nurutkeun aturan dagang' },
+            { key: 'C', text: 'Serius tur tara kungsi banyol di imah' },
+            { key: 'D', text: 'Cerdik ngamangpaatkeun parahu pikeun ngangkut buah' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Si Kabayan kawentar dina dongéng Sunda minangka tokoh anu lugu, banyol, tapi sok kedul.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Dongéng Si Kabayan'
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Titénan rumpaka Pupuh Pucung di handap ieu:\n"Utamana jalma kudu réa batur,\nkeur silih tulungan,\nsilih titipkeun nya diri,\nbudi akal lantaran ti pada jalma."',
+        question: 'Eusi amanat anu ditepikeun ku Pupuh Pucung di luhur nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Manusa kudu loba sobat pikeun silih tulungan jeung silih jaga' },
+            { key: 'B', text: 'Ulah daék ngobrol jeung babaturan di sakola' },
+            { key: 'C', text: 'Hirup sorangan leuwih hadé batan boga réréncangan' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Urang kudu loba babaturan sangkan bisa silih tulungan sarta hirup rukun' },
+            { key: 'B', text: 'Jalma pinter teu butuh bantuan ti sasama manusa' },
+            { key: 'C', text: 'Babaturan ngan dibutuhkeun waktu keur senang wungkul' },
+            { key: 'D', text: 'Kudu ngajauhan tatangga nu béda lembur' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Pupuh Pucung di luhur ngajarkeun pentingna silih tulungan (gotong royong) jeung loba duduluran.',
         cognitiveLevel: 'HOTS',
-        topic: 'Kuliner & Ekonomi Lokal'
+        topic: 'Pupuh Sunda (Pucung)'
     },
     {
-        stimulus: 'Pada hari Minggu, warga kampung bergotong royong membersihkan selokan, memangkas ranting pohon, dan merapikan pos ronda lingkungan setempat.',
-        question: 'Nilai kearifan lokal yang tercermin dalam kegiatan kerja bakti membersihkan lingkungan desa tersebut adalah ...',
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Dina upacara adat mapag sémah atawa pintonan seni di Jawa Barat, barudak sakola mindeng maénkeun alat musik tina awi anu disada lamun dioyagkeun, dipirig ku sora suling awi anu halimpu.',
+        question: 'Ngaran alat musik kasenian Sunda anu dijieun tina bilah awi sarta cara maénkeunana dioyagkeun nyaéta ...',
         optionsFaseA: [
-            { key: 'A', text: 'Kebersamaan, kepedulian lingkungan, dan semangat gotong royong' },
-            { key: 'B', text: 'Sikap masa bodoh terhadap kebersihan desa' },
-            { key: 'C', text: 'Persaingan memperebutkan hadiah uang' }
+            { key: 'A', text: 'Angklung' },
+            { key: 'B', text: 'Kendang' },
+            { key: 'C', text: 'Kacapi' }
         ],
         optionsFaseBC: [
-            { key: 'A', text: 'Semangat gotong royong, kerukunan bertetangga, dan kepedulian lingkungan' },
-            { key: 'B', text: 'Sikap acuh tak acuh terhadap masalah lingkungan bersama' },
-            { key: 'C', text: 'Kebiasaan menunda pekerjaan hingga terjadi banjir' },
-            { key: 'D', text: 'Keinginan menonjolkan diri tanpa bekerja nyata' }
+            { key: 'A', text: 'Angklung' },
+            { key: 'B', text: 'Kendang' },
+            { key: 'C', text: 'Kacapi' },
+            { key: 'D', text: 'Goong' }
         ],
         correctAnswer: 'A',
-        explanation: 'Gotong royong adalah kearifan lokal bangsa Indonesia yang membuat pekerjaan berat terasa ringan dan mempererat persaudaraan.',
+        explanation: 'Angklung nyaéta alat musik tradisional Sunda tina awi anu dioyagkeun, geus diakuan ku UNESCO.',
         cognitiveLevel: 'LOTS',
-        topic: 'Kearifan Lokal & Gotong Royong'
+        topic: 'Kasenian Sunda (Angklung)'
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Lamun urang ulin ka Bandung atawa Garut, loba kadaharan has Sunda anu dijual di pasar tradisional, saperti olahan sampeu nu difermentasi maké ragi, aya ogé kuéh tina tipung béas jeung cipati nu dibeuleum dina citakan taneuh.',
+        question: 'Kadaharan has Tatar Sunda anu dijieun tina sampeu maké ragi dina bacaan di luhur disebut ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Peuyeum' },
+            { key: 'B', text: 'Surabi' },
+            { key: 'C', text: 'Awug' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Peuyeum' },
+            { key: 'B', text: 'Surabi' },
+            { key: 'C', text: 'Combro' },
+            { key: 'D', text: 'Colénak' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Peuyeum (sampeu) dijieun tina sampeu nu diseupan tuluy dibéré ragi nepi ka amis tur hipu.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Kadaharan Has Sunda'
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Titénan dua kalimah ieu:\n1) "Punten Pa, abdi badé ... ti payun ka rorompok."\n2) "Iraha Bapa badé ... ti kantor?"',
+        question: 'Kecap lemes anu merenah pikeun ngeusian kalimah (1) keur sorangan jeung kalimah (2) keur Bapa nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Wangsul - Mulih' },
+            { key: 'B', text: 'Mulih - Wangsul' },
+            { key: 'C', text: 'Balik - Mulang' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Wangsul (sorangan) - Mulih (batur/sepuh)' },
+            { key: 'B', text: 'Mulih (sorangan) - Wangsul (batur/sepuh)' },
+            { key: 'C', text: 'Balik (sorangan) - Sare (batur/sepuh)' },
+            { key: 'D', text: 'Mios (sorangan) - Angkat (batur/sepuh)' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Kecap lemes keur diri sorangan nyaéta "wangsul" (pulang), ari keur kolot atawa batur nyaéta "mulih".',
+        cognitiveLevel: 'MOTS',
+        topic: 'Undak-Usuk Basa Sunda'
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Saban poé Minggu isuk-isuk, warga Lembur Sukamaju ngariung di balé désa. Aranjeunna babarengan ngabersihan susukan, motong jukut di sisi jalan, jeung menerkeun sasak awi sangkan caah teu datang waktu hujan.',
+        question: 'Sikap hirup rukun babarengan ngabersihan lembur saperti dina bacaan di luhur dina budaya Sunda disebut ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Sabilulungan / Gotong royong' },
+            { key: 'B', text: 'Silih poyok' },
+            { key: 'C', text: 'Paburencay' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Sabilulungan (gotong royong sauyunan)' },
+            { key: 'B', text: 'Adigung adiguna' },
+            { key: 'C', text: 'Hare-hare teu paduli' },
+            { key: 'D', text: 'Papaseaan jeung tatangga' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Sabilulungan hartina sauyunan, paheuyeuk-heuyeuk leungeun dina ngawujudkeun kahadéan babarengan.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Budaya Sabilulungan'
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Titénan kalimah ieu: "Tangkal kalapa di pipir imah Aki téh kacida jangkungna, béda pisan jeung tangkal kembang malati di pot."',
+        question: 'Kecap sabalikna (antonim) tina kecap "jangkung" dina kalimah di luhur nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Pendék / Pondék' },
+            { key: 'B', text: 'Luhur' },
+            { key: 'C', text: 'Gedé' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Pendék / Pondék' },
+            { key: 'B', text: 'Luhur pisan' },
+            { key: 'C', text: 'Lega' },
+            { key: 'D', text: 'Rubak' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Sabalikna tina jangkung (tinggi) nyaéta pendék atawa pondék.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Kecap Sabalikna (Antonim)'
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Pék titénan kalimah tanya anu acan lengkep ieu:\n"[ ... ] anu ngajajapkeun Néng Maya ka sakola unggal isuk?"\nJawabanana: "Bapa anu ngajajapkeunana."',
+        question: 'Kecap pananya anu bener pikeun ngeusian titik-titik dina kalimah di luhur nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Saha' },
+            { key: 'B', text: 'Di mana' },
+            { key: 'C', text: 'Iraha' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Saha' },
+            { key: 'B', text: 'Di mana' },
+            { key: 'C', text: 'Iraha' },
+            { key: 'D', text: 'Sabaraha' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Kecap pananya "Saha" dipaké pikeun nanyakeun jalma atawa palaku (Bapa).',
+        cognitiveLevel: 'LOTS',
+        topic: 'Kalimah Pananya'
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        stimulus: 'Sore-sore sanggeus réngsé ngapalkeun, Gilang jeung babaturanana ulin ngadu ketangkasan nyieun bénténg tina tihang buruan. Anu bisa noél bénténg lawan bari teu kacekel bakal meunang.',
+        question: 'Ngaran kaulinan tradisional Sunda anu dicaritakeun dina bacaan di luhur nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Bébénténgan' },
+            { key: 'B', text: 'Congklak' },
+            { key: 'C', text: 'Éngklé' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Bébénténgan' },
+            { key: 'B', text: 'Congklak' },
+            { key: 'C', text: 'Béklen' },
+            { key: 'D', text: 'Kaléci' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Bébénténgan nyaéta kaulinan kelompok anu silih jaga sarta silih rebut bénténg lawan.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Kaulinan Tradisional'
+    },
+
+    // --- FASE C: KELAS 5 - 6 ---
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Baca cutatan biantara ieu:\n"Hadirin anu ku sim kuring dipihormat, puji sinareng sukur mangga urang sanggakeun ka Gusti Nu Maha Suci. Dina danget ieu, sim kuring ngawakilan réréncangan kelas genep badé ngahaturkeun nuhun ka Ibu sareng Bapa Guru anu parantos ngatik kalayan sabar salami genep taun."',
+        question: 'Bagian biantara dina cutatan di luhur mangrupa bagian ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Bubuka (mukadimah jeung pangbagéa)' },
+            { key: 'B', text: 'Panutup jeung salam pamungkas' },
+            { key: 'C', text: 'Daptar pustaka' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Bubuka (salam panghormat sarta muji sukur)' },
+            { key: 'B', text: 'Panutup (sanduk-sanduk ménta dihampura)' },
+            { key: 'C', text: 'Kacindekan ahir acara' },
+            { key: 'D', text: 'Tanya jawab jeung panongton' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Ungkara panghormat ka hadirin jeung muji sukur ka Gusti ayana dina bagian bubuka biantara.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Biantara Basa Sunda'
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Titénan pada Pupuh Kinanti ieu:\n"Budak leutik bisa ngapung (8-u),\nbabaku ngapungna peuting (8-i),\nnguriling kakalayangan (8-a),\nnéangan nu amis-amis (8-i),\nsarupaning bungbuahan (8-a),\nnaon baé nu kapanggih (8-i)."',
+        question: 'Guru wilangan jeung guru lagu padalisan katilu ("nguriling kakalayangan") dina Pupuh Kinanti di luhur nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: '8-a' },
+            { key: 'B', text: '8-u' },
+            { key: 'C', text: '8-i' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '8-a (dalapan engang, tungtungna sora a)' },
+            { key: 'B', text: '8-i (dalapan engang, tungtungna sora i)' },
+            { key: 'C', text: '8-u (dalapan engang, tungtungna sora u)' },
+            { key: 'D', text: '10-a (sapuluh engang, tungtungna sora a)' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Kecap "ngu-ri-ling ka-ka-la-yang-an" jumlahna 8 engang (guru wilangan 8) sarta sora vokal tungtungna "a" (guru lagu a).',
+        cognitiveLevel: 'HOTS',
+        topic: 'Pupuh Kinanti (Guru Wilangan & Guru Lagu)'
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Baca dongéng Sasakala Tangkuban Parahu ieu:\n"Dayang Sumbi kacida reuwaseunana sabab apal yén pamuda anu ngaran Sangkuriang téh anakna sorangan. Sangkan teu jadi nikah, Dayang Sumbi ménta sarat sangkan Sangkuriang nyieun situ jeung parahu gedé dina waktu sapeuting saméméh pajar meleték. Ku kasaktianana, Sangkuriang méh réngsé, tapi Dayang Sumbi ngageuingkeun hayam jago nepi ka kongkorongok ti heula. Sangkuriang bendu tuluy najong parahu nepi ka nangkub."',
+        question: 'Kumaha tarékah Dayang Sumbi sangkan paménta Sangkuriang gagal méméh subuh?',
+        optionsFaseA: [
+            { key: 'A', text: 'Ngagibegkeun boéh rarang jeung ngahudangkeun hayam jago sina kongkorongok' },
+            { key: 'B', text: 'Mantuan Sangkuriang nanggung batu ka walungan' },
+            { key: 'C', text: 'Méré parahu anyar ka Sangkuriang' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Ngagibegkeun boéh rarang jadi cahya wétan sarta ngahudangkeun hayam jago sangkan disada' },
+            { key: 'B', text: 'Ngajak warga sakampung ngabantuan ngabendung Citarum' },
+            { key: 'C', text: 'Nungguan nepi ka poé beurang tanpa nyieun tarékah nanaon' },
+            { key: 'D', text: 'Ngirimkeun surat ka raja sangkan ngabatalakeun pasini' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Dina Sasakala Gunung Tangkuban Parahu, Dayang Sumbi ngabélaan diri ku cara ngagerakeun hayam jago sangkan disada saolah geus isuk.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Dongéng Sasakala Tangkuban Parahu'
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Titénan sisindiran (paparikan) di handap ieu:\n"Mawa peti dina rakit,\nboboko wadah bakatul.\nLain nyeri ku panyakit,\nkabogoh direbut batur."',
+        question: 'Padalisan kahiji jeung kadua ("Mawa peti dina rakit / boboko wadah bakatul") dina sisindiran di luhur disebut bagian ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Cangkang (sampiran)' },
+            { key: 'B', text: 'Eusi (amanat)' },
+            { key: 'C', text: 'Judul carita' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Cangkang (pangjajap sora méméh eusi)' },
+            { key: 'B', text: 'Eusi (maksud sabenerna)' },
+            { key: 'C', text: 'Palaku carita' },
+            { key: 'D', text: 'Pangbagéa biantara' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Sisindiran Sunda diwangun ku dua bagian: dua padalisan awal disebut cangkang, dua padalisan ahir disebut eusi.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Sisindiran (Paparikan)'
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Réza téh budak anu "hampang birit" di kelasna. Unggal Ibu Guru ménta tulung mawa buku ka ruang guru atawa meresihan bor, Réza langsung ngoréjat ngabantuan kalawan iklas.',
+        question: 'Harti babasan "hampang birit" dina kalimah di luhur nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Daékan, rajin, jeung gancang tutulung mun dititah' },
+            { key: 'B', text: 'Kedul jeung hésé lamun diajak gawé babarengan' },
+            { key: 'C', text: 'Sombong sabab ngarasa pangpinterna' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Daékan, teu hésé dititah, sarta resep tutulung' },
+            { key: 'B', text: 'Beurat birit atawa pangedulan' },
+            { key: 'C', text: 'Panjang leungeun atawa resep nyokot barang batur' },
+            { key: 'D', text: 'Gedé hulu atawa adigung' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Hampang birit hartina daékan/rajin lamun dititah; sabalikna tina beurat birit (kedul).',
+        cognitiveLevel: 'MOTS',
+        topic: 'Babasan jeung Paribasa Sunda'
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Dina pelajaran nulis Aksara Sunda Kaganga, urang mikawanoh rarangkén anu dipaké pikeun ngarobah sora vokal dasar /a/ jadi /i/, /u/, /é/, /o/, atawa /eu/.',
+        question: 'Ngaran rarangkén Aksara Sunda anu ditunda di luhureun aksara ngalagena pikeun ngarobah sora /a/ jadi /i/ (contona "ka" jadi "ki") nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Panghulu' },
+            { key: 'B', text: 'Panyuku' },
+            { key: 'C', text: 'Panéléng' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Panghulu' },
+            { key: 'B', text: 'Panyuku' },
+            { key: 'C', text: 'Panéléng' },
+            { key: 'D', text: 'Panolong' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Panghulu ngarobah vokal jadi /i/, panyuku jadi /u/, panéléng jadi /é/, panolong jadi /o/.',
+        cognitiveLevel: 'HOTS',
+        topic: 'Aksara Sunda Kaganga'
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Baca cutatan warta singget ieu:\n"SDN Sukatinggal ngayakeun kagiatan \'Jum\'at Berseka\' dina tanggal 15 Agustus kamari. Sakumna murid ti kelas hiji nepi ka kelas genep milu melak puluhan bibit tangkal mahoni jeung kembang di sabudeureun sakola sangkan lingkungan jadi héjo tur tiis."',
+        question: 'Naon tujuan utama kagiatan "Jum\'at Berseka" numutkeun warta di luhur?',
+        optionsFaseA: [
+            { key: 'A', text: 'Ngahijaukeun sarta nyegerkeun lingkungan sakola ku cara melak tangkal' },
+            { key: 'B', text: 'Ngalombakeun ngagambar pamandangan di jero kelas' },
+            { key: 'C', text: 'Ngabongkar taman kembang di hareupeun sakola' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Miara kahéjoan jeung kasegeran lingkungan sakola ngaliwatan melak bibit tangkal' },
+            { key: 'B', text: 'Ngalaksanakeun ulangan ahir semester di lapangan' },
+            { key: 'C', text: 'Ngajual hasil panén sayur ka pasar lembur' },
+            { key: 'D', text: 'Ngaliburekeun sakumna murid salila saminggu' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Warta di luhur nétélakeun yén kagiatan melak bibit tangkal tujuanana ngahijaukeun sarta nyegerkeun lingkungan sakola.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Warta Basa Sunda'
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Tiap isuk saméméh indit ka sakola, Siti sok "sasapu" heula di tepas imah. Kecap "sasapu" mangrupa kecap anu diwangun ku cara ngulang engang mimiti tina kecap asal "sapu".',
+        question: 'Dina tata basa Sunda, wangun kecap rajékan saperti "sasapu", "momobilan", jeung "tutunggangan" disebut kecap rajékan ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Dwipurwa' },
+            { key: 'B', text: 'Dwilingga' },
+            { key: 'C', text: 'Trilingga' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Dwipurwa (ngulang engang mimiti)' },
+            { key: 'B', text: 'Dwilingga (ngulang kecap sagemblengna)' },
+            { key: 'C', text: 'Trilingga (tilu kali sora)' },
+            { key: 'D', text: 'Kecap kantétan' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Dwipurwa nyaéta ngulang engang (suku kata) mimiti tina kecap asal, saperti sapu -> sasapu, mobil -> momobilan.',
+        cognitiveLevel: 'HOTS',
+        topic: 'Kecap Rajékan Basa Sunda'
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        stimulus: 'Baca carita pondok ieu:\n"Waktu istirahat, Ilham manggih dompét kulit di hareupeun kantin. Sanajan di jero dompét téh aya duit loba, Ilham teu kabita. Anjeunna langsung masrahkeun éta dompét ka Ibu Kepala Sakola sangkan dibikeun deui ka nu bogana."',
+        question: 'Amanat penting anu bisa diconto tina paripolah Ilham dina carita pondok di luhur nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Kudu jujur jeung amanah, teu meunang nyokot hak batur' },
+            { key: 'B', text: 'Meunang maké duit pamanggih lamun euweuh nu ningali' },
+            { key: 'C', text: 'Ulah daék ngalapor ka guru mun manggih barang leungit' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Kudu ngabiasakeun sipat jujur, amanah, sarta ngajauhan hak anu lain milik sorangan' },
+            { key: 'B', text: 'Meunang nyimpen barang batur lamun geus lila teu kapanggih' },
+            { key: 'C', text: 'Kudu jajan di kantin maké duit anu kapanggih di jalan' },
+            { key: 'D', text: 'Nunda dompét di buruan sangkan kapanggih ku batur deui' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Carita pondok (carpon) di luhur ngajarkeun sipat jujur jeung amanah ka barang milik batur.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Carita Pondok (Carpon)'
+    },
+    {
+        minGrade: 4, maxGrade: 6,
+        stimulus: 'Aya paribasa Sunda anu unina "Cikaracak ninggang batu, laun-laun jadi legok". Paribasa ieu sering diucapkeun ku guru pikeun sumanget barudak anu keur diajar maca atawa ngitung.',
+        question: 'Maksud tina paribasa "Cikaracak ninggang batu, laun-laun jadi legok" nyaéta ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Lamun diajar kalawan tekun tur sabar unggal poé, sanajan hésé pasti lila-lila bakal bisa' },
+            { key: 'B', text: 'Ulah ulin di sisi walungan waktu keur hujan gedé' },
+            { key: 'C', text: 'Batu di gunung leuwih kuat batan cai hujan' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Lamun dilakukeun kalawan keyeng, sabar, jeung tuluy-tumuluy, perkara anu hésé ogé pasti bakal kahontal' },
+            { key: 'B', text: 'Cai walungan gampang pisan ngancurkeun sasak di lembur' },
+            { key: 'C', text: 'Teu kudu diajar lila-lila lamun geus ngarasa capé' },
+            { key: 'D', text: 'Batu karang moal pernah bisa robah ku cai hujan' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Cikaracak (tetesan air) ninggang batu laun-laun jadi legok (berlubang) ngajarkeun katekunan jeung kasabaran dina diajar.',
+        cognitiveLevel: 'HOTS',
+        topic: 'Paribasa Sunda'
     }
 ];
 
@@ -2896,14 +3387,21 @@ const ISIAN_POOL_KODING: QuestionBankItemIsian[] = [
 ];
 
 const ISIAN_POOL_MULOK: QuestionBankItemIsian[] = [
-    { question: 'Penggunaan bahasa daerah yang halus ketika berbicara dengan orang tua dan guru mencerminkan sikap ...', correctAnswer: 'Sopan santun (Tata krama)', cognitiveLevel: 'LOTS', topic: 'Tata Krama' },
-    { question: 'Alat musik tradisional khas Indonesia yang terbuat dari susunan bilah bambu dan dibunyikan dengan cara digoyangkan adalah ...', correctAnswer: 'Angklung', cognitiveLevel: 'LOTS', topic: 'Musik Daerah' },
-    { question: 'Permainan tradisional anak yang dimainkan dengan melompati kotak-kotak gambar di halaman menggunakan satu kaki disebut ...', correctAnswer: 'Engklek', cognitiveLevel: 'LOTS', topic: 'Permainan Tradisional' },
-    { question: 'Pesan kebaikan atau nasihat moral yang terkandung di dalam sebuah cerita rakyat daerah disebut ...', correctAnswer: 'Amanat', cognitiveLevel: 'LOTS', topic: 'Cerita Rakyat' },
-    { question: 'Kegiatan bekerja bersama-sama membersihkan lingkungan kampung secara sukarela demi kepentingan bersama disebut ...', correctAnswer: 'Gotong royong (Kerja bakti)', cognitiveLevel: 'LOTS', topic: 'Kearifan Lokal' },
-    { question: 'Kain tradisional bercorak khas Nusantara yang dibuat dengan teknik melukis lilin malam memakai canting adalah ...', correctAnswer: 'Batik', cognitiveLevel: 'LOTS', topic: 'Kerajinan Daerah' },
-    { question: 'Bahasa resmi pemersatu antar-suku bangsa yang digunakan di seluruh wilayah Negara Kesatuan Republik Indonesia adalah bahasa ...', correctAnswer: 'Indonesia', cognitiveLevel: 'LOTS', topic: 'Bahasa dan Budaya' },
-    { question: 'Membeli kue tradisional buatan tetangga dan petani desa membantu meningkatkan perekonomian ...', correctAnswer: 'Lokal (Masyarakat sekitar)', cognitiveLevel: 'MOTS', topic: 'Ekonomi Lokal' }
+    { minGrade: 1, maxGrade: 3, question: 'Lamun panggih jeung Ibu atawa Bapa Guru di sakola waktu isuk-isuk, urang kudu ngucapkeun salam "Wilujeng ...".', correctAnswer: 'Énjing', cognitiveLevel: 'LOTS', topic: 'Tatakrama Basa' },
+    { minGrade: 1, maxGrade: 3, question: 'Dina basa Sunda lemes, bagian awak anu disebut "panon" nyaéta ...', correctAnswer: 'Soca', cognitiveLevel: 'LOTS', topic: 'Anggota Awak' },
+    { minGrade: 1, maxGrade: 3, question: 'Dina basa Sunda lemes, bagian awak anu disebut "suku" (kaki) nyaéta ...', correctAnswer: 'Sampéan', cognitiveLevel: 'LOTS', topic: 'Anggota Awak' },
+    { minGrade: 1, maxGrade: 3, question: 'Kaulinan barudak anu ngantay nyekelan taktak babaturan bari ngawihkeun lagu "luar-léor mapay sawah" nyaéta ...', correctAnswer: 'Oray-orayan', cognitiveLevel: 'LOTS', topic: 'Kaulinan Barudak' },
+    { minGrade: 1, maxGrade: 3, question: 'Warna dina basa Sunda pikeun kecap "merah" nyaéta ...', correctAnswer: 'Beureum', cognitiveLevel: 'LOTS', topic: 'Kosakata Warna' },
+    { minGrade: 3, maxGrade: 6, question: 'Kecap lemes pikeun dahar anu dipaké keur kolot atawa jalma anu dipikahormat nyaéta ...', correctAnswer: 'Tuang', cognitiveLevel: 'LOTS', topic: 'Undak-Usuk Basa' },
+    { minGrade: 3, maxGrade: 6, question: 'Alat musik has Sunda anu dijieun tina awi jeung cara maénkeunana dioyagkeun nyaéta ...', correctAnswer: 'Angklung', cognitiveLevel: 'LOTS', topic: 'Kasenian Sunda' },
+    { minGrade: 3, maxGrade: 6, question: 'Dongéng Sasakala ngeunaan awéwé korét nu ngaranna Nyi Endit nyaritakeun asal-usul ayana Situ ...', correctAnswer: 'Bagendit', cognitiveLevel: 'MOTS', topic: 'Dongéng Sasakala' },
+    { minGrade: 3, maxGrade: 6, question: 'Kadaharan has Sunda anu dijieun tina sampeu diseupan tuluy diragian nepi ka amis disebut ...', correctAnswer: 'Peuyeum', cognitiveLevel: 'LOTS', topic: 'Kadaharan Has Sunda' },
+    { minGrade: 3, maxGrade: 6, question: 'Sikap sauyunan jeung babarengan migawé kahadéan di lembur dina budaya Sunda disebut ...', correctAnswer: 'Sabilulungan (Gotong royong)', cognitiveLevel: 'LOTS', topic: 'Budaya Sunda' },
+    { minGrade: 5, maxGrade: 6, question: 'Babasan "hampang birit" miboga harti jalma anu daékan atawa ... lamun dititah.', correctAnswer: 'Rajin (Gancang tutulung)', cognitiveLevel: 'MOTS', topic: 'Babasan Sunda' },
+    { minGrade: 5, maxGrade: 6, question: 'Jumlah engang (suku kata) dina unggal padalisan pupuh disebut guru ...', correctAnswer: 'Wilangan', cognitiveLevel: 'MOTS', topic: 'Pupuh Sunda' },
+    { minGrade: 5, maxGrade: 6, question: 'Sora vokal di tungtung unggal padalisan pupuh disebut guru ...', correctAnswer: 'Lagu', cognitiveLevel: 'MOTS', topic: 'Pupuh Sunda' },
+    { minGrade: 5, maxGrade: 6, question: 'Dua padalisan mimiti dina sisindiran (paparikan) anu jadi pangjajap sora disebut ...', correctAnswer: 'Cangkang', cognitiveLevel: 'MOTS', topic: 'Sisindiran' },
+    { minGrade: 5, maxGrade: 6, question: 'Rarangkén Aksara Sunda anu ditunda di luhureun aksara pikeun ngarobah sora /a/ jadi /i/ disebut ...', correctAnswer: 'Panghulu', cognitiveLevel: 'HOTS', topic: 'Aksara Sunda' }
 ];
 
 // ==========================================
@@ -3442,30 +3940,94 @@ const URAIAN_POOL_KODING: QuestionBankItemUraian[] = [
 
 const URAIAN_POOL_MULOK: QuestionBankItemUraian[] = [
     {
-        question: 'Sebutkan 2 permainan tradisional daerah yang kamu ketahui beserta cara memainkannya secara singkat, lalu jelaskan nilai positif yang dipelajari dari permainan tersebut!',
-        correctAnswer: 'Contoh: 1. Engklek (melompat satu kaki pada petak kotak di tanah secara bergiliran tanpa menginjak garis). 2. Congklak (membagikan biji pada lubang papan secara berhitung).\nNilai positif: Melatih ketangkasan, berhitung, kejujuran terhadap aturan, serta kerukunan berteman.',
-        cognitiveLevel: 'HOTS',
-        topic: 'Pelestarian Permainan Tradisional',
+        minGrade: 1, maxGrade: 2,
+        question: 'Tuliskeun 3 ngaran sasatoan sarta 3 ngaran warna dina Basa Sunda anu bener!',
+        correctAnswer: 'Sasatoan: Ucing, Hayam, Manuk (atawa Lauk, Domba).\nWarna: Beureum (merah), Bodas (putih), Hideung (hitam), Konéng (kuning), Héjo (hijau).',
+        cognitiveLevel: 'LOTS',
+        topic: 'Sasatoan jeung Warna',
         rubric: {
-            score3: 'Menyebutkan 2 permainan tradisional, menjelaskan cara mainnya, dan menguraikan nilai karakter positif.',
-            score2: 'Menyebutkan 2 permainan tetapi penjelasan cara main atau nilai masih singkat.',
-            score1: 'Hanya menyebutkan nama permainan.',
+            score3: 'Nuliskeun 3 ngaran sasatoan jeung 3 ngaran warna dina Basa Sunda kalawan bener.',
+            score2: 'Nuliskeun 4–5 kecap Basa Sunda anu bener.',
+            score1: 'Ngan nuliskeun 1–3 kecap anu merenah.',
             score0: 'Kosong.'
         }
     },
     {
-        question: 'Mengapa generasi muda perlu mempelajari dan menggunakan bahasa daerah serta menjaga sopan santun kepada orang yang lebih tua? Berikan 2 cara konkret melestarikan budaya daerah di sekolah!',
-        correctAnswer: 'Alasan: Agar bahasa daerah sebagai jati diri budaya lokal tidak punah dan tata krama pergaulan tetap terjaga.\nCara di sekolah: Mengadakan hari berbahasa daerah atau mengikuti ekstrakurikuler tari, lagu, dan alat musik tradisional.',
-        cognitiveLevel: 'HOTS',
-        topic: 'Pelestarian Bahasa dan Budaya Lokal',
+        minGrade: 1, maxGrade: 2,
+        question: 'Kumaha kalimah anu sopan lamun hidep panggih jeung Ibu Guru di buruan sakola waktu isuk-isuk? Tuliskeun ogé 2 conto paripolah hormat ka kolot di imah!',
+        correctAnswer: 'Kalimah sopan: "Wilujeng énjing, Bu Guru! Kumaha damang?"\nConto hormat ka kolot: 1. Nyium panangan Ibu sareng Bapa saméméh mios ka sakola. 2. Ngadéngékeun naséhat kolot kalawan sopan.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Tatakrama Basa Sapopoé',
         rubric: {
-            score3: 'Menjelaskan alasan pelestarian bahasa dan sopan santun serta memberi 2 contoh kegiatan konkret di sekolah.',
-            score2: 'Alasan benar namun contoh hanya 1.',
-            score1: 'Jawaban kurang terstruktur.',
+            score3: 'Nuliskeun salam Basa Sunda anu sopan sarta 2 conto paripolah hormat ka kolot kalawan jéntré.',
+            score2: 'Salam bener tapi conto paripolah ngan hiji.',
+            score1: 'Jawaban singget pisan.',
+            score0: 'Kosong.'
+        }
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        question: 'Baca carita pondok ieu: "Unggal poé Minggu isuk, Ujang jeung réréncanganana ulin bébénténgan jeung congklak di buruan balé désa. Aranjeunna ulin rukun teu kungsi paséa." Sebutkeun 2 kaulinan barudak Sunda nu séjénna sarta jelaskeun mangpaat ulin kaulinan tradisional pikeun barudak!',
+        correctAnswer: 'Conto kaulinan lianna: Oray-orayan, Éngklé (sonlah), Gatrik, Béklen.\nMangpaatna: Ngaraketkeun babaturan, ngalatih kerja sama jeung kajujuran, sarta nyéhatkeun awak.',
+        cognitiveLevel: 'HOTS',
+        topic: 'Kaulinan Barudak Sunda',
+        rubric: {
+            score3: 'Nyebutkeun 2 kaulinan barudak Sunda sarta ngajelaskeun mangpaat sosial jeung kaséhatanana.',
+            score2: 'Nyebutkeun 2 kaulinan tapi mangpaatna kurang lengkep.',
+            score1: 'Ngan nyebutkeun ngaran kaulinan.',
+            score0: 'Kosong.'
+        }
+    },
+    {
+        minGrade: 3, maxGrade: 6,
+        question: 'Robah kecap-kecap loma ieu jadi Basa Sunda lemes pikeun kolot atawa batur anu dipikahormat:\n1) Dahar -> ...\n2) Saré -> ...\n3) Balik -> ...\nTeras jieun 1 kalimah maké salah sahiji kecap lemes éta!',
+        correctAnswer: '1. Dahar = Tuang\n2. Saré = Kulem\n3. Balik = Mulih\nConto kalimah: "Bapa nembé mulih ti kantor tabuh opat sonten."',
+        cognitiveLevel: 'HOTS',
+        topic: 'Undak-Usuk Basa Sunda',
+        rubric: {
+            score3: 'Ngarobah tilu kecap kana basa lemes kalawan bener sarta nyieun 1 kalimah anu merenah.',
+            score2: 'Dua kecap bener jeung kalimah cukup merenah.',
+            score1: 'Ngan hiji kecap anu bener.',
+            score0: 'Kosong.'
+        }
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        question: 'Baca cutatan biantara ieu: "Hadirin anu mulya, hayu urang mumulé basa jeung budaya Sunda ti ayeuna kénéh." Jelaskeun 3 bagian utama susunan biantara Basa Sunda sarta 2 cara ngamumulé basa Sunda di sakola!',
+        correctAnswer: 'Susunan biantara: 1. Bubuka (salam panghormat & puji sukur). 2. Eusi (poko bahasan/amanat). 3. Panutup (kacindekan, sanduk-sanduk ménta hampura, salam).\nCara ngamumulé: Ngabiasakeun Rebo Nyunda di sakola, maca carpon/dongéng Sunda, jeung diajar pupuh atawa angklung.',
+        cognitiveLevel: 'HOTS',
+        topic: 'Biantara jeung Ngamumulé Budaya',
+        rubric: {
+            score3: 'Ngajelaskeun 3 bagian biantara kalawan runtut sarta méré 2 conto cara ngamumulé basa Sunda.',
+            score2: 'Bagian biantara bener tapi conto ngan hiji.',
+            score1: 'Jawaban kurang lengkep.',
+            score0: 'Kosong.'
+        }
+    },
+    {
+        minGrade: 5, maxGrade: 6,
+        question: 'Tuliskeun harti tina 2 babasan Sunda ieu sarta jieun masing-masing 1 conto kalimahna:\n1) Hampang birit\n2) Gedé hulu',
+        correctAnswer: '1. Hampang birit: Daékan/rajin mun dititah (Conto: Dadan mah budak hampang birit, resep nulungan kolot).\n2. Gedé hulu: Sombong/adigung (Conto: Ulah jadi jalma gedé hulu sanajan pinter di kelas).',
+        cognitiveLevel: 'HOTS',
+        topic: 'Babasan jeung Paribasa',
+        rubric: {
+            score3: 'Ngajelaskeun harti dua babasan kalawan bener sarta nyieun dua kalimah anu merenah.',
+            score2: 'Harti bener tapi ngan nyieun hiji kalimah.',
+            score1: 'Ngan ngajawab hiji babasan.',
             score0: 'Kosong.'
         }
     }
 ];
+
+export function isBahasaSundaSubject(subject?: string): boolean {
+    const s = (subject || '').toLowerCase();
+    if (!s) return false;
+    if (s.includes('sunda')) return true;
+    if ((s.includes('muatan lokal') || s.includes('mulok') || s.includes('bahasa daerah')) && !s.includes('mengaji') && !s.includes('bahasa jawa') && !s.includes('bahasa bali')) {
+        return true;
+    }
+    return false;
+}
 
 // Helper to pick bank based on subject
 function detectSubjectCategory(subject: string):
@@ -3570,7 +4132,16 @@ const GRADE_NAME_ROSTERS_EN: Record<number, string[]> = {
     6: ['Kevin', 'Emma', 'Dan', 'Kate']
 };
 
-function swapNamesForGrade(text: string, grade: number, variantNum: number, isEnglish: boolean): string {
+const GRADE_NAME_ROSTERS_SU: Record<number, string[]> = {
+    1: ['Ujang', 'Nénég', 'Adé', 'Imas', 'Dadan', 'Cucu'],
+    2: ['Asép', 'Euis', 'Tatang', 'Yani', 'Jajang', 'Ai'],
+    3: ['Gilang', 'Wida', 'Roni', 'Nia', 'Usep', 'Susi'],
+    4: ['Dédi', 'Rini', 'Agus', 'Lilis', 'Héndra', 'Tuti'],
+    5: ['Réza', 'Sari', 'Ilham', 'Ratna', 'Fikri', 'Wati'],
+    6: ['Raka', 'Dewi', 'Budi', 'Siti', 'Andi', 'Lani']
+};
+
+function swapNamesForGrade(text: string, grade: number, variantNum: number, isEnglish: boolean, isSundanese: boolean = false): string {
     if (!text) return text;
     if (isEnglish) {
         const sourceEn = ['Andi', 'Budi', 'Siti', 'Ani', 'Rina', 'Tono'];
@@ -3578,6 +4149,16 @@ function swapNamesForGrade(text: string, grade: number, variantNum: number, isEn
         let out = text;
         sourceEn.forEach((src, i) => {
             const replacement = targetEn[(i + variantNum) % targetEn.length];
+            out = out.replace(new RegExp(`\\b${src}\\b`, 'g'), replacement);
+        });
+        return out;
+    }
+    if (isSundanese) {
+        const sourceSu = ['Ujang', 'Nénég', 'Adé', 'Dadan', 'Imas', 'Asép', 'Gilang', 'Réza', 'Ilham', 'Siti'];
+        const targetSu = GRADE_NAME_ROSTERS_SU[grade] || GRADE_NAME_ROSTERS_SU[4];
+        let out = text;
+        sourceSu.forEach((src, i) => {
+            const replacement = targetSu[(i + variantNum) % targetSu.length];
             out = out.replace(new RegExp(`\\b${src}\\b`, 'g'), replacement);
         });
         return out;
@@ -3598,12 +4179,125 @@ function rephraseQuestionNatural(
     topic: string,
     grade: number,
     passIndex: number,
-    isEnglish: boolean
+    isEnglish: boolean,
+    isSundanese: boolean = false
 ): { question: string; stimulus: string } {
-    let q = swapNamesForGrade(baseQuestion.trim(), grade, passIndex, isEnglish);
-    let stim = swapNamesForGrade((baseStimulus || '').trim(), grade, passIndex, isEnglish);
+    let q = swapNamesForGrade(baseQuestion.trim(), grade, passIndex, isEnglish, isSundanese);
+    let stim = swapNamesForGrade((baseStimulus || '').trim(), grade, passIndex, isEnglish, isSundanese);
     const topicClean = (topic || 'materi pokok').trim();
     const safePass = Math.max(0, passIndex);
+
+    if (isSundanese) {
+        const suAnchors: Record<number, string[]> = {
+            1: [
+                `Dina pangajaran ${topicClean}, `,
+                `Pék jawab pananya ngeunaan ${topicClean}: `,
+                `Titénan pedaran basajan ngeunaan ${topicClean}: `,
+                `Nalika diajar babarengan ngeunaan ${topicClean}, `,
+                `Ingetkeun deui materi ${topicClean}, `,
+                `Pék tengetan soal ngeunaan ${topicClean} ieu: `,
+                `Dina kagiatan di kelas ngeunaan ${topicClean}, `,
+                `Cobi jawab latihan ${topicClean} ieu: `,
+                `Nilik kana conto ${topicClean} di luhur, `,
+                `Dumasar kana pangajaran ${topicClean}, `,
+                `Pék pilih atawa eusian soal ${topicClean}: `,
+                `Saluyu jeung topik ${topicClean} poé ieu, `
+            ],
+            2: [
+                `Dina kagiatan diajar ${topicClean}, `,
+                `Tengetan conto ngeunaan ${topicClean} ieu! `,
+                `Nalika ngabahas topik ${topicClean} di sakola, `,
+                `Pahami pedaran ${topicClean} ieu, tuluy `,
+                `Dina latihan soal ${topicClean} poé ieu, `,
+                `Pék titénan pananya ngeunaan ${topicClean}: `,
+                `Nalika sawala singget ngeunaan ${topicClean}, `,
+                `Regepkeun pituduh materi ${topicClean} ieu: `,
+                `Amati kaayaan anu patali jeung ${topicClean}: `,
+                `Pikeun nginget deui pangajaran ${topicClean}, `,
+                `Cobi jawab latihan sabudeureun ${topicClean}: `,
+                `Ngaliwatan kagiatan diajar ${topicClean}, `
+            ],
+            3: [
+                `Dumasar kana pamahaman ngeunaan ${topicClean}, `,
+                `Nalika nilik topik ${topicClean}, `,
+                `Dina pedaran materi ${topicClean}, `,
+                `Titénan pananya ngeunaan ${topicClean} ieu: `,
+                `Ngarujuk kana poko bahasan ${topicClean}, `,
+                `Nalika diajar konsép ${topicClean}, `,
+                `Dina uraian pangajaran ${topicClean}, `,
+                `Perhatikeun kontéks pasualan ${topicClean} ieu! `,
+                `Ngaliwatan panalungtikan ngeunaan ${topicClean}, `,
+                `Pikeun nguji pamahaman ${topicClean}, `,
+                `Dina runtuyan kagiatan ${topicClean}, `,
+                `Patali jeung hal poko dina ${topicClean}, `
+            ],
+            4: [
+                `Dina pangjembaran materi ${topicClean}, `,
+                `Dumasar kana konsép ${topicClean} anu geus dipikawanoh, `,
+                `Dina analisis singget ngeunaan ${topicClean}, `,
+                `Talungtik poko bahasan ${topicClean} ieu! `,
+                `Tina pangajaran materi ${topicClean}, `,
+                `Patali jeung pamahaman ${topicClean}, `,
+                `Nalika nalungtik conto kasus ${topicClean}, `,
+                `Cermatan pasualan sabudeureun ${topicClean} di handap: `,
+                `Dina nerapkeun pangajaran ${topicClean}, `,
+                `Pikeun nambahan pangaweruh ${topicClean}, `,
+                `Ngarujuk kana kaidah ${topicClean} anu merenah, `,
+                `Ngaliwatan latihan ngaréngsékeun masalah ${topicClean}, `
+            ],
+            5: [
+                `Dumasar kana kajian materi ${topicClean}, `,
+                `Dina larapna konsép ${topicClean} dina kahirupan sapopoé, `,
+                `Titénan kontéks pangajaran ${topicClean} ieu: `,
+                `Nalika ngaidéntifikasi pasualan ${topicClean}, `,
+                `Ngarujuk kana prinsip dasar ${topicClean}, `,
+                `Dina évaluasi pamahaman ${topicClean}, `,
+                `Ngaliwatan telaah jero kana ${topicClean}, `,
+                `Dina studi kontéks nyata ngeunaan ${topicClean}, `,
+                `Perhatikeun hubungan konsép dina ${topicClean} ieu! `,
+                `Pikeun ngabuktikeun pamahaman ngeunaan ${topicClean}, `,
+                `Tina hasil panitén topik ${topicClean}, `,
+                `Dina pangawasaan materi inti ${topicClean}, `
+            ],
+            6: [
+                `Dumasar kana pangawasaan konsép ${topicClean}, `,
+                `Dina pamahaman jero ngeunaan ${topicClean}, `,
+                `Tinjauan materi ${topicClean} némbongkeun yén `,
+                `Titénan uraian topik ${topicClean} di handap ieu! `,
+                `Dina nalar materi ${topicClean}, `,
+                `Patali jeung prinsip ${topicClean}, `,
+                `Dina analisis terpadu ngeunaan ${topicClean}, `,
+                `Ngarujuk kana sintésis konsép ${topicClean}, `,
+                `Nalika ngévaluasi pasualan ${topicClean}, `,
+                `Perhatikeun pedaran logis ngeunaan ${topicClean}: `,
+                `Ngaliwatan pangjembaran kompeténsi ${topicClean}, `,
+                `Minangka bagian tina pangawasaan ${topicClean}, `
+            ]
+        };
+        const prefixes = suAnchors[grade] || suAnchors[4];
+        const openIdx = (safePass + grade) % prefixes.length;
+        const styleIdx = Math.floor(safePass / prefixes.length) % 4;
+        if (styleIdx === 1 || styleIdx === 3) {
+            q = q
+                .replace(/\bdisebut\b/g, 'katelah')
+                .replace(/\bnyaéta\b/g, 'mangrupa')
+                .replace(/\bmiboga\b/g, 'boga')
+                .replace(/\bmerenah\b/g, 'luyu');
+        } else if (styleIdx === 2) {
+            q = q
+                .replace(/\bkatelah\b/g, 'disebut')
+                .replace(/\bnyaéta\b/g, 'nyata')
+                .replace(/\bhartina\b/g, 'maksudna')
+                .replace(/\bpangbenerna\b/g, 'pangmerenahna');
+        }
+        const prefix = prefixes[openIdx];
+        const shouldLower = prefix.endsWith(', ') || prefix.endsWith('yén ') || prefix.endsWith('tuluy ');
+        const adjustedQ = shouldLower ? `${q.charAt(0).toLowerCase()}${q.slice(1)}` : q;
+        return {
+            question: `${prefix}${adjustedQ}`,
+            stimulus: stim
+        };
+    }
 
     if (isEnglish) {
         const enStarters = [
@@ -4390,7 +5084,8 @@ function createDynamicSubjectPgVariant(subject: string, index: number, isFaseA: 
         base.topic,
         grade,
         cycle,
-        cat === 'inggris'
+        cat === 'inggris',
+        cat === 'mulok' && isBahasaSundaSubject(subject)
     );
     return {
         ...base,
@@ -4615,10 +5310,12 @@ function createDynamicIsianVariant(subject: string, index: number, grade: number
             { minGrade: 3, maxGrade: 6, question: 'Proses menyaring informasi penting dan mengabaikan detail yang tidak perlu dalam berpikir komputasional disebut ...', correctAnswer: 'Abstraksi', cognitiveLevel: 'MOTS', topic: 'Berpikir Komputasional' }
         ],
         mulok: [
-            { question: 'Sikap hormat, berbicara halus, dan menjaga adab kepada orang yang lebih tua disebut ...', correctAnswer: 'Tata krama (Unggah-ungguh)', cognitiveLevel: 'LOTS', topic: 'Tata Krama' },
-            { question: 'Permainan tradisional melempar batu atau bola lalu melompati petak garis di lantai dengan satu kaki adalah ...', correctAnswer: 'Engklek', cognitiveLevel: 'LOTS', topic: 'Permainan Tradisional' },
-            { question: 'Pementasan tarian, nyanyian, dan alat musik khas provinsi tertentu merupakan wujud kekayaan ... daerah.', correctAnswer: 'Kesenian / Budaya', cognitiveLevel: 'LOTS', topic: 'Budaya Daerah' },
-            { question: 'Menjaga kelestarian cerita rakyat dan permainan tradisional bertujuan agar warisan budaya tidak ...', correctAnswer: 'Punah / Hilang', cognitiveLevel: 'LOTS', topic: 'Pelestarian Budaya' }
+            { minGrade: 1, maxGrade: 3, question: 'Upami rék nginjeum patlot ka babaturan, kecap ménta ijin anu sopan nyaéta "Punten, abdi ... patlot sakedap."', correctAnswer: 'Nambut', cognitiveLevel: 'LOTS', topic: 'Tatakrama Basa' },
+            { minGrade: 1, maxGrade: 3, question: 'Ngaran sasatoan dina Basa Sunda anu sora disadana "kongkorongok" nyaéta ...', correctAnswer: 'Hayam jago', cognitiveLevel: 'LOTS', topic: 'Sasatoan' },
+            { minGrade: 1, maxGrade: 3, question: 'Lawan kecap tina "bersih" dina Basa Sunda nyaéta ...', correctAnswer: 'Kotor (Ledis)', cognitiveLevel: 'LOTS', topic: 'Kosakata Sabalikna' },
+            { minGrade: 3, maxGrade: 6, question: 'Basa lemesna tina kecap "imah" pikeun diri sorangan nyaéta ...', correctAnswer: 'Rorompok', cognitiveLevel: 'LOTS', topic: 'Undak-Usuk Basa' },
+            { minGrade: 3, maxGrade: 6, question: 'Tokoh dongéng Sunda anu kawentar lugu tapi sok pikaseurieun, contona dina carita ngala nangka, nyaéta Si ...', correctAnswer: 'Kabayan', cognitiveLevel: 'LOTS', topic: 'Dongéng Sunda' },
+            { minGrade: 5, maxGrade: 6, question: 'Aksara Sunda dasar anu teu acan maké rarangkén (ka, ga, nga, ca, ja, nya) disebut aksara ...', correctAnswer: 'Ngalagena', cognitiveLevel: 'HOTS', topic: 'Aksara Sunda' }
         ]
     };
 
@@ -4636,7 +5333,8 @@ function createDynamicIsianVariant(subject: string, index: number, grade: number
         picked.topic,
         grade,
         cycle,
-        cat === 'inggris'
+        cat === 'inggris',
+        cat === 'mulok' && isBahasaSundaSubject(subject)
     );
     return {
         ...picked,
@@ -5068,9 +5766,28 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
         ],
         mulok: [
             {
-                topic: 'Kearifan Lokal Lingkungan Sekitar',
-                q: 'Jelaskan 2 contoh tradisi gotong royong atau kearifan lokal yang masih dijalankan masyarakat di daerah tempat tinggalmu beserta manfaatnya bagi kerukunan warga!',
-                ans: 'Contoh: Kerja bakti membersihkan lingkungan dan musyawarah warga (rembuk desa). Manfaat: Mempererat kekeluargaan, menjaga kebersihan kampung, dan menumbuhkan kepedulian sosial.'
+                minGrade: 1, maxGrade: 2,
+                topic: 'Ngawanohkeun Diri',
+                q: 'Tuliskeun 3 kalimah pondok dina Basa Sunda pikeun ngawanohkeun ngaran, kelas, jeung alamat imah hidep!',
+                ans: 'Conto: "Nami abdi Ujang. Abdi kelas hiji di SDN Sukatinggal. Rorompok abdi di Kampung Sukamaju."'
+            },
+            {
+                minGrade: 3, maxGrade: 6,
+                topic: 'Dongéng Sasakala Tatar Sunda',
+                q: 'Baca cutatan dongéng ieu: "Nyi Endit nampik méré cai ka aki-aki nu lapar, tungtungna lemburna kakeueum jadi situ." Naon amanat moral anu bisa dicokot tina dongéng Sasakala Situ Bagendit éta?',
+                ans: 'Amanatna: Urang teu meunang sombong jeung korét ka jalma susah; kudu silih tulungan jeung nyaah ka sasama.'
+            },
+            {
+                minGrade: 3, maxGrade: 6,
+                topic: 'Sabilulungan di Lembur',
+                q: 'Jéntrékeun 2 conto kagiatan sabilulungan (gotong royong) di lembur atawa sakola sarta mangpaatna pikeun karukunan warga!',
+                ans: 'Conto: Ngabersihan susukan babarengan jeung kerja bakti pikét kelas. Mangpaatna: Pagawéan beurat karasa hampang sarta duduluran beuki raket.'
+            },
+            {
+                minGrade: 5, maxGrade: 6,
+                topic: 'Pupuh Sunda',
+                q: 'Titénan pada Pupuh Pucung ieu: "Utamana jalma kudu réa batur / keur silih tulungan / silih titipkeun nya diri / budi akal lantaran ti pada jalma." Tuliskeun guru wilangan jeung guru lagu tiap padalisanana sarta amanatna!',
+                ans: 'Guru wilangan jeung guru lagu: 12-u, 6-a, 8-i, 12-a. Amanatna: Manusa kudu loba sobat sangkan bisa silih tulungan.'
             }
         ]
     };
@@ -5079,13 +5796,15 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
     const selectedTopics = filteredTopics.length > 0 ? filteredTopics : (extraTopicsByCat[cat] || extraTopicsByCat.indo);
     const picked = selectedTopics[(index - 1) % selectedTopics.length];
     const cycle = Math.floor((index - 1) / selectedTopics.length);
+    const isSu = cat === 'mulok' && isBahasaSundaSubject(subject);
     const rephrased = rephraseQuestionNatural(
         picked.q,
         '',
         picked.topic,
         grade,
         cycle,
-        cat === 'inggris'
+        cat === 'inggris',
+        isSu
     );
 
     return {
@@ -5094,7 +5813,12 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
         correctAnswer: picked.ans,
         cognitiveLevel: 'HOTS',
         topic: picked.topic,
-        rubric: {
+        rubric: isSu ? {
+            score3: 'Ngajelaskeun jawaban dina Basa Sunda kalawan lengkep, runtut, tur merenah.',
+            score2: 'Jawaban luyu jeung maksud soal tapi kurang lengkep.',
+            score1: 'Jawaban singget pisan.',
+            score0: 'Kosong.'
+        } : {
             score3: 'Menguraikan jawaban secara terperinci, runtut, logis, dan relevan dengan konteks materi.',
             score2: 'Jawaban benar secara substansi namun penjelasan kurang mendalam.',
             score1: 'Jawaban sangat singkat dan kurang terstruktur.',
@@ -5116,13 +5840,13 @@ export function isGradeMismatchedQuestion(question: string, stimulus: string | u
     }
     // Reject Class 5-6 exclusive topics when generating for Class 1-4
     if (grade <= 4) {
-        if (/volume\s+kubus|luas\s+permukaan\s+kubus|jaring-jaring\s+kubus|koordinat\s+kartesius|\bkartesius\b|rotasi\s+bumi|revolusi\s+bumi|gerhana\s+(matahari|bulan)|tata\s+surya|rata-rata\s*\(mean\)|nilai\s+median|\bmodus\b.*data|bilangan\s+bulat\s+negatif|luas\s+lingkaran|keliling\s+lingkaran|proklamasi\s+kemerdekaan|\basean\b/.test(text)) {
+        if (/volume\s+kubus|luas\s+permukaan\s+kubus|jaring-jaring\s+kubus|koordinat\s+kartesius|\bkartesius\b|rotasi\s+bumi|revolusi\s+bumi|gerhana\s+(matahari|bulan)|tata\s+surya|rata-rata\s*\(mean\)|nilai\s+median|\bmodus\b.*data|bilangan\s+bulat\s+negatif|luas\s+lingkaran|keliling\s+lingkaran|proklamasi\s+kemerdekaan|\basean\b|aksara\s+sunda|kaganga|\bbiantara\b|guru\s+wilangan|guru\s+lagu|sisindiran|dwipurwa|paribasa\s+sunda/.test(text)) {
             return true;
         }
     }
     // Reject Class 3-6 topics when generating for Fase A (Class 1-2)
     if (grade <= 2) {
-        if (/\bmajas\b|personifikasi|hiperbola|metafora|teks\s+eksplanasi|luas\s+segitiga|keliling\s+persegi\s+panjang|\bkpk\b|\bfpb\b|pecahan\s+desimal|fotosintesis|siklus\s+air|rantai\s+makanan/.test(text)) {
+        if (/\bmajas\b|personifikasi|hiperbola|metafora|teks\s+eksplanasi|luas\s+segitiga|keliling\s+persegi\s+panjang|\bkpk\b|\bfpb\b|pecahan\s+desimal|fotosintesis|siklus\s+air|rantai\s+makanan|\bpupuh\b|sasakala|si\s+kabayan|undak-usuk/.test(text)) {
             return true;
         }
     }

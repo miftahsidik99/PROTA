@@ -18,6 +18,7 @@ import {
     ISectionOptions
 } from 'docx';
 import type { GeneratedAssessmentData, UserIdentity } from './NaskahSumatifGenerator';
+import { isBahasaSundaSubject } from './questionBankHelper';
 
 export type DocExportType = 'kisi_kisi' | 'naskah_soal' | 'kunci_jawaban' | 'rubrik_skor' | 'all';
 
@@ -754,9 +755,12 @@ export const exportAssessmentDocx = async (params: {
 
         // BAGIAN I: PILIHAN GANDA
         const isFaseAClass = data.className.includes('1') || data.className.includes('2');
+        const isSundaDoc = isBahasaSundaSubject(data.subject);
         children.push(
             makeSectionBanner(
-                `I. Berilah tanda silang (X) pada huruf ${isFaseAClass ? 'A, B, atau C' : 'A, B, C, atau D'} di depan jawaban yang paling tepat!`,
+                isSundaDoc
+                    ? `I. Cakra (X) aksara ${isFaseAClass ? 'A, B, atawa C' : 'A, B, C, atawa D'} dina jawaban anu pangbenerna!`
+                    : `I. Berilah tanda silang (X) pada huruf ${isFaseAClass ? 'A, B, atau C' : 'A, B, C, atau D'} di depan jawaban yang paling tepat!`,
                 fontName,
                 fontSizeHp
             )
@@ -824,7 +828,9 @@ export const exportAssessmentDocx = async (params: {
         if (data.isianQuestions.length > 0) {
             children.push(
                 makeSectionBanner(
-                    'II. Isilah titik-titik di bawah ini dengan jawaban yang singkat dan tepat!',
+                    isSundaDoc
+                        ? 'II. Eusian titik-titik di handap ieu ku jawaban anu singget tur bener!'
+                        : 'II. Isilah titik-titik di bawah ini dengan jawaban yang singkat dan tepat!',
                     fontName,
                     fontSizeHp
                 )
@@ -847,7 +853,9 @@ export const exportAssessmentDocx = async (params: {
         if (data.uraianQuestions.length > 0) {
             children.push(
                 makeSectionBanner(
-                    'III. Jawablah pertanyaan-pertanyaan berikut dengan jelas, tepat, dan runtut!',
+                    isSundaDoc
+                        ? 'III. Jawab pananya-pananya di handap ieu kalawan jéntré tur bener!'
+                        : 'III. Jawablah pertanyaan-pertanyaan berikut dengan jelas, tepat, dan runtut!',
                     fontName,
                     fontSizeHp
                 )
