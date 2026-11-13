@@ -9584,6 +9584,21 @@ const App = () => {
             return;
           }
 
+          // Sync assignedClass from Firestore if present and user changed class on another session
+          if (userDataFromDb.assignedClass && userDataFromDb.assignedClass !== user.assignedClass) {
+            const dbClass = userDataFromDb.assignedClass;
+            setUser(prev => {
+              if (!prev) return prev;
+              const nextU = { ...prev, assignedClass: dbClass };
+              try { localStorage.setItem('prota_user', JSON.stringify(nextU)); } catch (e) {}
+              return nextU;
+            });
+            setUserIdentity(prev => ({ ...prev, assignedClass: dbClass }));
+            setSelectedClass(dbClass);
+            setSelectedFase(getFaseForClass(dbClass));
+            try { localStorage.setItem('prota_assigned_class', dbClass); } catch (e) {}
+          }
+
           // Merge cloud lockedProtas from Firestore so locks persist across Vercel/domains
           if (userDataFromDb.lockedProtas && typeof userDataFromDb.lockedProtas === 'object') {
             setLockedProtas(prev => {
@@ -9899,12 +9914,16 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
 
   const handleSaveIdentity = (updated: UserIdentity) => {
       const cleanLoc = (updated.location || updated.city || 'Sukatinggal').trim();
+      const targetClass = updated.assignedClass || 'Kelas 1';
       const nextIdentity: UserIdentity = {
           ...updated,
+          assignedClass: targetClass,
           location: cleanLoc,
           city: cleanLoc
       };
       setUserIdentity(nextIdentity);
+      setSelectedClass(targetClass);
+      setSelectedFase(getFaseForClass(targetClass));
       localStorage.setItem('prota_author_name', updated.authorName);
       if (updated.nip) localStorage.setItem('prota_nip', updated.nip);
       localStorage.setItem('prota_institution_name', updated.institutionName);
@@ -9913,10 +9932,34 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
       if (updated.nipKepalaSekolah) localStorage.setItem('prota_nip_kepala_sekolah', updated.nipKepalaSekolah);
       localStorage.setItem('prota_academic_year', updated.academicYear);
       localStorage.setItem('prota_semester', updated.semester);
-      localStorage.setItem('prota_assigned_class', updated.assignedClass);
+      localStorage.setItem('prota_assigned_class', targetClass);
       if (updated.employmentStatus) localStorage.setItem('prota_employment_status', updated.employmentStatus);
       localStorage.setItem('prota_location', cleanLoc);
       localStorage.setItem('prota_city', cleanLoc);
+
+      if (user) {
+          const updatedUser = {
+              ...user,
+              name: updated.authorName || user.name,
+              assignedClass: targetClass,
+              institutionName: updated.institutionName || user.institutionName
+          };
+          setUser(updatedUser);
+          try { localStorage.setItem('prota_user', JSON.stringify(updatedUser)); } catch (e) {}
+          if (user.email) {
+              const emailNorm = String(user.email).toLowerCase().trim();
+              if (emailNorm) {
+                  setDoc(doc(db, 'users', emailNorm), {
+                      name: updated.authorName || user.name,
+                      institutionName: updated.institutionName,
+                      assignedClass: targetClass,
+                      academicYear: updated.academicYear,
+                      semester: updated.semester,
+                      lastActive: Date.now()
+                  }, { merge: true }).catch((err) => console.warn('Could not sync identity to cloud:', err));
+              }
+          }
+      }
       setShowEditProfileModal(false);
   };
 
@@ -10028,6 +10071,7 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
         if (data) setData(null);
         return;
     }
+    const targetFaseName = getFaseForClass(selectedClass).name;
     const atpMatch = activities.find(act => 
         isSameSubject(act.subject, selectedSubject) &&
         act.dataSnapshot?.elements?.some((el: any) => 
@@ -10037,10 +10081,17 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
             )
         )
     );
-    const match = atpMatch || activities.find(act => 
-        (act.type === 'ATP_JP' || act.type === 'CP_TP') && 
-        isSameSubject(act.subject, selectedSubject)
+    const classOrFaseMatch = activities.find(act =>
+        (act.type === 'ATP_JP' || act.type === 'CP_TP') &&
+        isSameSubject(act.subject, selectedSubject) &&
+        (
+            act.dataSnapshot?.elements?.some((el: any) =>
+                el.allocations?.some((a: any) => isSameClass(a.className, selectedClass))
+            ) ||
+            (act.dataSnapshot?.fase && act.dataSnapshot.fase.toLowerCase().includes(targetFaseName.toLowerCase()))
+        )
     );
+    const match = atpMatch || classOrFaseMatch;
     if (match && match.dataSnapshot) {
         const snapshot = JSON.parse(JSON.stringify(match.dataSnapshot));
         const effectiveDates = getEffectiveDates(selectedClass, snapshot.subject || selectedSubject);
@@ -10100,7 +10151,18 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
   const handleLogout = () => {
     localStorage.removeItem('prota_user');
     localStorage.removeItem('prota_session_id');
+    localStorage.removeItem('prota_assigned_class');
+    localStorage.removeItem('prota_activities');
+    localStorage.removeItem('prota_locked_map');
+    localStorage.removeItem('prota_sumatif_history');
     setUser(null);
+    setActivities([]);
+    setData(null);
+    setLockedProtas({});
+    setSelectedClass('Kelas 1');
+    setSelectedFase(getFaseForClass('Kelas 1'));
+    setUserIdentity(prev => ({ ...prev, assignedClass: 'Kelas 1' }));
+    setCurrentView('dashboard');
     setAppStage('login');
   };
 
@@ -11856,10 +11918,14 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                           const userName = dbData.name || emailNormalized.split('@')[0];
                           const acadYear = dbData.academicYear || '2025/2026';
                           const sem = dbData.semester || 'Ganjil (Semester 1)';
+                          const dbLocked = (dbData.lockedProtas && typeof dbData.lockedProtas === 'object') ? dbData.lockedProtas : {};
 
                           const userData = { email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName };
                           await usersDB.setItem(emailNormalized, { ...dbData, activeSessionId, lastActive: Date.now() });
                           
+                          localStorage.removeItem('prota_activities');
+                          localStorage.removeItem('prota_sumatif_history');
+                          localStorage.setItem('prota_locked_map', JSON.stringify(dbLocked));
                           localStorage.setItem('prota_user', JSON.stringify(userData));
                           localStorage.setItem('prota_session_id', activeSessionId);
                           localStorage.setItem('prota_assigned_class', userClass);
@@ -11868,6 +11934,8 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                           localStorage.setItem('prota_academic_year', acadYear);
                           localStorage.setItem('prota_semester', sem);
 
+                          setLockedProtas(dbLocked);
+                          setData(null);
                           setUser(userData);
                           setSelectedClass(userClass);
                           setSelectedFase(getFaseForClass(userClass));
@@ -11891,6 +11959,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                           const userClass = storedUser.assignedClass || 'Kelas 1';
                           const instName = storedUser.institutionName || 'Sekolah Dasar';
                           const userName = storedUser.name || emailNormalized.split('@')[0];
+                          const localLocked = (storedUser.lockedProtas && typeof storedUser.lockedProtas === 'object') ? storedUser.lockedProtas : {};
 
                           const userData = { 
                               email: emailNormalized, 
@@ -11910,12 +11979,17 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                           }
                           await usersDB.setItem(emailNormalized, userData);
                           
+                          localStorage.removeItem('prota_activities');
+                          localStorage.removeItem('prota_sumatif_history');
+                          localStorage.setItem('prota_locked_map', JSON.stringify(localLocked));
                           localStorage.setItem('prota_user', JSON.stringify({ email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName }));
                           localStorage.setItem('prota_session_id', activeSessionId);
                           localStorage.setItem('prota_assigned_class', userClass);
                           localStorage.setItem('prota_author_name', userName);
                           localStorage.setItem('prota_institution_name', instName);
 
+                          setLockedProtas(localLocked);
+                          setData(null);
                           setUser({ email: emailNormalized, name: userName, assignedClass: userClass, institutionName: instName });
                           setSelectedClass(userClass);
                           setSelectedFase(getFaseForClass(userClass));
@@ -11964,6 +12038,9 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                       }
                       await usersDB.setItem(emailNormalized, userData);
                       
+                      localStorage.removeItem('prota_activities');
+                      localStorage.removeItem('prota_sumatif_history');
+                      localStorage.setItem('prota_locked_map', '{}');
                       localStorage.setItem('prota_user', JSON.stringify({ name, email: emailNormalized, assignedClass: assignedClassToSave, institutionName: institution }));
                       localStorage.setItem('prota_session_id', activeSessionId);
                       localStorage.setItem('prota_assigned_class', assignedClassToSave);
@@ -11972,6 +12049,9 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                       localStorage.setItem('prota_academic_year', '2025/2026');
                       localStorage.setItem('prota_semester', 'Ganjil (Semester 1)');
 
+                      setLockedProtas({});
+                      setActivities([]);
+                      setData(null);
                       setUser({ name, email: emailNormalized, assignedClass: assignedClassToSave, institutionName: institution });
                       setSelectedClass(assignedClassToSave);
                       setSelectedFase(getFaseForClass(assignedClassToSave));
@@ -13418,6 +13498,10 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                 lockedProtas={lockedProtas}
                 currentProtaData={data}
                 onNavigate={setCurrentView}
+                onClassChange={(cls: string) => {
+                    setSelectedClass(cls);
+                    setSelectedFase(getFaseForClass(cls));
+                }}
                 notify={notify}
             />
         ) : currentView === 'calendar' ? (

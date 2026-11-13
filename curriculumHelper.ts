@@ -527,178 +527,506 @@ export const synthesizeCurriculumProta = (
 ): CurriculumData => {
     const subKey = getSubjectKey(subjectName) || subjectName;
     const targetClasses = (fase?.classes && fase.classes.length > 0) ? fase.classes : ["Kelas 5", "Kelas 6"];
+    const faseStr = `${fase?.name || ''} ${targetClasses.join(' ')}`.toLowerCase();
+    const isFaseA = faseStr.includes('fase a') || faseStr.includes('kelas 1') || faseStr.includes('kelas 2');
+    const isFaseB = !isFaseA && (faseStr.includes('fase b') || faseStr.includes('kelas 3') || faseStr.includes('kelas 4'));
 
-    // Default 4 elements tailored to the subject
     let elementsList: { name: string, cp: string, tps: string[] }[] = [];
 
     if (subKey.includes("PJOK") || subKey.includes("Jasmani")) {
-        elementsList = [
-            {
-                name: "Keterampilan Gerak",
-                cp: "Peserta didik menunjukkan kemampuan dalam mempraktikkan modifikasi pola gerak dasar dan keterampilan gerak spesifik berupa permainan dan olahraga, aktivitas senam, aktivitas gerak berirama, serta aktivitas permainan dan olahraga air secara mandiri.",
-                tps: [
-                    "Mempraktikkan variasi dan kombinasi keterampilan gerak spesifik melempar, menangkap, dan memukul dalam permainan bola kecil (kasti/rounders) dengan koordinasi yang baik.",
-                    "Mempraktikkan variasi dan kombinasi pola gerak dominan senam lantai meliputi guling depan, guling belakang, dan meroda secara tepat dan percaya diri."
-                ]
-            },
-            {
-                name: "Pengetahuan Gerak",
-                cp: "Peserta didik memahami prosedur dan fakta penerapan modifikasi pola gerak dasar, keterampilan gerak spesifik permainan, aktivitas senam, aktivitas berirama, dan aktivitas air.",
-                tps: [
-                    "Menganalisis prosedur dan aturan sederhana keterampilan gerak salah satu gaya renang (gaya dada atau gaya bebas) dengan koordinasi tubuh yang benar.",
-                    "Menjelaskan strategi sederhana penyerangan dan pertahanan dalam permainan bola besar dan bola voli untuk meraih poin secara sportif."
-                ]
-            },
-            {
-                name: "Pemanfaatan Gerak",
-                cp: "Peserta didik mengukur dan mempraktikkan latihan kebugaran jasmani terkait kesehatan serta menjaga pola hidup sehat untuk kebugaran tubuh.",
-                tps: [
-                    "Mempraktikkan aktivitas pengembangan kebugaran jasmani terkait kesehatan (daya tahan jantung dan kekuatan otot) sesuai kapasitas diri.",
-                    "Memahami dan mendemonstrasikan tindakan pemeliharaan kebersihan alat reproduksi serta bahaya zat adiktif bagi kesehatan tubuh."
-                ]
-            },
-            {
-                name: "Pengembangan Karakter dan Nilai Gerak",
-                cp: "Peserta didik menunjukkan perilaku bertanggung jawab secara personal dan sosial, menghargai perbedaan, serta menjunjung tinggi sportivitas dalam aktivitas jasmani.",
-                tps: [
-                    "Menunjukkan sikap sportivitas, kejujuran, dan kepatuhan terhadap peraturan dalam setiap permainan jasmani tim.",
-                    "Bekerja sama secara inklusif dan saling menghargai kemampuan teman dalam aktivitas gerak dan permainan tradisional."
-                ]
-            }
-        ];
+        if (isFaseA) {
+            elementsList = [
+                {
+                    name: "Keterampilan Gerak",
+                    cp: "Peserta didik mempraktikkan pola gerak dasar lokomotor, nonlokomotor, dan manipulatif sesuai irama dan permainan sederhana anak.",
+                    tps: [
+                        "Mempraktikkan gerak dasar lokomotor seperti berjalan, berlari lurus, dan melompat ringan dengan keseimbangan yang baik.",
+                        "Mempraktikkan gerak dasar nonlokomotor (membungkuk, mengayun, memutar lengan) serta melempar dan menangkap bola besar secara berpasangan."
+                    ]
+                },
+                {
+                    name: "Pengetahuan Gerak",
+                    cp: "Peserta didik mengenal prosedur sederhana pola gerak dasar, senam ketangkasan dasar, dan gerak berirama.",
+                    tps: [
+                        "Menjelaskan sikap tubuh yang benar saat berdiri tegak, berjalan, dan duduk menjaga kesehatan tulang belakang.",
+                        "Mengenal gerak berirama sederhana mengikuti ketukan tepuk tangan atau lagu anak secara ceria."
+                    ]
+                },
+                {
+                    name: "Pemanfaatan Gerak",
+                    cp: "Peserta didik mengenal bagian-bagian tubuh, kebersihan diri, serta pentingnya makanan bergizi dan istirahat.",
+                    tps: [
+                        "Menjelaskan cara menjaga kebersihan tubuh, kuku, gigi, dan mencuci tangan sebelum makan agar terhindar dari kuman.",
+                        "Mempraktikkan pemanasan ringan sebelum bermain dan memilih makanan sehat bergizi seimbang."
+                    ]
+                },
+                {
+                    name: "Pengembangan Karakter dan Nilai Gerak",
+                    cp: "Peserta didik menunjukkan sikap tertib, jujur, ceria, dan saling menyayangi teman saat bermain bersama.",
+                    tps: [
+                        "Menunjukkan sikap mau berbagi alat bermain dan mengantre giliran dengan sabar saat permainan kelompok.",
+                        "Mematuhi aturan keselamatan sederhana saat beraktivitas di lapangan maupun di lingkungan air."
+                    ]
+                }
+            ];
+        } else if (isFaseB) {
+            elementsList = [
+                {
+                    name: "Keterampilan Gerak",
+                    cp: "Peserta didik mempraktikkan variasi pola gerak dasar lokomotor, nonlokomotor, dan manipulatif dalam permainan bola kecil, bola besar, atletik dasar, dan senam lantai sederhana.",
+                    tps: [
+                        "Mempraktikkan variasi gerak dasar menendang, menggiring, dan mengoper bola secara terkontrol dalam permainan sederhana.",
+                        "Mempraktikkan variasi gerak dasar lompat, lari jarak pendek, dan keseimbangan bertumpu pada senam lantai di atas matras."
+                    ]
+                },
+                {
+                    name: "Pengetahuan Gerak",
+                    cp: "Peserta didik memahami konsep variasi gerak dasar, aturan permainan tradisional, serta dasar keselamatan aktivitas air.",
+                    tps: [
+                        "Menjelaskan perbedaan gerak lokomotor, nonlokomotor, dan manipulatif beserta contohnya dalam olahraga sehari-hari.",
+                        "Memahami aturan keselamatan di kolam renang serta teknik dasar meluncur dan mengayun kaki di air."
+                    ]
+                },
+                {
+                    name: "Pemanfaatan Gerak",
+                    cp: "Peserta didik mempraktikkan latihan kebugaran jasmani ringan dan memahami pola hidup bersih serta pencegahan cedera.",
+                    tps: [
+                        "Mempraktikkan latihan kelenturan otot, kekuatan otot lengan/kaki ringan, dan pemanasan-pendinginan yang benar.",
+                        "Menjelaskan cara pertolongan pertama sederhana pada luka lecet ringan serta pentingnya istirahat cukup."
+                    ]
+                },
+                {
+                    name: "Pengembangan Karakter dan Nilai Gerak",
+                    cp: "Peserta didik menunjukkan sportivitas, kerja sama tim, dan tanggung jawab terhadap perlengkapan olahraga.",
+                    tps: [
+                        "Menunjukkan sikap jujur dan menerima kekalahan maupun kemenangan dengan lapang dada dalam permainan beregu.",
+                        "Bekerja sama dengan semua anggota kelompok tanpa membeda-bedakan kemampuan teman."
+                    ]
+                }
+            ];
+        } else {
+            elementsList = [
+                {
+                    name: "Keterampilan Gerak",
+                    cp: "Peserta didik menunjukkan kemampuan dalam mempraktikkan modifikasi pola gerak dasar dan keterampilan gerak spesifik berupa permainan dan olahraga, aktivitas senam, aktivitas gerak berirama, serta aktivitas permainan dan olahraga air secara mandiri.",
+                    tps: [
+                        "Mempraktikkan variasi dan kombinasi keterampilan gerak spesifik melempar, menangkap, dan memukul dalam permainan bola kecil (kasti/rounders) dengan koordinasi yang baik.",
+                        "Mempraktikkan variasi dan kombinasi pola gerak dominan senam lantai meliputi guling depan, guling belakang, dan meroda secara tepat dan percaya diri."
+                    ]
+                },
+                {
+                    name: "Pengetahuan Gerak",
+                    cp: "Peserta didik memahami prosedur dan fakta penerapan modifikasi pola gerak dasar, keterampilan gerak spesifik permainan, aktivitas senam, aktivitas berirama, dan aktivitas air.",
+                    tps: [
+                        "Menganalisis prosedur dan aturan sederhana keterampilan gerak salah satu gaya renang (gaya dada atau gaya bebas) dengan koordinasi tubuh yang benar.",
+                        "Menjelaskan strategi sederhana penyerangan dan pertahanan dalam permainan bola besar dan bola voli untuk meraih poin secara sportif."
+                    ]
+                },
+                {
+                    name: "Pemanfaatan Gerak",
+                    cp: "Peserta didik mengukur dan mempraktikkan latihan kebugaran jasmani terkait kesehatan serta menjaga pola hidup sehat untuk kebugaran tubuh.",
+                    tps: [
+                        "Mempraktikkan aktivitas pengembangan kebugaran jasmani terkait kesehatan (daya tahan jantung dan kekuatan otot) sesuai kapasitas diri.",
+                        "Memahami dan mendemonstrasikan tindakan pemeliharaan kebersihan alat reproduksi serta bahaya zat adiktif bagi kesehatan tubuh."
+                    ]
+                },
+                {
+                    name: "Pengembangan Karakter dan Nilai Gerak",
+                    cp: "Peserta didik menunjukkan perilaku bertanggung jawab secara personal dan sosial, menghargai perbedaan, serta menjunjung tinggi sportivitas dalam aktivitas jasmani.",
+                    tps: [
+                        "Menunjukkan sikap sportivitas, kejujuran, dan kepatuhan terhadap peraturan dalam setiap permainan jasmani tim.",
+                        "Bekerja sama secara inklusif dan saling menghargai kemampuan teman dalam aktivitas gerak dan permainan tradisional."
+                    ]
+                }
+            ];
+        }
     } else if (subKey.includes("Bahasa Indonesia")) {
-        elementsList = [
-            {
-                name: "Menyimak",
-                cp: "Peserta didik mampu menganalisis informasi berupa fakta, prosedur, dan ide pokok dari teks lisan, audio, dan teks aural secara kritis dan apresiatif.",
-                tps: [
-                    "Menganalisis ide pokok dan informasi faktual dari teks lisan berupa laporan hasil pengamatan atau wawancara.",
-                    "Menyimpulkan isi pesan tersirat dan amanat dari cerita anak atau cerita rakyat yang diperdengarkan."
-                ]
-            },
-            {
-                name: "Membaca dan Memirsa",
-                cp: "Peserta didik mampu membaca kata-kata dengan fasih, memahami pesan dan informasi teks narasi dan eksposisi, serta mengevaluasi akurasi teks.",
-                tps: [
-                    "Membedakan fakta dan opini dalam teks eksplanasi atau artikel berita anak dengan cermat.",
-                    "Menganalisis unsur intrinsik (tokoh, alur, latar, konflik) dan pesan moral dalam teks fiksi."
-                ]
-            },
-            {
-                name: "Berbicara dan Mempresentasikan",
-                cp: "Peserta didik mampu menyampaikan gagasan, pendapat, dan tanggapan secara santun, terstruktur, serta menyajikan presentasi dengan percaya diri.",
-                tps: [
-                    "Menyampaikan pendapat atau tanggapan kritis dalam forum diskusi kelas dengan etika berbahasa yang santun.",
-                    "Mempresentasikan hasil pengamatan proyek sederhana menggunakan bantuan media visual atau bagan informatif."
-                ]
-            },
-            {
-                name: "Menulis",
-                cp: "Peserta didik mampu menulis teks narasi, deskripsi, dan eksposisi dengan kaidah kebahasaan ejaan yang benar serta kosakata yang kaya.",
-                tps: [
-                    "Menulis teks deskripsi yang rinci tentang objek lingkungan sekitar menggunakan kalimat efektif dan tanda baca yang tepat.",
-                    "Menyusun teks eksplanasi ilmiah sederhana berdasarkan hubungan sebab-akibat dengan runtut."
-                ]
-            }
-        ];
+        if (isFaseA) {
+            elementsList = [
+                {
+                    name: "Menyimak",
+                    cp: "Peserta didik bersikap menjadi penyimak yang baik dan memahami pesan lisan, instruksi sederhana, serta cerita pendek anak.",
+                    tps: [
+                        "Memahami dan melaksanakan petunjuk lisan sederhana dua hingga tiga langkah dari guru dengan tepat.",
+                        "Mengidentifikasi tokoh dan peristiwa sederhana dari cerita fabel atau dongeng anak yang dibacakan."
+                    ]
+                },
+                {
+                    name: "Membaca dan Memirsa",
+                    cp: "Peserta didik mampu membaca kata-kata sederhana dengan fasih, mengenali suku kata, serta memahami bacaan bergambar.",
+                    tps: [
+                        "Membaca nyaring suku kata dan kalimat sederhana dengan lafal dan intonasi yang jelas.",
+                        "Menjelaskan isi informasi sederhana dari teks cerita pendek dan gambar ilustrasi sehari-hari."
+                    ]
+                },
+                {
+                    name: "Berbicara dan Mempresentasikan",
+                    cp: "Peserta didik mampu memperkenalkan diri, menjawab pertanyaan, dan menceritakan pengalaman dengan bahasa santun.",
+                    tps: [
+                        "Menyampaikan ungkapan perkenalan diri, terima kasih, permohonan maaf, dan tolong dengan santun.",
+                        "Menceritakan kembali pengalaman kegiatan sehari-hari di rumah atau sekolah secara runtut dan percaya diri."
+                    ]
+                },
+                {
+                    name: "Menulis",
+                    cp: "Peserta didik mampu menulis huruf, kata, dan kalimat sederhana menggunakan huruf kapital di awal kalimat serta tanda titik dan tanda tanya.",
+                    tps: [
+                        "Menulis kalimat sederhana dengan spasi antarkata yang rapi serta penggunaan huruf kapital untuk awal kalimat dan nama orang.",
+                        "Menggunakan tanda baca titik (.) untuk kalimat berita dan tanda tanya (?) untuk kalimat tanya secara tepat."
+                    ]
+                }
+            ];
+        } else if (isFaseB) {
+            elementsList = [
+                {
+                    name: "Menyimak",
+                    cp: "Peserta didik mampu memahami ide pokok (gagasan) suatu pesan lisan, informasi dari media audio, serta teks narasi dan informatif.",
+                    tps: [
+                        "Mengidentifikasi ide pokok dan informasi penting dari teks bacaan atau penjelasan lisan yang disimak.",
+                        "Menemukan jawaban pertanyaan berdasarkan kata tanya Apa, Di mana, Kapan, Siapa, Mengapa, dan Bagaimana (ADIKSIMBA)."
+                    ]
+                },
+                {
+                    name: "Membaca dan Memirsa",
+                    cp: "Peserta didik mampu memahami pesan dan informasi teks narasi, teks petunjuk, serta memaknai kosakata baru dan sinonim-antonim.",
+                    tps: [
+                        "Menentukan kalimat utama dan makna kata sulit dari paragraf bacaan serta mengidentifikasi sinonim dan antonim kata.",
+                        "Memahami urutan langkah pada teks prosedur atau petunjuk membuat dan menggunakan benda sehari-hari."
+                    ]
+                },
+                {
+                    name: "Berbicara dan Mempresentasikan",
+                    cp: "Peserta didik mampu berbicara dengan pilihan kata yang tepat, menanggapi diskusi kelas, dan membacakan teks dengan intonasi sesuai.",
+                    tps: [
+                        "Menyampaikan pendapat dan alasan sederhana dalam diskusi kelompok secara santun dan jelas.",
+                        "Menceritakan kembali isi teks cerita anak atau hasil pengamatan menggunakan bahasa yang runtut."
+                    ]
+                },
+                {
+                    name: "Menulis",
+                    cp: "Peserta didik mampu menulis teks narasi, deskripsi, dan petunjuk sederhana dengan kaidah huruf kapital, tanda baca, dan kalimat efektif.",
+                    tps: [
+                        "Menulis kalimat efektif berpola SPOK dan menggunakan huruf kapital serta tanda petik pada kalimat langsung secara tepat.",
+                        "Menyusun paragraf deskripsi atau teks petunjuk sederhana secara runtut sesuai ejaan bahasa Indonesia yang benar."
+                    ]
+                }
+            ];
+        } else {
+            elementsList = [
+                {
+                    name: "Menyimak",
+                    cp: "Peserta didik mampu menganalisis informasi berupa fakta, prosedur, dan ide pokok dari teks lisan, audio, dan teks aural secara kritis dan apresiatif.",
+                    tps: [
+                        "Menganalisis ide pokok dan informasi faktual dari teks lisan berupa laporan hasil pengamatan atau wawancara.",
+                        "Menyimpulkan isi pesan tersirat dan amanat dari cerita anak atau cerita rakyat yang diperdengarkan."
+                    ]
+                },
+                {
+                    name: "Membaca dan Memirsa",
+                    cp: "Peserta didik mampu membaca kata-kata dengan fasih, memahami pesan dan informasi teks narasi dan eksposisi, serta mengevaluasi akurasi teks.",
+                    tps: [
+                        "Membedakan fakta dan opini dalam teks eksplanasi atau artikel berita anak dengan cermat.",
+                        "Menganalisis unsur intrinsik (tokoh, alur, latar, konflik) dan pesan moral dalam teks fiksi."
+                    ]
+                },
+                {
+                    name: "Berbicara dan Mempresentasikan",
+                    cp: "Peserta didik mampu menyampaikan gagasan, pendapat, dan tanggapan secara santun, terstruktur, serta menyajikan presentasi dengan percaya diri.",
+                    tps: [
+                        "Menyampaikan pendapat atau tanggapan kritis dalam forum diskusi kelas dengan etika berbahasa yang santun.",
+                        "Mempresentasikan hasil pengamatan proyek sederhana menggunakan bantuan media visual atau bagan informatif."
+                    ]
+                },
+                {
+                    name: "Menulis",
+                    cp: "Peserta didik mampu menulis teks narasi, deskripsi, dan eksposisi dengan kaidah kebahasaan ejaan yang benar serta kosakata yang kaya.",
+                    tps: [
+                        "Menulis teks deskripsi yang rinci tentang objek lingkungan sekitar menggunakan kalimat efektif dan tanda baca yang tepat.",
+                        "Menyusun teks eksplanasi ilmiah sederhana berdasarkan hubungan sebab-akibat dengan runtut."
+                    ]
+                }
+            ];
+        }
     } else if (subKey.includes("Matematika")) {
-        elementsList = [
-            {
-                name: "Bilangan",
-                cp: "Peserta didik menunjukkan pemahaman pecahan senilai, operasi hitung pecahan, desimal, rasio, dan perbandingan untuk menyelesaikan masalah kontekstual.",
-                tps: [
-                    "Menyelesaikan operasi hitung penjumlahan dan pengurangan pecahan dengan penyebut berbeda dalam kehidupan sehari-hari.",
-                    "Menganalisis dan menyelesaikan permasalahan rasio dan proporsi skala pada denah atau peta."
-                ]
-            },
-            {
-                name: "Aljabar",
-                cp: "Peserta didik dapat menemukan pola bilangan berulang, pola membesar dan mengecil, serta model matematika sederhana berbentuk kalimat terbuka.",
-                tps: [
-                    "Mengidentifikasi dan memprediksi pola bilangan membesar dan mengecil serta deret sederhana secara logis.",
-                    "Menyatakan relasi dan kalimat terbuka menggunakan simbol atau variabel matematika sederhana."
-                ]
-            },
-            {
-                name: "Pengukuran",
-                cp: "Peserta didik dapat menghitung luas permukaan dan volume bangun ruang gabungan serta satuan baku yang sesuai.",
-                tps: [
-                    "Menghitung volume bangun ruang kubus, balok, dan gabungan bangun ruang menggunakan satuan kubik.",
-                    "Menentukan luas bangun datar beraturan dan tidak beraturan menggunakan estimasi satuan luas."
-                ]
-            },
-            {
-                name: "Geometri",
-                cp: "Peserta didik dapat mengonstruksi, membedakan jaring-jaring, dan mengidentifikasi karakteristik bangun ruang serta sudut koordinat.",
-                tps: [
-                    "Menganalisis sifat-sifat bangun ruang prisma, tabung, dan limas beserta jaring-jaring pembentuknya.",
-                    "Menentukan posisi letak suatu objek atau titik koordinat pada bidang Kartesius kuadran I."
-                ]
-            },
-            {
-                name: "Analisis Data dan Peluang",
-                cp: "Peserta didik dapat mengumpulkan, menyajikan, dan menafsirkan data dalam bentuk diagram batang, diagram garis, dan piktogram.",
-                tps: [
-                    "Menyajikan kumpulan data konkret ke dalam bentuk diagram batang ganda dan diagram garis dengan skala yang sesuai.",
-                    "Menafsirkan dan membandingkan modus, rata-rata (mean), dan median dari sajian data kontekstual."
-                ]
-            }
-        ];
+        if (isFaseA) {
+            elementsList = [
+                {
+                    name: "Bilangan",
+                    cp: "Peserta didik menunjukkan pemahaman dan memiliki intuisi bilangan pada bilangan cacah sampai 100 (atau 999), nilai tempat, serta operasi penjumlahan dan pengurangan sederhana.",
+                    tps: [
+                        "Membilang, membaca, menulis, dan membandingkan bilangan cacah sampai 100 menggunakan benda konkret dan nilai tempat puluhan-satuan.",
+                        "Menyelesaikan soal penjumlahan dan pengurangan bilangan cacah sehari-hari serta mengenal pecahan sederhana setengah (1/2) dan seperempat (1/4)."
+                    ]
+                },
+                {
+                    name: "Aljabar",
+                    cp: "Peserta didik dapat mengenali, meniru, dan melanjutkan pola gambar atau pola bilangan berulang sederhana.",
+                    tps: [
+                        "Mengidentifikasi dan melengkapi pola gambar warna, bentuk, atau pola bilangan loncat sederhana.",
+                        "Menyatakan kalimat penjumlahan dan pengurangan sederhana dari gambar kumpulan benda."
+                    ]
+                },
+                {
+                    name: "Pengukuran",
+                    cp: "Peserta didik dapat membandingkan panjang, berat, dan durasi waktu menggunakan satuan tidak baku maupun jam tepat.",
+                    tps: [
+                        "Membandingkan panjang dan berat dua benda menggunakan istilah lebih panjang, lebih pendek, lebih berat, atau lebih ringan.",
+                        "Membaca waktu pada jam analog yang menunjukkan jam tepat (seperti pukul 09.00 atau pukul 02.00)."
+                    ]
+                },
+                {
+                    name: "Geometri",
+                    cp: "Peserta didik dapat mengenal berbagai bangun datar (segitiga, segiempat, lingkaran) dan bangun ruang sederhana di sekitar.",
+                    tps: [
+                        "Mengelompokkan benda-benda di kelas berdasarkan bentuk bangun datar (segitiga, persegi, persegi panjang, lingkaran).",
+                        "Menentukan posisi suatu benda (di atas, di bawah, di kiri, di kanan, di depan, di belakang)."
+                    ]
+                },
+                {
+                    name: "Analisis Data dan Peluang",
+                    cp: "Peserta didik dapat mengurutkan, menyortir, dan menghitung banyak benda dalam daftar atau piktogram gambar sederhana.",
+                    tps: [
+                        "Mengelompokkan dan menghitung jumlah benda berdasarkan jenis atau warnanya ke dalam tabel sederhana.",
+                        "Membaca informasi terbanyak dan tersedikit dari gambar piktogram sederhana."
+                    ]
+                }
+            ];
+        } else if (isFaseB) {
+            elementsList = [
+                {
+                    name: "Bilangan",
+                    cp: "Peserta didik menunjukkan pemahaman bilangan cacah sampai 10.000, operasi hitung perkalian dan pembagian, serta mengenal pecahan sederhana dan pecahan senilai.",
+                    tps: [
+                        "Menyelesaikan operasi hitung penjumlahan, pengurangan, perkalian, dan pembagian bilangan cacah dalam soal cerita sehari-hari.",
+                        "Menentukan nilai pecahan sederhana dan pecahan senilai menggunakan gambar daerah arsiran atau garis bilangan."
+                    ]
+                },
+                {
+                    name: "Aljabar",
+                    cp: "Peserta didik dapat mengisi nilai yang belum diketahui pada kalimat matematika penjumlahan/pengurangan serta menemukan pola gambar membesar dan mengecil.",
+                    tps: [
+                        "Menentukan bilangan yang belum diketahui dalam kalimat matematika penjumlahan dan pengurangan sederhana.",
+                        "Mengidentifikasi pola bilangan membesar dan mengecil secara teratur dalam barisan bilangan."
+                    ]
+                },
+                {
+                    name: "Pengukuran",
+                    cp: "Peserta didik dapat mengukur dan mengonversi satuan baku panjang (cm, m), berat (gram, kg), waktu (jam, menit), serta menghitung luas dan keliling persegi dan persegi panjang.",
+                    tps: [
+                        "Mengonversi satuan baku panjang (meter ke sentimeter), berat (kg ke gram), dan waktu (jam ke menit) dalam kehidupan sehari-hari.",
+                        "Menghitung keliling dan luas bangun datar persegi dan persegi panjang menggunakan satuan baku."
+                    ]
+                },
+                {
+                    name: "Geometri",
+                    cp: "Peserta didik dapat mendeskripsikan ciri berbagai bentuk bangun datar (segitiga, segiempat) serta mengenal jenis sudut lancip, siku-siku, dan tumpul.",
+                    tps: [
+                        "Mengidentifikasi ciri-ciri sisi dan sudut pada bangun datar segitiga, persegi, dan persegi panjang.",
+                        "Membedakan jenis sudut siku-siku (90°), sudut lancip (<90°), dan sudut tumpul (>90°) pada benda sekitar dan jarum jam."
+                    ]
+                },
+                {
+                    name: "Analisis Data dan Peluang",
+                    cp: "Peserta didik dapat mengumpulkan data kelas, menyajikannya dalam piktogram dan diagram batang sederhana, serta menafsirkan datanya.",
+                    tps: [
+                        "Menyajikan data hasil pengamatan ke dalam bentuk tabel frekuensi dan diagram batang sederhana.",
+                        "Membaca, membandingkan selisih, dan menyimpulkan nilai tertinggi/terendah pada diagram batang."
+                    ]
+                }
+            ];
+        } else {
+            elementsList = [
+                {
+                    name: "Bilangan",
+                    cp: "Peserta didik menunjukkan pemahaman pecahan senilai, operasi hitung pecahan, desimal, rasio, dan perbandingan untuk menyelesaikan masalah kontekstual.",
+                    tps: [
+                        "Menyelesaikan operasi hitung penjumlahan dan pengurangan pecahan dengan penyebut berbeda dalam kehidupan sehari-hari.",
+                        "Menganalisis dan menyelesaikan permasalahan rasio, persentase diskon, dan KPK/FPB dalam kehidupan sehari-hari."
+                    ]
+                },
+                {
+                    name: "Aljabar",
+                    cp: "Peserta didik dapat menemukan pola bilangan berulang, pola membesar dan mengecil, serta model matematika sederhana berbentuk kalimat terbuka.",
+                    tps: [
+                        "Mengidentifikasi dan memprediksi pola bilangan membesar dan mengecil serta deret sederhana secara logis.",
+                        "Menyatakan relasi dan kalimat terbuka menggunakan simbol atau variabel matematika sederhana."
+                    ]
+                },
+                {
+                    name: "Pengukuran",
+                    cp: "Peserta didik dapat menghitung luas permukaan dan volume bangun ruang gabungan serta satuan baku yang sesuai.",
+                    tps: [
+                        "Menghitung volume bangun ruang kubus, balok, dan gabungan bangun ruang menggunakan satuan kubik.",
+                        "Menentukan luas bangun datar segitiga, persegi panjang, dan gabungan bangun datar secara tepat."
+                    ]
+                },
+                {
+                    name: "Geometri",
+                    cp: "Peserta didik dapat mengonstruksi, membedakan jaring-jaring, dan mengidentifikasi karakteristik bangun ruang serta sudut koordinat.",
+                    tps: [
+                        "Menganalisis sifat-sifat bangun ruang kubus, balok, prisma, dan limas beserta jaring-jaring pembentuknya.",
+                        "Menentukan posisi letak suatu objek atau titik koordinat pada bidang Kartesius kuadran I."
+                    ]
+                },
+                {
+                    name: "Analisis Data dan Peluang",
+                    cp: "Peserta didik dapat mengumpulkan, menyajikan, dan menafsirkan data dalam bentuk diagram batang, diagram garis, dan piktogram.",
+                    tps: [
+                        "Menyajikan kumpulan data konkret ke dalam bentuk diagram batang ganda dan diagram garis dengan skala yang sesuai.",
+                        "Menafsirkan dan membandingkan modus, rata-rata (mean), dan median dari sajian data kontekstual."
+                    ]
+                }
+            ];
+        }
     } else if (subKey.includes("IPAS") || subKey.includes("Alam dan Sosial")) {
-        elementsList = [
-            {
-                name: "Pemahaman IPAS",
-                cp: "Peserta didik memahami sistem organ tubuh manusia, interaksi ekosistem lingkungan, energi dan perubahannya, serta sejarah kebudayaan dan letak geografis Nusantara.",
-                tps: [
-                    "Menganalisis hubungan antara struktur dan fungsi sistem organ pernapasan, pencernaan, dan peredaran darah manusia.",
-                    "Menyelidiki perpindahan energi dalam rantai makanan dan jaring-jaring kehidupan di suatu ekosistem darat maupun perairan.",
-                    "Menjelaskan pengaruh kondisi geografis Indonesia terhadap keanekaragaman sosial budaya dan kegiatan ekonomi masyarakat."
-                ]
-            },
-            {
-                name: "Keterampilan Proses",
-                cp: "Peserta didik mampu mengamati, mempertanyakan, merencanakan penyelidikan ilmiah, memproses data, serta mengomunikasikan hasil penemuan sains.",
-                tps: [
-                    "Merancang dan melakukan percobaan sederhana tentang sifat-sifat cahaya dan bunyi secara mandiri atau kelompok.",
-                    "Merekam hasil pengamatan, mengolah data penyelidikan, dan membuat kesimpulan ilmiah yang terverifikasi."
-                ]
-            }
-        ];
+        if (isFaseA || isFaseB) {
+            elementsList = [
+                {
+                    name: "Pemahaman IPAS",
+                    cp: "Peserta didik memahami bagian tubuh tumbuhan dan fungsinya, panca indra, daur hidup hewan, perubahan wujud benda, serta gaya dan energi dalam kehidupan sehari-hari.",
+                    tps: [
+                        "Mengidentifikasi bagian-bagian tumbuhan (akar, batang, daun, bunga) beserta fungsinya dan proses fotosintesis sederhana.",
+                        "Menjelaskan perubahan wujud benda (mencair, membeku, menguap, mengembun) serta pengaruh gaya terhadap gerak dan bentuk benda.",
+                        "Mengidentifikasi jenis sumber daya alam, profesi/kegiatan ekonomi masyarakat, serta bentuk kenampakan alam di daerah sekitar."
+                    ]
+                },
+                {
+                    name: "Keterampilan Proses",
+                    cp: "Peserta didik mampu mengamati, mengajukan pertanyaan, melakukan percobaan sederhana, serta menyimpulkan hasil pengamatan alam sekitar.",
+                    tps: [
+                        "Melakukan pengamatan langsung perubahan wujud es mencair atau gaya gesek di kelas dan mencatat hasilnya secara rapi.",
+                        "Mengomunikasikan hasil pengamatan makhluk hidup dan sumber energi di lingkungan sekolah bersama kelompok."
+                    ]
+                }
+            ];
+        } else {
+            elementsList = [
+                {
+                    name: "Pemahaman IPAS",
+                    cp: "Peserta didik memahami sistem organ tubuh manusia, interaksi ekosistem lingkungan, energi dan perubahannya, tata surya, serta sejarah kebudayaan dan letak geografis Nusantara.",
+                    tps: [
+                        "Menganalisis hubungan antara struktur dan fungsi sistem organ pernapasan, pencernaan, dan peredaran darah manusia.",
+                        "Menyelidiki perpindahan energi dalam rantai makanan, siklus air, serta akibat rotasi dan revolusi bumi.",
+                        "Menjelaskan pengaruh kondisi geografis Indonesia terhadap keanekaragaman sosial budaya dan kegiatan ekonomi masyarakat."
+                    ]
+                },
+                {
+                    name: "Keterampilan Proses",
+                    cp: "Peserta didik mampu mengamati, mempertanyakan, merencanakan penyelidikan ilmiah, memproses data, serta mengomunikasikan hasil penemuan sains.",
+                    tps: [
+                        "Merancang dan melakukan percobaan sederhana tentang sifat-sifat cahaya, bunyi, dan kelistrikan secara mandiri atau kelompok.",
+                        "Merekam hasil pengamatan, mengolah data penyelidikan, dan membuat kesimpulan ilmiah yang terverifikasi."
+                    ]
+                }
+            ];
+        }
     } else if (subKey.includes("Pancasila") || subKey.includes("PPKn")) {
-        elementsList = [
-            {
-                name: "Pancasila",
-                cp: "Peserta didik memahami hubungan antar-sila Pancasila dan meneladani makna nilai-nilai Pancasila dalam kehidupan bermasyarakat.",
-                tps: [
-                    "Menganalisis contoh penerapan nilai-nilai luhur Pancasila dalam pengambilan keputusan musyawarah mufakat di sekolah dan masyarakat.",
-                    "Meneladani sikap para pendiri bangsa dalam perumusan Pancasila sebagai dasar negara."
-                ]
-            },
-            {
-                name: "Undang-Undang Dasar NRI 1945",
-                cp: "Peserta didik memahami norma, aturan, hak, dan kewajiban sebagai warga sekolah, warga masyarakat, dan warga negara.",
-                tps: [
-                    "Menganalisis pelaksanaan hak dan kewajiban warga negara secara seimbang dalam kehidupan bermasyarakat.",
-                    "Menunjukkan sikap patuh terhadap norma kesopanan, kesusilaan, dan hukum yang berlaku di lingkungan sekitar."
-                ]
-            },
-            {
-                name: "Bhinneka Tunggal Ika",
-                cp: "Peserta didik menghargai keberagaman suku, budaya, agama, dan gender serta menumbuhkan sikap toleransi.",
-                tps: [
-                    "Mengidentifikasi keragaman budaya, rumah adat, pakaian adat, dan tradisi lokal di berbagai provinsi Indonesia.",
-                    "Mempromosikan sikap toleransi dan moderasi beragama dalam pergaulan sehari-hari antar-teman sebaya."
-                ]
-            },
-            {
-                name: "Negara Kesatuan Republik Indonesia",
-                cp: "Peserta didik memahami arti penting persatuan dan kesatuan serta menjaga kedaulatan wilayah NKRI.",
-                tps: [
-                    "Menjelaskan peran penting generasi muda dalam menjaga persatuan dan keutuhan wilayah NKRI dari ancaman perpecahan.",
-                    "Mempraktikkan kegiatan gotong royong dan bela negara sederhana di lingkungan sekolah dan tempat tinggal."
-                ]
-            }
-        ];
+        if (isFaseA) {
+            elementsList = [
+                {
+                    name: "Pancasila",
+                    cp: "Peserta didik mengenal bendera negara, lagu kebangsaan, simbol serta sila-sila Pancasila dalam lambang negara Garuda Pancasila.",
+                    tps: [
+                        "Mengenal lima simbol sila Pancasila pada Garuda Pancasila (Bintang, Rantai, Pohon Beringin, Kepala Banteng, Padi dan Kapas).",
+                        "Menunjukkan contoh sikap baik sesuai sila Pancasila di rumah dan sekolah seperti berdoa dan saling menolong."
+                    ]
+                },
+                {
+                    name: "Undang-Undang Dasar NRI 1945",
+                    cp: "Peserta didik mengenal aturan di lingkungan keluarga dan sekolah serta menunjukkan perilaku mematuhi aturan tersebut.",
+                    tps: [
+                        "Menyebutkan contoh aturan sehari-hari yang berlaku di rumah dan tata tertib di ruang kelas.",
+                        "Membiasakan sikap tertib, menjaga kebersihan kelas, dan meminta izin kepada orang tua atau guru."
+                    ]
+                },
+                {
+                    name: "Bhinneka Tunggal Ika",
+                    cp: "Peserta didik mengenal identitas diri, keluarga, serta menghargai perbedaan kegemaran dan ciri fisik teman.",
+                    tps: [
+                        "Memperkenalkan nama, keluarga, dan kegemaran diri secara santun di depan teman sekelas.",
+                        "Menunjukkan sikap hidup rukun dan tidak mengejek perbedaan teman di sekolah."
+                    ]
+                },
+                {
+                    name: "Negara Kesatuan Republik Indonesia",
+                    cp: "Peserta didik mengenal karakteristik lingkungan tempat tinggal dan sekolah sebagai bagian dari wilayah Indonesia.",
+                    tps: [
+                        "Mengenal simbol negara Bendera Merah Putih dan menyanyikan lagu kebangsaan Indonesia Raya dengan sikap hormat.",
+                        "Bekerja sama membersihkan lingkungan kelas dan halaman sekolah bersama teman."
+                    ]
+                }
+            ];
+        } else if (isFaseB) {
+            elementsList = [
+                {
+                    name: "Pancasila",
+                    cp: "Peserta didik memahami makna simbol sila-sila Pancasila serta menerapkannya dalam lingkungan keluarga, sekolah, dan masyarakat sekitar.",
+                    tps: [
+                        "Menjelaskan keterkaitan simbol dengan bunyi dan contoh pengamalan sila pertama hingga kelima Pancasila di sekolah.",
+                        "Mempraktikkan musyawarah untuk mufakat dalam memilih ketua kelas atau kegiatan kelompok secara adil."
+                    ]
+                },
+                {
+                    name: "Undang-Undang Dasar NRI 1945",
+                    cp: "Peserta didik mengidentifikasi aturan di sekolah dan lingkungan sekitar serta melaksanakan hak dan kewajiban sebagai anggota keluarga dan warga sekolah.",
+                    tps: [
+                        "Membedakan antara hak dan kewajiban peserta didik di rumah dan di sekolah secara seimbang.",
+                        "Menjelaskan manfaat menaati aturan tata tertib sekolah dan rambu-rambu keselamatan di jalan."
+                    ]
+                },
+                {
+                    name: "Bhinneka Tunggal Ika",
+                    cp: "Peserta didik mengidentifikasi keragaman budaya, suku bangsa, bahasa, dan menghargai perbedaan di lingkungan sekitar.",
+                    tps: [
+                        "Menjelaskan makna semboyan Bhinneka Tunggal Ika dalam menjaga kerukunan antar teman yang berbeda budaya.",
+                        "Menunjukkan sikap toleransi, menghormati agama, dan kebiasaan daerah teman sebaya."
+                    ]
+                },
+                {
+                    name: "Negara Kesatuan Republik Indonesia",
+                    cp: "Peserta didik mengenal bentuk kerjasama dan gotong royong di lingkungan masyarakat untuk menjaga persatuan.",
+                    tps: [
+                        "Menjelaskan manfaat kegiatan gotong royong dan kerja bakti di lingkungan sekolah dan tempat tinggal.",
+                        "Menjaga kerukunan serta mencintai produk dan budaya daerah Indonesia."
+                    ]
+                }
+            ];
+        } else {
+            elementsList = [
+                {
+                    name: "Pancasila",
+                    cp: "Peserta didik memahami hubungan antar-sila Pancasila dan meneladani makna nilai-nilai Pancasila dalam kehidupan bermasyarakat.",
+                    tps: [
+                        "Menganalisis contoh penerapan nilai-nilai luhur Pancasila dalam pengambilan keputusan musyawarah mufakat di sekolah dan masyarakat.",
+                        "Meneladani sikap para pendiri bangsa dalam perumusan Pancasila sebagai dasar negara."
+                    ]
+                },
+                {
+                    name: "Undang-Undang Dasar NRI 1945",
+                    cp: "Peserta didik memahami norma, aturan, hak, dan kewajiban sebagai warga sekolah, warga masyarakat, dan warga negara.",
+                    tps: [
+                        "Menganalisis pelaksanaan hak dan kewajiban warga negara secara seimbang dalam kehidupan bermasyarakat.",
+                        "Menunjukkan sikap patuh terhadap norma kesopanan, kesusilaan, dan hukum yang berlaku di lingkungan sekitar."
+                    ]
+                },
+                {
+                    name: "Bhinneka Tunggal Ika",
+                    cp: "Peserta didik menghargai keberagaman suku, budaya, agama, dan gender serta menumbuhkan sikap toleransi.",
+                    tps: [
+                        "Mengidentifikasi keragaman budaya, rumah adat, pakaian adat, dan tradisi lokal di berbagai provinsi Indonesia.",
+                        "Mempromosikan sikap toleransi dan moderasi beragama dalam pergaulan sehari-hari antar-teman sebaya."
+                    ]
+                },
+                {
+                    name: "Negara Kesatuan Republik Indonesia",
+                    cp: "Peserta didik memahami arti penting persatuan dan kesatuan serta menjaga kedaulatan wilayah NKRI.",
+                    tps: [
+                        "Menjelaskan peran penting generasi muda dalam menjaga persatuan dan keutuhan wilayah NKRI dari ancaman perpecahan.",
+                        "Mempraktikkan kegiatan gotong royong dan bela negara sederhana di lingkungan sekolah dan tempat tinggal."
+                    ]
+                }
+            ];
+        }
     } else if (subKey.includes("Koding") || subKey.includes("AI") || subKey.includes("Artifisial")) {
         elementsList = [
             {
@@ -727,48 +1055,38 @@ export const synthesizeCurriculumProta = (
             }
         ];
     } else {
-        // Generic rich curriculum builder for any subject
+        const levelLabel = isFaseA ? 'tingkat dasar (Fase A)' : isFaseB ? 'tingkat menengah (Fase B)' : 'tingkat lanjut (Fase C)';
         elementsList = [
             {
                 name: `Pemahaman Konsep ${subjectName}`,
-                cp: `Peserta didik memahami prinsip esensial, terminologi, dan fakta kontekstual pada mata pelajaran ${subjectName} sesuai standar Kurikulum Merdeka.`,
+                cp: `Peserta didik memahami prinsip esensial, terminologi, dan fakta kontekstual pada mata pelajaran ${subjectName} (${levelLabel}) sesuai standar Kurikulum Merdeka.`,
                 tps: [
-                    `Mengidentifikasi dan menjelaskan konsep dasar serta prinsip utama pada materi ${subjectName}.`,
-                    `Menganalisis hubungan antar-konsep materi ${subjectName} dengan fenomena kehidupan sehari-hari.`
+                    `Mengidentifikasi dan menjelaskan konsep dasar serta contoh materi ${subjectName} untuk ${levelLabel}.`,
+                    `Menghubungkan materi pokok ${subjectName} dengan kegiatan dan pengalaman belajar sehari-hari.`
                 ]
             },
             {
                 name: `Keterampilan Penerapan & Praktik`,
-                cp: `Peserta didik mampu mendemonstrasikan prosedur kerja, eksplorasi keterampilan, dan unjuk karya pada ${subjectName}.`,
+                cp: `Peserta didik mampu mendemonstrasikan prosedur kerja, eksplorasi keterampilan, dan unjuk karya pada ${subjectName} sesuai ${levelLabel}.`,
                 tps: [
-                    `Mempraktikkan teknik dan prosedur terstruktur dalam pemecahan masalah ${subjectName}.`,
-                    `Menciptakan karya atau solusi aplikatif yang terencana secara mandiri atau kelompok.`
-                ]
-            },
-            {
-                name: `Analisis & Evaluasi`,
-                cp: `Peserta didik mengevaluasi hasil kerja, merefleksikan proses belajar, dan menarik kesimpulan kritis.`,
-                tps: [
-                    `Mengevaluasi kelebihan dan kekurangan solusi yang diterapkan dalam konteks ${subjectName}.`,
-                    `Menyusun laporan refleksi pembelajaran dan mendiskusikannya dengan rekan sejawat.`
+                    `Mempraktikkan teknik dan langkah kerja sederhana dalam pembelajaran ${subjectName}.`,
+                    `Membuat karya atau latihan aplikatif secara terencana baik mandiri maupun berkelompok.`
                 ]
             },
             {
                 name: `Penanaman Karakter & Sikap Positif`,
-                cp: `Peserta didik menunjukkan kemandirian, gotong royong, integritas, dan kebiasaan bernalar kritis.`,
+                cp: `Peserta didik menunjukkan kemandirian, gotong royong, integritas, dan sikap positif selama pembelajaran ${subjectName}.`,
                 tps: [
-                    `Menunjukkan sikap tanggung jawab, disiplin, dan etika positif selama pembelajaran ${subjectName}.`,
-                    `Berkolaborasi secara aktif dalam proyek tim dengan saling menghargai pendapat.`
+                    `Menunjukkan sikap tanggung jawab, disiplin, dan kerja sama yang baik selama pembelajaran ${subjectName}.`,
+                    `Mengevaluasi hasil praktik belajar bersama teman sejawat dengan santun.`
                 ]
             }
         ];
     }
 
-    const elements: ElementData[] = elementsList.map((el, elIdx) => {
+    const elements: ElementData[] = elementsList.map((el) => {
         const allocations: Allocation[] = targetClasses.map(cls => {
-            const classTps = el.tps.map((tpText, tpIdx) => {
-                return tpText.replace(/Kelas \d+/g, cls);
-            });
+            const classTps = el.tps.map((tpText) => tpText.replace(/Kelas \d+/g, cls));
 
             const structuredAtp: TpGroup[] = classTps.map((tp, tpIdx) => ({
                 tp,

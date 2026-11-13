@@ -8,7 +8,7 @@ import {
     Edit3, Trash2, Plus, X, ChevronDown, ChevronUp, Palette
 } from 'lucide-react';
 import { generateGeminiContent } from './geminiClient';
-import { CurriculumData, ElementData, Allocation, TpGroup, AtpItem, isSameSubject, isSameClass, getSubjectKey } from './curriculumHelper';
+import { CurriculumData, ElementData, Allocation, TpGroup, AtpItem, isSameSubject, isSameClass, getSubjectKey, synthesizeCurriculumProta } from './curriculumHelper';
 import {
     deduplicateAndEnsureCountPg,
     deduplicateAndEnsureCountIsian,
@@ -130,6 +130,7 @@ interface NaskahSumatifGeneratorProps {
     lockedProtas: Record<string, boolean>;
     currentProtaData: CurriculumData | null;
     onNavigate: (view: any) => void;
+    onClassChange?: (cls: string) => void;
     notify: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
@@ -465,19 +466,37 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
     lockedProtas,
     currentProtaData,
     onNavigate,
+    onClassChange,
     notify
 }) => {
-    // 1. Identify User's Registered Class & Class Options
-    const registeredClass = initialClass || userIdentity.assignedClass || user?.assignedClass || 'Kelas 1';
+    // 1. Identify User's Registered Class & Class Options (always prioritize user profile assignedClass over leaked global state)
+    const userAssignedClass = userIdentity?.assignedClass || user?.assignedClass;
+    const registeredClass = userAssignedClass || initialClass || 'Kelas 1';
     const [activeClass, setActiveClass] = useState<string>(registeredClass);
     const [activeSubject, setActiveSubject] = useState<string>(initialSubject || 'Pendidikan Pancasila');
 
-    // Sync if parent selected class or subject changes
+    const getTargetFaseInfo = (cls: string): { name: string; classes: string[] } => {
+        const lower = String(cls || '').toLowerCase();
+        if (lower.includes('1') || lower.includes('2')) return { name: 'Fase A', classes: ['Kelas 1', 'Kelas 2'] };
+        if (lower.includes('3') || lower.includes('4')) return { name: 'Fase B', classes: ['Kelas 3', 'Kelas 4'] };
+        return { name: 'Fase C', classes: ['Kelas 5', 'Kelas 6'] };
+    };
+
+    const activeGradeNum = useMemo(() => {
+        const m = String(activeClass || '').match(/[1-6]/);
+        return m ? parseInt(m[0], 10) : 1;
+    }, [activeClass]);
+
+    const activeFaseInfo = useMemo(() => getTargetFaseInfo(activeClass), [activeClass]);
+
+    // Sync when user account or user's registered class changes (prevent stale class from other tabs)
     useEffect(() => {
-        if (registeredClass) {
-            setActiveClass(registeredClass);
+        if (userAssignedClass) {
+            setActiveClass(userAssignedClass);
+        } else if (initialClass) {
+            setActiveClass(initialClass);
         }
-    }, [registeredClass]);
+    }, [userAssignedClass, user?.email, initialClass]);
 
     useEffect(() => {
         if (initialSubject) {
@@ -499,30 +518,49 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
         });
     };
 
-    // 2. Discover Protas from memory & database / activities
+    // Helper: check if a Prota snapshot belongs to activeClass or its Fase
+    const doesSnapshotMatchActiveClass = (dataSnap: CurriculumData, snapClassName?: string): boolean => {
+        if (!dataSnap || !Array.isArray(dataSnap.elements)) return false;
+        const hasExactAlloc = dataSnap.elements.some(el =>
+            (el.allocations || []).some(a => a.className && isSameClass(a.className, activeClass))
+        );
+        if (hasExactAlloc) return true;
+        if (snapClassName && isSameClass(snapClassName, activeClass)) return true;
+        const snapFase = String(dataSnap.fase || '').toLowerCase();
+        if (snapFase && snapFase.includes(activeFaseInfo.name.toLowerCase())) return true;
+        return false;
+    };
+
+    // 2. Discover Protas from memory & database / activities (prioritizing activeClass & Fase match)
     const lockedProtaList = useMemo(() => {
-        const list: { subject: string; className: string; data: CurriculumData; locked: boolean }[] = [];
+        const list: { subject: string; className: string; data: CurriculumData; locked: boolean; score: number }[] = [];
         const seenCanonSubjects = new Map<string, number>();
 
         const addOrPreferRecord = (subj: string, cName: string, dataSnap: CurriculumData) => {
             if (!subj || !dataSnap || !Array.isArray(dataSnap.elements)) return;
             const canonSubj = getSubjectKey(subj) || subj.toLowerCase().trim();
-            const isLocked = isKeyLocked(subj, activeClass) || isKeyLocked(subj, cName) || isKeyLocked(dataSnap.subject || subj, activeClass);
+            const matchesClass = doesSnapshotMatchActiveClass(dataSnap, cName);
+            const lockedForActiveClass = isKeyLocked(subj, activeClass) || isKeyLocked(dataSnap.subject || subj, activeClass);
+            const isLocked = lockedForActiveClass || (matchesClass && isKeyLocked(subj, cName));
+            const score = (matchesClass ? 4 : 0) + (lockedForActiveClass ? 2 : 0) + (isLocked ? 1 : 0);
+
             const existingIdx = seenCanonSubjects.get(canonSubj);
             if (existingIdx === undefined) {
                 seenCanonSubjects.set(canonSubj, list.length);
                 list.push({
                     subject: subj,
-                    className: cName,
+                    className: matchesClass ? activeClass : cName,
                     data: dataSnap,
-                    locked: isLocked
+                    locked: isLocked,
+                    score
                 });
-            } else if (isLocked && !list[existingIdx].locked) {
+            } else if (score > list[existingIdx].score) {
                 list[existingIdx] = {
                     subject: subj,
-                    className: cName,
+                    className: matchesClass ? activeClass : cName,
                     data: dataSnap,
-                    locked: true
+                    locked: isLocked,
+                    score
                 };
             }
         };
@@ -530,7 +568,8 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
         // Check currently active prota in memory first
         if (currentProtaData && currentProtaData.elements) {
             const subj = currentProtaData.subject || activeSubject;
-            addOrPreferRecord(subj, activeClass, currentProtaData);
+            const cName = (currentProtaData as any).className || '';
+            addOrPreferRecord(subj, cName, currentProtaData);
         }
 
         // Check activities DB for saved Protas
@@ -538,14 +577,14 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
             activities.forEach(act => {
                 if ((act.type === 'ATP_JP' || act.type === 'CP_TP') && act.dataSnapshot && act.dataSnapshot.elements) {
                     const subj = act.subject || act.dataSnapshot.subject;
-                    const cName = act.dataSnapshot.className || activeClass;
+                    const cName = act.dataSnapshot.className || '';
                     addOrPreferRecord(subj, cName, act.dataSnapshot);
                 }
             });
         }
 
         return list;
-    }, [currentProtaData, activities, lockedProtas, activeClass, activeSubject]);
+    }, [currentProtaData, activities, lockedProtas, activeClass, activeSubject, activeFaseInfo.name]);
 
     // Active prota record for the chosen subject & class
     const activeProtaRecord = useMemo(() => {
@@ -562,16 +601,29 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
         return false;
     }, [activeProtaRecord, lockedProtas, activeSubject, activeClass]);
 
-    // 3. Extract TPs and Semesters from active Prota
+    // 3. Extract TPs and Semesters from active Prota (strictly matching activeClass or its Fase)
     const extractedTpList = useMemo(() => {
         if (!activeProtaRecord || !activeProtaRecord.data || !Array.isArray(activeProtaRecord.data.elements)) {
             return [];
         }
+        const snapFase = String(activeProtaRecord.data.fase || '').toLowerCase();
+        const isSnapSameFase = !snapFase || snapFase.includes(activeFaseInfo.name.toLowerCase());
+        const hasExactClassAlloc = activeProtaRecord.data.elements.some(el =>
+            (el.allocations || []).some(a => a.className && isSameClass(a.className, activeClass))
+        );
+        // Never leak another Fase's TPs (e.g., Fase C / Kelas 6 TPs into Kelas 1-4)
+        if (!hasExactClassAlloc && !isSnapSameFase) {
+            return [];
+        }
+
         const tps: { id: number; element: string; cp: string; tp: string; semester: number; alur: string[] }[] = [];
         let counter = 1;
         activeProtaRecord.data.elements.forEach(el => {
             (el.allocations || []).forEach(alloc => {
-                if (isSameClass(alloc.className, activeClass) || !alloc.className) {
+                const allocMatches = alloc.className
+                    ? isSameClass(alloc.className, activeClass)
+                    : isSnapSameFase;
+                if (allocMatches) {
                     if (Array.isArray(alloc.structuredAtp) && alloc.structuredAtp.length > 0) {
                         alloc.structuredAtp.forEach(grp => {
                             const sem = grp.atpItems && grp.atpItems[0]?.semester ? grp.atpItems[0].semester : 1;
@@ -601,7 +653,7 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
             });
         });
         return tps;
-    }, [activeProtaRecord, activeClass]);
+    }, [activeProtaRecord, activeClass, activeFaseInfo.name]);
 
     // 4. Form State for Configuration
     const [assessmentType, setAssessmentType] = useState<AssessmentType>('harian');
@@ -634,6 +686,21 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
 
     // Rule Check: Class 6 vs Class 1-5 permissions according to PPA 2026:
     const isClass6 = activeClass.toLowerCase().includes('6');
+
+    // Clear stale generated assessment and enforce PPA 2026 assessmentType rules when user/class changes
+    useEffect(() => {
+        setGeneratedAssessment(null);
+    }, [user?.email]);
+
+    useEffect(() => {
+        setSelectedTpId(1);
+        setGeneratedAssessment(prev => (prev && !isSameClass(prev.className, activeClass) ? null : prev));
+        if (isClass6 && assessmentType === 'asat') {
+            setAssessmentType('asas');
+        } else if (!isClass6 && assessmentType === 'asaj') {
+            setAssessmentType('harian');
+        }
+    }, [activeClass, activeSubject, isClass6]);
 
     // Handle Assessment Type Switch with safety guard
     const handleSelectAssessmentType = (type: AssessmentType) => {
@@ -690,17 +757,49 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
             }
 
             if (targetTps.length === 0) {
-                targetTps = [{
-                    id: 1,
-                    element: 'Materi Pokok',
-                    cp: 'Peserta didik menguasai kompetensi dasar materi kurikulum merdeka.',
-                    tp: `Memahami konsep pokok dan penerapan materi ${activeSubject} dalam konteks kehidupan nyata peserta didik jenjang Sekolah Dasar.`,
-                    semester: 1,
-                    alur: []
-                }];
+                // Synthesize authentic grade/fase-specific TPs when Prota for activeClass hasn't been extracted
+                const synthesized = synthesizeCurriculumProta(activeSubject, activeFaseInfo);
+                const synthTps: { id: number; element: string; cp: string; tp: string; semester: number; alur: string[] }[] = [];
+                let sCounter = 1;
+                (synthesized.elements || []).forEach(el => {
+                    const alloc = (el.allocations || []).find(a => isSameClass(a.className, activeClass)) || (el.allocations || [])[0];
+                    if (alloc) {
+                        (alloc.tujuanPembelajaran || []).forEach((tpStr, idx) => {
+                            synthTps.push({
+                                id: sCounter++,
+                                element: el.elementName,
+                                cp: el.capaianPembelajaran,
+                                tp: tpStr,
+                                semester: idx % 2 === 0 ? 1 : 2,
+                                alur: []
+                            });
+                        });
+                    }
+                });
+                if (synthTps.length > 0) {
+                    if (assessmentType === 'harian') {
+                        targetTps = [synthTps[0]];
+                    } else if (assessmentType === 'asas') {
+                        targetTps = synthTps.filter(t => t.semester === 1);
+                    } else if (assessmentType === 'asat') {
+                        targetTps = synthTps.filter(t => t.semester === 2);
+                    } else {
+                        targetTps = synthTps;
+                    }
+                }
+                if (targetTps.length === 0) {
+                    targetTps = [{
+                        id: 1,
+                        element: 'Materi Pokok',
+                        cp: `Peserta didik ${activeClass} (${activeFaseInfo.name}) menguasai kompetensi dasar ${activeSubject}.`,
+                        tp: `Memahami konsep pokok dan penerapan materi ${activeSubject} sesuai tingkat ${activeClass} (${activeFaseInfo.name}) Kurikulum Merdeka.`,
+                        semester: 1,
+                        alur: []
+                    }];
+                }
             }
 
-            const isFaseA = activeClass.includes('1') || activeClass.includes('2');
+            const isFaseA = activeGradeNum <= 2;
             const optionKeys = isFaseA ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
             const apiKey = getApiKey();
 
@@ -713,19 +812,26 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
             // --- ATTEMPT SERVER GEMINI AI GENERATION ---
             try {
                 const tpSummary = targetTps.map(t => `- [${t.element}] TP: ${t.tp}`).join('\n');
+                const gradeRestrictionNote = activeGradeNum <= 2
+                    ? `- ATURAN KELAS ${activeGradeNum} (${activeFaseInfo.name}): Gunakan bahasa yang sangat sederhana, kalimat pendek, dan konteks konkret anak usia 7-8 tahun. DILARANG KERAS memasukkan materi Kelas 3-6 (seperti pecahan desimal, KPK/FPB, luas/keliling bangun datar, majas/personifikasi, teks eksplanasi, fotosintesis, siklus air, rantai makanan, volume kubus, atau menyebut "kelas 5"/"kelas 6").`
+                    : activeGradeNum <= 4
+                    ? `- ATURAN KELAS ${activeGradeNum} (${activeFaseInfo.name}): Sesuaikan tingkat kesulitan, angka, kosakata, dan konsep 100% khusus untuk peserta didik ${activeClass} SD. DILARANG KERAS memasukkan materi Kelas 5-6 (seperti volume/luas permukaan/jaring-jaring kubus & balok, koordinat Kartesius, rata-rata/mean/median/modus, bilangan bulat negatif, luas/keliling lingkaran, rotasi/revolusi bumi, gerhana, tata surya, proklamasi/ASEAN, atau menyebut "siswa kelas 5"/"siswa kelas 6").`
+                    : `- ATURAN KELAS ${activeGradeNum} (${activeFaseInfo.name}): Sesuaikan kompleksitas dan konteks 100% untuk tingkat ${activeClass} SD.`;
+
                 const prompt = `Anda adalah Tim Ahli Penyusun Naskah Asesmen Sumatif Standar Nasional Jenjang Sekolah Dasar (SD) Berdasarkan Panduan Pembelajaran dan Asesmen (PPA) Tahun 2026 Kurikulum Merdeka.
-Tugas Anda: Susunlah naskah soal asesmen sumatif yang SAH, VALID, RELEVAN, MENDIDIK, dan 100% SIAP PAKAI untuk dibagikan kepada peserta didik.
+Tugas Anda: Susunlah naskah soal asesmen sumatif yang SAH, VALID, RELEVAN, MENDIDIK, dan 100% SIAP PAKAI untuk dibagikan kepada peserta didik ${activeClass}.
 
 DATA KONFIGURASI:
 - Mata Pelajaran WAJIB: ${activeSubject}
-- Jenjang & Kelas: ${activeClass} (${isFaseA ? 'Fase A: Opsi jawaban hanya A, B, C' : 'Fase B/C: Opsi jawaban A, B, C, D'})
+- Jenjang & Kelas WAJIB: ${activeClass} (${activeFaseInfo.name}: ${isFaseA ? 'Opsi jawaban HANYA A, B, C' : 'Opsi jawaban A, B, C, D'})
 - Jenis Asesmen: ${assessmentType.toUpperCase()}
-- Capaian & Tujuan Pembelajaran (TP) Acuan dari PROTA:
+- Capaian & Tujuan Pembelajaran (TP) Acuan dari PROTA ${activeClass}:
 ${tpSummary}
 
-ATURAN KEPATUHAN MATA PELAJARAN (MUTLAK):
-- SELURUH BUTIR SOAL (PG, Isian, dan Uraian) HARUS 100% SESUAI BIDANG ILMU MATA PELAJARAN "${activeSubject}".
+ATURAN KEPATUHAN MATA PELAJARAN & TINGKAT KELAS (MUTLAK):
+- SELURUH BUTIR SOAL (PG, Isian, dan Uraian) HARUS 100% SESUAI BIDANG ILMU MATA PELAJARAN "${activeSubject}" DAN KHUSUS UNTUK TINGKAT "${activeClass}" (${activeFaseInfo.name}).
 - DILARANG KERAS memasukkan materi atau soal dari mata pelajaran lain (misalnya soal teks Bahasa Indonesia ke dalam PJOK/Matematika/Seni/Inggris).
+${gradeRestrictionNote}
 
 JUMLAH BUTIR SOAL YANG WAJIB DISUSUN:
 - Pilihan Ganda (PG): ${pgCount} butir soal
@@ -734,10 +840,10 @@ JUMLAH BUTIR SOAL YANG WAJIB DISUSUN:
 - Komposisi Kesulitan: ${difficultyWeights.lots}% LOTS (C1-C2), ${difficultyWeights.mots}% MOTS (C3), ${difficultyWeights.hots}% HOTS (C4-C5)
 
 ATURAN WAJIB PADA GAMBAR & BUTIR SOAL:
-1. Soal HARUS BENAR-BENAR BERISI TEKS SOAL ASLI dan ringkas-jelas (stimulus 1-3 kalimat, pembahasan 1-2 kalimat) agar siswa mudah memahami.
-2. Jika suatu butir soal PG memerlukan konteks gambar visual bagi anak SD (hanya jika relevan dengan "${activeSubject}"), pilihlah salah satu kode visual berikut:
+1. Soal HARUS BENAR-BENAR BERISI TEKS SOAL ASLI dan ringkas-jelas (stimulus 1-3 kalimat, pembahasan 1-2 kalimat) agar siswa ${activeClass} mudah memahami.
+2. Jika suatu butir soal PG memerlukan konteks gambar visual bagi anak SD (hanya jika relevan dengan "${activeSubject}" dan sesuai ${activeClass}), pilihlah salah satu kode visual berikut:
    - "clock_0900", "clock_0200", "fraction_circle", "fraction_rect", "shape_rect", "shape_triangle", "shape_cube", "cube_net", "plant_anatomy", "water_cycle", "food_chain", "garuda_bintang", "garuda_rantai", "garuda_beringin", "garuda_banteng", "garuda_padi_kapas", "traffic_sign", "chart_bar", atau "none".
-3. PENTING: Jika visualType BUKAN "none", teks stimulus dan pertanyaan HARUS SECARA LANGSUNG MEMBAHAS GAMBAR TERSEBUT. Jika tidak cocok dengan materi "${activeSubject}", wajib isi "none".
+3. PENTING: Jika visualType BUKAN "none", teks stimulus dan pertanyaan HARUS SECARA LANGSUNG MEMBAHAS GAMBAR TERSEBUT. Jika tidak cocok dengan materi "${activeSubject}" atau terlalu tinggi untuk ${activeClass}, wajib isi "none".
 4. PERATURAN MUTLAK ANTI-DUPLIKASI (ZERO DUPLICATE POLICY):
    - Setiap nomor butir soal (PG 1..${pgCount}, Isian 1..${isianCount}, Uraian 1..${uraianCount}) WAJIB 100% UNIK, BERBEDA, dan tidak boleh ada soal kembar.
    - Distribusikan butir soal secara merata ke seluruh TP yang tersedia.
@@ -1537,8 +1643,22 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                     {/* Class & Subject Selector Quick Bar */}
                     <div className="mt-5 flex flex-wrap items-center gap-3 pt-4 border-t border-white/10">
                         <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold">
-                            <span className="text-slate-300">Kelas Terdaftar:</span>
-                            <span className="font-bold text-amber-300">{activeClass}</span>
+                            <span className="text-slate-300">Kelas Target:</span>
+                            <select
+                                value={activeClass}
+                                onChange={(e) => {
+                                    const nextCls = e.target.value;
+                                    setActiveClass(nextCls);
+                                    if (onClassChange) onClassChange(nextCls);
+                                }}
+                                className="bg-slate-900/70 text-amber-300 font-bold text-xs px-2 py-0.5 rounded-lg border border-white/20 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                            >
+                                {['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'].map(cls => (
+                                    <option key={cls} value={cls}>
+                                        {cls} {userAssignedClass && isSameClass(cls, userAssignedClass) ? '(Terdaftar)' : ''}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold">
                             <span className="text-slate-300">Mata Pelajaran:</span>

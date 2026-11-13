@@ -41,7 +41,32 @@ export function markQuestionSeen(seen: Set<string>, question?: string, stimulus?
 }
 
 
-export interface QuestionBankItemPG {
+export function parseGradeFromClassName(className?: string, isFaseA?: boolean): number {
+    const match = (className || '').match(/\b([1-6])\b/);
+    if (match) return parseInt(match[1], 10);
+    return isFaseA ? 1 : 4;
+}
+
+export interface GradeScopedItem {
+    minGrade?: number;
+    maxGrade?: number;
+}
+
+function filterAndPrioritizeByGrade<T extends GradeScopedItem>(items: T[], grade: number): T[] {
+    const matched = items.filter(item => {
+        const minG = item.minGrade ?? 1;
+        const maxG = item.maxGrade ?? 6;
+        return grade >= minG && grade <= maxG;
+    });
+    // Prioritize items specifically tailored to a narrower band containing this grade
+    return matched.sort((a, b) => {
+        const spanA = (a.maxGrade ?? 6) - (a.minGrade ?? 1);
+        const spanB = (b.maxGrade ?? 6) - (b.minGrade ?? 1);
+        return spanA - spanB;
+    });
+}
+
+export interface QuestionBankItemPG extends GradeScopedItem {
     stimulus?: string;
     question: string;
     optionsFaseA: { key: string; text: string }[];
@@ -54,7 +79,7 @@ export interface QuestionBankItemPG {
     visualTitle?: string;
 }
 
-export interface QuestionBankItemIsian {
+export interface QuestionBankItemIsian extends GradeScopedItem {
     stimulus?: string;
     question: string;
     correctAnswer: string;
@@ -62,7 +87,7 @@ export interface QuestionBankItemIsian {
     topic: string;
 }
 
-export interface QuestionBankItemUraian {
+export interface QuestionBankItemUraian extends GradeScopedItem {
     stimulus?: string;
     question: string;
     correctAnswer: string;
@@ -80,7 +105,164 @@ export interface QuestionBankItemUraian {
 // 1. EXTENSIVE QUESTION BANKS (MATEMATIKA)
 // ==========================================
 const MATH_PG_BANK: QuestionBankItemPG[] = [
+    // --- KELAS 1 - 2 (FASE A) ---
     {
+        minGrade: 1,
+        maxGrade: 2,
+        visualType: 'clock_0900',
+        visualTitle: 'Perhatikan gambar jam dinding di bawah ini!',
+        stimulus: 'Jarum pendek pada jam dinding menunjuk angka 9 dan jarum panjang menunjuk tepat ke angka 12.',
+        question: 'Waktu yang ditunjukkan oleh jam dinding pada gambar di atas adalah pukul ...',
+        optionsFaseA: [
+            { key: 'A', text: '03.00' },
+            { key: 'B', text: '09.00' },
+            { key: 'C', text: '12.00' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '03.00' },
+            { key: 'B', text: '09.00' },
+            { key: 'C', text: '10.00' },
+            { key: 'D', text: '12.00' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Jarum pendek di angka 9 dan jarum panjang di angka 12 menunjukkan tepat pukul 09.00.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Membaca Jam Analog'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        visualType: 'clock_0200',
+        visualTitle: 'Perhatikan gambar jam dinding berikut!',
+        stimulus: 'Siti pulang sekolah dan mulai beristirahat siang saat jarum pendek menunjuk angka 2 dan jarum panjang menunjuk angka 12.',
+        question: 'Jam dinding di atas menunjukkan pukul ...',
+        optionsFaseA: [
+            { key: 'A', text: '01.00' },
+            { key: 'B', text: '02.00' },
+            { key: 'C', text: '04.00' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '01.00' },
+            { key: 'B', text: '02.00' },
+            { key: 'C', text: '03.00' },
+            { key: 'D', text: '12.00' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Jarum pendek menunjuk angka 2 dan jarum panjang di angka 12 artinya pukul 02.00.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Membaca Jam Analog'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        visualType: 'shape_triangle',
+        visualTitle: 'Perhatikan gambar bangun datar berikut!',
+        stimulus: 'Edo memiliki penggaris berbentuk bangun datar dengan tiga sisi lurus.',
+        question: 'Nama bangun datar pada gambar yang memiliki 3 sisi dan 3 sudut tersebut adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Segitiga' },
+            { key: 'B', text: 'Lingkaran' },
+            { key: 'C', text: 'Persegi panjang' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Segitiga' },
+            { key: 'B', text: 'Lingkaran' },
+            { key: 'C', text: 'Persegi' },
+            { key: 'D', text: 'Trapesium' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Bangun datar yang dibatasi oleh 3 sisi lurus dan memiliki 3 titik sudut disebut segitiga.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Bangun Datar Sederhana'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Di meja belajar Andi ada 14 pensil warna. Ibu membelikan lagi 12 pensil warna baru untuk Andi.',
+        question: 'Berapa jumlah seluruh pensil warna Andi sekarang?',
+        optionsFaseA: [
+            { key: 'A', text: '24 pensil' },
+            { key: 'B', text: '26 pensil' },
+            { key: 'C', text: '28 pensil' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '24 pensil' },
+            { key: 'B', text: '26 pensil' },
+            { key: 'C', text: '28 pensil' },
+            { key: 'D', text: '30 pensil' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Jumlah seluruh pensil = 14 + 12 = 26 pensil warna.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Penjumlahan Bilangan Cacah'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Lani memetik 28 buah stroberi di kebun. Sebanyak 13 buah diberikan kepada adiknya.',
+        question: 'Berapa buah sisa stroberi yang masih dimiliki Lani?',
+        optionsFaseA: [
+            { key: 'A', text: '13 buah' },
+            { key: 'B', text: '15 buah' },
+            { key: 'C', text: '17 buah' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '13 buah' },
+            { key: 'B', text: '15 buah' },
+            { key: 'C', text: '16 buah' },
+            { key: 'D', text: '18 buah' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Sisa stroberi Lani = 28 - 13 = 15 buah.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Pengurangan Bilangan Cacah'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Sebuah bilangan dua angka tersusun dari 4 puluhan dan 7 satuan.',
+        question: 'Bilangan yang terbentuk dari 4 puluhan dan 7 satuan tersebut adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: '47' },
+            { key: 'B', text: '74' },
+            { key: 'C', text: '11' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '47' },
+            { key: 'B', text: '74' },
+            { key: 'C', text: '407' },
+            { key: 'D', text: '11' }
+        ],
+        correctAnswer: 'A',
+        explanation: '4 puluhan bernilai 40 ditambah 7 satuan menjadi bilangan 47.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Nilai Tempat Bilangan'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Sebuah kue bolu dipotong menjadi 2 bagian yang sama besar. Beni memakan 1 bagian kue tersebut.',
+        question: 'Bagian kue yang dimakan Beni bernilai pecahan ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Setengah (1/2)' },
+            { key: 'B', text: 'Seperempat (1/4)' },
+            { key: 'C', text: 'Satu utuh (1/1)' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '1/2' },
+            { key: 'B', text: '1/3' },
+            { key: 'C', text: '1/4' },
+            { key: 'D', text: '2/3' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Satu bagian dari dua potong sama besar disebut setengah atau 1/2.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Mengenal Pecahan Setengah'
+    },
+    // --- KELAS 3 - 4 (FASE B) & UMUM ---
+    {
+        minGrade: 3,
+        maxGrade: 6,
         visualType: 'clock_0900',
         visualTitle: 'Perhatikan gambar jarum jam dinding berikut!',
         stimulus: 'Pada pukul 09.00 tepat, siswa kelas mulai melaksanakan kegiatan literasi bersama di perpustakaan.',
@@ -102,6 +284,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Pengukuran Sudut'
     },
     {
+        minGrade: 4,
+        maxGrade: 6,
         visualType: 'clock_0200',
         visualTitle: 'Perhatikan gambar jam dinding pukul 02.00 berikut!',
         stimulus: 'Jam dinding ruang kelas menunjukkan waktu istirahat kedua tepat pukul 02.00 siang.',
@@ -123,6 +307,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Pengukuran Sudut'
     },
     {
+        minGrade: 3,
+        maxGrade: 5,
         visualType: 'fraction_circle',
         visualTitle: 'Perhatikan gambar lingkaran yang dibagi sama besar berikut!',
         stimulus: 'Sebuah loyang pizza dipotong menjadi 6 bagian sama besar. Siti memakan 2 bagian seperti terlihat pada area yang diarsir.',
@@ -144,6 +330,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Pecahan Sederhana'
     },
     {
+        minGrade: 3,
+        maxGrade: 5,
         visualType: 'fraction_rect',
         visualTitle: 'Perhatikan gambar persegi panjang berpita arsiran berikut!',
         stimulus: 'Sebuah pita kain dibagi menjadi 8 petak sama panjang. Budi mewarnai 3 petak dengan warna biru.',
@@ -165,6 +353,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Pecahan'
     },
     {
+        minGrade: 3,
+        maxGrade: 6,
         visualType: 'shape_rect',
         visualTitle: 'Perhatikan bangun datar persegi panjang di bawah ini!',
         stimulus: 'Papan tulis mini di kelas memiliki ukuran panjang 12 cm dan lebar 6 cm.',
@@ -186,6 +376,50 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Luas Bangun Datar'
     },
     {
+        minGrade: 3,
+        maxGrade: 4,
+        stimulus: 'Ibu membeli 2 kg gula pasir dan 500 gram tepung terigu di pasar untuk membuat kue.',
+        question: 'Berat seluruh belanjaan Ibu jika dinyatakan dalam satuan gram adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: '2.050 gram' },
+            { key: 'B', text: '2.500 gram' },
+            { key: 'C', text: '700 gram' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '700 gram' },
+            { key: 'B', text: '2.050 gram' },
+            { key: 'C', text: '2.500 gram' },
+            { key: 'D', text: '25.000 gram' }
+        ],
+        correctAnswer: 'C',
+        explanation: '1 kg = 1.000 gram, maka 2 kg = 2.000 gram. Total berat = 2.000 + 500 = 2.500 gram.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Satuan Berat Baku'
+    },
+    {
+        minGrade: 3,
+        maxGrade: 4,
+        stimulus: 'Pada garis bilangan pola kelipatan 4 tertulis barisan angka: 4, 8, 12, [ ... ], 20, 24.',
+        question: 'Bilangan yang tepat untuk mengisi kotak rumpang pada pola bilangan di atas adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: '14' },
+            { key: 'B', text: '16' },
+            { key: 'C', text: '18' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '14' },
+            { key: 'B', text: '15' },
+            { key: 'C', text: '16' },
+            { key: 'D', text: '18' }
+        ],
+        correctAnswer: 'C',
+        explanation: 'Pola bilangan selalu bertambah 4 (+4), sehingga setelah 12 adalah 12 + 4 = 16.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Pola Bilangan'
+    },
+    {
+        minGrade: 4,
+        maxGrade: 6,
         visualType: 'shape_triangle',
         visualTitle: 'Perhatikan gambar segitiga siku-siku berikut!',
         stimulus: 'Penggaris segitiga milik Edo memiliki panjang alas 8 cm, tinggi 6 cm, dan sisi miring 10 cm.',
@@ -207,6 +441,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Luas Bangun Datar'
     },
     {
+        minGrade: 3,
+        maxGrade: 6,
         visualType: 'chart_bar',
         visualTitle: 'Perhatikan diagram batang peminjaman buku perpustakaan berikut!',
         stimulus: 'Petugas perpustakaan mencatat jumlah peminjam buku dari hari Senin sampai Kamis: Senin 15 orang, Selasa 25 orang, Rabu 10 orang, Kamis 20 orang.',
@@ -227,7 +463,10 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         cognitiveLevel: 'MOTS',
         topic: 'Pengolahan Data'
     },
+    // --- KELAS 5 - 6 (FASE C) ---
     {
+        minGrade: 5,
+        maxGrade: 6,
         visualType: 'shape_cube',
         visualTitle: 'Perhatikan gambar kubus mainan berikut!',
         stimulus: 'Sebuah kotak kado mainan berbentuk kubus memiliki panjang rusuk 5 cm.',
@@ -249,6 +488,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Volume Bangun Ruang'
     },
     {
+        minGrade: 5,
+        maxGrade: 6,
         visualType: 'cube_net',
         visualTitle: 'Perhatikan gambar jaring-jaring kubus berikut!',
         stimulus: 'Sebuah pola karton dibuat dengan 6 buah persegi bernomor 1 sampai 6 untuk dirangkai menjadi kotak kubus.',
@@ -270,6 +511,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Jaring-jaring Bangun Ruang'
     },
     {
+        minGrade: 3,
+        maxGrade: 6,
         stimulus: 'Paman memanen 145 buah mangga dari pohon pertama dan 235 buah mangga dari pohon kedua. Seluruh mangga dimasukkan sama rata ke dalam 5 keranjang.',
         question: 'Banyaknya buah mangga yang ada di dalam setiap keranjang adalah ...',
         optionsFaseA: [
@@ -289,6 +532,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Operasi Hitung Campuran'
     },
     {
+        minGrade: 5,
+        maxGrade: 6,
         stimulus: 'Lani memiliki seutas pita sepanjang 3,5 meter. Ia menggunakan 1,75 meter untuk menghias kado ulang tahun adiknya.',
         question: 'Panjang sisa pita yang masih dimiliki oleh Lani adalah ...',
         optionsFaseA: [
@@ -308,6 +553,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Operasi Bilangan Desimal'
     },
     {
+        minGrade: 4,
+        maxGrade: 6,
         stimulus: 'Andi berenang setiap 4 hari sekali, sedangkan Budi berenang setiap 6 hari sekali di kolam yang sama.',
         question: 'Jika pada tanggal 2 Mei mereka berenang bersama-sama untuk pertama kali, pada tanggal berapa mereka akan berenang bersama lagi?',
         optionsFaseA: [
@@ -327,6 +574,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'KPK dan FPB'
     },
     {
+        minGrade: 4,
+        maxGrade: 6,
         stimulus: 'Ibu memiliki 24 kue bolu dan 36 pastel. Ibu ingin membagikan kue tersebut ke dalam piring-piring dengan jumlah dan jenis yang sama banyak tanpa sisa.',
         question: 'Berapakah jumlah piring terbanyak yang harus disiapkan oleh Ibu?',
         optionsFaseA: [
@@ -346,6 +595,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'KPK dan FPB'
     },
     {
+        minGrade: 5,
+        maxGrade: 6,
         stimulus: 'Di sebuah toko buku, harga sebuah tas sekolah adalah Rp120.000,00. Menjelang tahun ajaran baru, toko memberikan diskon sebesar 20%.',
         question: 'Berapa rupiah uang yang harus dibayarkan pembeli setelah mendapatkan diskon?',
         optionsFaseA: [
@@ -365,6 +616,8 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Persentase dan Diskon'
     },
     {
+        minGrade: 5,
+        maxGrade: 6,
         stimulus: 'Data nilai ulangan matematika dari 8 siswa adalah: 70, 80, 75, 90, 80, 85, 80, 95.',
         question: 'Nilai modus (nilai yang paling sering muncul) dari data ulangan matematika tersebut adalah ...',
         optionsFaseA: [
@@ -389,7 +642,95 @@ const MATH_PG_BANK: QuestionBankItemPG[] = [
 // 2. EXTENSIVE QUESTION BANKS (BAHASA INDONESIA)
 // ==========================================
 const INDO_PG_BANK: QuestionBankItemPG[] = [
+    // --- KELAS 1 - 2 (FASE A) ---
     {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Perhatikan kalimat sederhana berikut: "budi bermain bola di halaman."',
+        question: 'Huruf pertama di awal kalimat dan nama orang tersebut seharusnya ditulis menggunakan huruf ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Huruf kapital (Budi)' },
+            { key: 'B', text: 'Huruf kecil semua' },
+            { key: 'C', text: 'Tanda tanya (?)' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Huruf kapital (Budi)' },
+            { key: 'B', text: 'Huruf kecil semua' },
+            { key: 'C', text: 'Tanda seru (!)' },
+            { key: 'D', text: 'Huruf miring' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Awal kalimat dan nama orang wajib ditulis dengan huruf kapital.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Huruf Kapital Sederhana'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Saat pensilmu terjatuh dan temanmu membantu mengambilkannya, kamu harus mengucapkan kata santun.',
+        question: 'Ungkapan sopan yang tepat diucapkan kepada teman yang telah menolong kita adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Terima kasih banyak ya!' },
+            { key: 'B', text: 'Permisi mau lewat.' },
+            { key: 'C', text: 'Selamat tidur malam.' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Terima kasih banyak ya!' },
+            { key: 'B', text: 'Permisi mau lewat.' },
+            { key: 'C', text: 'Selamat pagi.' },
+            { key: 'D', text: 'Tolong ambilkan lagi.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Ketika dibantu orang lain, kita mengucapkan "terima kasih" dengan santun.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Ungkapan Santun'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Perhatikan kalimat berikut: "Di mana rumah nenekmu [ ... ]"',
+        question: 'Tanda baca yang tepat untuk melengkapi akhir kalimat tanya tersebut adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Tanda titik (.)' },
+            { key: 'B', text: 'Tanda tanya (?)' },
+            { key: 'C', text: 'Tanda koma (,)' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Tanda titik (.)' },
+            { key: 'B', text: 'Tanda tanya (?)' },
+            { key: 'C', text: 'Tanda seru (!)' },
+            { key: 'D', text: 'Tanda koma (,)' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Kalimat tanya selalu diakhiri dengan tanda tanya (?).',
+        cognitiveLevel: 'LOTS',
+        topic: 'Tanda Baca Dasar'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Perhatikan penggalan kata berikut: "se - ko - lah".',
+        question: 'Jumlah suku kata yang menyusun kata "sekolah" tersebut adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: '2 suku kata' },
+            { key: 'B', text: '3 suku kata' },
+            { key: 'C', text: '4 suku kata' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: '2 suku kata' },
+            { key: 'B', text: '3 suku kata' },
+            { key: 'C', text: '4 suku kata' },
+            { key: 'D', text: '5 suku kata' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Kata "sekolah" terdiri dari tiga suku kata yaitu se - ko - lah.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Suku Kata'
+    },
+    // --- KELAS 3 - 6 ---
+    {
+        minGrade: 3,
+        maxGrade: 6,
         stimulus: 'Bacalah paragraf berikut dengan cermat:\n"Hutan bakau di tepi pantai memiliki peran sangat penting dalam menjaga kelestarian lingkungan pesisir. Akar pohon bakau yang kokoh dapat menahan hempasan ombak besar sehingga mencegah terjadinya abrasi pantai. Selain itu, kawasan bakau menjadi tempat hidup dan berkembang biak bagi kepiting, udang, dan berbagai jenis ikan kecil."',
         question: 'Ide pokok paragraf bacaan di atas adalah ...',
         optionsFaseA: [
@@ -409,7 +750,9 @@ const INDO_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Ide Pokok Paragraf'
     },
     {
-        stimulus: 'Bacalah teks berikut:\n"Setiap pagi sebelum bel masuk berbunyi, siswa kelas 5 melaksanakan kegiatan piket kebersihan. Ada yang menyapu lantai kelas, merapikan meja guru, dan membuang sampah ke tempatnya. Berkat kerja sama semua siswa, ruang kelas menjadi bersih dan nyaman untuk belajar."',
+        minGrade: 3,
+        maxGrade: 6,
+        stimulus: 'Bacalah teks berikut:\n"Setiap pagi sebelum bel masuk berbunyi, para siswa melaksanakan kegiatan piket kebersihan. Ada yang menyapu lantai kelas, merapikan meja guru, dan membuang sampah ke tempatnya. Berkat kerja sama semua siswa, ruang kelas menjadi bersih dan nyaman untuk belajar."',
         question: 'Kalimat utama dari paragraf tersebut terletak pada ...',
         optionsFaseA: [
             { key: 'A', text: 'Awal paragraf (kalimat pertama)' },
@@ -428,6 +771,8 @@ const INDO_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Kalimat Utama'
     },
     {
+        minGrade: 2,
+        maxGrade: 6,
         stimulus: 'Perhatikan kalimat rumpang berikut ini:\n"[ ... ] cara membuat pupuk kompos sederhana dari dedaunan kering yang berguguran di halaman sekolah?"',
         question: 'Kata tanya yang tepat untuk melengkapi kalimat tanya di atas adalah kata tanya ...',
         optionsFaseA: [
@@ -447,6 +792,8 @@ const INDO_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Kata Tanya'
     },
     {
+        minGrade: 3,
+        maxGrade: 6,
         stimulus: 'Perhatikan kalimat berikut:\n"Para warga desa bergotong royong melakukan reboisasi di lereng bukit yang gundul untuk mencegah longsor."',
         question: 'Makna istilah kata "reboisasi" pada kalimat di atas adalah ...',
         optionsFaseA: [
@@ -466,6 +813,8 @@ const INDO_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Makna Kata dan Kosakata'
     },
     {
+        minGrade: 3,
+        maxGrade: 6,
         stimulus: 'Cermati kalimat petunjuk acak membuat segelas teh manis hangat:\n(1) Tuangkan air panas ke dalam cangkir secara hati-hati.\n(2) Siapkan cangkir, kantong teh celup, dan gula pasir.\n(3) Masukkan satu kantong teh celup dan satu sendok gula.\n(4) Aduk air teh hingga gula larut sempurna dan siap disajikan.',
         question: 'Urutan petunjuk membuat teh manis yang runtut dan benar adalah ...',
         optionsFaseA: [
@@ -485,6 +834,8 @@ const INDO_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Teks Prosedur / Petunjuk'
     },
     {
+        minGrade: 4,
+        maxGrade: 6,
         stimulus: 'Perhatikan kalimat berikut:\n"Pohon kelapa melambai-lambai di tepi pantai tertiup angin sepoi-sepoi."',
         question: 'Gaya bahasa (majas) yang digunakan pada kalimat di atas adalah majas ...',
         optionsFaseA: [
@@ -718,6 +1069,8 @@ const PANCASILA_PG_BANK: QuestionBankItemPG[] = [
 // ==========================================
 const IPAS_PG_BANK: QuestionBankItemPG[] = [
     {
+        minGrade: 1,
+        maxGrade: 5,
         visualType: 'plant_anatomy',
         visualTitle: 'Perhatikan gambar bagian-bagian tumbuhan di bawah ini!',
         stimulus: 'Tumbuhan hijau dapat membuat makanannya sendiri melalui proses fotosintesis.',
@@ -739,6 +1092,50 @@ const IPAS_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Bagian Tumbuhan'
     },
     {
+        minGrade: 3,
+        maxGrade: 5,
+        stimulus: 'Di pagi hari yang cerah, ibu menjemur pakaian basah di halaman rumah. Siang harinya pakaian tersebut sudah kering.',
+        question: 'Perubahan wujud air yang ada pada pakaian basah menjadi uap air karena panas matahari disebut ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Menguap' },
+            { key: 'B', text: 'Membeku' },
+            { key: 'C', text: 'Mencair' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Menguap' },
+            { key: 'B', text: 'Membeku' },
+            { key: 'C', text: 'Mencair' },
+            { key: 'D', text: 'Mengembun' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Perubahan wujud dari benda cair menjadi gas (uap air) akibat pemanasan disebut menguap.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Perubahan Wujud Benda'
+    },
+    {
+        minGrade: 3,
+        maxGrade: 5,
+        stimulus: 'Dalam daur hidupnya, kupu-kupu mengalami empat tahap perubahan bentuk mulai dari telur, ulat (larva), kepompong (pupa), hingga menjadi kupu-kupu dewasa.',
+        question: 'Urutan daur hidup kupu-kupu yang mengalami perubahan bentuk berbeda jauh di tiap fasenya disebut ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Metamorfosis sempurna' },
+            { key: 'B', text: 'Metamorfosis tidak sempurna' },
+            { key: 'C', text: 'Fotosintesis' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Metamorfosis sempurna' },
+            { key: 'B', text: 'Metamorfosis tidak sempurna' },
+            { key: 'C', text: 'Tunas adventif' },
+            { key: 'D', text: 'Simbiosis komensalisme' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Kupu-kupu melewati fase pupa/kepompong dengan bentuk sangat berbeda dari larva, disebut metamorfosis sempurna.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Daur Hidup Hewan'
+    },
+    {
+        minGrade: 5,
+        maxGrade: 6,
         visualType: 'food_chain',
         visualTitle: 'Perhatikan skema rantai makanan ekosistem sawah berikut!',
         stimulus: 'Di ekosistem sawah terdapat rantai makanan: Padi -> Belalang -> Katak -> Ular -> Elang.',
@@ -760,6 +1157,8 @@ const IPAS_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Rantai Makanan dan Ekosistem'
     },
     {
+        minGrade: 5,
+        maxGrade: 6,
         visualType: 'water_cycle',
         visualTitle: 'Perhatikan diagram tahapan siklus air berikut!',
         stimulus: 'Air di bumi tidak pernah habis karena terus bersirkulasi dalam siklus hidrologi alam.',
@@ -781,6 +1180,8 @@ const IPAS_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Siklus Air'
     },
     {
+        minGrade: 1,
+        maxGrade: 5,
         stimulus: 'Saat membuat es lilin, cairan sirup dimasukkan ke dalam kantong plastik lalu ditaruh di dalam freezer lemari pendingin hingga mengeras.',
         question: 'Perubahan wujud zat dari cair menjadi padat pada pembuatan es lilin tersebut dinamakan ...',
         optionsFaseA: [
@@ -800,6 +1201,8 @@ const IPAS_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Perubahan Wujud Benda'
     },
     {
+        minGrade: 3,
+        maxGrade: 6,
         stimulus: 'Budi mengayuh sepedanya dengan kencang di jalanan menurun. Saat mendekati persimpangan, ia menarik tuas rem sehingga laju sepedanya melambat dan berhenti.',
         question: 'Gaya yang bekerja pada kampas rem sehingga sepeda dapat berhenti adalah ...',
         optionsFaseA: [
@@ -819,6 +1222,8 @@ const IPAS_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Gaya dan Gerak'
     },
     {
+        minGrade: 4,
+        maxGrade: 6,
         stimulus: 'Bunglon memiliki kemampuan mengubah warna kulitnya sesuai dengan lingkungan tempat ia berpijak untuk mengelabui musuhnya.',
         question: 'Kemampuan adaptasi penyamaran warna kulit pada hewan bunglon tersebut dinamakan ...',
         optionsFaseA: [
@@ -838,6 +1243,8 @@ const IPAS_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Adaptasi Makhluk Hidup'
     },
     {
+        minGrade: 5,
+        maxGrade: 6,
         stimulus: 'Bumi berputar pada porosnya dari arah barat ke timur membutuhkan waktu sekitar 24 jam untuk satu kali putaran penuh.',
         question: 'Peristiwa alam yang terjadi akibat dari perputaran bumi pada porosnya (rotasi bumi) adalah ...',
         optionsFaseA: [
@@ -857,6 +1264,8 @@ const IPAS_PG_BANK: QuestionBankItemPG[] = [
         topic: 'Bumi dan Alam Semesta'
     },
     {
+        minGrade: 3,
+        maxGrade: 6,
         stimulus: 'Pak Danu adalah seorang pengrajin bambu yang membuat anyaman topi dan keranjang belanja untuk dijual ke pasar tradisional.',
         question: 'Dalam kegiatan ekonomi masyarakat, kegiatan yang dilakukan oleh Pak Danu termasuk ke dalam kegiatan ...',
         optionsFaseA: [
@@ -2209,21 +2618,26 @@ const MULOK_PG_BANK: QuestionBankItemPG[] = [
 // 5. EXTENSIVE QUESTION BANKS (ISIAN SINGKAT)
 // ==========================================
 const ISIAN_POOL_MATEMATIKA: QuestionBankItemIsian[] = [
-    { question: 'Sudut yang ukuran besarnya tepat 90 derajat dinamakan sudut ...', correctAnswer: 'Siku-siku', cognitiveLevel: 'LOTS', topic: 'Sudut' },
-    { question: 'Sudut yang besarnya lebih kecil dari 90 derajat dinamakan sudut ...', correctAnswer: 'Lancip', cognitiveLevel: 'LOTS', topic: 'Sudut' },
-    { question: 'Sudut yang besarnya antara 90 derajat sampai 180 derajat dinamakan sudut ...', correctAnswer: 'Tumpul', cognitiveLevel: 'LOTS', topic: 'Sudut' },
-    { question: 'Bangun datar yang memiliki 4 sisi sama panjang dan 4 sudut siku-siku adalah ...', correctAnswer: 'Persegi (Bujur sangkar)', cognitiveLevel: 'LOTS', topic: 'Bangun Datar' },
-    { question: 'Sebuah persegi panjang memiliki panjang 15 cm dan lebar 8 cm. Luas persegi panjang tersebut adalah ... cm².', correctAnswer: '120', cognitiveLevel: 'MOTS', topic: 'Luas' },
-    { question: 'Sebuah segitiga memiliki panjang alas 12 cm dan tinggi 10 cm. Luas segitiga tersebut adalah ... cm².', correctAnswer: '60', cognitiveLevel: 'MOTS', topic: 'Luas' },
-    { question: 'Panjang rusuk kubus adalah 6 cm. Volume kubus tersebut adalah ... cm³.', correctAnswer: '216', cognitiveLevel: 'MOTS', topic: 'Volume' },
-    { question: 'Bentuk pecahan paling sederhana dari 15/20 adalah ...', correctAnswer: '3/4', cognitiveLevel: 'LOTS', topic: 'Pecahan' },
-    { question: 'Hasil dari operasi hitung 25 x 4 + 75 adalah ...', correctAnswer: '175', cognitiveLevel: 'MOTS', topic: 'Operasi Campuran' },
-    { question: 'Faktor Persekutuan Terbesar (FPB) dari bilangan 18 dan 24 adalah ...', correctAnswer: '6', cognitiveLevel: 'HOTS', topic: 'KPK dan FPB' },
-    { question: 'Kelipatan Persekutuan Terkecil (KPK) dari bilangan 6 dan 8 adalah ...', correctAnswer: '24', cognitiveLevel: 'HOTS', topic: 'KPK dan FPB' },
-    { question: 'Bentuk desimal dari pecahan 3/5 adalah ...', correctAnswer: '0,6', cognitiveLevel: 'LOTS', topic: 'Desimal' },
-    { question: 'Sebuah tali panjangnya 2 meter 50 centimeter. Panjang tali tersebut jika diubah ke satuan centimeter adalah ... cm.', correctAnswer: '250', cognitiveLevel: 'LOTS', topic: 'Satuan Panjang' },
-    { question: 'Pak Budi membeli beras 3 kilogram. Berat beras tersebut setara dengan ... gram.', correctAnswer: '3.000', cognitiveLevel: 'LOTS', topic: 'Satuan Berat' },
-    { question: 'Satu jam terdiri dari ... menit.', correctAnswer: '60', cognitiveLevel: 'LOTS', topic: 'Satuan Waktu' }
+    { minGrade: 1, maxGrade: 2, question: 'Hasil penjumlahan bilangan 15 + 12 adalah ...', correctAnswer: '27', cognitiveLevel: 'LOTS', topic: 'Penjumlahan' },
+    { minGrade: 1, maxGrade: 2, question: 'Hasil pengurangan bilangan 30 - 14 adalah ...', correctAnswer: '16', cognitiveLevel: 'LOTS', topic: 'Pengurangan' },
+    { minGrade: 1, maxGrade: 2, question: 'Bangun datar yang memiliki 3 sisi dan 3 sudut disebut ...', correctAnswer: 'Segitiga', cognitiveLevel: 'LOTS', topic: 'Bangun Datar' },
+    { minGrade: 1, maxGrade: 2, question: 'Pada bilangan 48, angka 4 menempati nilai tempat ...', correctAnswer: 'Puluhan', cognitiveLevel: 'LOTS', topic: 'Nilai Tempat' },
+    { minGrade: 1, maxGrade: 2, question: 'Satu minggu terdiri dari ... hari.', correctAnswer: '7', cognitiveLevel: 'LOTS', topic: 'Satuan Waktu' },
+    { minGrade: 3, maxGrade: 6, question: 'Sudut yang ukuran besarnya tepat 90 derajat dinamakan sudut ...', correctAnswer: 'Siku-siku', cognitiveLevel: 'LOTS', topic: 'Sudut' },
+    { minGrade: 3, maxGrade: 6, question: 'Sudut yang besarnya lebih kecil dari 90 derajat dinamakan sudut ...', correctAnswer: 'Lancip', cognitiveLevel: 'LOTS', topic: 'Sudut' },
+    { minGrade: 3, maxGrade: 6, question: 'Sudut yang besarnya antara 90 derajat sampai 180 derajat dinamakan sudut ...', correctAnswer: 'Tumpul', cognitiveLevel: 'LOTS', topic: 'Sudut' },
+    { minGrade: 1, maxGrade: 6, question: 'Bangun datar yang memiliki 4 sisi sama panjang dan 4 sudut siku-siku adalah ...', correctAnswer: 'Persegi (Bujur sangkar)', cognitiveLevel: 'LOTS', topic: 'Bangun Datar' },
+    { minGrade: 3, maxGrade: 6, question: 'Sebuah persegi panjang memiliki panjang 15 cm dan lebar 8 cm. Luas persegi panjang tersebut adalah ... cm².', correctAnswer: '120', cognitiveLevel: 'MOTS', topic: 'Luas' },
+    { minGrade: 4, maxGrade: 6, question: 'Sebuah segitiga memiliki panjang alas 12 cm dan tinggi 10 cm. Luas segitiga tersebut adalah ... cm².', correctAnswer: '60', cognitiveLevel: 'MOTS', topic: 'Luas' },
+    { minGrade: 5, maxGrade: 6, question: 'Panjang rusuk kubus adalah 6 cm. Volume kubus tersebut adalah ... cm³.', correctAnswer: '216', cognitiveLevel: 'MOTS', topic: 'Volume' },
+    { minGrade: 4, maxGrade: 6, question: 'Bentuk pecahan paling sederhana dari 15/20 adalah ...', correctAnswer: '3/4', cognitiveLevel: 'LOTS', topic: 'Pecahan' },
+    { minGrade: 3, maxGrade: 6, question: 'Hasil dari operasi hitung 25 x 4 + 75 adalah ...', correctAnswer: '175', cognitiveLevel: 'MOTS', topic: 'Operasi Campuran' },
+    { minGrade: 4, maxGrade: 6, question: 'Faktor Persekutuan Terbesar (FPB) dari bilangan 18 dan 24 adalah ...', correctAnswer: '6', cognitiveLevel: 'HOTS', topic: 'KPK dan FPB' },
+    { minGrade: 4, maxGrade: 6, question: 'Kelipatan Persekutuan Terkecil (KPK) dari bilangan 6 dan 8 adalah ...', correctAnswer: '24', cognitiveLevel: 'HOTS', topic: 'KPK dan FPB' },
+    { minGrade: 5, maxGrade: 6, question: 'Bentuk desimal dari pecahan 3/5 adalah ...', correctAnswer: '0,6', cognitiveLevel: 'LOTS', topic: 'Desimal' },
+    { minGrade: 3, maxGrade: 6, question: 'Sebuah tali panjangnya 2 meter 50 centimeter. Panjang tali tersebut jika diubah ke satuan centimeter adalah ... cm.', correctAnswer: '250', cognitiveLevel: 'LOTS', topic: 'Satuan Panjang' },
+    { minGrade: 3, maxGrade: 6, question: 'Pak Budi membeli beras 3 kilogram. Berat beras tersebut setara dengan ... gram.', correctAnswer: '3.000', cognitiveLevel: 'LOTS', topic: 'Satuan Berat' },
+    { minGrade: 2, maxGrade: 6, question: 'Satu jam terdiri dari ... menit.', correctAnswer: '60', cognitiveLevel: 'LOTS', topic: 'Satuan Waktu' }
 ];
 
 const ISIAN_POOL_INDO: QuestionBankItemIsian[] = [
@@ -2352,6 +2766,36 @@ const ISIAN_POOL_MULOK: QuestionBankItemIsian[] = [
 // ==========================================
 const URAIAN_POOL_MATEMATIKA: QuestionBankItemUraian[] = [
     {
+        minGrade: 1,
+        maxGrade: 2,
+        question: 'Siti memiliki 24 stiker bintang, lalu Kakak memberinya 15 stiker lagi. Sebanyak 10 stiker diberikan kepada adiknya. Berapa banyak stiker Siti sekarang? Tuliskan cara menghitungnya!',
+        correctAnswer: 'Langkah Penyelesaian:\n1. Jumlah stiker setelah diberi Kakak = 24 + 15 = 39 stiker.\n2. Sisa stiker setelah diberikan kepada adik = 39 - 10 = 29 stiker.\nJadi, stiker Siti sekarang berjumlah 29 buah.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Penjumlahan dan Pengurangan Sederhana',
+        rubric: {
+            score3: 'Menuliskan langkah penjumlahan dan pengurangan berurutan dengan hasil 29 secara tepat.',
+            score2: 'Langkah benar namun terdapat kesalahan hitung akhir.',
+            score1: 'Hanya mengerjakan satu langkah hitung.',
+            score0: 'Tidak menjawab atau salah seluruhnya.'
+        }
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        question: 'Sebutkan 3 benda di dalam ruang kelasmu yang berbentuk bangun datar segiempat dan lingkaran!',
+        correctAnswer: 'Contoh jawaban:\n- Segiempat: papan tulis, permukaan meja, jendela, atau buku tulis.\n- Lingkaran: jam dinding kelas atau uang koin.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Mengenal Bangun Datar Sekitar',
+        rubric: {
+            score3: 'Menyebutkan 3 benda kelas sesuai bentuk segiempat dan lingkaran dengan benar.',
+            score2: 'Menyebutkan 2 benda yang tepat.',
+            score1: 'Hanya menyebutkan 1 benda yang tepat.',
+            score0: 'Tidak ada jawaban.'
+        }
+    },
+    {
+        minGrade: 3,
+        maxGrade: 6,
         question: 'Pak Budi memiliki kebun sayur berbentuk persegi panjang dengan ukuran panjang 15 meter dan lebar 8 meter. Kebun tersebut akan dipasangi pagar kawat di sekelilingnya. Hitunglah keliling dan luas kebun sayur milik Pak Budi beserta langkah perhitungannya!',
         correctAnswer: 'Langkah Penyelesaian:\n1. Keliling = 2 x (Panjang + Lebar) = 2 x (15 + 8) = 2 x 23 = 46 meter.\n2. Luas = Panjang x Lebar = 15 m x 8 m = 120 m².\nJadi, panjang kawat pagar adalah 46 meter dan luas kebun adalah 120 m².',
         cognitiveLevel: 'HOTS',
@@ -2364,7 +2808,9 @@ const URAIAN_POOL_MATEMATIKA: QuestionBankItemUraian[] = [
         }
     },
     {
-        question: 'Di perpustakaan sekolah terdapat 12 rak buku. Setiap rak berisi 45 eksemplar buku cerita. Jika sebanyak 80 buku dipinjam oleh siswa kelas 4 dan 5, berapa sisa buku yang masih ada di perpustakaan? Tuliskan kalimat matematika dan langkah penyelesaiannya!',
+        minGrade: 3,
+        maxGrade: 6,
+        question: 'Di perpustakaan sekolah terdapat 12 rak buku. Setiap rak berisi 45 eksemplar buku cerita. Jika sebanyak 80 buku dipinjam oleh siswa, berapa sisa buku yang masih ada di perpustakaan? Tuliskan kalimat matematika dan langkah penyelesaiannya!',
         correctAnswer: 'Langkah Penyelesaian:\n1. Total buku awal = 12 x 45 = 540 buku.\n2. Sisa buku setelah dipinjam = 540 - 80 = 460 buku.\nJadi, sisa buku yang masih ada di perpustakaan adalah 460 buku.',
         cognitiveLevel: 'HOTS',
         topic: 'Operasi Campuran',
@@ -2376,6 +2822,8 @@ const URAIAN_POOL_MATEMATIKA: QuestionBankItemUraian[] = [
         }
     },
     {
+        minGrade: 5,
+        maxGrade: 6,
         question: 'Ibu memiliki 3 1/2 kg tepung terigu. Sebanyak 1 1/4 kg digunakan untuk membuat kue bolu dan 3/4 kg untuk membuat gorengan. Berapa kg sisa tepung terigu yang masih dimiliki Ibu? Tuliskan langkah penyelesaian pecahannya!',
         correctAnswer: 'Langkah Penyelesaian:\n1. Tepung yang digunakan = 1 1/4 + 3/4 = 2 kg.\n2. Sisa tepung = 3 1/2 - 2 = 1 1/2 kg.\nJadi, sisa tepung terigu yang masih dimiliki Ibu adalah 1 1/2 kg (atau 1,5 kg).',
         cognitiveLevel: 'HOTS',
@@ -2388,6 +2836,8 @@ const URAIAN_POOL_MATEMATIKA: QuestionBankItemUraian[] = [
         }
     },
     {
+        minGrade: 5,
+        maxGrade: 6,
         question: 'Siti ingin membuat kotak mainan berbentuk kubus dari bahan karton tebal dengan panjang rusuk 10 cm. Hitunglah luas permukaan karton yang dibutuhkan untuk membuat kotak kubus tersebut!',
         correctAnswer: 'Langkah Penyelesaian:\n1. Luas satu sisi persegi = s x s = 10 cm x 10 cm = 100 cm².\n2. Kubus memiliki 6 sisi yang sama luas.\n3. Luas permukaan kubus = 6 x s² = 6 x 100 cm² = 600 cm².\nJadi, luas karton yang dibutuhkan adalah 600 cm².',
         cognitiveLevel: 'HOTS',
@@ -2400,6 +2850,8 @@ const URAIAN_POOL_MATEMATIKA: QuestionBankItemUraian[] = [
         }
     },
     {
+        minGrade: 4,
+        maxGrade: 6,
         question: 'Lampu merah menyala setiap 8 detik sekali, sedangkan lampu hijau menyala setiap 12 detik sekali. Jika kedua lampu menyala bersamaan pada detik ke-0, pada detik ke berapa kedua lampu tersebut akan menyala bersamaan untuk yang kedua kalinya? Jelaskan menggunakan konsep KPK!',
         correctAnswer: 'Langkah Penyelesaian:\n1. Kelipatan 8: 8, 16, 24, 32, 40...\n2. Kelipatan 12: 12, 24, 36, 48...\n3. KPK dari 8 dan 12 adalah 24.\nJadi, kedua lampu akan menyala bersamaan lagi pada detik ke-24.',
         cognitiveLevel: 'HOTS',
@@ -2873,10 +3325,16 @@ function getUraianBankForSubject(subject: string): QuestionBankItemUraian[] {
     }
 }
 
-// Generate parameterized variant for math when bank is exhausted
-function createDynamicMathVariant(index: number, _isFaseA: boolean): QuestionBankItemPG {
-    const cycle = Math.floor((index - 1) / 8);
-    const mode = (index - 1) % 8;
+// Generate parameterized variant for math when bank is exhausted (strictly grade-appropriate!)
+function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number): QuestionBankItemPG {
+    const allowedModes = grade <= 2
+        ? [0, 5, 10, 11] // Grade 1-2: penjumlahan kecil, pengurangan kecil, pola bilangan loncat, jam tepat
+        : grade <= 4
+            ? [0, 1, 2, 3, 4, 5, 6] // Grade 3-4: operasi hitung, luas/keliling persegi/persegi panjang, pembagian, waktu
+            : [0, 1, 2, 3, 4, 5, 6, 7]; // Grade 5-6: all including Volume Kubus
+
+    const mode = allowedModes[(index - 1) % allowedModes.length];
+    const cycle = Math.floor((index - 1) / allowedModes.length);
 
     const namesA = ['Andi', 'Siti', 'Edo', 'Lani', 'Beni', 'Rina'];
     const namesB = ['Budi', 'Dayu', 'Udin', 'Tono', 'Dewi', 'Fajar'];
@@ -2886,8 +3344,8 @@ function createDynamicMathVariant(index: number, _isFaseA: boolean): QuestionBan
     if (mode === 0) {
         const items = ['kelereng', 'stiker', 'kartu bergambar', 'biji congklak', 'batu hias'];
         const itemObj = items[cycle % items.length];
-        const num1 = 14 + (index * 7);
-        const num2 = 18 + (index * 5);
+        const num1 = grade <= 2 ? (8 + ((index * 3) % 35)) : (14 + (index * 7));
+        const num2 = grade <= 2 ? (6 + ((index * 2) % 30)) : (18 + (index * 5));
         const sum = num1 + num2;
         return {
             stimulus: `${n1} memiliki ${num1} buah ${itemObj} dan ${n2} memiliki ${num2} buah ${itemObj}. Mereka menggabungkan semua ${itemObj} tersebut ke dalam satu kotak.`,
@@ -2913,8 +3371,8 @@ function createDynamicMathVariant(index: number, _isFaseA: boolean): QuestionBan
         const contents = ['batang pensil warna', 'buah jeruk manis', 'eksemplar buku cerita', 'butir permen rasa buah', 'potong roti cokelat'];
         const units = ['batang', 'buah', 'eksemplar', 'butir', 'potong'];
         const pick = cycle % containers.length;
-        const factor1 = 4 + index;
-        const perBox = 6 + (cycle % 4);
+        const factor1 = grade <= 3 ? (3 + (index % 7)) : (4 + index);
+        const perBox = 4 + (cycle % 5);
         const prod = factor1 * perBox;
         return {
             stimulus: `Di koperasi sekolah tersedia ${factor1} ${containers[pick]}. Setiap ${containers[pick].split(' ')[0]} berisi ${perBox} ${contents[pick]}.`,
@@ -3010,8 +3468,8 @@ function createDynamicMathVariant(index: number, _isFaseA: boolean): QuestionBan
             topic: 'Operasi Pembagian'
         };
     } else if (mode === 5) {
-        const startVal = 85 + (index * 9);
-        const usedVal = 27 + (cycle * 6);
+        const startVal = grade <= 2 ? (35 + ((index * 4) % 45)) : (85 + (index * 9));
+        const usedVal = grade <= 2 ? (12 + ((index * 3) % 20)) : (27 + (cycle * 6));
         const rem = startVal - usedVal;
         return {
             stimulus: `${n2} memiliki persediaan ${startVal} lembar kertas warna. Sebanyak ${usedVal} lembar digunakan untuk membuat kerajinan kelas.`,
@@ -3055,6 +3513,54 @@ function createDynamicMathVariant(index: number, _isFaseA: boolean): QuestionBan
             cognitiveLevel: 'MOTS',
             topic: 'Konversi Satuan Waktu'
         };
+    } else if (mode === 10) {
+        // Grade 1-2: pola bilangan loncat sederhana
+        const step = 2 + (cycle % 3);
+        const start = 2 + (index % 8);
+        const missing = start + step * 2;
+        return {
+            stimulus: `${n1} mengurutkan kartu angka dengan pola teratur: ${start}, ${start + step}, [ ... ], ${start + step * 3}.`,
+            question: `Angka yang tepat untuk mengisi kartu kosong pada urutan bilangan ${start}, ${start + step}, [...], ${start + step * 3} adalah ...`,
+            optionsFaseA: [
+                { key: 'A', text: `${missing - 1}` },
+                { key: 'B', text: `${missing}` },
+                { key: 'C', text: `${missing + 2}` }
+            ],
+            optionsFaseBC: [
+                { key: 'A', text: `${missing - 1}` },
+                { key: 'B', text: `${missing}` },
+                { key: 'C', text: `${missing + 1}` },
+                { key: 'D', text: `${missing + 2}` }
+            ],
+            correctAnswer: 'B',
+            explanation: `Pola bertambah ${step} setiap langkah, sehingga setelah ${start + step} adalah ${missing}.`,
+            cognitiveLevel: 'MOTS',
+            topic: 'Pola Bilangan Sederhana'
+        };
+    } else if (mode === 11) {
+        // Grade 1-2: membaca dan menghitung durasi jam tepat
+        const startHr = 7 + (index % 4);
+        const dur = 1 + (cycle % 2);
+        const endHr = startHr + dur;
+        return {
+            stimulus: `${n2} mulai belajar membaca buku di ruang kelas pada pukul ${String(startHr).padStart(2, '0')}.00 selama ${dur} jam.`,
+            question: `Pada pukul berapakah ${n2} selesai belajar setelah ${dur} jam dari pukul ${String(startHr).padStart(2, '0')}.00?`,
+            optionsFaseA: [
+                { key: 'A', text: `Pukul ${String(endHr - 1).padStart(2, '0')}.00` },
+                { key: 'B', text: `Pukul ${String(endHr).padStart(2, '0')}.00` },
+                { key: 'C', text: `Pukul ${String(endHr + 2).padStart(2, '0')}.00` }
+            ],
+            optionsFaseBC: [
+                { key: 'A', text: `Pukul ${String(endHr - 1).padStart(2, '0')}.00` },
+                { key: 'B', text: `Pukul ${String(endHr).padStart(2, '0')}.00` },
+                { key: 'C', text: `Pukul ${String(endHr + 1).padStart(2, '0')}.00` },
+                { key: 'D', text: `Pukul ${String(endHr + 2).padStart(2, '0')}.00` }
+            ],
+            correctAnswer: 'B',
+            explanation: `${startHr}.00 ditambah ${dur} jam menjadi pukul ${String(endHr).padStart(2, '0')}.00.`,
+            cognitiveLevel: 'LOTS',
+            topic: 'Pengukuran Waktu Jam Tepat'
+        };
     } else {
         const cubes = ['kotak mainan', 'akuarium mini', 'kardus kado', 'bak air kubus', 'wadah pensil kubus'];
         const cubeObj = cubes[cycle % cubes.length];
@@ -3083,9 +3589,73 @@ function createDynamicMathVariant(index: number, _isFaseA: boolean): QuestionBan
 }
 
 // Generate parameterized variant for Indonesian when bank is exhausted
-function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBankItemPG {
-    const variants: QuestionBankItemPG[] = [
+function createDynamicIndoVariant(index: number, isFaseA: boolean, grade: number = 4): QuestionBankItemPG {
+    const variants: (QuestionBankItemPG & GradeScopedItem)[] = [
         {
+            minGrade: 1,
+            maxGrade: 2,
+            stimulus: 'Perhatikan kalimat berikut: "Terima kasih, Ibu, sudah menyiapkan sarapan pagi."',
+            question: 'Kalimat di atas merupakan contoh ungkapan ...',
+            optionsFaseA: [
+                { key: 'A', text: 'Terima kasih' },
+                { key: 'B', text: 'Permintaan maaf' },
+                { key: 'C', text: 'Larangan' }
+            ],
+            optionsFaseBC: [
+                { key: 'A', text: 'Terima kasih' },
+                { key: 'B', text: 'Permintaan maaf' },
+                { key: 'C', text: 'Larangan' },
+                { key: 'D', text: 'Perintah' }
+            ],
+            correctAnswer: 'A',
+            explanation: 'Kata "Terima kasih" digunakan untuk mengucapkan rasa syukur atau penghargaan atas bantuan orang lain.',
+            cognitiveLevel: 'LOTS',
+            topic: 'Ungkapan Santun'
+        },
+        {
+            minGrade: 1,
+            maxGrade: 2,
+            stimulus: 'Bacalah kalimat berikut: "Siti rajin menyiram bunga di taman setiap pagi [ ... ]"',
+            question: 'Tanda baca yang tepat untuk mengakhiri kalimat berita di atas adalah ...',
+            optionsFaseA: [
+                { key: 'A', text: 'Tanda titik (.)' },
+                { key: 'B', text: 'Tanda tanya (?)' },
+                { key: 'C', text: 'Tanda seru (!)' }
+            ],
+            optionsFaseBC: [
+                { key: 'A', text: 'Tanda titik (.)' },
+                { key: 'B', text: 'Tanda tanya (?)' },
+                { key: 'C', text: 'Tanda seru (!)' },
+                { key: 'D', text: 'Tanda koma (,)' }
+            ],
+            correctAnswer: 'A',
+            explanation: 'Kalimat berita atau pernyataan diakhiri dengan tanda titik (.).',
+            cognitiveLevel: 'LOTS',
+            topic: 'Tanda Baca Dasar'
+        },
+        {
+            minGrade: 1,
+            maxGrade: 2,
+            stimulus: 'Perhatikan kata benda berikut: "bu - ku".',
+            question: 'Jumlah suku kata pada kata "buku" adalah ...',
+            optionsFaseA: [
+                { key: 'A', text: '1 suku kata' },
+                { key: 'B', text: '2 suku kata' },
+                { key: 'C', text: '3 suku kata' }
+            ],
+            optionsFaseBC: [
+                { key: 'A', text: '1 suku kata' },
+                { key: 'B', text: '2 suku kata' },
+                { key: 'C', text: '3 suku kata' },
+                { key: 'D', text: '4 suku kata' }
+            ],
+            correctAnswer: 'B',
+            explanation: 'Kata "buku" dipenggal menjadi "bu-ku", sehingga terdiri atas 2 suku kata.',
+            cognitiveLevel: 'LOTS',
+            topic: 'Suku Kata'
+        },
+        {
+            minGrade: 3,
             stimulus: 'Dalam teks laporan observasi terdapat kalimat: "Para peneliti menciptakan teknologi inovasi pengolahan limbah plastik."',
             question: 'Makna kata "inovasi" pada kalimat di atas adalah ...',
             optionsFaseA: [
@@ -3124,6 +3694,7 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
             topic: 'Antonim'
         },
         {
+            minGrade: 3,
             stimulus: 'Perhatikan kalimat berikut: "Budi dikenal sebagai anak yang ringan tangan di kelasnya karena sering membantu teman."',
             question: 'Arti dari ungkapan "ringan tangan" pada kalimat tersebut adalah ...',
             optionsFaseA: [
@@ -3143,7 +3714,7 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
             topic: 'Ungkapan / Idiom'
         },
         {
-            stimulus: 'Perhatikan kalimat rumpang berikut: "[ ... ] yang menjadi ketua kelompok dalam kegiatan drama pentas seni sekolah?"',
+            stimulus: 'Perhatikan kalimat rumpang berikut: "[ ... ] yang menjadi ketua kelompok dalam kegiatan pentas seni sekolah?"',
             question: 'Untuk menanyakan orang atau pelaku pada kalimat rumpang tersebut, kata tanya yang paling tepat digunakan adalah ...',
             optionsFaseA: [
                 { key: 'A', text: 'Kapan' },
@@ -3181,6 +3752,7 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
             topic: 'Ejaan dan Huruf Kapital'
         },
         {
+            minGrade: 3,
             stimulus: 'Bacalah teks berikut: "1) Hari ini cuaca di luar ruangan tampak sangat panas. 2) Suhu udara terukur mencapai 33 derajat Celsius pada alat termometer."',
             question: 'Berdasarkan kutipan teks di atas, kalimat nomor 2 merupakan jenis kalimat ...',
             optionsFaseA: [
@@ -3219,6 +3791,7 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
             topic: 'Amanat Fabel'
         },
         {
+            minGrade: 2,
             stimulus: 'Perhatikan kalimat rumpang berikut: "Ibu guru meminta Dayu untuk [ ... ] sebuah puisi tentang keindahan alam."',
             question: 'Kata berimbuhan yang paling tepat untuk melengkapi kalimat di atas adalah ...',
             optionsFaseA: [
@@ -3238,6 +3811,7 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
             topic: 'Imbuhan'
         },
         {
+            minGrade: 3,
             stimulus: 'Perhatikan kutipan dialog berikut: "Ibu berkata: [ ... ] Tolong ambilkan piring di dapur, Nak! [ ... ]"',
             question: 'Tanda baca yang tepat untuk mengapit kalimat langsung yang diucapkan Ibu adalah tanda ...',
             optionsFaseA: [
@@ -3257,6 +3831,7 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
             topic: 'Tanda Baca'
         },
         {
+            minGrade: 3,
             stimulus: 'Bacalah teks petunjuk berikut:\n1) Masukkan steker ke stopkontak.\n2) Tekan tombol power untuk menyalakan kipas angin.\n3) Pilih nomor kecepatan putaran baling-baling.\n4) Cabut steker jika kipas angin sudah selesai digunakan.',
             question: 'Teks petunjuk di atas berisi tentang langkah-langkah ...',
             optionsFaseA: [
@@ -3295,6 +3870,7 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
             topic: 'Sinonim'
         },
         {
+            minGrade: 4,
             stimulus: 'Perhatikan kalimat berikut: "Ombak laut bergulung-gulung saling berkejaran menuju ke bibir pantai."',
             question: 'Majas yang digunakan pada kalimat di atas yang menggambarkan ombak seolah-olah bernyawa dan saling mengejar adalah ...',
             optionsFaseA: [
@@ -3315,9 +3891,11 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
         }
     ];
 
-    const pickIdx = (index - 1) % variants.length;
-    const cycle = Math.floor((index - 1) / variants.length);
-    const base = variants[pickIdx];
+    const filteredVariants = filterAndPrioritizeByGrade(variants, grade);
+    const activeVariants = filteredVariants.length > 0 ? filteredVariants : variants;
+    const pickIdx = (index - 1) % activeVariants.length;
+    const cycle = Math.floor((index - 1) / activeVariants.length);
+    const base = activeVariants[pickIdx];
     if (cycle === 0) {
         return base;
     }
@@ -3338,16 +3916,18 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean): QuestionBank
 }
 
 // Subject-aware dynamic PG variant generator when a subject's base bank is exhausted
-function createDynamicSubjectPgVariant(subject: string, index: number, isFaseA: boolean): QuestionBankItemPG {
+function createDynamicSubjectPgVariant(subject: string, index: number, isFaseA: boolean, grade: number): QuestionBankItemPG {
     const cat = detectSubjectCategory(subject);
     if (cat === 'math') {
-        return createDynamicMathVariant(index, isFaseA);
+        return createDynamicMathVariant(index, isFaseA, grade);
     }
     if (cat === 'indo') {
-        return createDynamicIndoVariant(index, isFaseA);
+        return createDynamicIndoVariant(index, isFaseA, grade);
     }
 
-    const bank = getPgBankForSubject(subject);
+    const rawBank = getPgBankForSubject(subject);
+    const filtered = filterAndPrioritizeByGrade(rawBank, grade);
+    const bank = filtered.length > 0 ? filtered : rawBank;
     const pickIdx = (index - 1) % bank.length;
     const cycle = Math.floor((index - 1) / bank.length);
     const base = bank[pickIdx];
@@ -3397,7 +3977,10 @@ export function generateAuthenticPgQuestions(
     existingFingerprints?: Set<string>,
     renderVisualSvgFn?: (type?: VisualType, title?: string) => string
 ): QuestionPG[] {
-    const bank = getPgBankForSubject(subject);
+    const grade = parseGradeFromClassName(className, isFaseA);
+    const rawBank = getPgBankForSubject(subject);
+    const gradeBank = filterAndPrioritizeByGrade(rawBank, grade);
+    const bank = gradeBank.length > 0 ? gradeBank : rawBank;
     const seen = existingFingerprints || new Set<string>();
     const result: QuestionPG[] = [];
 
@@ -3411,8 +3994,8 @@ export function generateAuthenticPgQuestions(
             item = bank[bankIndex];
             bankIndex++;
         } else {
-            // Generate distinct subject-matched variant
-            item = createDynamicSubjectPgVariant(subject, variantIndex++, isFaseA);
+            // Generate distinct subject-matched and grade-matched variant
+            item = createDynamicSubjectPgVariant(subject, variantIndex++, isFaseA, grade);
         }
 
         if (isDuplicateQuestion(seen, item.question, item.stimulus)) {
@@ -3432,7 +4015,7 @@ export function generateAuthenticPgQuestions(
             explanation: item.explanation,
             cognitiveLevel: item.cognitiveLevel,
             tp: tpItem.tp,
-            indikator: `Disajikan stimulus terkait ${item.topic}, peserta didik dapat menjawab pertanyaan dengan tepat.`,
+            indikator: `Disajikan stimulus terkait ${item.topic}, peserta didik ${className} dapat menjawab pertanyaan dengan tepat.`,
             materi: item.topic || tpItem.element || subject,
             visualType: visual,
             visualTitle: item.visualTitle || '',
@@ -3443,9 +4026,49 @@ export function generateAuthenticPgQuestions(
     return result;
 }
 
-function createDynamicIsianVariant(subject: string, index: number): QuestionBankItemIsian {
+function createDynamicIsianVariant(subject: string, index: number, grade: number): QuestionBankItemIsian {
     const s = subject.toLowerCase();
     if (s.includes('matematika') || s.includes('hitung') || s.includes('angka')) {
+        if (grade <= 2) {
+            const mode = (index - 1) % 4;
+            if (mode === 0) {
+                const a = 8 + ((index * 3) % 35);
+                const b = 5 + ((index * 2) % 25);
+                return {
+                    question: `Hasil penjumlahan bilangan ${a} + ${b} adalah ...`,
+                    correctAnswer: `${a + b}`,
+                    cognitiveLevel: 'LOTS',
+                    topic: 'Operasi Penjumlahan'
+                };
+            } else if (mode === 1) {
+                const a = 30 + ((index * 4) % 40);
+                const b = 6 + ((index * 3) % 20);
+                return {
+                    question: `Hasil pengurangan bilangan ${a} - ${b} adalah ...`,
+                    correctAnswer: `${a - b}`,
+                    cognitiveLevel: 'LOTS',
+                    topic: 'Operasi Pengurangan'
+                };
+            } else if (mode === 2) {
+                const jam = 2 + (index % 5);
+                return {
+                    question: `Lama waktu ${jam} jam setelah pukul 07.00 tepat adalah pukul ...`,
+                    correctAnswer: `${String(7 + jam).padStart(2, '0')}.00`,
+                    cognitiveLevel: 'LOTS',
+                    topic: 'Satuan Waktu'
+                };
+            } else {
+                const puluhan = 2 + (index % 7);
+                const satuan = 1 + ((index * 3) % 8);
+                return {
+                    question: `Bilangan yang terdiri dari ${puluhan} puluhan dan ${satuan} satuan adalah ...`,
+                    correctAnswer: `${puluhan * 10 + satuan}`,
+                    cognitiveLevel: 'LOTS',
+                    topic: 'Nilai Tempat'
+                };
+            }
+        }
+
         const mode = (index - 1) % 5;
         if (mode === 0) {
             const numA = 5 + index * 3;
@@ -3588,7 +4211,10 @@ export function generateAuthenticIsianQuestions(
     count: number,
     existingFingerprints?: Set<string>
 ): QuestionIsian[] {
-    const bank = getIsianBankForSubject(subject);
+    const grade = parseGradeFromClassName(className);
+    const rawBank = getIsianBankForSubject(subject);
+    const gradeBank = filterAndPrioritizeByGrade(rawBank, grade);
+    const bank = gradeBank.length > 0 ? gradeBank : rawBank;
     const seen = existingFingerprints || new Set<string>();
     const result: QuestionIsian[] = [];
 
@@ -3607,7 +4233,7 @@ export function generateAuthenticIsianQuestions(
             correctAnswer: item.correctAnswer,
             cognitiveLevel: item.cognitiveLevel,
             tp: tpItem.tp,
-            indikator: `Peserta didik mampu melengkapi isian terkait ${item.topic}.`,
+            indikator: `Peserta didik ${className} mampu melengkapi isian terkait ${item.topic}.`,
             materi: item.topic || tpItem.element || subject
         });
     }
@@ -3615,7 +4241,7 @@ export function generateAuthenticIsianQuestions(
     // Dynamic generation if count exceeds base bank
     let dynIndex = 1;
     while (result.length < count && dynIndex < 150) {
-        const dynItem = createDynamicIsianVariant(subject, dynIndex++);
+        const dynItem = createDynamicIsianVariant(subject, dynIndex++, grade);
         if (isDuplicateQuestion(seen, dynItem.question, dynItem.stimulus)) continue;
 
         markQuestionSeen(seen, dynItem.question, dynItem.stimulus);
@@ -3628,7 +4254,7 @@ export function generateAuthenticIsianQuestions(
             correctAnswer: dynItem.correctAnswer,
             cognitiveLevel: dynItem.cognitiveLevel,
             tp: tpItem.tp,
-            indikator: `Peserta didik mampu melengkapi isian terkait ${dynItem.topic}.`,
+            indikator: `Peserta didik ${className} mampu melengkapi isian terkait ${dynItem.topic}.`,
             materi: dynItem.topic || tpItem.element || subject
         });
     }
@@ -3643,7 +4269,10 @@ export function generateAuthenticUraianQuestions(
     count: number,
     existingFingerprints?: Set<string>
 ): QuestionUraian[] {
-    const bank = getUraianBankForSubject(subject);
+    const grade = parseGradeFromClassName(className);
+    const rawBank = getUraianBankForSubject(subject);
+    const gradeBank = filterAndPrioritizeByGrade(rawBank, grade);
+    const bank = gradeBank.length > 0 ? gradeBank : rawBank;
     const seen = existingFingerprints || new Set<string>();
     const result: QuestionUraian[] = [];
 
@@ -3662,7 +4291,7 @@ export function generateAuthenticUraianQuestions(
             correctAnswer: item.correctAnswer,
             cognitiveLevel: item.cognitiveLevel,
             tp: tpItem.tp,
-            indikator: `Peserta didik mampu menguraikan solusi mendalam terkait ${item.topic}.`,
+            indikator: `Peserta didik ${className} mampu menguraikan solusi mendalam terkait ${item.topic}.`,
             materi: item.topic || tpItem.element || subject,
             rubric: item.rubric
         });
@@ -3671,7 +4300,7 @@ export function generateAuthenticUraianQuestions(
     // Dynamic generation if count exceeds base uraian bank
     let dynIdx = 1;
     while (result.length < count && dynIdx < 100) {
-        const dynItem = createDynamicUraianVariant(subject, dynIdx++);
+        const dynItem = createDynamicUraianVariant(subject, dynIdx++, grade);
         if (isDuplicateQuestion(seen, dynItem.question, dynItem.stimulus)) continue;
 
         markQuestionSeen(seen, dynItem.question, dynItem.stimulus);
@@ -3684,7 +4313,7 @@ export function generateAuthenticUraianQuestions(
             correctAnswer: dynItem.correctAnswer,
             cognitiveLevel: 'HOTS',
             tp: tpItem.tp,
-            indikator: `Peserta didik mampu menguraikan solusi mendalam terkait ${dynItem.topic}.`,
+            indikator: `Peserta didik ${className} mampu menguraikan solusi mendalam terkait ${dynItem.topic}.`,
             materi: dynItem.topic || tpItem.element || subject,
             rubric: dynItem.rubric
         });
@@ -3693,11 +4322,54 @@ export function generateAuthenticUraianQuestions(
     return result;
 }
 
-function createDynamicUraianVariant(subject: string, index: number): QuestionBankItemUraian {
+function createDynamicUraianVariant(subject: string, index: number, grade: number): QuestionBankItemUraian {
     const s = subject.toLowerCase();
     if (s.includes('matematika') || s.includes('hitung') || s.includes('angka')) {
-        const mode = (index - 1) % 4;
-        const cycle = Math.floor((index - 1) / 4);
+        if (grade <= 2) {
+            const mode = (index - 1) % 2;
+            const cycle = Math.floor((index - 1) / 2);
+            const names = ['Andi', 'Siti', 'Lani', 'Budi', 'Edo'];
+            const name = names[cycle % names.length];
+            if (mode === 0) {
+                const awal = 18 + (index * 3);
+                const beli = 12 + (cycle * 2);
+                const bagi = 7 + (index % 5);
+                const sisa = awal + beli - bagi;
+                return {
+                    stimulus: `${name} memiliki ${awal} buah pensil warna. Ibu membelikan lagi ${beli} pensil. Kemudian ${bagi} pensil diberikan kepada adiknya.`,
+                    question: `Berapa banyak pensil warna milik ${name} sekarang dari ${awal} buah ditambah ${beli} lalu diberikan ${bagi} buah? Tuliskan cara menghitungnya!`,
+                    correctAnswer: `Total awal = ${awal} + ${beli} = ${awal + beli} pensil. Sisa = ${awal + beli} - ${bagi} = ${sisa} pensil.`,
+                    cognitiveLevel: 'MOTS',
+                    topic: 'Penjumlahan dan Pengurangan',
+                    rubric: {
+                        score3: 'Menuliskan langkah penjumlahan dan pengurangan dengan tepat beserta hasilnya.',
+                        score2: 'Langkah benar tetapi hasil hitung akhir kurang tepat.',
+                        score1: 'Hanya menuliskan satu operasi hitung.',
+                        score0: 'Tidak menjawab.'
+                    }
+                };
+            } else {
+                const startHr = 7 + (index % 3);
+                const dur = 1 + (cycle % 2);
+                return {
+                    stimulus: `Kegiatan belajar kelompok ${name} dimulai pukul ${String(startHr).padStart(2, '0')}.00 pagi dan berlangsung selama ${dur} jam.`,
+                    question: `Pukul berapa kegiatan belajar ${name} selesai jika dimulai pukul ${String(startHr).padStart(2, '0')}.00 selama ${dur} jam? Jelaskan langkah menghitungnya!`,
+                    correctAnswer: `Waktu selesai = ${startHr}.00 + ${dur} jam = pukul ${String(startHr + dur).padStart(2, '0')}.00.`,
+                    cognitiveLevel: 'LOTS',
+                    topic: 'Pengukuran Waktu Sederhana',
+                    rubric: {
+                        score3: 'Menjawab waktu selesai dan langkah penjumlahan jam dengan benar.',
+                        score2: 'Menjawab pukul selesai benar tanpa penjelasan.',
+                        score1: 'Penjelasan masih keliru.',
+                        score0: 'Kosong.'
+                    }
+                };
+            }
+        }
+
+        const maxModes = grade <= 4 ? 2 : 4; // Grade 3-4: NO cube volume/surface area or KPK; use perimeter/area & mixed ops
+        const mode = (index - 1) % maxModes;
+        const cycle = Math.floor((index - 1) / maxModes);
         if (mode === 0) {
             const places = ['lapangan futsal sekolah', 'kolam renang desa', 'taman bacaan terbuka', 'aula pertemuan', 'halaman upacara'];
             const place = places[cycle % places.length];
@@ -3959,8 +4631,31 @@ function createDynamicUraianVariant(subject: string, index: number): QuestionBan
 }
 
 // ==========================================
-// 8. ZERO-DUPLICATE POST-PROCESSORS
+// 8. ZERO-DUPLICATE & GRADE-GUARD POST-PROCESSORS
 // ==========================================
+export function isGradeMismatchedQuestion(question: string, stimulus: string | undefined, grade: number): boolean {
+    const text = `${stimulus || ''} ${question || ''}`.toLowerCase();
+    // Reject explicit mentions of a higher grade (e.g., "siswa kelas 6" when generating for Kelas 1-5)
+    for (let g = grade + 1; g <= 6; g++) {
+        if (new RegExp(`\\bkelas\\s*${g}\\b`).test(text)) {
+            return true;
+        }
+    }
+    // Reject Class 5-6 exclusive topics when generating for Class 1-4
+    if (grade <= 4) {
+        if (/volume\s+kubus|luas\s+permukaan\s+kubus|jaring-jaring\s+kubus|koordinat\s+kartesius|\bkartesius\b|rotasi\s+bumi|revolusi\s+bumi|gerhana\s+(matahari|bulan)|tata\s+surya|rata-rata\s*\(mean\)|nilai\s+median|\bmodus\b.*data|bilangan\s+bulat\s+negatif|luas\s+lingkaran|keliling\s+lingkaran|proklamasi\s+kemerdekaan|\basean\b/.test(text)) {
+            return true;
+        }
+    }
+    // Reject Class 3-6 topics when generating for Fase A (Class 1-2)
+    if (grade <= 2) {
+        if (/\bmajas\b|personifikasi|hiperbola|metafora|teks\s+eksplanasi|luas\s+segitiga|keliling\s+persegi\s+panjang|\bkpk\b|\bfpb\b|pecahan\s+desimal|fotosintesis|siklus\s+air|rantai\s+makanan/.test(text)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 export function deduplicateAndEnsureCountPg(
     items: QuestionPG[],
     targetCount: number,
@@ -3975,11 +4670,13 @@ export function deduplicateAndEnsureCountPg(
 ): QuestionPG[] {
     const uniqueResult: QuestionPG[] = [];
     const seenFingerprints = sharedSeenFingerprints || new Set<string>();
+    const grade = parseGradeFromClassName(className);
 
-    // 1. Keep valid unique items
+    // 1. Keep valid unique & grade-appropriate items
     for (const item of items) {
         if (!item || !item.question || item.question.trim().length < 5) continue;
         if (!Array.isArray(item.options) || item.options.length < 3) continue;
+        if (isGradeMismatchedQuestion(item.question, item.stimulus, grade)) continue;
         if (!isDuplicateQuestion(seenFingerprints, item.question, item.stimulus)) {
             markQuestionSeen(seenFingerprints, item.question, item.stimulus);
             uniqueResult.push(item);
@@ -3987,7 +4684,7 @@ export function deduplicateAndEnsureCountPg(
         }
     }
 
-    // 2. If short of targetCount, fill with guaranteed unique questions
+    // 2. If short of targetCount, fill with guaranteed unique grade-matched questions
     if (uniqueResult.length < targetCount) {
         const needed = targetCount - uniqueResult.length;
         const fillers = generateAuthenticPgQuestions(
@@ -4027,9 +4724,11 @@ export function deduplicateAndEnsureCountIsian(
 ): QuestionIsian[] {
     const uniqueResult: QuestionIsian[] = [];
     const seenFingerprints = sharedSeenFingerprints || new Set<string>();
+    const grade = parseGradeFromClassName(className);
 
     for (const item of items) {
         if (!item || !item.question || item.question.trim().length < 5) continue;
+        if (isGradeMismatchedQuestion(item.question, item.stimulus, grade)) continue;
         if (!isDuplicateQuestion(seenFingerprints, item.question, item.stimulus)) {
             markQuestionSeen(seenFingerprints, item.question, item.stimulus);
             uniqueResult.push(item);
@@ -4062,9 +4761,11 @@ export function deduplicateAndEnsureCountUraian(
 ): QuestionUraian[] {
     const uniqueResult: QuestionUraian[] = [];
     const seenFingerprints = sharedSeenFingerprints || new Set<string>();
+    const grade = parseGradeFromClassName(className);
 
     for (const item of items) {
         if (!item || !item.question || item.question.trim().length < 5) continue;
+        if (isGradeMismatchedQuestion(item.question, item.stimulus, grade)) continue;
         if (!isDuplicateQuestion(seenFingerprints, item.question, item.stimulus)) {
             markQuestionSeen(seenFingerprints, item.question, item.stimulus);
             uniqueResult.push(item);
