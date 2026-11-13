@@ -13,6 +13,9 @@ import {
     deduplicateAndEnsureCountPg,
     deduplicateAndEnsureCountIsian,
     deduplicateAndEnsureCountUraian,
+    getQuestionFingerprint,
+    getQuestionStemFingerprint,
+    getQuestionCoreFingerprint,
     generateAuthenticPgQuestions as generateAuthenticPgQuestionsFromBank,
     generateAuthenticIsianQuestions as generateAuthenticIsianQuestionsFromBank,
     generateAuthenticUraianQuestions as generateAuthenticUraianQuestionsFromBank
@@ -167,6 +170,74 @@ const getApiKey = (): string => {
         }
     } catch (e) {}
     return '';
+};
+
+const DEVICE_USED_QUESTIONS_KEY = 'prota_device_used_questions';
+
+interface DeviceUsedQuestionEntry {
+    stemFp: string;
+    fullFp: string;
+    coreFp: string;
+    className: string;
+    sample: string;
+    ts: number;
+}
+
+const getUsedQuestionsRegistry = (): Record<string, DeviceUsedQuestionEntry[]> => {
+    try {
+        const raw = localStorage.getItem(DEVICE_USED_QUESTIONS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const loadCrossClassUsedEntries = (subject: string, currentClass: string): DeviceUsedQuestionEntry[] => {
+    const canonSubj = getSubjectKey(subject) || String(subject || '').toLowerCase().trim();
+    const registry = getUsedQuestionsRegistry();
+    const entries = Array.isArray(registry[canonSubj]) ? registry[canonSubj] : [];
+    return entries.filter(e => e && !isSameClass(e.className, currentClass));
+};
+
+const saveDeviceUsedQuestions = (
+    subject: string,
+    currentClass: string,
+    pg: QuestionPG[],
+    isian: QuestionIsian[],
+    uraian: QuestionUraian[]
+): void => {
+    try {
+        const canonSubj = getSubjectKey(subject) || String(subject || '').toLowerCase().trim();
+        const registry = getUsedQuestionsRegistry();
+        const existing = Array.isArray(registry[canonSubj]) ? registry[canonSubj] : [];
+        const keptOtherClasses = existing.filter(e => e && !isSameClass(e.className, currentClass));
+        const now = Date.now();
+        const newEntries: DeviceUsedQuestionEntry[] = [];
+
+        const pushItem = (question?: string, stimulus?: string) => {
+            const stemFp = getQuestionStemFingerprint(question);
+            const fullFp = getQuestionFingerprint(question, stimulus);
+            const coreFp = getQuestionCoreFingerprint(question);
+            if (!stemFp) return;
+            newEntries.push({
+                stemFp,
+                fullFp,
+                coreFp,
+                className: currentClass,
+                sample: String(question || '').trim().slice(0, 140),
+                ts: now
+            });
+        };
+
+        pg.forEach(q => pushItem(q.question, q.stimulus));
+        isian.forEach(q => pushItem(q.question, q.stimulus));
+        uraian.forEach(q => pushItem(q.question, q.stimulus));
+
+        registry[canonSubj] = [...newEntries, ...keptOtherClasses].slice(0, 360);
+        localStorage.setItem(DEVICE_USED_QUESTIONS_KEY, JSON.stringify(registry));
+    } catch {}
 };
 
 // --- AUTHENTIC ELEMENTARY VISUAL GENERATOR LIBRARY ---
@@ -817,6 +888,13 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
             const optionKeys = isFaseA ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
             const apiKey = getApiKey();
 
+            // Load stems previously generated on this device for OTHER classes of the same subject
+            const otherClassEntries = loadCrossClassUsedEntries(activeSubject, activeClass);
+            const otherClassSamples = Array.from(
+                new Set(otherClassEntries.map(e => e.sample).filter(Boolean))
+            ).slice(0, 36);
+            const sessionNonce = `${activeClass.replace(/\s+/g, '')}-${Date.now().toString(36)}`;
+
             let generatedPg: QuestionPG[] = [];
             let generatedIsian: QuestionIsian[] = [];
             let generatedUraian: QuestionUraian[] = [];
@@ -831,6 +909,9 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
                     : activeGradeNum <= 4
                     ? `- ATURAN KELAS ${activeGradeNum} (${activeFaseInfo.name}): Sesuaikan tingkat kesulitan, angka, kosakata, dan konsep 100% khusus untuk peserta didik ${activeClass} SD. DILARANG KERAS memasukkan materi Kelas 5-6 (seperti volume/luas permukaan/jaring-jaring kubus & balok, koordinat Kartesius, rata-rata/mean/median/modus, bilangan bulat negatif, luas/keliling lingkaran, rotasi/revolusi bumi, gerhana, tata surya, proklamasi/ASEAN, atau menyebut "siswa kelas 5"/"siswa kelas 6").`
                     : `- ATURAN KELAS ${activeGradeNum} (${activeFaseInfo.name}): Sesuaikan kompleksitas dan konteks 100% untuk tingkat ${activeClass} SD.`;
+                const crossClassExclusionNote = otherClassSamples.length > 0
+                    ? `\n5. LARANGAN REDAKSI KEMBAR DENGAN KELAS LAIN (WAJIB UNIK PER KELAS):\n   - Buat redaksi kalimat soal, nama tokoh cerita, konteks situasi, dan angka yang 100% BARU khusus untuk ${activeClass} (Kode Sesi: ${sessionNonce}).\n   - JANGAN MENYALIN ATAU MEMBUAT REDAKSI MIRIP dengan soal yang sudah pernah dipakai kelas lain berikut:\n${otherClassSamples.map(s => `     * "${s}"`).join('\n')}`
+                    : `\n5. VARIASI UNIK SESI ${sessionNonce}: Susun redaksi soal, nama tokoh, konteks, dan angka yang segar dan spesifik untuk ${activeClass}.`;
 
                 const prompt = `Anda adalah Tim Ahli Penyusun Naskah Asesmen Sumatif Standar Nasional Jenjang Sekolah Dasar (SD) Berdasarkan Panduan Pembelajaran dan Asesmen (PPA) Tahun 2026 Kurikulum Merdeka.
 Tugas Anda: Susunlah naskah soal asesmen sumatif yang SAH, VALID, RELEVAN, MENDIDIK, dan 100% SIAP PAKAI untuk dibagikan kepada peserta didik ${activeClass}.
@@ -860,7 +941,7 @@ ATURAN WAJIB PADA GAMBAR & BUTIR SOAL:
 3. PENTING: Jika visualType BUKAN "none", teks stimulus dan pertanyaan HARUS SECARA LANGSUNG MEMBAHAS GAMBAR TERSEBUT. Jika tidak cocok dengan materi "${activeSubject}" atau terlalu tinggi untuk ${activeClass}, wajib isi "none".
 4. PERATURAN MUTLAK ANTI-DUPLIKASI (ZERO DUPLICATE POLICY):
    - Setiap nomor butir soal (PG 1..${pgCount}, Isian 1..${isianCount}, Uraian 1..${uraianCount}) WAJIB 100% UNIK, BERBEDA, dan tidak boleh ada soal kembar.
-   - Distribusikan butir soal secara merata ke seluruh TP yang tersedia.
+   - Distribusikan butir soal secara merata ke seluruh TP yang tersedia.${crossClassExclusionNote}
 
 KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
 {
@@ -931,24 +1012,28 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                     }
                     const parsed = JSON.parse(rawJson);
                     if (Array.isArray(parsed.pg) && parsed.pg.length > 0) {
-                        generatedPg = parsed.pg.map((q: any, idx: number) => {
-                            const normVisualType = (String(q.visualType || 'none').trim().toLowerCase() || 'none') as VisualType;
-                            return {
-                                no: idx + 1,
-                                stimulus: q.stimulus || '',
-                                question: q.question,
-                                options: q.options || [],
-                                correctAnswer: q.correctAnswer || 'A',
-                                explanation: q.explanation || '',
-                                cognitiveLevel: q.cognitiveLevel || 'MOTS',
-                                tp: q.tp || targetTps[0].tp,
-                                indikator: q.indikator || `Peserta didik mampu menjawab butir soal terkait ${targetTps[0].element}`,
-                                materi: q.materi || targetTps[0].element,
-                                visualType: normVisualType,
-                                visualTitle: q.visualTitle || '',
-                                visualSvg: renderVisualSvg(normVisualType, q.visualTitle)
-                            };
-                        });
+                        generatedPg = parsed.pg
+                            .filter((q: any) => !(isFaseA && String(q?.correctAnswer || '').toUpperCase().trim() === 'D'))
+                            .map((q: any, idx: number) => {
+                                const normVisualType = (String(q.visualType || 'none').trim().toLowerCase() || 'none') as VisualType;
+                                const rawOpts = Array.isArray(q.options) ? q.options : [];
+                                const normalizedOpts = isFaseA ? rawOpts.slice(0, 3) : rawOpts.slice(0, 4);
+                                return {
+                                    no: idx + 1,
+                                    stimulus: q.stimulus || '',
+                                    question: q.question,
+                                    options: normalizedOpts,
+                                    correctAnswer: q.correctAnswer || 'A',
+                                    explanation: q.explanation || '',
+                                    cognitiveLevel: q.cognitiveLevel || 'MOTS',
+                                    tp: q.tp || targetTps[0].tp,
+                                    indikator: q.indikator || `Peserta didik mampu menjawab butir soal terkait ${targetTps[0].element}`,
+                                    materi: q.materi || targetTps[0].element,
+                                    visualType: normVisualType,
+                                    visualTitle: q.visualTitle || '',
+                                    visualSvg: renderVisualSvg(normVisualType, q.visualTitle)
+                                };
+                            });
 
                         if (Array.isArray(parsed.isian)) {
                             generatedIsian = parsed.isian.map((q: any, idx: number) => {
@@ -1012,8 +1097,18 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                 }
             }
 
-            // --- GUARANTEED ZERO-DUPLICATE DEDUPLICATION & COMPLETION PASS ---
+            // --- GUARANTEED ZERO-DUPLICATE & CROSS-CLASS DEDUPLICATION PASS ---
             const sessionSeenFingerprints = new Set<string>();
+            otherClassEntries.forEach(entry => {
+                if (entry.fullFp) {
+                    sessionSeenFingerprints.add(entry.fullFp);
+                    sessionSeenFingerprints.add(`full:${entry.fullFp}`);
+                }
+                if (entry.stemFp) {
+                    sessionSeenFingerprints.add(`stem:${entry.stemFp}`);
+                }
+            });
+
             generatedPg = deduplicateAndEnsureCountPg(
                 generatedPg,
                 pgCount,
@@ -1042,6 +1137,8 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                 targetTps,
                 sessionSeenFingerprints
             );
+
+            saveDeviceUsedQuestions(activeSubject, activeClass, generatedPg, generatedIsian, generatedUraian);
 
             const totalScore = (generatedPg.length * 1) + (generatedIsian.length * 2) + (generatedUraian.length * 3);
 

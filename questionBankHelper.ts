@@ -21,6 +21,17 @@ export function getQuestionStemFingerprint(question?: string): string {
         .slice(0, 180);
 }
 
+/**
+ * Extracts a compact semantic core fingerprint (stripping filler framing words) for AI prompt & device history comparison.
+ */
+export function getQuestionCoreFingerprint(question?: string): string {
+    const cleaned = (question || '')
+        .toLowerCase()
+        .replace(/\b(dalam|pada|perhatikan|bacalah|berdasarkan|berikut|sebuah|suatu|merupakan|adalah|dinamakan|disebut|yang|dari|untuk|dengan|siswa|peserta|didik|kelas|sekolah|kegiatan|materi|pembelajaran|pertanyaan|berapakah|apakah|manakah|tuliskan|jelaskan|sebutkan|uraikan)\b/g, ' ')
+        .replace(/[^a-z0-9]/g, '');
+    return cleaned.slice(0, 140);
+}
+
 export function isDuplicateQuestion(seen: Set<string>, question?: string, stimulus?: string): boolean {
     const fullFp = getQuestionFingerprint(question, stimulus);
     const stemFp = getQuestionStemFingerprint(question);
@@ -52,18 +63,45 @@ export interface GradeScopedItem {
     maxGrade?: number;
 }
 
+function rotateArrayByOffset<T>(arr: T[], offset: number): T[] {
+    if (arr.length <= 1) return arr;
+    const norm = ((offset % arr.length) + arr.length) % arr.length;
+    if (norm === 0) return arr;
+    return [...arr.slice(norm), ...arr.slice(0, norm)];
+}
+
 function filterAndPrioritizeByGrade<T extends GradeScopedItem>(items: T[], grade: number): T[] {
     const matched = items.filter(item => {
         const minG = item.minGrade ?? 1;
         const maxG = item.maxGrade ?? 6;
-        return grade >= minG && grade <= maxG;
+        if (grade < minG || grade > maxG) return false;
+        const qText = (item as any).question || (item as any).q || '';
+        const stimText = (item as any).stimulus || '';
+        const topicText = (item as any).topic || '';
+        if (qText && isGradeMismatchedQuestion(qText, stimText, grade)) return false;
+        if (topicText && isGradeMismatchedQuestion(topicText, '', grade)) return false;
+        return true;
     });
-    // Prioritize items specifically tailored to a narrower band containing this grade
-    return matched.sort((a, b) => {
-        const spanA = (a.maxGrade ?? 6) - (a.minGrade ?? 1);
-        const spanB = (b.maxGrade ?? 6) - (b.minGrade ?? 1);
-        return spanA - spanB;
+
+    // Group by specificity span so narrower grade-tailored items stay prioritized,
+    // while deterministically rotating items within each specificity band by grade
+    // so Kelas 1..6 never receive the same starting slice of questions.
+    const buckets = new Map<number, T[]>();
+    for (const item of matched) {
+        const span = (item.maxGrade ?? 6) - (item.minGrade ?? 1);
+        const list = buckets.get(span) || [];
+        list.push(item);
+        buckets.set(span, list);
+    }
+
+    const sortedSpans = Array.from(buckets.keys()).sort((a, b) => a - b);
+    const ordered: T[] = [];
+    sortedSpans.forEach((span, bandIdx) => {
+        const bucket = buckets.get(span) || [];
+        const offset = (grade - 1) * 5 + bandIdx * 2;
+        ordered.push(...rotateArrayByOffset(bucket, offset));
     });
+    return ordered;
 }
 
 export interface QuestionBankItemPG extends GradeScopedItem {
@@ -1070,7 +1108,114 @@ const PANCASILA_PG_BANK: QuestionBankItemPG[] = [
 const IPAS_PG_BANK: QuestionBankItemPG[] = [
     {
         minGrade: 1,
-        maxGrade: 5,
+        maxGrade: 2,
+        visualType: 'plant_anatomy',
+        visualTitle: 'Perhatikan gambar bagian-bagian tumbuhan di bawah ini!',
+        stimulus: 'Tanaman di halaman sekolah memiliki akar, batang, daun, dan bunga yang saling bekerja sama menjaga tumbuhan tetap segar.',
+        question: 'Bagian tumbuhan yang berada di dalam tanah dan bertanda nomor (4) berguna untuk ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Menyerap air dari dalam tanah' },
+            { key: 'B', text: 'Menghasilkan kelopak bunga' },
+            { key: 'C', text: 'Menangkap cahaya bulan di malam hari' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Menyerap air dan zat hara dari tanah' },
+            { key: 'B', text: 'Membentuk biji buah baru' },
+            { key: 'C', text: 'Mengubah warna kelopak bunga' },
+            { key: 'D', text: 'Menggugurkan daun di musim kemarau' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Akar tumbuhan berada di dalam tanah untuk menyerap air serta memperkokoh berdirinya tanaman.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Bagian Tumbuhan'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Rafi mendengar suara bel masuk sekolah berbunyi nyaring dari ruang kelasnya.',
+        question: 'Alat indra pada tubuh manusia yang digunakan untuk mendengar bunyi adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Mata' },
+            { key: 'B', text: 'Telinga' },
+            { key: 'C', text: 'Hidung' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Mata' },
+            { key: 'B', text: 'Telinga' },
+            { key: 'C', text: 'Hidung' },
+            { key: 'D', text: 'Kulit' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Telinga merupakan alat indra pendengaran pada tubuh manusia.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Panca Indra'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Di halaman rumah terdapat kucing, batu kerikil, pohon mangga, dan sepeda kayu.',
+        question: 'Contoh makhluk hidup yang membutuhkan makanan dan dapat tumbuh besar adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Batu kerikil dan sepeda' },
+            { key: 'B', text: 'Kucing dan pohon mangga' },
+            { key: 'C', text: 'Sepeda dan batu kerikil' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Batu kerikil dan sepeda' },
+            { key: 'B', text: 'Kucing dan pohon mangga' },
+            { key: 'C', text: 'Kursi kayu dan bola' },
+            { key: 'D', text: 'Sepatu dan tas sekolah' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Hewan dan tumbuhan merupakan makhluk hidup yang bernapas, makan, dan tumbuh.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Makhluk Hidup'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Pada siang hari yang panas, sinar matahari terasa hangat menerangi halaman sekolah sehingga baju yang basah dapat cepat kering.',
+        question: 'Sumber panas dan cahaya alami terbesar bagi kehidupan di bumi pada siang hari adalah ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Lampu meja' },
+            { key: 'B', text: 'Matahari' },
+            { key: 'C', text: 'Lilin kecil' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Lampu meja' },
+            { key: 'B', text: 'Matahari' },
+            { key: 'C', text: 'Lilin kecil' },
+            { key: 'D', text: 'Senter baterai' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Matahari adalah sumber energi panas dan cahaya alami utama bagi bumi.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Sumber Energi Sederhana'
+    },
+    {
+        minGrade: 1,
+        maxGrade: 2,
+        stimulus: 'Air minum yang dituangkan ke dalam gelas memiliki bentuk mengikuti wadahnya dan dapat mengalir.',
+        question: 'Air minum dan minyak goreng termasuk kelompok benda berwujud ...',
+        optionsFaseA: [
+            { key: 'A', text: 'Cair' },
+            { key: 'B', text: 'Padat' },
+            { key: 'C', text: 'Keras' }
+        ],
+        optionsFaseBC: [
+            { key: 'A', text: 'Cair' },
+            { key: 'B', text: 'Padat' },
+            { key: 'C', text: 'Gas' },
+            { key: 'D', text: 'Kristal' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Benda cair bentuknya selalu menyesuaikan tempatnya dan mengalir ke tempat rendah.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Wujud Benda Sekitar'
+    },
+    {
+        minGrade: 3,
+        maxGrade: 6,
         visualType: 'plant_anatomy',
         visualTitle: 'Perhatikan gambar bagian-bagian tumbuhan di bawah ini!',
         stimulus: 'Tumbuhan hijau dapat membuat makanannya sendiri melalui proses fotosintesis.',
@@ -2641,17 +2786,17 @@ const ISIAN_POOL_MATEMATIKA: QuestionBankItemIsian[] = [
 ];
 
 const ISIAN_POOL_INDO: QuestionBankItemIsian[] = [
-    { question: 'Gagasan utama atau inti pembahasan yang menjiwai seluruh isi sebuah paragraf dinamakan ...', correctAnswer: 'Ide pokok (Gagasan utama)', cognitiveLevel: 'LOTS', topic: 'Ide Pokok' },
-    { question: 'Paragraf yang kalimat utamanya terletak di bagian awal paragraf disebut paragraf ...', correctAnswer: 'Deduktif', cognitiveLevel: 'LOTS', topic: 'Jenis Paragraf' },
-    { question: 'Paragraf yang kalimat utamanya terletak di bagian akhir paragraf disebut paragraf ...', correctAnswer: 'Induktif', cognitiveLevel: 'LOTS', topic: 'Jenis Paragraf' },
+    { minGrade: 3, maxGrade: 6, question: 'Gagasan utama atau inti pembahasan yang menjiwai seluruh isi sebuah paragraf dinamakan ...', correctAnswer: 'Ide pokok (Gagasan utama)', cognitiveLevel: 'LOTS', topic: 'Ide Pokok' },
+    { minGrade: 4, maxGrade: 6, question: 'Paragraf yang kalimat utamanya terletak di bagian awal paragraf disebut paragraf ...', correctAnswer: 'Deduktif', cognitiveLevel: 'LOTS', topic: 'Jenis Paragraf' },
+    { minGrade: 4, maxGrade: 6, question: 'Paragraf yang kalimat utamanya terletak di bagian akhir paragraf disebut paragraf ...', correctAnswer: 'Induktif', cognitiveLevel: 'LOTS', topic: 'Jenis Paragraf' },
     { question: 'Kata tanya yang digunakan untuk menanyakan alasan atau sebab terjadinya suatu peristiwa adalah kata tanya ...', correctAnswer: 'Mengapa', cognitiveLevel: 'LOTS', topic: 'Kata Tanya' },
     { question: 'Kata tanya yang digunakan untuk menanyakan waktu terjadinya suatu peristiwa adalah kata tanya ...', correctAnswer: 'Kapan', cognitiveLevel: 'LOTS', topic: 'Kata Tanya' },
     { question: 'Kata tanya yang digunakan untuk menanyakan pelaku orang yang terlibat dalam suatu peristiwa adalah kata tanya ...', correctAnswer: 'Siapa', cognitiveLevel: 'LOTS', topic: 'Kata Tanya' },
     { question: 'Persamaan kata (arti yang bermakna sama) dalam bahasa Indonesia disebut dengan istilah ...', correctAnswer: 'Sinonim', cognitiveLevel: 'LOTS', topic: 'Kosakata' },
     { question: 'Lawan kata (arti yang berlawanan) dalam bahasa Indonesia disebut dengan istilah ...', correctAnswer: 'Antonim', cognitiveLevel: 'LOTS', topic: 'Kosakata' },
-    { question: 'Pesan mendidik yang ingin disampaikan oleh pengarang kepada pembaca melalui sebuah cerita dinamakan ...', correctAnswer: 'Amanat (Pesan moral)', cognitiveLevel: 'MOTS', topic: 'Unsur Cerita' },
-    { question: 'Gaya bahasa yang mengibaratkan benda mati dapat berperilaku seperti manusia hidup dinamakan majas ...', correctAnswer: 'Personifikasi', cognitiveLevel: 'MOTS', topic: 'Majas' },
-    { question: 'Teks yang memuat penjelasan mengenai langkah-langkah atau tahapan dalam membuat/melakukan sesuatu secara berurutan dinamakan teks ...', correctAnswer: 'Prosedur (Petunjuk)', cognitiveLevel: 'LOTS', topic: 'Teks Prosedur' },
+    { minGrade: 2, maxGrade: 6, question: 'Pesan mendidik yang ingin disampaikan oleh pengarang kepada pembaca melalui sebuah cerita dinamakan ...', correctAnswer: 'Amanat (Pesan moral)', cognitiveLevel: 'MOTS', topic: 'Unsur Cerita' },
+    { minGrade: 4, maxGrade: 6, question: 'Gaya bahasa yang mengibaratkan benda mati dapat berperilaku seperti manusia hidup dinamakan majas ...', correctAnswer: 'Personifikasi', cognitiveLevel: 'MOTS', topic: 'Majas' },
+    { minGrade: 3, maxGrade: 6, question: 'Teks yang memuat penjelasan mengenai langkah-langkah atau tahapan dalam membuat/melakukan sesuatu secara berurutan dinamakan teks ...', correctAnswer: 'Prosedur (Petunjuk)', cognitiveLevel: 'LOTS', topic: 'Teks Prosedur' },
     { question: 'Tanda baca yang wajib diletakkan di akhir kalimat perintah atau seruan adalah tanda ...', correctAnswer: 'Seru (!)', cognitiveLevel: 'LOTS', topic: 'Tanda Baca' }
 ];
 
@@ -2665,24 +2810,24 @@ const ISIAN_POOL_PANCASILA: QuestionBankItemIsian[] = [
     { question: 'Kegiatan berunding bersama untuk mengambil keputusan yang disetujui bersama di kelas dinamakan ...', correctAnswer: 'Musyawarah untuk mufakat', cognitiveLevel: 'MOTS', topic: 'Musyawarah' },
     { question: 'Sikap saling menghormati dan menghargai perbedaan keyakinan dan suku bangsa disebut sikap ...', correctAnswer: 'Toleransi', cognitiveLevel: 'LOTS', topic: 'Toleransi' },
     { question: 'Bekerja bersama-sama tanpa pamrih untuk menyelesaikan pekerjaan umum demi kepentingan bersama dinamakan ...', correctAnswer: 'Gotong royong', cognitiveLevel: 'LOTS', topic: 'Gotong Royong' },
-    { question: 'Sesuatu yang mutlak harus kita terima dan dapatkan sejak lahir disebut ...', correctAnswer: 'Hak', cognitiveLevel: 'LOTS', topic: 'Hak dan Kewajiban' },
-    { question: 'Sesuatu yang wajib dilaksanakan dengan penuh tanggung jawab disebut ...', correctAnswer: 'Kewajiban', cognitiveLevel: 'LOTS', topic: 'Hak dan Kewajiban' },
+    { minGrade: 3, maxGrade: 6, question: 'Sesuatu yang mutlak harus kita terima dan dapatkan sejak lahir disebut ...', correctAnswer: 'Hak', cognitiveLevel: 'LOTS', topic: 'Hak dan Kewajiban' },
+    { minGrade: 3, maxGrade: 6, question: 'Sesuatu yang wajib dilaksanakan dengan penuh tanggung jawab disebut ...', correctAnswer: 'Kewajiban', cognitiveLevel: 'LOTS', topic: 'Hak dan Kewajiban' },
     { question: 'Semboyan persatuan bangsa yang dicengkeram oleh burung Garuda Pancasila adalah ...', correctAnswer: 'Bhinneka Tunggal Ika', cognitiveLevel: 'LOTS', topic: 'Semboyan Bangsa' }
 ];
 
 const ISIAN_POOL_IPAS: QuestionBankItemIsian[] = [
     { question: 'Bagian tumbuhan yang berfungsi menyerap air dan unsur hara dari dalam tanah adalah ...', correctAnswer: 'Akar', cognitiveLevel: 'LOTS', topic: 'Bagian Tumbuhan' },
-    { question: 'Zat hijau daun pada tumbuhan yang berfungsi menangkap sinar matahari dinamakan ...', correctAnswer: 'Klorofil', cognitiveLevel: 'LOTS', topic: 'Fotosintesis' },
-    { question: 'Proses memasak makanan pada tumbuhan hijau dengan bantuan cahaya matahari dinamakan ...', correctAnswer: 'Fotosintesis', cognitiveLevel: 'LOTS', topic: 'Fotosintesis' },
+    { minGrade: 3, maxGrade: 6, question: 'Zat hijau daun pada tumbuhan yang berfungsi menangkap sinar matahari dinamakan ...', correctAnswer: 'Klorofil', cognitiveLevel: 'LOTS', topic: 'Fotosintesis' },
+    { minGrade: 3, maxGrade: 6, question: 'Proses memasak makanan pada tumbuhan hijau dengan bantuan cahaya matahari dinamakan ...', correctAnswer: 'Fotosintesis', cognitiveLevel: 'LOTS', topic: 'Fotosintesis' },
     { question: 'Peristiwa perubahan wujud zat dari cair menjadi padat dinamakan ...', correctAnswer: 'Membeku', cognitiveLevel: 'LOTS', topic: 'Wujud Zat' },
     { question: 'Peristiwa perubahan wujud zat dari padat menjadi cair dinamakan ...', correctAnswer: 'Mencair (Melebur)', cognitiveLevel: 'LOTS', topic: 'Wujud Zat' },
     { question: 'Peristiwa perubahan wujud zat dari cair menjadi gas/uap dinamakan ...', correctAnswer: 'Menguap', cognitiveLevel: 'LOTS', topic: 'Wujud Zat' },
-    { question: 'Peristiwa perubahan wujud zat dari gas menjadi cair dinamakan ...', correctAnswer: 'Mengembun (Kondensasi)', cognitiveLevel: 'LOTS', topic: 'Wujud Zat' },
-    { question: 'Hewan pemakan tumbuhan digolongkan ke dalam kelompok hewan ...', correctAnswer: 'Herbivora', cognitiveLevel: 'LOTS', topic: 'Penggolongan Hewan' },
-    { question: 'Hewan pemakan daging digolongkan ke dalam kelompok hewan ...', correctAnswer: 'Karnivora', cognitiveLevel: 'LOTS', topic: 'Penggolongan Hewan' },
-    { question: 'Hewan pemakan segala (tumbuhan dan hewan lain) digolongkan ke dalam kelompok hewan ...', correctAnswer: 'Omnivora', cognitiveLevel: 'LOTS', topic: 'Penggolongan Hewan' },
-    { question: 'Gaya tarik bumi yang menyebabkan benda jatuh menuju pusat bumi dinamakan gaya ...', correctAnswer: 'Gravitasi', cognitiveLevel: 'LOTS', topic: 'Gaya' },
-    { question: 'Perputaran bumi pada porosnya sendiri dinamakan peristiwa ...', correctAnswer: 'Rotasi bumi', cognitiveLevel: 'LOTS', topic: 'Tata Surya' }
+    { minGrade: 3, maxGrade: 6, question: 'Peristiwa perubahan wujud zat dari gas menjadi cair dinamakan ...', correctAnswer: 'Mengembun (Kondensasi)', cognitiveLevel: 'LOTS', topic: 'Wujud Zat' },
+    { minGrade: 3, maxGrade: 6, question: 'Hewan pemakan tumbuhan digolongkan ke dalam kelompok hewan ...', correctAnswer: 'Herbivora', cognitiveLevel: 'LOTS', topic: 'Penggolongan Hewan' },
+    { minGrade: 3, maxGrade: 6, question: 'Hewan pemakan daging digolongkan ke dalam kelompok hewan ...', correctAnswer: 'Karnivora', cognitiveLevel: 'LOTS', topic: 'Penggolongan Hewan' },
+    { minGrade: 3, maxGrade: 6, question: 'Hewan pemakan segala (tumbuhan dan hewan lain) digolongkan ke dalam kelompok hewan ...', correctAnswer: 'Omnivora', cognitiveLevel: 'LOTS', topic: 'Penggolongan Hewan' },
+    { minGrade: 3, maxGrade: 6, question: 'Gaya tarik bumi yang menyebabkan benda jatuh menuju pusat bumi dinamakan gaya ...', correctAnswer: 'Gravitasi', cognitiveLevel: 'LOTS', topic: 'Gaya' },
+    { minGrade: 5, maxGrade: 6, question: 'Perputaran bumi pada porosnya sendiri dinamakan peristiwa ...', correctAnswer: 'Rotasi bumi', cognitiveLevel: 'LOTS', topic: 'Tata Surya' }
 ];
 
 const ISIAN_POOL_PJOK: QuestionBankItemIsian[] = [
@@ -2991,6 +3136,32 @@ const URAIAN_POOL_IPAS: QuestionBankItemUraian[] = [
             score1: 'Penjelasan siklus air kurang tepat.',
             score0: 'Kosong.'
         }
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        question: 'Sebutkan 3 bagian tubuh tumbuhan yang sering kamu lihat di halaman rumah beserta kegunaan masing-masing bagian tersebut!',
+        correctAnswer: '1. Akar: menyerap air dan menguatkan batang di tanah.\n2. Batang: menopang tumbuhan dan menyalurkan air ke daun.\n3. Daun: tempat membuat makanan dan membuat tumbuhan tampak hijau segar.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Bagian Tubuh Tumbuhan',
+        rubric: {
+            score3: 'Menyebutkan 3 bagian tumbuhan dan menjelaskan kegunaannya dengan bahasa sederhana yang benar.',
+            score2: 'Menyebutkan 2 bagian tumbuhan dan kegunaannya dengan tepat.',
+            score1: 'Hanya menyebutkan nama bagian tumbuhan tanpa kegunaan.',
+            score0: 'Kosong.'
+        }
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        question: 'Bagaimana cara merawat hewan peliharaan dan tanaman di rumah agar tetap tumbuh sehat? Tuliskan masing-masing 2 contohnya!',
+        correctAnswer: 'Merawat hewan: memberi makan dan minum teratur, serta membersihkan kandangnya.\nMerawat tanaman: menyiram secara teratur pagi atau sore hari dan memberi pupuk.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Merawat Makhluk Hidup',
+        rubric: {
+            score3: 'Menuliskan 2 cara merawat hewan dan 2 cara merawat tanaman dengan tepat.',
+            score2: 'Menuliskan cara merawat hewan dan tanaman masing-masing 1 contoh.',
+            score1: 'Hanya menjelaskan salah satu saja.',
+            score0: 'Kosong.'
+        }
     }
 ];
 
@@ -3032,6 +3203,7 @@ const URAIAN_POOL_PJOK: QuestionBankItemUraian[] = [
         }
     },
     {
+        minGrade: 4, maxGrade: 6,
         question: 'Sebutkan 3 cara menjaga kesehatan dan kebugaran jasmani bagi siswa SD dalam keseharian, serta jelaskan mengapa merokok dan zat adiktif harus dijauhi sejak usia sekolah!',
         correctAnswer: 'Cara Menjaga Kebugaran:\n1. Olahraga teratur 30 menit per hari.\n2. Mengonsumsi makanan bergizi seimbang dan minum cukup air putih.\n3. Istirahat dan tidur cukup (8-9 jam per hari).\nAlasan menjauhi rokok: Nikotin dan tar merusak paru-paru, jantung, menurunkan stamina belajar, dan menyebabkan ketergantungan berbahaya.',
         cognitiveLevel: 'HOTS',
@@ -3040,6 +3212,32 @@ const URAIAN_POOL_PJOK: QuestionBankItemUraian[] = [
             score3: 'Menyebutkan 3 pola hidup sehat dan menjelaskan dampak buruk rokok terhadap organ dan prestasi siswa.',
             score2: 'Menyebutkan pola hidup sehat dengan baik tetapi alasan menjauhi rokok masih singkat.',
             score1: 'Jawaban kurang relevan atau terlalu singkat.',
+            score0: 'Kosong.'
+        }
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        question: 'Tuliskan 3 kebiasaan menjaga kebersihan diri sebelum makan dan setelah bermain di luar rumah agar tubuh tetap sehat!',
+        correctAnswer: '1. Mencuci tangan memakai sabun dan air mengalir setelah bermain dan sebelum makan.\n2. Memotong kuku secara rutin agar kotoran tidak menempel.\n3. Mandi teratur dua kali sehari dan mengganti pakaian yang kotor.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Kebersihan Diri Anak',
+        rubric: {
+            score3: 'Menyebutkan 3 kebiasaan kebersihan diri dengan jelas dan relevan.',
+            score2: 'Menyebutkan 2 kebiasaan yang benar.',
+            score1: 'Hanya menyebutkan 1 kebiasaan.',
+            score0: 'Kosong.'
+        }
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        question: 'Mengapa saat duduk belajar di kursi dan berjalan menuju sekolah tubuh kita harus tegak? Berikan 2 contoh sikap tubuh yang baik!',
+        correctAnswer: 'Tubuh harus tegak agar tulang punggung tumbuh sehat, tidak mudah pegal, dan pernapasan lancar.\nContoh: duduk menempel punggung ke sandaran kursi saat menulis dan berjalan menghadap ke depan tanpa membungkuk.',
+        cognitiveLevel: 'MOTS',
+        topic: 'Sikap Tubuh yang Benar',
+        rubric: {
+            score3: 'Menjelaskan manfaat sikap tubuh tegak dan memberikan 2 contoh sikap duduk/berjalan yang benar.',
+            score2: 'Alasan tepat dengan 1 contoh sikap tubuh.',
+            score1: 'Penjelasan sangat singkat.',
             score0: 'Kosong.'
         }
     },
@@ -3110,8 +3308,9 @@ const URAIAN_POOL_SENI: QuestionBankItemUraian[] = [
 
 const URAIAN_POOL_INGGRIS: QuestionBankItemUraian[] = [
     {
-        question: 'Write a short self-introduction paragraph in English (at least 4 sentences) telling your name, your grade, your school name, and your hobby!',
-        correctAnswer: 'Example:\n"Hello friends, my name is Andi Pratama. I am a sixth-grade student at SDN Sukatinggal. I live near the school with my family. My favorite hobby is reading science books and playing badminton."',
+        minGrade: 3, maxGrade: 6,
+        question: 'Write a short self-introduction paragraph in English (at least 4 sentences) telling your name, your class, your school name, and your hobby!',
+        correctAnswer: 'Example:\n"Hello friends, my name is Andi Pratama. I am an elementary school student at SDN Sukatinggal. I live near the school with my family. My favorite hobby is reading science books and playing badminton."',
         cognitiveLevel: 'HOTS',
         topic: 'Self Introduction Writing',
         rubric: {
@@ -3122,6 +3321,7 @@ const URAIAN_POOL_INGGRIS: QuestionBankItemUraian[] = [
         }
     },
     {
+        minGrade: 2, maxGrade: 6,
         question: 'Mention 3 things you can find inside your classroom in English, then make 3 simple sentences describing their locations using "on", "in", or "under"!',
         correctAnswer: 'Objects: book, pencil, school bag.\nSentences:\n1. My English book is on the wooden desk.\n2. The pencils are in my pencil case.\n3. My school bag is under the chair.',
         cognitiveLevel: 'HOTS',
@@ -3134,6 +3334,7 @@ const URAIAN_POOL_INGGRIS: QuestionBankItemUraian[] = [
         }
     },
     {
+        minGrade: 3, maxGrade: 6,
         question: 'Write 3 sentences in English telling about your daily morning activities before going to school (Simple Present Tense)!',
         correctAnswer: 'Example:\n1. I wake up at five o’clock every morning.\n2. I take a bath and eat a healthy breakfast.\n3. I go to school with my friends at six thirty.',
         cognitiveLevel: 'HOTS',
@@ -3142,6 +3343,32 @@ const URAIAN_POOL_INGGRIS: QuestionBankItemUraian[] = [
             score3: 'Writes 3 clear, correctly structured Simple Present Tense sentences about morning routines.',
             score2: 'Writes 2–3 understandable sentences with minor verb errors.',
             score1: 'Only 1 sentence written accurately.',
+            score0: 'Blank.'
+        }
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        question: 'Write 3 names of fruits and 3 names of colors in English cleanly!',
+        correctAnswer: 'Fruits: Apple, Banana, Mango (or Orange, Grape).\nColors: Red, Blue, Yellow (or Green, White).',
+        cognitiveLevel: 'LOTS',
+        topic: 'Fruits and Colors Vocabulary',
+        rubric: {
+            score3: 'Writes 3 English fruit names and 3 color names with accurate spelling.',
+            score2: 'Writes 4-5 correct English words across fruits and colors.',
+            score1: 'Only 1-3 words written accurately.',
+            score0: 'Blank.'
+        }
+    },
+    {
+        minGrade: 1, maxGrade: 2,
+        question: 'Complete and write 2 simple English greeting sentences: one for saying hello in the morning and one for telling your name!',
+        correctAnswer: '1. Good morning, friends!\n2. Hello, my name is Siti. Nice to meet you.',
+        cognitiveLevel: 'LOTS',
+        topic: 'Simple Greetings and Name',
+        rubric: {
+            score3: 'Writes both simple greeting and name introduction sentences accurately in English.',
+            score2: 'Writes one sentence clearly and the second with minor spelling errors.',
+            score1: 'Incomplete or unclear words.',
             score0: 'Blank.'
         }
     }
@@ -3325,7 +3552,238 @@ function getUraianBankForSubject(subject: string): QuestionBankItemUraian[] {
     }
 }
 
-// Generate parameterized variant for math when bank is exhausted (strictly grade-appropriate!)
+const GRADE_NAME_ROSTERS_ID: Record<number, string[]> = {
+    1: ['Rafi', 'Nisa', 'Dito', 'Tari', 'Kiki', 'Mila'],
+    2: ['Bima', 'Zara', 'Kevin', 'Wulan', 'Arka', 'Salsa'],
+    3: ['Nadia', 'Bagas', 'Citra', 'Galih', 'Hana', 'Raka'],
+    4: ['Farhan', 'Alya', 'Dimas', 'Putri', 'Gilang', 'Nayla'],
+    5: ['Reza', 'Kayla', 'Ilham', 'Maya', 'Fikri', 'Tiara'],
+    6: ['Andi', 'Siti', 'Budi', 'Lani', 'Edo', 'Dayu']
+};
+
+const GRADE_NAME_ROSTERS_EN: Record<number, string[]> = {
+    1: ['Tim', 'Mia', 'Leo', 'Amy'],
+    2: ['Ben', 'Sara', 'Max', 'Lily'],
+    3: ['Ryan', 'Chloe', 'Noah', 'Ella'],
+    4: ['Liam', 'Nora', 'Jake', 'Zoe'],
+    5: ['Evan', 'Ruby', 'Adam', 'Maya'],
+    6: ['Kevin', 'Emma', 'Dan', 'Kate']
+};
+
+function swapNamesForGrade(text: string, grade: number, variantNum: number, isEnglish: boolean): string {
+    if (!text) return text;
+    if (isEnglish) {
+        const sourceEn = ['Andi', 'Budi', 'Siti', 'Ani', 'Rina', 'Tono'];
+        const targetEn = GRADE_NAME_ROSTERS_EN[grade] || GRADE_NAME_ROSTERS_EN[4];
+        let out = text;
+        sourceEn.forEach((src, i) => {
+            const replacement = targetEn[(i + variantNum) % targetEn.length];
+            out = out.replace(new RegExp(`\\b${src}\\b`, 'g'), replacement);
+        });
+        return out;
+    }
+    const sourceId = ['Andi', 'Siti', 'Budi', 'Lani', 'Edo', 'Dayu', 'Udin', 'Beni', 'Rina', 'Tono', 'Dewi', 'Fajar'];
+    const targetId = GRADE_NAME_ROSTERS_ID[grade] || GRADE_NAME_ROSTERS_ID[4];
+    let out = text;
+    sourceId.forEach((src, i) => {
+        const replacement = targetId[(i + variantNum) % targetId.length];
+        out = out.replace(new RegExp(`\\b${src}\\b`, 'g'), replacement);
+    });
+    return out;
+}
+
+function rephraseQuestionNatural(
+    baseQuestion: string,
+    baseStimulus: string | undefined,
+    topic: string,
+    grade: number,
+    passIndex: number,
+    isEnglish: boolean
+): { question: string; stimulus: string } {
+    let q = swapNamesForGrade(baseQuestion.trim(), grade, passIndex, isEnglish);
+    let stim = swapNamesForGrade((baseStimulus || '').trim(), grade, passIndex, isEnglish);
+    const topicClean = (topic || 'materi pokok').trim();
+    const safePass = Math.max(0, passIndex);
+
+    if (isEnglish) {
+        const enStarters = [
+            `Focus on ${topicClean}: `,
+            `Read carefully and answer about ${topicClean.toLowerCase()}: `,
+            `Think about what you learned in ${topicClean.toLowerCase()}. `,
+            `Reviewing ${topicClean.toLowerCase()}, `,
+            `Answer this prompt on ${topicClean.toLowerCase()}: `,
+            `In daily English practice for ${topicClean.toLowerCase()}, `,
+            `Based on the topic of ${topicClean.toLowerCase()}, `,
+            `Check your understanding of ${topicClean.toLowerCase()}: `,
+            `From your ${topicClean.toLowerCase()} lesson today, `,
+            `Use your English knowledge on ${topicClean.toLowerCase()}: `,
+            `Look closely at this ${topicClean.toLowerCase()} task: `,
+            `For the ${topicClean.toLowerCase()} exercise, `
+        ];
+        const enClosings = [
+            '',
+            ' Write your best answer.',
+            ' Answer clearly in English.',
+            ' Double-check your spelling before finishing.'
+        ];
+        const sIdx = (safePass + grade) % enStarters.length;
+        const cIdx = Math.floor(safePass / enStarters.length) % enClosings.length;
+        if (cIdx === 1 || cIdx === 3) {
+            q = q
+                .replace(/\bis located\b/gi, 'can be found')
+                .replace(/\bMention\b/g, 'List')
+                .replace(/\bWrite\b/g, 'Compose')
+                .replace(/\bWhere is\b/g, 'In which place is')
+                .replace(/\bthe polite expression to say\b/gi, 'the kind phrase we use');
+        } else if (cIdx === 2) {
+            q = q
+                .replace(/\bfavorite\b/gi, 'preferred')
+                .replace(/\bfind\b/gi, 'spot')
+                .replace(/\bsimple sentences\b/gi, 'short English sentences')
+                .replace(/\bWhen someone helps you\b/gi, 'If a friend helps you');
+        }
+        const starter = enStarters[sIdx];
+        const closing = enClosings[cIdx];
+        const body = starter.endsWith(', ') ? `${q.charAt(0).toLowerCase()}${q.slice(1)}` : q;
+        return {
+            question: `${starter}${body}${closing}`,
+            stimulus: stim
+        };
+    }
+
+    const gradeAnchors: Record<number, string[]> = {
+        1: [
+            `Saat belajar bersama tentang ${topicClean}, `,
+            `Coba pahami hal sederhana mengenai ${topicClean}: `,
+            `Perhatikan cerita singkat tentang ${topicClean} berikut! `,
+            `Dalam kegiatan bermain sambil belajar ${topicClean}, `,
+            `Ayo ingat kembali materi ${topicClean}, `,
+            `Simak penjelasan ringan mengenai ${topicClean} ini: `,
+            `Di dalam kelas saat membahas ${topicClean}, `,
+            `Mari berlatih menjawab soal ${topicClean} berikut: `,
+            `Perhatikan contoh sehari-hari terkait ${topicClean}! `,
+            `Ingat kembali pelajaran ${topicClean} hari ini, `,
+            `Ayo amati pertanyaan mudah tentang ${topicClean}: `,
+            `Sesuai topik ${topicClean} yang dipelajari, `
+        ],
+        2: [
+            `Pada kegiatan belajar materi ${topicClean}, `,
+            `Cermati contoh mengenai ${topicClean} berikut! `,
+            `Ketika membahas topik ${topicClean} di sekolah, `,
+            `Pahami uraian materi ${topicClean} ini, lalu `,
+            `Dalam latihan soal ${topicClean} hari ini, `,
+            `Perhatikan pertanyaan tentang ${topicClean}: `,
+            `Saat berdiskusi singkat mengenai ${topicClean}, `,
+            `Simak petunjuk materi ${topicClean} berikut ini! `,
+            `Amati situasi yang berkaitan dengan ${topicClean}: `,
+            `Untuk mengingat pelajaran ${topicClean}, `,
+            `Coba jawab latihan seputar ${topicClean} ini: `,
+            `Melalui kegiatan belajar ${topicClean}, `
+        ],
+        3: [
+            `Berdasarkan pemahaman tentang ${topicClean}, `,
+            `Saat mengamati topik ${topicClean}, `,
+            `Dalam pembahasan materi ${topicClean}, `,
+            `Cermatilah pertanyaan terkait ${topicClean} berikut: `,
+            `Merujuk pada pokok bahasan ${topicClean}, `,
+            `Ketika mempelajari konsep ${topicClean}, `,
+            `Pada uraian pembelajaran ${topicClean}, `,
+            `Perhatikan konteks permasalahan ${topicClean} ini! `,
+            `Melalui pengamatan terhadap ${topicClean}, `,
+            `Untuk menguji pemahaman ${topicClean}, `,
+            `Dalam rangkaian kegiatan belajar ${topicClean}, `,
+            `Berkaitan dengan hal pokok pada ${topicClean}, `
+        ],
+        4: [
+            `Pada pendalaman materi ${topicClean}, `,
+            `Berdasarkan konsep ${topicClean} yang telah dipelajari, `,
+            `Dalam analisis singkat mengenai ${topicClean}, `,
+            `Telitilah pokok bahasan ${topicClean} berikut! `,
+            `Dari pembelajaran materi ${topicClean}, `,
+            `Berkaitan dengan pemahaman ${topicClean}, `,
+            `Saat menelaah contoh kasus ${topicClean}, `,
+            `Cermatilah persoalan seputar ${topicClean} di bawah ini: `,
+            `Dalam penerapan pelajaran ${topicClean}, `,
+            `Untuk memperdalam wawasan ${topicClean}, `,
+            `Merujuk pada kaidah ${topicClean} yang tepat, `,
+            `Melalui latihan pemecahan masalah ${topicClean}, `
+        ],
+        5: [
+            `Berdasarkan kajian materi ${topicClean}, `,
+            `Dalam penerapan konsep ${topicClean} di kehidupan sehari-hari, `,
+            `Cermati konteks pembelajaran ${topicClean} berikut: `,
+            `Saat mengidentifikasi persoalan ${topicClean}, `,
+            `Merujuk pada prinsip dasar ${topicClean}, `,
+            `Pada evaluasi pemahaman ${topicClean}, `,
+            `Melalui telaah mendalam terhadap ${topicClean}, `,
+            `Dalam studi konteks nyata mengenai ${topicClean}, `,
+            `Perhatikan hubungan konsep pada ${topicClean} berikut! `,
+            `Untuk membuktikan pemahaman tentang ${topicClean}, `,
+            `Dari hasil pengamatan topik ${topicClean}, `,
+            `Dalam penguasaan materi inti ${topicClean}, `
+        ],
+        6: [
+            `Berdasarkan penguasaan konsep ${topicClean}, `,
+            `Dalam pemahaman mendalam mengenai ${topicClean}, `,
+            `Tinjauan materi ${topicClean} menunjukkan bahwa `,
+            `Cermati uraian topik ${topicClean} di bawah ini! `,
+            `Pada penalaran materi ${topicClean}, `,
+            `Berkaitan dengan prinsip ${topicClean}, `,
+            `Dalam analisis terpadu mengenai ${topicClean}, `,
+            `Merujuk pada sintesis konsep ${topicClean}, `,
+            `Saat mengevaluasi permasalahan ${topicClean}, `,
+            `Perhatikan penjabaran logis tentang ${topicClean}: `,
+            `Melalui pendalaman kompetensi ${topicClean}, `,
+            `Sebagai bagian dari penguasaan ${topicClean}, `
+        ]
+    };
+
+    const prefixes = gradeAnchors[grade] || gradeAnchors[4];
+    const openIdx = (safePass + grade) % prefixes.length;
+    const styleIdx = Math.floor(safePass / prefixes.length) % 4;
+
+    if (styleIdx === 1 || styleIdx === 3) {
+        q = q
+            .replace(/\bdinamakan\b/g, 'disebut')
+            .replace(/\bpeserta didik\b/gi, 'para siswa')
+            .replace(/\bberfungsi untuk\b/gi, 'berperan penting untuk')
+            .replace(/\bdigunakan untuk\b/gi, 'dimanfaatkan untuk')
+            .replace(/\bpaling tepat\b/gi, 'paling sesuai');
+        stim = stim
+            .replace(/\bpeserta didik\b/gi, 'para siswa')
+            .replace(/\bberfungsi untuk\b/gi, 'berperan untuk');
+    } else if (styleIdx === 2) {
+        q = q
+            .replace(/\bdisebut\b/g, 'dikenal sebagai')
+            .replace(/\bmerupakan\b/g, 'termasuk')
+            .replace(/\bmemiliki\b/g, 'mempunyai')
+            .replace(/\bmenggunakan\b/gi, 'memakai')
+            .replace(/\bpaling benar\b/gi, 'paling tepat');
+        stim = stim
+            .replace(/\bmemiliki\b/g, 'mempunyai')
+            .replace(/\bmenggunakan\b/gi, 'memakai');
+    }
+
+    const tailMarkers = ['', ' (pahami saksama)', ' secara cermat', ' dengan tepat'];
+    if (styleIdx >= 2 && q.endsWith('!')) {
+        q = `${q.slice(0, -1)}${tailMarkers[styleIdx]}!`;
+    } else if (styleIdx >= 2 && q.endsWith('?') && !q.includes('...')) {
+        q = `${q.slice(0, -1)}${tailMarkers[styleIdx]}?`;
+    } else if (styleIdx === 3 && !stim) {
+        stim = `Pelajari kembali pokok bahasan ${topicClean} sebelum menjawab soal berikut.`;
+    }
+
+    const prefix = prefixes[openIdx];
+    const shouldLower = prefix.endsWith(', ') || prefix.endsWith('bahwa ');
+    const adjustedQ = shouldLower ? `${q.charAt(0).toLowerCase()}${q.slice(1)}` : q;
+
+    return {
+        question: `${prefix}${adjustedQ}`,
+        stimulus: stim
+    };
+}
+
+// Generate parameterized variant for math when bank is exhausted (strictly grade-appropriate & grade-unique!)
 function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number): QuestionBankItemPG {
     const allowedModes = grade <= 2
         ? [0, 5, 10, 11] // Grade 1-2: penjumlahan kecil, pengurangan kecil, pola bilangan loncat, jam tepat
@@ -3333,23 +3791,28 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
             ? [0, 1, 2, 3, 4, 5, 6] // Grade 3-4: operasi hitung, luas/keliling persegi/persegi panjang, pembagian, waktu
             : [0, 1, 2, 3, 4, 5, 6, 7]; // Grade 5-6: all including Volume Kubus
 
-    const mode = allowedModes[(index - 1) % allowedModes.length];
+    const modeOffset = (grade - 1) % allowedModes.length;
+    const mode = allowedModes[(index - 1 + modeOffset) % allowedModes.length];
     const cycle = Math.floor((index - 1) / allowedModes.length);
-
-    const namesA = ['Andi', 'Siti', 'Edo', 'Lani', 'Beni', 'Rina'];
-    const namesB = ['Budi', 'Dayu', 'Udin', 'Tono', 'Dewi', 'Fajar'];
-    const n1 = namesA[cycle % namesA.length];
-    const n2 = namesB[(cycle + 1) % namesB.length];
+    const roster = GRADE_NAME_ROSTERS_ID[grade] || GRADE_NAME_ROSTERS_ID[4];
+    const n1 = roster[(cycle + grade) % roster.length];
+    const n2 = roster[(cycle + grade + 1) % roster.length];
+    const gradeFactor = grade * 3 + index;
 
     if (mode === 0) {
-        const items = ['kelereng', 'stiker', 'kartu bergambar', 'biji congklak', 'batu hias'];
-        const itemObj = items[cycle % items.length];
-        const num1 = grade <= 2 ? (8 + ((index * 3) % 35)) : (14 + (index * 7));
-        const num2 = grade <= 2 ? (6 + ((index * 2) % 30)) : (18 + (index * 5));
+        const items = ['kelereng', 'stiker bintang', 'kartu bergambar', 'biji congklak', 'kancing hias', 'pensil warna'];
+        const itemObj = items[(cycle + grade) % items.length];
+        const num1 = grade <= 2 ? (7 + ((gradeFactor * 3 + grade * 5) % 32)) : (15 + grade * 11 + index * 7);
+        const num2 = grade <= 2 ? (5 + ((gradeFactor * 2 + grade * 4) % 28)) : (19 + grade * 9 + index * 5);
         const sum = num1 + num2;
+        const qPhrasings = [
+            `Berapakah total keseluruhan ${itemObj} milik ${n1} (${num1} buah) dan ${n2} (${num2} buah) setelah digabungkan?`,
+            `Jika ${num1} ${itemObj} kepunyaan ${n1} ditambahkan dengan ${num2} ${itemObj} milik ${n2}, jumlah semuanya adalah ...`,
+            `Hitunglah banyaknya ${itemObj} dalam kotak gabungan milik ${n1} dan ${n2} tersebut!`
+        ];
         return {
-            stimulus: `${n1} memiliki ${num1} buah ${itemObj} dan ${n2} memiliki ${num2} buah ${itemObj}. Mereka menggabungkan semua ${itemObj} tersebut ke dalam satu kotak.`,
-            question: `Berapakah jumlah keseluruhan ${itemObj} milik ${n1} (${num1} buah) dan ${n2} (${num2} buah) setelah digabungkan?`,
+            stimulus: `${n1} mengumpulkan ${num1} buah ${itemObj} dan ${n2} membawa ${num2} buah ${itemObj}. Semua ${itemObj} itu disatukan ke dalam wadah kelas.`,
+            question: qPhrasings[(grade + cycle) % qPhrasings.length],
             optionsFaseA: [
                 { key: 'A', text: `${sum - 2} buah` },
                 { key: 'B', text: `${sum} buah` },
@@ -3367,16 +3830,16 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
             topic: 'Operasi Penjumlahan'
         };
     } else if (mode === 1) {
-        const containers = ['kotak pensil', 'kantong jeruk', 'rak buku', 'bungkus permen', 'dus roti'];
-        const contents = ['batang pensil warna', 'buah jeruk manis', 'eksemplar buku cerita', 'butir permen rasa buah', 'potong roti cokelat'];
-        const units = ['batang', 'buah', 'eksemplar', 'butir', 'potong'];
-        const pick = cycle % containers.length;
-        const factor1 = grade <= 3 ? (3 + (index % 7)) : (4 + index);
-        const perBox = 4 + (cycle % 5);
+        const containers = ['kotak pensil', 'kantong jeruk', 'rak buku', 'bungkus permen', 'dus roti', 'keranjang bola'];
+        const contents = ['batang pensil warna', 'buah jeruk manis', 'eksemplar buku cerita', 'butir permen rasa buah', 'potong roti cokelat', 'buah bola kecil'];
+        const units = ['batang', 'buah', 'eksemplar', 'butir', 'potong', 'buah'];
+        const pick = (cycle + grade) % containers.length;
+        const factor1 = grade <= 3 ? (3 + ((index + grade) % 7)) : (4 + grade + index);
+        const perBox = 4 + ((cycle + grade) % 6);
         const prod = factor1 * perBox;
         return {
-            stimulus: `Di koperasi sekolah tersedia ${factor1} ${containers[pick]}. Setiap ${containers[pick].split(' ')[0]} berisi ${perBox} ${contents[pick]}.`,
-            question: `Jika seluruh isi ${factor1} ${containers[pick]} (@${perBox} ${units[pick]}) digabungkan, banyaknya ${contents[pick]} seluruhnya adalah ...`,
+            stimulus: `Di koperasi sekolah tersedia ${factor1} ${containers[pick]}. Setiap wadah berisi tepat ${perBox} ${contents[pick]}.`,
+            question: `Apabila seluruh isi ${factor1} ${containers[pick]} (@${perBox} ${units[pick]}) dihitung bersama, jumlah ${contents[pick]} seluruhnya adalah ...`,
             optionsFaseA: [
                 { key: 'A', text: `${prod - 3} ${units[pick]}` },
                 { key: 'B', text: `${prod} ${units[pick]}` },
@@ -3394,13 +3857,13 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
             topic: 'Operasi Perkalian'
         };
     } else if (mode === 2) {
-        const objects = ['ubin keramik', 'kertas origami', 'papan catur mini', 'bingkai foto', 'saputangan kain'];
-        const sqObj = objects[cycle % objects.length];
-        const side = 5 + index;
+        const objects = ['ubin keramik', 'kertas origami', 'papan catur mini', 'bingkai foto', 'saputangan kain', 'taplak meja mini'];
+        const sqObj = objects[(cycle + grade) % objects.length];
+        const side = 4 + grade + index * 2;
         const area = side * side;
         return {
-            stimulus: `Sebuah ${sqObj} berbentuk persegi memiliki panjang setiap sisi tepat ${side} cm.`,
-            question: `Berapakah luas permukaan ${sqObj} berbentuk persegi dengan ukuran sisi ${side} cm tersebut?`,
+            stimulus: `${n1} mengukur sebuah ${sqObj} berbentuk persegi yang panjang tiap sisinya ${side} cm.`,
+            question: `Berapa cm² luas permukaan ${sqObj} milik ${n1} yang panjang sisinya ${side} cm tersebut?`,
             optionsFaseA: [
                 { key: 'A', text: `${side * 2} cm²` },
                 { key: 'B', text: `${area} cm²` },
@@ -3418,14 +3881,14 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
             topic: 'Luas Persegi'
         };
     } else if (mode === 3) {
-        const places = ['taman bunga', 'lapangan voli', 'kebun sekolah', 'kolam ikan', 'halaman kelas'];
-        const rectObj = places[cycle % places.length];
-        const p = 10 + index * 2;
-        const l = 5 + cycle;
+        const places = ['taman bunga', 'lapangan voli', 'kebun sekolah', 'kolam ikan', 'halaman kelas', 'taman baca'];
+        const rectObj = places[(cycle + grade) % places.length];
+        const p = 9 + grade * 2 + index * 2;
+        const l = 4 + grade + cycle;
         const kel = 2 * (p + l);
         return {
             stimulus: `Sekolah memiliki ${rectObj} berbentuk persegi panjang berukuran panjang ${p} meter dan lebar ${l} meter.`,
-            question: `Keliling ${rectObj} berukuran ${p} m x ${l} m tersebut adalah ...`,
+            question: `Keliling ${rectObj} berukuran ${p} m x ${l} m tersebut apabila diukur mengitari seluruh tepinya adalah ...`,
             optionsFaseA: [
                 { key: 'A', text: `${p + l} meter` },
                 { key: 'B', text: `${kel} meter` },
@@ -3443,14 +3906,14 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
             topic: 'Keliling Bangun Datar'
         };
     } else if (mode === 4) {
-        const fruits = ['buah mangga', 'buah apel', 'kue bolu', 'buku tulis', 'buah jeruk'];
-        const obj = fruits[cycle % fruits.length];
-        const divisor = 4 + (cycle % 5);
-        const perChild = 7 + index;
+        const fruits = ['buah mangga', 'buah apel', 'kue bolu', 'buku tulis', 'buah jeruk', 'pensil gambar'];
+        const obj = fruits[(cycle + grade) % fruits.length];
+        const divisor = 3 + ((cycle + grade) % 5);
+        const perChild = 5 + grade + index;
         const total = divisor * perChild;
         return {
             stimulus: `${n1} menyiapkan ${total} ${obj} untuk dibagikan sama rata kepada ${divisor} orang temannya saat kerja kelompok.`,
-            question: `Jika ${total} ${obj} dibagikan sama rata kepada ${divisor} anak, berapa banyak yang diterima masing-masing anak?`,
+            question: `Jika ${total} ${obj} dibagikan merata kepada ${divisor} anak, bagian yang diterima setiap anak adalah ...`,
             optionsFaseA: [
                 { key: 'A', text: `${perChild - 2}` },
                 { key: 'B', text: `${perChild}` },
@@ -3468,12 +3931,12 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
             topic: 'Operasi Pembagian'
         };
     } else if (mode === 5) {
-        const startVal = grade <= 2 ? (35 + ((index * 4) % 45)) : (85 + (index * 9));
-        const usedVal = grade <= 2 ? (12 + ((index * 3) % 20)) : (27 + (cycle * 6));
+        const startVal = grade <= 2 ? (32 + ((gradeFactor * 4 + grade * 7) % 45)) : (78 + grade * 12 + index * 9);
+        const usedVal = grade <= 2 ? (11 + ((gradeFactor * 3 + grade * 3) % 20)) : (24 + grade * 4 + cycle * 6);
         const rem = startVal - usedVal;
         return {
-            stimulus: `${n2} memiliki persediaan ${startVal} lembar kertas warna. Sebanyak ${usedVal} lembar digunakan untuk membuat kerajinan kelas.`,
-            question: `Berapa lembar sisa kertas warna milik ${n2} dari persediaan awal ${startVal} lembar setelah terpakai ${usedVal} lembar?`,
+            stimulus: `${n2} menyimpan persediaan ${startVal} lembar kertas warna. Sebanyak ${usedVal} lembar dipakai untuk membuat prakarya.`,
+            question: `Berapa lembar sisa kertas warna milik ${n2} setelah ${usedVal} lembar dari ${startVal} lembar digunakan?`,
             optionsFaseA: [
                 { key: 'A', text: `${rem - 4} lembar` },
                 { key: 'B', text: `${rem} lembar` },
@@ -3491,12 +3954,12 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
             topic: 'Operasi Pengurangan'
         };
     } else if (mode === 6) {
-        const hours = 2 + (cycle % 4);
-        const extraMins = 10 + ((index * 5) % 45);
+        const hours = 1 + ((cycle + grade) % 5);
+        const extraMins = 5 + ((gradeFactor * 5) % 50);
         const totalMins = hours * 60 + extraMins;
         return {
-            stimulus: `${n1} berlatih membaca puisi dan matematika selama ${hours} jam ${extraMins} menit tanpa henti.`,
-            question: `Jika dikonversi ke dalam satuan menit, durasi latihan selama ${hours} jam ${extraMins} menit sama dengan ...`,
+            stimulus: `${n1} mengikuti kegiatan membaca dan berhitung selama ${hours} jam ${extraMins} menit.`,
+            question: `Bila diubah ke satuan menit, lama waktu belajar ${n1} selama ${hours} jam ${extraMins} menit setara dengan ...`,
             optionsFaseA: [
                 { key: 'A', text: `${totalMins - 20} menit` },
                 { key: 'B', text: `${totalMins} menit` },
@@ -3515,12 +3978,12 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
         };
     } else if (mode === 10) {
         // Grade 1-2: pola bilangan loncat sederhana
-        const step = 2 + (cycle % 3);
-        const start = 2 + (index % 8);
+        const step = 2 + ((cycle + grade) % 4);
+        const start = 2 + ((index + grade * 3) % 9);
         const missing = start + step * 2;
         return {
-            stimulus: `${n1} mengurutkan kartu angka dengan pola teratur: ${start}, ${start + step}, [ ... ], ${start + step * 3}.`,
-            question: `Angka yang tepat untuk mengisi kartu kosong pada urutan bilangan ${start}, ${start + step}, [...], ${start + step * 3} adalah ...`,
+            stimulus: `${n1} menyusun kartu bilangan secara teratur: ${start}, ${start + step}, [ ... ], ${start + step * 3}.`,
+            question: `Bilangan yang tepat untuk mengisi kotak kosong pada pola ${start}, ${start + step}, [...], ${start + step * 3} milik ${n1} adalah ...`,
             optionsFaseA: [
                 { key: 'A', text: `${missing - 1}` },
                 { key: 'B', text: `${missing}` },
@@ -3539,12 +4002,12 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
         };
     } else if (mode === 11) {
         // Grade 1-2: membaca dan menghitung durasi jam tepat
-        const startHr = 7 + (index % 4);
-        const dur = 1 + (cycle % 2);
+        const startHr = 6 + ((index + grade) % 5);
+        const dur = 1 + ((cycle + grade) % 3);
         const endHr = startHr + dur;
         return {
-            stimulus: `${n2} mulai belajar membaca buku di ruang kelas pada pukul ${String(startHr).padStart(2, '0')}.00 selama ${dur} jam.`,
-            question: `Pada pukul berapakah ${n2} selesai belajar setelah ${dur} jam dari pukul ${String(startHr).padStart(2, '0')}.00?`,
+            stimulus: `${n2} mulai belajar menggambar di kelas pada pukul ${String(startHr).padStart(2, '0')}.00 selama ${dur} jam.`,
+            question: `Pukul berapa ${n2} selesai menggambar apabila berlangsung selama ${dur} jam sejak pukul ${String(startHr).padStart(2, '0')}.00?`,
             optionsFaseA: [
                 { key: 'A', text: `Pukul ${String(endHr - 1).padStart(2, '0')}.00` },
                 { key: 'B', text: `Pukul ${String(endHr).padStart(2, '0')}.00` },
@@ -3562,13 +4025,13 @@ function createDynamicMathVariant(index: number, isFaseA: boolean, grade: number
             topic: 'Pengukuran Waktu Jam Tepat'
         };
     } else {
-        const cubes = ['kotak mainan', 'akuarium mini', 'kardus kado', 'bak air kubus', 'wadah pensil kubus'];
-        const cubeObj = cubes[cycle % cubes.length];
-        const edge = 4 + (index % 7) + cycle;
+        const cubes = ['kotak mainan', 'akuarium mini', 'kardus kado', 'bak air kubus', 'wadah pensil kubus', 'kotak kayu'];
+        const cubeObj = cubes[(cycle + grade) % cubes.length];
+        const edge = 3 + (grade % 3) + ((index + cycle) % 8);
         const vol = edge * edge * edge;
         return {
-            stimulus: `Sebuah ${cubeObj} berbentuk kubus sempurna memiliki panjang rusuk ${edge} cm.`,
-            question: `Berapakah volume ${cubeObj} berbentuk kubus yang memiliki panjang rusuk ${edge} cm tersebut?`,
+            stimulus: `Sebuah ${cubeObj} berbentuk kubus memiliki panjang rusuk tepat ${edge} cm.`,
+            question: `Berapa cm³ volume ${cubeObj} berbentuk kubus dengan panjang rusuk ${edge} cm tersebut?`,
             optionsFaseA: [
                 { key: 'A', text: `${edge * edge} cm³` },
                 { key: 'B', text: `${vol} cm³` },
@@ -3896,22 +4359,11 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean, grade: number
     const pickIdx = (index - 1) % activeVariants.length;
     const cycle = Math.floor((index - 1) / activeVariants.length);
     const base = activeVariants[pickIdx];
-    if (cycle === 0) {
-        return base;
-    }
-    const contexts = [
-        'Pada wacana latihan kelas',
-        'Berdasarkan penggalan bacaan sastra anak',
-        'Dalam catatan kegiatan literasi sekolah',
-        'Merujuk pada paragraf informasi terkini',
-        'Pada teks bacaan modul kurikulum',
-        'Sesuai contoh kalimat bahasa baku berikut'
-    ];
-    const ctxTag = contexts[(cycle - 1) % contexts.length];
+    const rephrased = rephraseQuestionNatural(base.question, base.stimulus, base.topic, grade, cycle, false);
     return {
         ...base,
-        stimulus: `${ctxTag}: ${base.stimulus || ''}`,
-        question: `${ctxTag}, ${base.question.charAt(0).toLowerCase()}${base.question.slice(1)}`
+        stimulus: rephrased.stimulus,
+        question: rephrased.question
     };
 }
 
@@ -3932,34 +4384,18 @@ function createDynamicSubjectPgVariant(subject: string, index: number, isFaseA: 
     const cycle = Math.floor((index - 1) / bank.length);
     const base = bank[pickIdx];
 
-    const scenariosId = [
-        'Dalam evaluasi praktik kelas',
-        'Berdasarkan pengamatan kegiatan belajar di sekolah',
-        'Dalam soal uji pemahaman materi',
-        'Merujuk pada kasus pembelajaran kontekstual berikut',
-        'Pada kegiatan asesmen akhir semester',
-        'Dalam diskusi penguatan konsep di kelas',
-        'Pada aktivitas latihan mandiri peserta didik',
-        'Berdasarkan catatan materi ajar kurikulum merdeka'
-    ];
-    const scenariosEn = [
-        'In the classroom practice evaluation',
-        'Based on the daily school activity below',
-        'In this comprehension exercise',
-        'Looking at the following school situation',
-        'During the semester review activity',
-        'From the short learning note below'
-    ];
-
-    const tag = cat === 'inggris'
-        ? `${scenariosEn[cycle % scenariosEn.length]} (Set ${cycle + 1})`
-        : `${scenariosId[cycle % scenariosId.length]} (Seri ${cycle + 1})`;
-
-    const qText = base.question.charAt(0).toLowerCase() + base.question.slice(1);
+    const rephrased = rephraseQuestionNatural(
+        base.question,
+        base.stimulus,
+        base.topic,
+        grade,
+        cycle,
+        cat === 'inggris'
+    );
     return {
         ...base,
-        stimulus: `${tag}: ${base.stimulus || ''}`,
-        question: `${tag}, ${qText}`
+        stimulus: rephrased.stimulus,
+        question: rephrased.question
     };
 }
 
@@ -3987,7 +4423,7 @@ export function generateAuthenticPgQuestions(
     let bankIndex = 0;
     let variantIndex = 1;
 
-    while (result.length < count && (bankIndex < bank.length || variantIndex < 200)) {
+    while (result.length < count && (bankIndex < bank.length || variantIndex < 500)) {
         let item: QuestionBankItemPG;
 
         if (bankIndex < bank.length) {
@@ -4028,40 +4464,42 @@ export function generateAuthenticPgQuestions(
 
 function createDynamicIsianVariant(subject: string, index: number, grade: number): QuestionBankItemIsian {
     const s = subject.toLowerCase();
+    const gFactor = grade * 5 + index;
     if (s.includes('matematika') || s.includes('hitung') || s.includes('angka')) {
         if (grade <= 2) {
-            const mode = (index - 1) % 4;
+            const mode = (index - 1 + grade) % 4;
             if (mode === 0) {
-                const a = 8 + ((index * 3) % 35);
-                const b = 5 + ((index * 2) % 25);
+                const a = 7 + ((gFactor * 3 + grade * 4) % 35);
+                const b = 5 + ((gFactor * 2 + grade * 3) % 25);
                 return {
-                    question: `Hasil penjumlahan bilangan ${a} + ${b} adalah ...`,
+                    question: `Jumlah dari bilangan ${a} ditambah ${b} adalah ...`,
                     correctAnswer: `${a + b}`,
                     cognitiveLevel: 'LOTS',
                     topic: 'Operasi Penjumlahan'
                 };
             } else if (mode === 1) {
-                const a = 30 + ((index * 4) % 40);
-                const b = 6 + ((index * 3) % 20);
+                const a = 32 + ((gFactor * 4 + grade * 5) % 40);
+                const b = 6 + ((gFactor * 3 + grade * 2) % 20);
                 return {
-                    question: `Hasil pengurangan bilangan ${a} - ${b} adalah ...`,
+                    question: `Selisih dari pengurangan ${a} dikurangi ${b} adalah ...`,
                     correctAnswer: `${a - b}`,
                     cognitiveLevel: 'LOTS',
                     topic: 'Operasi Pengurangan'
                 };
             } else if (mode === 2) {
-                const jam = 2 + (index % 5);
+                const startH = 6 + (grade % 3);
+                const jam = 2 + ((index + grade) % 5);
                 return {
-                    question: `Lama waktu ${jam} jam setelah pukul 07.00 tepat adalah pukul ...`,
-                    correctAnswer: `${String(7 + jam).padStart(2, '0')}.00`,
+                    question: `Waktu ${jam} jam sesudah pukul ${String(startH).padStart(2, '0')}.00 adalah pukul ...`,
+                    correctAnswer: `${String(startH + jam).padStart(2, '0')}.00`,
                     cognitiveLevel: 'LOTS',
                     topic: 'Satuan Waktu'
                 };
             } else {
-                const puluhan = 2 + (index % 7);
-                const satuan = 1 + ((index * 3) % 8);
+                const puluhan = 2 + ((index + grade) % 7);
+                const satuan = 1 + ((gFactor * 3) % 8);
                 return {
-                    question: `Bilangan yang terdiri dari ${puluhan} puluhan dan ${satuan} satuan adalah ...`,
+                    question: `Lambang bilangan yang tersusun atas ${puluhan} puluhan dan ${satuan} satuan yaitu ...`,
                     correctAnswer: `${puluhan * 10 + satuan}`,
                     cognitiveLevel: 'LOTS',
                     topic: 'Nilai Tempat'
@@ -4069,45 +4507,45 @@ function createDynamicIsianVariant(subject: string, index: number, grade: number
             }
         }
 
-        const mode = (index - 1) % 5;
+        const mode = (index - 1 + grade) % 5;
         if (mode === 0) {
-            const numA = 5 + index * 3;
-            const numB = 4 + (index % 5);
+            const numA = 5 + grade * 4 + index * 3;
+            const numB = 3 + ((index + grade) % 6);
             return {
-                question: `Hasil dari operasi hitung perkalian ${numA} x ${numB} adalah ...`,
+                question: `Hasil perkalian antara ${numA} dengan ${numB} adalah ...`,
                 correctAnswer: `${numA * numB}`,
                 cognitiveLevel: 'LOTS',
                 topic: 'Operasi Perkalian'
             };
         } else if (mode === 1) {
-            const side = 6 + index;
+            const side = 5 + grade * 2 + index;
             return {
-                question: `Sebuah persegi memiliki panjang sisi ${side} cm. Luas persegi tersebut adalah ... cm².`,
+                question: `Diketahui sebuah bangun persegi mempunyai panjang sisi ${side} cm. Luas persegi itu adalah ... cm².`,
                 correctAnswer: `${side * side}`,
                 cognitiveLevel: 'MOTS',
                 topic: 'Luas Persegi'
             };
         } else if (mode === 2) {
-            const kg = 2 + index;
+            const kg = 2 + grade + index;
             return {
-                question: `Berat sebuah paket beras adalah ${kg} kg. Jika diubah ke satuan gram, beratnya menjadi ... gram.`,
+                question: `Massa satu karung beras adalah ${kg} kilogram. Apabila diubah menjadi gram, beratnya setara dengan ... gram.`,
                 correctAnswer: `${kg * 1000}`,
                 cognitiveLevel: 'LOTS',
                 topic: 'Satuan Berat'
             };
         } else if (mode === 3) {
-            const jam = 2 + (index % 6) + Math.floor(index / 6);
+            const jam = 2 + ((index + grade) % 6) + Math.floor(index / 6);
             return {
-                question: `Waktu selama ${jam} jam jika dinyatakan dalam satuan menit adalah ... menit.`,
+                question: `Durasi belajar selama ${jam} jam sama lamanya dengan ... menit.`,
                 correctAnswer: `${jam * 60}`,
                 cognitiveLevel: 'LOTS',
                 topic: 'Satuan Waktu'
             };
         } else {
-            const div = 3 + (index % 4);
-            const ans = 8 + index;
+            const div = 3 + ((index + grade) % 5);
+            const ans = 7 + grade + index;
             return {
-                question: `Hasil pembagian bilangan ${div * ans} : ${div} adalah ...`,
+                question: `Hasil operasi pembagian ${div * ans} dibagi ${div} adalah ...`,
                 correctAnswer: `${ans}`,
                 cognitiveLevel: 'LOTS',
                 topic: 'Operasi Pembagian'
@@ -4118,43 +4556,43 @@ function createDynamicIsianVariant(subject: string, index: number, grade: number
     const cat = detectSubjectCategory(subject);
     const extraIsianMap: Record<string, QuestionBankItemIsian[]> = {
         indo: [
-            { question: 'Kalimat yang hanya memiliki satu pola inti subjek dan predikat serta mudah dipahami disebut kalimat ...', correctAnswer: 'Efektif (Tunggal)', cognitiveLevel: 'LOTS', topic: 'Tata Kalimat' },
+            { minGrade: 3, maxGrade: 6, question: 'Kalimat yang hanya memiliki satu pola inti subjek dan predikat serta mudah dipahami disebut kalimat ...', correctAnswer: 'Efektif (Tunggal)', cognitiveLevel: 'LOTS', topic: 'Tata Kalimat' },
             { question: 'Huruf pertama pada awal kalimat dan nama tempat geografis wajib ditulis menggunakan huruf ...', correctAnswer: 'Kapital (Besar)', cognitiveLevel: 'LOTS', topic: 'Ejaan' },
-            { question: 'Karangan singkat yang berisi cerita hewan berperilaku layaknya manusia disebut ...', correctAnswer: 'Fabel', cognitiveLevel: 'LOTS', topic: 'Teks Fiksi' },
-            { question: 'Daftar kata sulit beserta artinya yang tersusun urut abjad di bagian akhir buku disebut ...', correctAnswer: 'Glosarium (Kamus mini)', cognitiveLevel: 'MOTS', topic: 'Literasi Buku' },
-            { question: 'Teks yang berisi ajakan atau bujukan halus kepada pembaca agar mau mengikuti sesuatu disebut teks ...', correctAnswer: 'Persuasi', cognitiveLevel: 'MOTS', topic: 'Jenis Teks' },
-            { question: 'Awalan "me-" apabila bertemu dengan kata dasar "sapu" akan luluh menjadi kata ...', correctAnswer: 'Menyapu', cognitiveLevel: 'MOTS', topic: 'Imbuhan' }
+            { minGrade: 2, maxGrade: 6, question: 'Karangan singkat yang berisi cerita hewan berperilaku layaknya manusia disebut ...', correctAnswer: 'Fabel', cognitiveLevel: 'LOTS', topic: 'Teks Fiksi' },
+            { minGrade: 3, maxGrade: 6, question: 'Daftar kata sulit beserta artinya yang tersusun urut abjad di bagian akhir buku disebut ...', correctAnswer: 'Glosarium (Kamus mini)', cognitiveLevel: 'MOTS', topic: 'Literasi Buku' },
+            { minGrade: 4, maxGrade: 6, question: 'Teks yang berisi ajakan atau bujukan halus kepada pembaca agar mau mengikuti sesuatu disebut teks ...', correctAnswer: 'Persuasi', cognitiveLevel: 'MOTS', topic: 'Jenis Teks' },
+            { minGrade: 3, maxGrade: 6, question: 'Awalan "me-" apabila bertemu dengan kata dasar "sapu" akan luluh menjadi kata ...', correctAnswer: 'Menyapu', cognitiveLevel: 'MOTS', topic: 'Imbuhan' }
         ],
         ipas: [
             { question: 'Sumber energi panas dan cahaya terbesar yang menyinari planet bumi adalah ...', correctAnswer: 'Matahari', cognitiveLevel: 'LOTS', topic: 'Energi' },
-            { question: 'Perubahan wujud benda dari padat langsung menjadi gas seperti pada kapur barus disebut ...', correctAnswer: 'Menyublim', cognitiveLevel: 'LOTS', topic: 'Wujud Zat' },
+            { minGrade: 3, maxGrade: 6, question: 'Perubahan wujud benda dari padat langsung menjadi gas seperti pada kapur barus disebut ...', correctAnswer: 'Menyublim', cognitiveLevel: 'LOTS', topic: 'Wujud Zat' },
             { question: 'Alat indra pada manusia yang berfungsi untuk mendengar getaran suara adalah ...', correctAnswer: 'Telinga', cognitiveLevel: 'LOTS', topic: 'Panca Indra' },
-            { question: 'Bagian bunga yang berfungsi sebagai alat perkembangbiakan jantan karena menghasilkan serbuk sari adalah ...', correctAnswer: 'Benang sari', cognitiveLevel: 'MOTS', topic: 'Perkembangbiakan Tumbuhan' },
-            { question: 'Hubungan saling menguntungkan antara dua makhluk hidup yang berbeda jenis disebut simbiosis ...', correctAnswer: 'Mutualisme', cognitiveLevel: 'LOTS', topic: 'Ekosistem' },
-            { question: 'Benda langit yang menjadi satelit alami planet bumi dan tampak bersinar di malam hari adalah ...', correctAnswer: 'Bulan', cognitiveLevel: 'LOTS', topic: 'Tata Surya' }
+            { minGrade: 3, maxGrade: 6, question: 'Bagian bunga yang berfungsi sebagai alat perkembangbiakan jantan karena menghasilkan serbuk sari adalah ...', correctAnswer: 'Benang sari', cognitiveLevel: 'MOTS', topic: 'Perkembangbiakan Tumbuhan' },
+            { minGrade: 4, maxGrade: 6, question: 'Hubungan saling menguntungkan antara dua makhluk hidup yang berbeda jenis disebut simbiosis ...', correctAnswer: 'Mutualisme', cognitiveLevel: 'LOTS', topic: 'Ekosistem' },
+            { minGrade: 5, maxGrade: 6, question: 'Benda langit yang menjadi satelit alami planet bumi dan tampak bersinar di malam hari adalah ...', correctAnswer: 'Bulan', cognitiveLevel: 'LOTS', topic: 'Tata Surya' }
         ],
         pancasila: [
             { question: 'Lagu kebangsaan negara Republik Indonesia yang diciptakan oleh W.R. Supratman berjudul ...', correctAnswer: 'Indonesia Raya', cognitiveLevel: 'LOTS', topic: 'Identitas Nasional' },
             { question: 'Warna bendera negara Republik Indonesia adalah merah yang berarti berani dan putih yang berarti ...', correctAnswer: 'Suci', cognitiveLevel: 'LOTS', topic: 'Simbol Negara' },
-            { question: 'Aturan tertulis atau tidak tertulis yang berlaku dan disepakati bersama dalam masyarakat disebut ...', correctAnswer: 'Norma', cognitiveLevel: 'LOTS', topic: 'Norma' },
+            { minGrade: 3, maxGrade: 6, question: 'Aturan tertulis atau tidak tertulis yang berlaku dan disepakati bersama dalam masyarakat disebut ...', correctAnswer: 'Norma', cognitiveLevel: 'LOTS', topic: 'Norma' },
             { question: 'Menjaga kebersihan halaman sekolah bersama teman-teman tanpa membeda-bedakan suku merupakan wujud sila ke-...', correctAnswer: 'Tiga (Persatuan Indonesia)', cognitiveLevel: 'MOTS', topic: 'Pancasila' },
-            { question: 'Pemilihan ketua kelas secara adil dengan mengambil suara terbanyak disebut ...', correctAnswer: 'Voting (Pemungutan suara)', cognitiveLevel: 'MOTS', topic: 'Demokrasi' },
+            { minGrade: 3, maxGrade: 6, question: 'Pemilihan ketua kelas secara adil dengan mengambil suara terbanyak disebut ...', correctAnswer: 'Voting (Pemungutan suara)', cognitiveLevel: 'MOTS', topic: 'Demokrasi' },
             { question: 'Sikap bersikap adil dan tidak pilih kasih kepada semua teman merupakan cerminan sila ke-...', correctAnswer: 'Lima (Keadilan sosial)', cognitiveLevel: 'MOTS', topic: 'Pancasila' }
         ],
         pjok: [
             { question: 'Gerakan pelemasan otot dan pengaturan napas setelah berolahraga selesai disebut ...', correctAnswer: 'Pendinginan (Cooling down)', cognitiveLevel: 'LOTS', topic: 'Pendinginan' },
-            { question: 'Teknik menerima bola rendah menggunakan kedua lengan lurus yang dirapatkan dalam bola voli disebut passing ...', correctAnswer: 'Bawah', cognitiveLevel: 'MOTS', topic: 'Bola Voli' },
-            { question: 'Posisi kedua kaki ditekuk melebar untuk menjaga keseimbangan saat berlatih pencak silat disebut sikap ...', correctAnswer: 'Kuda-kuda', cognitiveLevel: 'LOTS', topic: 'Pencak Silat' },
-            { question: 'Latihan kebugaran jasmani naik-turun bertumpu pada telapak tangan dan ujung kaki untuk melatih otot lengan adalah ...', correctAnswer: 'Push-up', cognitiveLevel: 'LOTS', topic: 'Kebugaran Jasmani' },
-            { question: 'Zat berbahaya di dalam asap rokok yang merusak organ paru-paru dan menimbulkan kecanduan disebut ...', correctAnswer: 'Nikotin dan tar', cognitiveLevel: 'MOTS', topic: 'Kesehatan' },
-            { question: 'Saat melakukan guling depan di atas matras, dagu ditempelkan ke dada agar yang mendarat pertama kali adalah bagian ...', correctAnswer: 'Tengkuk / Punggung atas', cognitiveLevel: 'MOTS', topic: 'Senam Lantai' }
+            { minGrade: 3, maxGrade: 6, question: 'Teknik menerima bola rendah menggunakan kedua lengan lurus yang dirapatkan dalam bola voli disebut passing ...', correctAnswer: 'Bawah', cognitiveLevel: 'MOTS', topic: 'Bola Voli' },
+            { minGrade: 3, maxGrade: 6, question: 'Posisi kedua kaki ditekuk melebar untuk menjaga keseimbangan saat berlatih pencak silat disebut sikap ...', correctAnswer: 'Kuda-kuda', cognitiveLevel: 'LOTS', topic: 'Pencak Silat' },
+            { minGrade: 3, maxGrade: 6, question: 'Latihan kebugaran jasmani naik-turun bertumpu pada telapak tangan dan ujung kaki untuk melatih otot lengan adalah ...', correctAnswer: 'Push-up', cognitiveLevel: 'LOTS', topic: 'Kebugaran Jasmani' },
+            { minGrade: 4, maxGrade: 6, question: 'Zat berbahaya di dalam asap rokok yang merusak organ paru-paru dan menimbulkan kecanduan disebut ...', correctAnswer: 'Nikotin dan tar', cognitiveLevel: 'MOTS', topic: 'Kesehatan' },
+            { minGrade: 3, maxGrade: 6, question: 'Saat melakukan guling depan di atas matras, dagu ditempelkan ke dada agar yang mendarat pertama kali adalah bagian ...', correctAnswer: 'Tengkuk / Punggung atas', cognitiveLevel: 'MOTS', topic: 'Senam Lantai' }
         ],
         seni: [
             { question: 'Unsur seni rupa terkecil yang menjadi awal terbentuknya garis adalah ...', correctAnswer: 'Titik', cognitiveLevel: 'LOTS', topic: 'Unsur Seni Rupa' },
-            { question: 'Tangga nada diatonis yang memiliki kesan ceria, gembira, dan bersemangat adalah tangga nada ...', correctAnswer: 'Mayor', cognitiveLevel: 'LOTS', topic: 'Tangga Nada' },
-            { question: 'Tiga unsur keindahan tari Nusantara yaitu Wiraga, Wirama, dan ...', correctAnswer: 'Wirasa', cognitiveLevel: 'MOTS', topic: 'Seni Tari' },
-            { question: 'Kejelasan pengucapan huruf vokal dan konsonan dalam seni peran teater atau bernyanyi disebut ...', correctAnswer: 'Artikulasi', cognitiveLevel: 'MOTS', topic: 'Seni Teater' },
-            { question: 'Prinsip susunan gambar kiri dan kanan yang tampak serasi dan tidak berat sebelah disebut ...', correctAnswer: 'Keseimbangan (Balance)', cognitiveLevel: 'MOTS', topic: 'Prinsip Seni Rupa' }
+            { minGrade: 3, maxGrade: 6, question: 'Tangga nada diatonis yang memiliki kesan ceria, gembira, dan bersemangat adalah tangga nada ...', correctAnswer: 'Mayor', cognitiveLevel: 'LOTS', topic: 'Tangga Nada' },
+            { minGrade: 3, maxGrade: 6, question: 'Tiga unsur keindahan tari Nusantara yaitu Wiraga, Wirama, dan ...', correctAnswer: 'Wirasa', cognitiveLevel: 'MOTS', topic: 'Seni Tari' },
+            { minGrade: 3, maxGrade: 6, question: 'Kejelasan pengucapan huruf vokal dan konsonan dalam seni peran teater atau bernyanyi disebut ...', correctAnswer: 'Artikulasi', cognitiveLevel: 'MOTS', topic: 'Seni Teater' },
+            { minGrade: 3, maxGrade: 6, question: 'Prinsip susunan gambar kiri dan kanan yang tampak serasi dan tidak berat sebelah disebut ...', correctAnswer: 'Keseimbangan (Balance)', cognitiveLevel: 'MOTS', topic: 'Prinsip Seni Rupa' }
         ],
         inggris: [
             { question: 'When someone helps you pick up a fallen book, the polite expression to say is "Thank ...".', correctAnswer: 'You', cognitiveLevel: 'LOTS', topic: 'Polite Expressions' },
@@ -4168,13 +4606,13 @@ function createDynamicIsianVariant(subject: string, index: number, grade: number
             { question: 'Sifat terpuji selalu berkata sesuai kenyataan dan tidak berbohong disebut ...', correctAnswer: 'Jujur (Siddiq)', cognitiveLevel: 'LOTS', topic: 'Akhlak Terpuji' },
             { question: 'Jumlah Rukun Iman yang wajib diyakini oleh setiap muslim adalah ... perkara.', correctAnswer: '6 (Enam)', cognitiveLevel: 'LOTS', topic: 'Rukun Iman' },
             { question: 'Jumlah Rukun Islam yang menjadi tiang ajaran agama Islam adalah ... perkara.', correctAnswer: '5 (Lima)', cognitiveLevel: 'LOTS', topic: 'Rukun Islam' },
-            { question: 'Apabila tidak ditemukan air untuk berwudu atau sedang sakit keras, bersuci boleh diganti menggunakan debu suci yang disebut ...', correctAnswer: 'Tayamum', cognitiveLevel: 'MOTS', topic: 'Taharah' }
+            { minGrade: 3, maxGrade: 6, question: 'Apabila tidak ditemukan air untuk berwudu atau sedang sakit keras, bersuci boleh diganti menggunakan debu suci yang disebut ...', correctAnswer: 'Tayamum', cognitiveLevel: 'MOTS', topic: 'Taharah' }
         ],
         koding: [
             { question: 'Kesalahan logika atau penulisan instruksi pada kode program komputer sering disebut ...', correctAnswer: 'Bug', cognitiveLevel: 'LOTS', topic: 'Debugging' },
             { question: 'Kemampuan komputer meniru pola belajar manusia dari sekumpulan data disebut Kecerdasan ...', correctAnswer: 'Artifisial (Buatan)', cognitiveLevel: 'LOTS', topic: 'Kecerdasan Artifisial' },
-            { question: 'Pengenalan kesamaan ciri antar persoalan untuk mempermudah penyelesaian masalah disebut pengenalan ...', correctAnswer: 'Pola', cognitiveLevel: 'MOTS', topic: 'Berpikir Komputasional' },
-            { question: 'Proses menyaring informasi penting dan mengabaikan detail yang tidak perlu dalam berpikir komputasional disebut ...', correctAnswer: 'Abstraksi', cognitiveLevel: 'MOTS', topic: 'Berpikir Komputasional' }
+            { minGrade: 3, maxGrade: 6, question: 'Pengenalan kesamaan ciri antar persoalan untuk mempermudah penyelesaian masalah disebut pengenalan ...', correctAnswer: 'Pola', cognitiveLevel: 'MOTS', topic: 'Berpikir Komputasional' },
+            { minGrade: 3, maxGrade: 6, question: 'Proses menyaring informasi penting dan mengabaikan detail yang tidak perlu dalam berpikir komputasional disebut ...', correctAnswer: 'Abstraksi', cognitiveLevel: 'MOTS', topic: 'Berpikir Komputasional' }
         ],
         mulok: [
             { question: 'Sikap hormat, berbicara halus, dan menjaga adab kepada orang yang lebih tua disebut ...', correctAnswer: 'Tata krama (Unggah-ungguh)', cognitiveLevel: 'LOTS', topic: 'Tata Krama' },
@@ -4184,23 +4622,26 @@ function createDynamicIsianVariant(subject: string, index: number, grade: number
         ]
     };
 
-    const selectedPool = extraIsianMap[cat] || getIsianBankForSubject(subject);
-    const picked = selectedPool[(index - 1) % selectedPool.length];
-    const cycle = Math.floor((index - 1) / selectedPool.length);
-    if (cycle === 0) return picked;
+    const combinedPool = filterAndPrioritizeByGrade(
+        [...(extraIsianMap[cat] || []), ...getIsianBankForSubject(subject)],
+        grade
+    );
+    const activePool = combinedPool.length > 0 ? combinedPool : (extraIsianMap[cat] || getIsianBankForSubject(subject));
+    const picked = activePool[(index - 1) % activePool.length];
+    const cycle = Math.floor((index - 1) / activePool.length);
 
-    if (cat === 'inggris') {
-        const contextsEn = ['At the school practice', 'In the class exercise', 'During the review session', 'In the daily dialogue'];
-        return {
-            ...picked,
-            question: `${contextsEn[cycle % contextsEn.length]} (Part ${cycle + 1}): ${picked.question}`
-        };
-    }
-
-    const regions = ['Bandung', 'Surabaya', 'Yogyakarta', 'Semarang', 'Medan', 'Makassar'];
+    const rephrased = rephraseQuestionNatural(
+        picked.question,
+        picked.stimulus,
+        picked.topic,
+        grade,
+        cycle,
+        cat === 'inggris'
+    );
     return {
         ...picked,
-        question: `Dalam konteks pembelajaran di sekolah wilayah ${regions[cycle % regions.length]}, ${picked.question.charAt(0).toLowerCase()}${picked.question.slice(1)}`
+        stimulus: rephrased.stimulus,
+        question: rephrased.question
     };
 }
 
@@ -4240,7 +4681,7 @@ export function generateAuthenticIsianQuestions(
 
     // Dynamic generation if count exceeds base bank
     let dynIndex = 1;
-    while (result.length < count && dynIndex < 150) {
+    while (result.length < count && dynIndex < 350) {
         const dynItem = createDynamicIsianVariant(subject, dynIndex++, grade);
         if (isDuplicateQuestion(seen, dynItem.question, dynItem.stimulus)) continue;
 
@@ -4299,7 +4740,7 @@ export function generateAuthenticUraianQuestions(
 
     // Dynamic generation if count exceeds base uraian bank
     let dynIdx = 1;
-    while (result.length < count && dynIdx < 100) {
+    while (result.length < count && dynIdx < 250) {
         const dynItem = createDynamicUraianVariant(subject, dynIdx++, grade);
         if (isDuplicateQuestion(seen, dynItem.question, dynItem.stimulus)) continue;
 
@@ -4324,19 +4765,20 @@ export function generateAuthenticUraianQuestions(
 
 function createDynamicUraianVariant(subject: string, index: number, grade: number): QuestionBankItemUraian {
     const s = subject.toLowerCase();
+    const roster = GRADE_NAME_ROSTERS_ID[grade] || GRADE_NAME_ROSTERS_ID[4];
+    const name = roster[(index + grade) % roster.length];
+
     if (s.includes('matematika') || s.includes('hitung') || s.includes('angka')) {
         if (grade <= 2) {
-            const mode = (index - 1) % 2;
+            const mode = (index - 1 + grade) % 2;
             const cycle = Math.floor((index - 1) / 2);
-            const names = ['Andi', 'Siti', 'Lani', 'Budi', 'Edo'];
-            const name = names[cycle % names.length];
             if (mode === 0) {
-                const awal = 18 + (index * 3);
-                const beli = 12 + (cycle * 2);
-                const bagi = 7 + (index % 5);
+                const awal = 15 + grade * 4 + (index * 3);
+                const beli = 10 + grade * 2 + (cycle * 2);
+                const bagi = 5 + grade + (index % 5);
                 const sisa = awal + beli - bagi;
                 return {
-                    stimulus: `${name} memiliki ${awal} buah pensil warna. Ibu membelikan lagi ${beli} pensil. Kemudian ${bagi} pensil diberikan kepada adiknya.`,
+                    stimulus: `${name} mengumpulkan ${awal} buah pensil warna. Ibu membelikan lagi ${beli} pensil. Kemudian ${bagi} pensil diberikan kepada temannya.`,
                     question: `Berapa banyak pensil warna milik ${name} sekarang dari ${awal} buah ditambah ${beli} lalu diberikan ${bagi} buah? Tuliskan cara menghitungnya!`,
                     correctAnswer: `Total awal = ${awal} + ${beli} = ${awal + beli} pensil. Sisa = ${awal + beli} - ${bagi} = ${sisa} pensil.`,
                     cognitiveLevel: 'MOTS',
@@ -4349,8 +4791,8 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
                     }
                 };
             } else {
-                const startHr = 7 + (index % 3);
-                const dur = 1 + (cycle % 2);
+                const startHr = 6 + ((index + grade) % 4);
+                const dur = 1 + ((cycle + grade) % 2);
                 return {
                     stimulus: `Kegiatan belajar kelompok ${name} dimulai pukul ${String(startHr).padStart(2, '0')}.00 pagi dan berlangsung selama ${dur} jam.`,
                     question: `Pukul berapa kegiatan belajar ${name} selesai jika dimulai pukul ${String(startHr).padStart(2, '0')}.00 selama ${dur} jam? Jelaskan langkah menghitungnya!`,
@@ -4368,15 +4810,15 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
         }
 
         const maxModes = grade <= 4 ? 2 : 4; // Grade 3-4: NO cube volume/surface area or KPK; use perimeter/area & mixed ops
-        const mode = (index - 1) % maxModes;
+        const mode = (index - 1 + grade) % maxModes;
         const cycle = Math.floor((index - 1) / maxModes);
         if (mode === 0) {
-            const places = ['lapangan futsal sekolah', 'kolam renang desa', 'taman bacaan terbuka', 'aula pertemuan', 'halaman upacara'];
-            const place = places[cycle % places.length];
-            const p = 14 + index * 3;
-            const l = 7 + index;
+            const places = ['lapangan futsal sekolah', 'kolam renang desa', 'taman bacaan terbuka', 'aula pertemuan', 'halaman upacara', 'kebun apotek hidup'];
+            const place = places[(cycle + grade) % places.length];
+            const p = 12 + grade * 3 + index * 3;
+            const l = 6 + grade + index;
             return {
-                stimulus: `Sebuah ${place} berbentuk persegi panjang memiliki ukuran panjang ${p} meter dan lebar ${l} meter.`,
+                stimulus: `${name} mengukur sebuah ${place} berbentuk persegi panjang yang panjangnya ${p} meter dan lebarnya ${l} meter.`,
                 question: `Hitunglah keliling dan luas ${place} berukuran ${p} m x ${l} m tersebut secara lengkap beserta langkah-langkah rumusnya!`,
                 correctAnswer: `Keliling = 2 x (${p} + ${l}) = ${2 * (p + l)} meter. Luas = ${p} x ${l} = ${p * l} m².`,
                 cognitiveLevel: 'HOTS',
@@ -4389,13 +4831,13 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
                 }
             };
         } else if (mode === 1) {
-            const boxes = 6 + index;
-            const perBox = 12 + (cycle * 3);
-            const sold = 18 + (index * 2);
+            const boxes = 5 + grade + index;
+            const perBox = 10 + grade * 2 + (cycle * 3);
+            const sold = 15 + grade * 2 + (index * 2);
             const total = boxes * perBox;
             const rem = total - sold;
             return {
-                stimulus: `Koperasi sekolah membeli ${boxes} kardus buku tulis. Setiap kardus berisi ${perBox} buku. Pada minggu pertama terjual sebanyak ${sold} buku.`,
+                stimulus: `Koperasi sekolah menyimpan ${boxes} kardus buku tulis. Setiap kardus berisi ${perBox} buku. Pada minggu pertama terjual ${sold} buku.`,
                 question: `Tuliskan kalimat matematika dan hitunglah sisa buku dari ${boxes} kardus (@${perBox} buku) setelah terjual ${sold} buku tersebut!`,
                 correctAnswer: `Total awal = ${boxes} x ${perBox} = ${total} buku. Sisa buku = ${total} - ${sold} = ${rem} buku.`,
                 cognitiveLevel: 'HOTS',
@@ -4408,7 +4850,7 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
                 }
             };
         } else if (mode === 2) {
-            const edge = 7 + index;
+            const edge = 5 + grade + index;
             const vol = edge * edge * edge;
             const area = 6 * edge * edge;
             return {
@@ -4425,8 +4867,8 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
                 }
             };
         } else {
-            const a = 3 + index;
-            const b = 5 + index;
+            const a = 3 + (grade % 2) + index;
+            const b = 5 + (grade % 3) + index;
             const kpk = (a * b) / (function gcd(x: number, y: number): number { return y === 0 ? x : gcd(y, x % y); })(a, b);
             return {
                 stimulus: `Jadwal latihan ekstrakurikuler pramuka diadakan setiap ${a} hari sekali, sedangkan latihan seni tari setiap ${b} hari sekali.`,
@@ -4446,9 +4888,10 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
 
     const cat = detectSubjectCategory(subject);
 
-    const extraTopicsByCat: Record<string, { topic: string; q: string; ans: string }[]> = {
+    const extraTopicsByCat: Record<string, (GradeScopedItem & { topic: string; q: string; ans: string })[]> = {
         indo: [
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Menulis Kalimat Efektif',
                 q: 'Jelaskan apa yang dimaksud dengan kalimat efektif dalam bahasa Indonesia! Tuliskan 2 contoh kalimat tidak efektif beserta perbaikannya menjadi kalimat efektif yang tepat!',
                 ans: 'Kalimat efektif adalah kalimat yang disusun secara singkat, padat, jelas, dan mudah dipahami pembaca tanpa menimbulkan makna ganda. Contoh: "Para siswa-siswa sedang belajar" diperbaiki menjadi "Para siswa sedang belajar".'
@@ -4464,11 +4907,13 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
                 ans: '1. Mengapa kita harus menanam pohon di halaman sekolah? 2. Bagaimana cara merawat tanaman pot agar tumbuh subur? 3. Di mana letak taman apotek hidup sekolah kita?'
             },
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Ringkasan Paragraf',
                 q: 'Jelaskan 3 langkah mudah untuk menemukan ide pokok dan membuat ringkasan yang baik dari sebuah teks bacaan panjang!',
                 ans: '1. Membaca seluruh teks dengan saksama. 2. Menandai kalimat utama pada tiap paragraf. 3. Merangkai kembali inti gagasan utama tersebut menggunakan kalimat sendiri secara padu.'
             },
             {
+                minGrade: 4, maxGrade: 6,
                 topic: 'Majas dalam Puisi Anak',
                 q: 'Apa perbedaan antara majas personifikasi dan majas hiperbola? Berikan masing-masing 1 contoh kalimatnya!',
                 ans: 'Personifikasi mengibaratkan benda mati seolah bernyawa ("Angin malam berbisik lembut"), sedangkan hiperbola melebih-lebihkan kenyataan ("Suaranya menggelegar membelah angkasa").'
@@ -4476,21 +4921,25 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
         ],
         ipas: [
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Analisis Hubungan Sebab Akibat Ekosistem',
                 q: 'Jelaskan bagaimana proses terjadinya siklus air dapat terganggu akibat penggundulan hutan! Apa dampaknya terhadap ketersediaan air bersih bagi manusia?',
                 ans: 'Akar pohon berfungsi menyerap air hujan ke dalam tanah (infiltrasi). Jika hutan gundul, air langsung mengalir menyebabkan banjir dan cadangan air tanah berkurang drastis.'
             },
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Perubahan Energi',
                 q: 'Sebutkan dan jelaskan 3 contoh alat elektronik di rumah yang mengalami perubahan energi listrik menjadi bentuk energi lain beserta manfaatnya!',
                 ans: '1. Setrika (listrik -> panas) untuk merapikan pakaian. 2. Kipas angin (listrik -> gerak) untuk menyejukkan ruangan. 3. Lampu LED (listrik -> cahaya) untuk menerangi ruangan.'
             },
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Pelestarian Sumber Daya Alam',
                 q: 'Bedakan antara sumber daya alam yang dapat diperbarui dan tidak dapat diperbarui beserta masing-masing 2 contohnya, lalu jelaskan cara menghematnya!',
                 ans: 'Dapat diperbarui: air, hutan, sinar matahari. Tidak dapat diperbarui: minyak bumi, batu bara, emas. Cara menghemat: matikan lampu bila tidak dipakai, kurangi kendaraan bermotor pribadi.'
             },
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Daur Hidup Hewan',
                 q: 'Jelaskan perbedaan antara metamorfosis sempurna dan metamorfosis tidak sempurna pada serangga beserta contoh hewannya!',
                 ans: 'Metamorfosis sempurna memiliki 4 tahap (telur-larva-pupa-dewasa) seperti kupu-kupu, sedangkan tidak sempurna memiliki 3 tahap tanpa pupa (telur-nimfa-dewasa) seperti belalang.'
@@ -4508,6 +4957,7 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
                 ans: 'Gotong royong penting agar tercipta kerukunan dan pekerjaan berat cepat selesai. Contoh: ikut kerja bakti membersihkan kelas dan membantu teman yang kesulitan.'
             },
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Hak dan Kewajiban Siswa',
                 q: 'Tuliskan masing-masing 2 hak dan 2 kewajiban peserta didik di lingkungan sekolah, lalu jelaskan mengapa kewajiban harus didahulukan sebelum menuntut hak!',
                 ans: 'Hak: mendapat ilmu dan fasilitas belajar. Kewajiban: menaati tata tertib dan menjaga kebersihan. Kewajiban didahulukan agar tercipta keteraturan dan tanggung jawab.'
@@ -4518,6 +4968,7 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
                 ans: 'Artinya berbeda-beda tetapi tetap satu jua. Contoh: tidak mengejek logat bahasa daerah teman dan mempersilakan teman beribadah sesuai keyakinannya.'
             },
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Penerapan Norma di Masyarakat',
                 q: 'Mengapa aturan lalu lintas dan norma kesopanan wajib dipatuhi oleh semua warga? Apa dampaknya jika masyarakat melanggar aturan tersebut?',
                 ans: 'Aturan menjaga keselamatan, ketertiban, dan keharmonisan bersama. Jika dilanggar akan timbul kekacauan, perselisihan, dan kecelakaan.'
@@ -4530,9 +4981,16 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
         ],
         pjok: [
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Teknik Dasar Permainan Bola Besar',
                 q: 'Jelaskan 2 teknik dasar permainan sepak bola atau bola voli (misalnya mengumpan dan mengontrol bola), lalu uraikan mengapa kerja sama tim lebih penting daripada bermain sendiri!',
                 ans: 'Contoh: Passing dengan kaki bagian dalam dan menghentikan bola dengan telapak kaki. Kerja sama tim membuat aliran bola efektif, menjaga stamina, dan memudahkan pencapaian kemenangan secara sportif.'
+            },
+            {
+                minGrade: 1, maxGrade: 2,
+                topic: 'Gerak Berjalan dan Melompat',
+                q: 'Sebutkan 2 contoh gerak berpindah tempat yang sering dilakukan saat bermain di halaman sekolah, lalu jelaskan cara melakukannya agar tidak terjatuh!',
+                ans: 'Contoh: Berjalan santai dan melompat ke depan. Cara aman: melihat arah depan, memakai sepatu olahraga yang pas, dan menjaga keseimbangan badan.'
             },
             {
                 topic: 'Keselamatan di Kolam Renang',
@@ -4540,6 +4998,7 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
                 ans: '1. Melakukan pemanasan dan memakai pakaian renang sesuai ukuran. 2. Tidak berlari-lari di pinggir kolam yang licin atau bercanda mendorong teman. 3. Mematuhi kedalaman kolam sesuai kemampuan dan arahan guru.'
             },
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Latihan Kebugaran Daya Tahan & Kekuatan',
                 q: 'Sebutkan masing-masing 1 bentuk latihan untuk melatih kekuatan otot lengan, kekuatan otot perut, dan daya tahan jantung (kardiovaskular), serta manfaatnya bagi tubuh siswa!',
                 ans: '1. Otot lengan: push-up. 2. Otot perut: sit-up. 3. Daya tahan jantung: jogging atau lari santai. Manfaat: tubuh bugar, tidak mudah lelah saat belajar, dan meningkatkan imunitas.'
@@ -4564,11 +5023,19 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
         ],
         inggris: [
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Healthy Food & Preferences',
                 q: 'Write 3 sentences in English about your favorite healthy food and drink, and explain why you like them!',
                 ans: 'Example: 1. My favorite food is vegetable soup because it is healthy and delicious. 2. I also like fresh orange juice. 3. I do not like drinking sweet soda every day.'
             },
             {
+                minGrade: 1, maxGrade: 2,
+                topic: 'Animals and Numbers in English',
+                q: 'Write 3 names of animals you know in English and translate the numbers "dua", "lima", and "sepuluh" into English!',
+                ans: 'Animals: Cat, Bird, Fish. Numbers: 2 = Two, 5 = Five, 10 = Ten.'
+            },
+            {
+                minGrade: 4, maxGrade: 6,
                 topic: 'Helping Parents at Home (Simple Past)',
                 q: 'Write 3 sentences in English using Simple Past Tense about how you helped your parents last weekend!',
                 ans: 'Example: 1. Last Sunday, I cleaned my bedroom in the morning. 2. I washed the dishes with my mother. 3. Then, I watered the flowers in the garden.'
@@ -4588,6 +5055,7 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
         ],
         koding: [
             {
+                minGrade: 3, maxGrade: 6,
                 topic: 'Konsep Perulangan & Percabangan',
                 q: 'Mengapa pemrogram menggunakan perulangan (loop) dan percabangan (IF-ELSE) dalam membuat permainan edukasi? Berikan masing-masing 1 contoh penggunaannya!',
                 ans: 'Loop membuat perintah berulang lebih singkat (contoh: karakter berjalan 10 kali maju). IF-ELSE membuat keputusan otomatis (contoh: JIKA karakter menyentuh koin, MAKA skor bertambah 1).'
@@ -4607,17 +5075,22 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
         ]
     };
 
-    const selectedTopics = extraTopicsByCat[cat] || extraTopicsByCat.indo;
+    const filteredTopics = filterAndPrioritizeByGrade(extraTopicsByCat[cat] || extraTopicsByCat.indo, grade);
+    const selectedTopics = filteredTopics.length > 0 ? filteredTopics : (extraTopicsByCat[cat] || extraTopicsByCat.indo);
     const picked = selectedTopics[(index - 1) % selectedTopics.length];
     const cycle = Math.floor((index - 1) / selectedTopics.length);
-    const questionText = cycle === 0
-        ? picked.q
-        : cat === 'inggris'
-            ? `Case Study ${cycle + 1} (${picked.topic}): ${picked.q}`
-            : `Berdasarkan studi kasus pembelajaran ke-${cycle + 1} tentang ${picked.topic.toLowerCase()}, ${picked.q.charAt(0).toLowerCase()}${picked.q.slice(1)}`;
+    const rephrased = rephraseQuestionNatural(
+        picked.q,
+        '',
+        picked.topic,
+        grade,
+        cycle,
+        cat === 'inggris'
+    );
 
     return {
-        question: questionText,
+        stimulus: rephrased.stimulus || undefined,
+        question: rephrased.question,
         correctAnswer: picked.ans,
         cognitiveLevel: 'HOTS',
         topic: picked.topic,
