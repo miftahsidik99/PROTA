@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion } from 'motion/react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { generateGeminiContent, Type } from './geminiClient';
 import { 
     BookOpen, CheckCircle, Download, FileText, Layout, Loader2, RefreshCw, Settings, 
     ChevronRight, Sparkles, Clock, Calculator, ShieldCheck, History, X, Activity, 
@@ -28,6 +28,7 @@ export const db = initializeFirestore(app, {
 }, firebaseConfig.firestoreDatabaseId);
 
 import { ModulAjarGenerator } from './ModulAjarGenerator';
+import { NaskahSumatifGenerator } from './NaskahSumatifGenerator';
 import { 
     isSameSubject, 
     getSubjectKey, 
@@ -2342,7 +2343,7 @@ const DashboardView: React.FC<{
                     <span>Akses Cepat Modul & Fitur Utama</span>
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                     <div 
                         onClick={() => onNavigate('generator')}
                         className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
@@ -2397,6 +2398,20 @@ const DashboardView: React.FC<{
                             <p className="text-xs text-slate-500 mt-1">Manajemen roster siswa dan pencatatan presensi kelas.</p>
                         </div>
                         <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-emerald-600">Kelola Siswa <ChevronRight className="w-3.5 h-3.5" /></span>
+                    </div>
+
+                    <div 
+                        onClick={() => onNavigate('sumatif')}
+                        className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                        <div>
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <GraduationCap className="w-5 h-5" />
+                            </div>
+                            <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-sm">Naskah Asesmen Sumatif</h4>
+                            <p className="text-xs text-slate-500 mt-1">Kisi-kisi, naskah soal PG/Isian/Uraian, kunci & rubrik PPA 2026.</p>
+                        </div>
+                        <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-indigo-600">Buat Asesmen <ChevronRight className="w-3.5 h-3.5" /></span>
                     </div>
                 </div>
             </div>
@@ -9633,7 +9648,7 @@ const [apiKeyMessage, setApiKeyMessage] = useState<{ type: 'success' | 'error' |
 const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, boolean>>>({});
 const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
 
-  const [currentView, setCurrentView] = useState<'dashboard' | 'generator' | 'history' | 'modul_ajar' | 'calendar' | 'daftar_siswa' | 'jadwal_mengajar' | 'hari_efektif' | 'presensi' | 'kktp' | 'jurnal'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'generator' | 'history' | 'modul_ajar' | 'calendar' | 'daftar_siswa' | 'jadwal_mengajar' | 'hari_efektif' | 'presensi' | 'kktp' | 'jurnal' | 'sumatif'>('dashboard');
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [calendarPageTab, setCalendarPageTab] = useState<'all' | 'master' | 'analysis'>('all');
   const [selectedClass, setSelectedClass] = useState<string>(() => localStorage.getItem('prota_assigned_class') || FASES[0].classes[0]);
@@ -9687,6 +9702,11 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
       } else {
           setSaveToastMessage(`Kunci Prota ${selectedSubject} (${selectedClass}) Berhasil Dibuka.`);
       }
+      setShowSaveToast(true);
+  };
+
+  const notify = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
+      setSaveToastMessage(msg);
       setShowSaveToast(true);
   };
 
@@ -10455,10 +10475,6 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
     setError(null);
 
     try {
-      const apiKey = getApiKey();
-      if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
-      const ai = new GoogleGenAI({ apiKey });
-
       const schema = {
         type: Type.OBJECT,
         properties: {
@@ -10540,8 +10556,8 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
 
       let resultData: CurriculumData | null = null;
       try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+        const response = await generateGeminiContent({
+          model: 'gemini-3.8-flash',
           contents: prompt,
           config: { 
             responseMimeType: "application/json", 
@@ -10649,10 +10665,6 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
     const newData: CurriculumData = JSON.parse(JSON.stringify(activeData));
 
     try {
-        const apiKey = getApiKey();
-        if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
-        const ai = new GoogleGenAI({ apiKey });
-
         // 2. TIMELINE GENERATION based on Calendar (using subject from activeData)
         const allEffectiveDates = getEffectiveDates(className, activeData.subject);
         if (allEffectiveDates.length === 0) {
@@ -10719,8 +10731,8 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
         };
 
         console.log("Memanggil AI untuk generate ATP...");
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+        const response = await generateGeminiContent({
+            model: 'gemini-3.8-flash',
             contents: prompt,
             config: { 
                 responseMimeType: "application/json", 
@@ -10964,10 +10976,6 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
       let collectedHtml = '';
 
       try {
-          const apiKey = getApiKey();
-          if (!apiKey) throw new Error("API Key Gemini tidak ditemukan. Pastikan Anda telah mengatur VITE_GEMINI_API_KEY di environment variables.");
-          const ai = new GoogleGenAI({ apiKey });
-          
           let combinedTopics = '';
           let combinedTPs = '';
           let totalJP = 0;
@@ -11001,8 +11009,8 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
           
           let modelResponseText = "Tidak ditentukan";
           try {
-            const modelRec = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
+            const modelRec = await generateGeminiContent({
+                model: 'gemini-3.8-flash',
                 contents: modelPrompt,
             });
              modelResponseText = modelRec.text || "Tidak ditentukan";
@@ -11176,8 +11184,8 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
           
           while (retries > 0 && !success) {
               try {
-                  response = await ai.models.generateContent({
-                      model: 'gemini-3-flash-preview',
+                  response = await generateGeminiContent({
+                      model: 'gemini-3.8-flash',
                       contents: prompt,
                       config: {
                           maxOutputTokens: 8192,
@@ -13117,6 +13125,18 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                 <span>Jurnal Mengajar</span>
                             </button>
 
+                            {/* Menu 11: Naskah Sumatif */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('sumatif');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'sumatif' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <GraduationCap className={`w-4 h-4 ${currentView === 'sumatif' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Naskah Sumatif</span>
+                            </button>
+
 
                         </div>
 
@@ -13267,6 +13287,18 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                 data={data}
                 activities={activities}
                 onNavigate={setCurrentView}
+            />
+        ) : currentView === 'sumatif' ? (
+            <NaskahSumatifGenerator 
+                user={user}
+                userIdentity={userIdentity}
+                selectedClass={selectedClass}
+                selectedSubject={selectedSubject}
+                activities={activities}
+                lockedProtas={lockedProtas}
+                currentProtaData={data}
+                onNavigate={setCurrentView}
+                notify={notify}
             />
         ) : currentView === 'calendar' ? (
             <CalendarPageView 

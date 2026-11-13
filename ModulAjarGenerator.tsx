@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { generateGeminiContent } from './geminiClient';
 import { 
     BookOpen, Check, Download, FileText, Loader2, Settings, 
     ArrowLeft, Users, Layers, GraduationCap, Brain, SlidersHorizontal, 
@@ -231,14 +231,10 @@ export const ModulAjarGenerator: React.FC<ModulAjarGeneratorProps> = ({
         const docLocation = (userIdentity as any).location || userIdentity.city || localStorage.getItem('prota_location') || 'Sukatinggal';
 
         try {
-            const apiKey = getApiKey();
             let generatedHtml = "";
 
-            if (apiKey) {
-                try {
-                    const ai = new GoogleGenAI({ apiKey });
-
-                    const prompt = `
+            try {
+                const prompt = `
 # MASTER PROMPT — GENERATOR RENCANA PEMBELAJARAN MENDALAM (RPM) SD
 
 Anda adalah pakar kurikulum Sekolah Dasar (SD) yang menyusun Rencana Pembelajaran Mendalam (RPM) / Modul Ajar sesuai regulasi resmi terbaru:
@@ -293,17 +289,16 @@ ATURAN PENTING:
 - Output HANYA berupa kode HTML (div kontainer) dengan styling CSS inline rapi dan tabel terstruktur.
 `;
 
-                    const response = await ai.models.generateContent({
-                        model: 'gemini-3-flash-preview',
-                        contents: prompt,
-                        config: { maxOutputTokens: 8192 }
-                    });
+                const response = await generateGeminiContent({
+                    model: 'gemini-3.8-flash',
+                    contents: prompt,
+                    config: { maxOutputTokens: 8192 }
+                });
 
-                    generatedHtml = response.text || "";
-                    generatedHtml = generatedHtml.replace(/```html/g, '').replace(/```/g, '').trim();
-                } catch (aiErr) {
-                    console.warn("AI generation note, using robust fallback engine:", aiErr);
-                }
+                generatedHtml = response.text || "";
+                generatedHtml = generatedHtml.replace(/```html/g, '').replace(/```/g, '').trim();
+            } catch (aiErr) {
+                console.warn("AI generation note, using robust fallback engine:", aiErr);
             }
 
             // If AI generation didn't produce full document, synthesize full compliant RPM
