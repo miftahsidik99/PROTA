@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 export function getResolvedApiKey(reqHeaderKey?: string): string {
   if (reqHeaderKey && typeof reqHeaderKey === 'string' && reqHeaderKey.trim().length > 0) {
@@ -31,9 +31,10 @@ export function getAiClient(reqHeaderKey?: string): GoogleGenAI {
 }
 
 export function sanitizeConfigForModel(modelName: string, config?: any): any {
-  if (!config || typeof config !== 'object') return config;
-  const cleaned = { ...config };
-  if (modelName.startsWith('gemini-4-') || modelName.startsWith('gemini-3.')) {
+  const cleaned = config && typeof config === 'object' ? { ...config } : {};
+  const isModernThinkingModel = modelName.startsWith('gemini-4-') || modelName.startsWith('gemini-3.');
+
+  if (isModernThinkingModel) {
     delete cleaned.temperature;
     delete cleaned.topP;
     delete cleaned.topK;
@@ -42,8 +43,24 @@ export function sanitizeConfigForModel(modelName: string, config?: any): any {
       const { thinkingBudget: _ignored, ...restThinking } = cleaned.thinkingConfig;
       cleaned.thinkingConfig = restThinking;
     }
+    if (!cleaned.thinkingConfig || !cleaned.thinkingConfig.thinkingLevel) {
+      cleaned.thinkingConfig = {
+        ...(cleaned.thinkingConfig || {}),
+        thinkingLevel: ThinkingLevel.LOW,
+      };
+    }
+    return cleaned;
   }
-  return cleaned;
+
+  if (cleaned.thinkingConfig && 'thinkingLevel' in cleaned.thinkingConfig) {
+    const { thinkingLevel: _ignoredLevel, ...restThinking } = cleaned.thinkingConfig;
+    if (Object.keys(restThinking).length > 0) {
+      cleaned.thinkingConfig = restThinking;
+    } else {
+      delete cleaned.thinkingConfig;
+    }
+  }
+  return Object.keys(cleaned).length > 0 ? cleaned : undefined;
 }
 
 export function getCandidateModels(requestedModel?: string): string[] {

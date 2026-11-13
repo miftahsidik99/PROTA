@@ -708,19 +708,24 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
             let generatedIsian: QuestionIsian[] = [];
             let generatedUraian: QuestionUraian[] = [];
             let aiSucceeded = false;
+            let aiFallbackReason = '';
 
             // --- ATTEMPT SERVER GEMINI AI GENERATION ---
             try {
                 const tpSummary = targetTps.map(t => `- [${t.element}] TP: ${t.tp}`).join('\n');
-                    const prompt = `Anda adalah Tim Ahli Penyusun Naskah Asesmen Sumatif Standar Nasional Jenjang Sekolah Dasar (SD) Berdasarkan Panduan Pembelajaran dan Asesmen (PPA) Tahun 2026 Kurikulum Merdeka.
+                const prompt = `Anda adalah Tim Ahli Penyusun Naskah Asesmen Sumatif Standar Nasional Jenjang Sekolah Dasar (SD) Berdasarkan Panduan Pembelajaran dan Asesmen (PPA) Tahun 2026 Kurikulum Merdeka.
 Tugas Anda: Susunlah naskah soal asesmen sumatif yang SAH, VALID, RELEVAN, MENDIDIK, dan 100% SIAP PAKAI untuk dibagikan kepada peserta didik.
 
 DATA KONFIGURASI:
-- Mata Pelajaran: ${activeSubject}
+- Mata Pelajaran WAJIB: ${activeSubject}
 - Jenjang & Kelas: ${activeClass} (${isFaseA ? 'Fase A: Opsi jawaban hanya A, B, C' : 'Fase B/C: Opsi jawaban A, B, C, D'})
 - Jenis Asesmen: ${assessmentType.toUpperCase()}
 - Capaian & Tujuan Pembelajaran (TP) Acuan dari PROTA:
 ${tpSummary}
+
+ATURAN KEPATUHAN MATA PELAJARAN (MUTLAK):
+- SELURUH BUTIR SOAL (PG, Isian, dan Uraian) HARUS 100% SESUAI BIDANG ILMU MATA PELAJARAN "${activeSubject}".
+- DILARANG KERAS memasukkan materi atau soal dari mata pelajaran lain (misalnya soal teks Bahasa Indonesia ke dalam PJOK/Matematika/Seni/Inggris).
 
 JUMLAH BUTIR SOAL YANG WAJIB DISUSUN:
 - Pilihan Ganda (PG): ${pgCount} butir soal
@@ -729,60 +734,40 @@ JUMLAH BUTIR SOAL YANG WAJIB DISUSUN:
 - Komposisi Kesulitan: ${difficultyWeights.lots}% LOTS (C1-C2), ${difficultyWeights.mots}% MOTS (C3), ${difficultyWeights.hots}% HOTS (C4-C5)
 
 ATURAN WAJIB PADA GAMBAR & BUTIR SOAL:
-1. Soal HARUS BENAR-BENAR BERISI TEKS SOAL ASLI (bukan template, bukan placeholder generik, bukan kalimat kosong).
-2. Jika suatu butir soal PG memerlukan konteks gambar visual bagi anak SD, pilihlah salah satu dari kode visual berikut yang PALING COCOK:
-   - "clock_0900" (Jam dinding pukul 09.00 / sudut siku-siku 90 derajat)
-   - "clock_0200" (Jam dinding pukul 02.00 / sudut lancip 60 derajat)
-   - "fraction_circle" (Lingkaran pecahan 2/6 = 1/3 diarsir)
-   - "fraction_rect" (Persegi panjang petak 3/8 diarsir)
-   - "shape_rect" (Bangun datar persegi panjang 12 cm x 6 cm)
-   - "shape_triangle" (Segitiga siku-siku alas 8 cm, tinggi 6 cm, miring 10 cm)
-   - "shape_cube" (Kubus rusuk 5 cm)
-   - "cube_net" (Jaring-jaring kubus)
-   - "plant_anatomy" (Struktur tumbuhan bunga, daun, batang, akar dengan nomor)
-   - "water_cycle" (Siklus air: evaporasi, kondensasi, presipitasi)
-   - "food_chain" (Rantai makanan sawah: padi -> belalang -> katak -> ular)
-   - "garuda_bintang" (Simbol Sila 1 Bintang Emas)
-   - "garuda_rantai" (Simbol Sila 2 Rantai Emas)
-   - "garuda_beringin" (Simbol Sila 3 Pohon Beringin)
-   - "garuda_banteng" (Simbol Sila 4 Kepala Banteng)
-   - "garuda_padi_kapas" (Simbol Sila 5 Padi dan Kapas)
-   - "traffic_sign" (Rambu lalu lintas dilarang parkir)
-   - "chart_bar" (Diagram batang data peminjaman buku perpustakaan)
-   - "none" (Jika soal berupa stimulus cerita teks murni tanpa gambar)
-3. PENTING: Jika visualType BUKAN "none", teks stimulus dan pertanyaan HARUS SECARA LANGSUNG MEMBAHAS DAN MENANYAKAN GAMBAR TERSEBUT! Contoh: "Perhatikan gambar jam dinding berikut! Jenis sudut yang dibentuk adalah..."
+1. Soal HARUS BENAR-BENAR BERISI TEKS SOAL ASLI dan ringkas-jelas (stimulus 1-3 kalimat, pembahasan 1-2 kalimat) agar siswa mudah memahami.
+2. Jika suatu butir soal PG memerlukan konteks gambar visual bagi anak SD (hanya jika relevan dengan "${activeSubject}"), pilihlah salah satu kode visual berikut:
+   - "clock_0900", "clock_0200", "fraction_circle", "fraction_rect", "shape_rect", "shape_triangle", "shape_cube", "cube_net", "plant_anatomy", "water_cycle", "food_chain", "garuda_bintang", "garuda_rantai", "garuda_beringin", "garuda_banteng", "garuda_padi_kapas", "traffic_sign", "chart_bar", atau "none".
+3. PENTING: Jika visualType BUKAN "none", teks stimulus dan pertanyaan HARUS SECARA LANGSUNG MEMBAHAS GAMBAR TERSEBUT. Jika tidak cocok dengan materi "${activeSubject}", wajib isi "none".
 4. PERATURAN MUTLAK ANTI-DUPLIKASI (ZERO DUPLICATE POLICY):
-   - DILARANG KERAS MENGHASILKAN SOAL KEMBAR ATAU DUPLIKAT SAMA SEKALI!
-   - Setiap nomor butir soal (baik PG nomor 1 sampai ${pgCount}, Isian nomor 1 sampai ${isianCount}, dan Uraian nomor 1 sampai ${uraianCount}) WAJIB 100% UNIK, BERBEDA, dan mengeksplorasi indikator, stimulus cerita, angka/data, atau konsep yang berlainan.
-   - Tidak boleh ada 2 butir soal dengan teks pertanyaan yang sama persis, atau hanya berbeda 1-2 kata, atau menanyakan hal yang sama berulang kali.
-   - Distribusikan butir soal secara merata ke seluruh materi dan TP yang tersedia (${tpSummary}).
+   - Setiap nomor butir soal (PG 1..${pgCount}, Isian 1..${isianCount}, Uraian 1..${uraianCount}) WAJIB 100% UNIK, BERBEDA, dan tidak boleh ada soal kembar.
+   - Distribusikan butir soal secara merata ke seluruh TP yang tersedia.
 
-KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON BERIKUT:
+KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
 {
   "pg": [
     {
       "no": 1,
-      "stimulus": "Teks stimulus cerita / skenario pengantar (jika ada)",
-      "question": "Pertanyaan soal yang spesifik dan jelas",
+      "stimulus": "Teks stimulus pengantar singkat (opsional)",
+      "question": "Pertanyaan soal yang spesifik sesuai ${activeSubject}",
       "options": [
         {"key": "A", "text": "Pilihan A"},
         {"key": "B", "text": "Pilihan B"},
         {"key": "C", "text": "Pilihan C"}${!isFaseA ? ',\n        {"key": "D", "text": "Pilihan D"}' : ''}
       ],
       "correctAnswer": "A",
-      "explanation": "Pembahasan rinci kunci jawaban",
+      "explanation": "Pembahasan singkat kunci jawaban",
       "cognitiveLevel": "LOTS",
       "tp": "Tujuan Pembelajaran terkait",
       "indikator": "Indikator spesifik butir soal",
       "materi": "Lingkup materi",
       "visualType": "none",
-      "visualTitle": "Judul gambar jika ada"
+      "visualTitle": ""
     }
   ],
   "isian": [
     {
       "no": 1,
-      "question": "Pertanyaan isian singkat...",
+      "question": "Pertanyaan isian singkat sesuai ${activeSubject}...",
       "correctAnswer": "Jawaban singkat tepat",
       "cognitiveLevel": "LOTS",
       "tp": "Tujuan Pembelajaran terkait",
@@ -793,7 +778,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON BERIKUT:
   "uraian": [
     {
       "no": 1,
-      "question": "Pertanyaan uraian atau pemecahan masalah kontekstual...",
+      "question": "Pertanyaan uraian kontekstual sesuai ${activeSubject}...",
       "correctAnswer": "Pedoman jawaban lengkap dan runtut",
       "cognitiveLevel": "HOTS",
       "tp": "Tujuan Pembelajaran terkait",
@@ -809,81 +794,88 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON BERIKUT:
   ]
 }`;
 
-                    const response = await generateGeminiContent({
-                        model: 'gemini-4-hydrogen',
-                        contents: prompt,
-                        config: {
-                            responseMimeType: 'application/json'
-                        }
-                    });
+                const response = await generateGeminiContent({
+                    model: 'gemini-4-hydrogen',
+                    contents: prompt,
+                    config: {
+                        responseMimeType: 'application/json'
+                    }
+                });
 
-                    if (response && response.text) {
-                        let rawJson = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
-                        const firstBrace = rawJson.indexOf('{');
-                        const lastBrace = rawJson.lastIndexOf('}');
-                        if (firstBrace !== -1 && lastBrace > firstBrace) {
-                            rawJson = rawJson.slice(firstBrace, lastBrace + 1);
-                        }
-                        const parsed = JSON.parse(rawJson);
-                        if (Array.isArray(parsed.pg) && parsed.pg.length > 0) {
-                            generatedPg = parsed.pg.map((q: any, idx: number) => ({
+                if (response && response.text) {
+                    let rawJson = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const firstBrace = rawJson.indexOf('{');
+                    const lastBrace = rawJson.lastIndexOf('}');
+                    if (firstBrace !== -1 && lastBrace > firstBrace) {
+                        rawJson = rawJson.slice(firstBrace, lastBrace + 1);
+                    }
+                    const parsed = JSON.parse(rawJson);
+                    if (Array.isArray(parsed.pg) && parsed.pg.length > 0) {
+                        generatedPg = parsed.pg.map((q: any, idx: number) => ({
+                            no: idx + 1,
+                            stimulus: q.stimulus || '',
+                            question: q.question,
+                            options: q.options || [],
+                            correctAnswer: q.correctAnswer || 'A',
+                            explanation: q.explanation || '',
+                            cognitiveLevel: q.cognitiveLevel || 'MOTS',
+                            tp: q.tp || targetTps[0].tp,
+                            indikator: q.indikator || `Peserta didik mampu menjawab butir soal terkait ${targetTps[0].element}`,
+                            materi: q.materi || targetTps[0].element,
+                            visualType: q.visualType || 'none',
+                            visualTitle: q.visualTitle || '',
+                            visualSvg: renderVisualSvg(q.visualType, q.visualTitle)
+                        }));
+
+                        if (Array.isArray(parsed.isian)) {
+                            generatedIsian = parsed.isian.map((q: any, idx: number) => ({
                                 no: idx + 1,
                                 stimulus: q.stimulus || '',
                                 question: q.question,
-                                options: q.options || [],
-                                correctAnswer: q.correctAnswer || 'A',
-                                explanation: q.explanation || '',
-                                cognitiveLevel: q.cognitiveLevel || 'MOTS',
+                                correctAnswer: q.correctAnswer,
+                                cognitiveLevel: q.cognitiveLevel || 'LOTS',
                                 tp: q.tp || targetTps[0].tp,
-                                indikator: q.indikator || `Peserta didik mampu menjawab butir soal terkait ${targetTps[0].element}`,
-                                materi: q.materi || targetTps[0].element,
-                                visualType: q.visualType || 'none',
-                                visualTitle: q.visualTitle || '',
-                                visualSvg: renderVisualSvg(q.visualType, q.visualTitle)
+                                indikator: q.indikator || `Peserta didik mampu melengkapi isian terkait ${targetTps[0].element}`,
+                                materi: q.materi || targetTps[0].element
                             }));
-
-                            if (Array.isArray(parsed.isian)) {
-                                generatedIsian = parsed.isian.map((q: any, idx: number) => ({
-                                    no: idx + 1,
-                                    stimulus: q.stimulus || '',
-                                    question: q.question,
-                                    correctAnswer: q.correctAnswer,
-                                    cognitiveLevel: q.cognitiveLevel || 'LOTS',
-                                    tp: q.tp || targetTps[0].tp,
-                                    indikator: q.indikator || `Peserta didik mampu melengkapi isian terkait ${targetTps[0].element}`,
-                                    materi: q.materi || targetTps[0].element
-                                }));
-                            }
-
-                            if (Array.isArray(parsed.uraian)) {
-                                generatedUraian = parsed.uraian.map((q: any, idx: number) => ({
-                                    no: idx + 1,
-                                    stimulus: q.stimulus || '',
-                                    question: q.question,
-                                    correctAnswer: q.correctAnswer,
-                                    cognitiveLevel: q.cognitiveLevel || 'HOTS',
-                                    tp: q.tp || targetTps[0].tp,
-                                    indikator: q.indikator || `Peserta didik mampu menguraikan solusi terkait ${targetTps[0].element}`,
-                                    materi: q.materi || targetTps[0].element,
-                                    rubric: q.rubric || {
-                                        score3: 'Jawaban sangat lengkap, benar secara konsep dan runtut.',
-                                        score2: 'Jawaban benar secara umum namun kurang mendalam.',
-                                        score1: 'Jawaban hanya menyebutkan sebagian kecil fakta.',
-                                        score0: 'Jawaban salah atau tidak menjawab.'
-                                    }
-                                }));
-                            }
-
-                            aiSucceeded = true;
                         }
+
+                        if (Array.isArray(parsed.uraian)) {
+                            generatedUraian = parsed.uraian.map((q: any, idx: number) => ({
+                                no: idx + 1,
+                                stimulus: q.stimulus || '',
+                                question: q.question,
+                                correctAnswer: q.correctAnswer,
+                                cognitiveLevel: q.cognitiveLevel || 'HOTS',
+                                tp: q.tp || targetTps[0].tp,
+                                indikator: q.indikator || `Peserta didik mampu menguraikan solusi terkait ${targetTps[0].element}`,
+                                materi: q.materi || targetTps[0].element,
+                                rubric: q.rubric || {
+                                    score3: 'Jawaban sangat lengkap, benar secara konsep dan runtut.',
+                                    score2: 'Jawaban benar secara umum namun kurang mendalam.',
+                                    score1: 'Jawaban hanya menyebutkan sebagian kecil fakta.',
+                                    score0: 'Jawaban salah atau tidak menjawab.'
+                                }
+                            }));
+                        }
+
+                        aiSucceeded = true;
+                    } else {
+                        aiFallbackReason = 'Respons AI kosong atau belum lengkap';
                     }
-                } catch (aiErr: any) {
-                    console.warn("AI generation encountered issue, using authentic curriculum bank fallback:", aiErr);
-                    const errMsg = String(aiErr?.message || aiErr || '');
-                    if (errMsg.includes('API Key') || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('404')) {
-                        notify(`Mode Bank Soal Otomatis digunakan (${errMsg.slice(0, 110)}). Pastikan GEMINI_API_KEY aktif di server/Vercel atau Pengaturan API Key.`, "warning");
-                    }
+                } else {
+                    aiFallbackReason = 'Server AI tidak mengembalikan teks JSON';
                 }
+            } catch (aiErr: any) {
+                console.warn("AI generation encountered issue, using authentic curriculum bank fallback:", aiErr);
+                const errMsg = String(aiErr?.message || aiErr || '');
+                aiFallbackReason = errMsg.slice(0, 120);
+                if (errMsg.includes('API Key') || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('404')) {
+                    notify(`AI tidak merespons (${aiFallbackReason}). Naskah tetap disusun memakai Bank Soal Kurikulum ${activeSubject}. Pastikan API Key aktif.`, "warning");
+                } else {
+                    notify(`Proses AI terganggu (${aiFallbackReason || 'batas waktu/kuota'}). Naskah otomatis dilengkapi dari Bank Soal ${activeSubject}.`, "info");
+                }
+            }
 
             // --- GUARANTEED ZERO-DUPLICATE DEDUPLICATION & COMPLETION PASS ---
             const sessionSeenFingerprints = new Set<string>();
@@ -946,7 +938,12 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON BERIKUT:
                 localStorage.setItem('prota_sumatif_history', JSON.stringify(updated));
             } catch (e) {}
 
-            notify(`Naskah Asesmen Sumatif (${assessmentType.toUpperCase()}) Sah & Siap Pakai Berhasil Dihasilkan!`, 'success');
+            notify(
+                aiSucceeded
+                    ? `Naskah Asesmen Sumatif ${activeSubject} (${assessmentType.toUpperCase()}) Berbasis AI & Standar PPA 2026 Berhasil Dihasilkan!`
+                    : `Naskah Asesmen Sumatif ${activeSubject} (${assessmentType.toUpperCase()}) Berhasil Disusun dari Bank Soal Kurikulum Merdeka!`,
+                'success'
+            );
         } catch (err: any) {
             console.error("Error generating assessment:", err);
             notify("Terjadi kesalahan saat menyusun naskah. Silakan coba kembali.", "error");
