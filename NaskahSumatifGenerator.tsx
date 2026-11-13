@@ -8,7 +8,7 @@ import {
     Edit3, Trash2, Plus, X, ChevronDown, ChevronUp, Palette
 } from 'lucide-react';
 import { generateGeminiContent } from './geminiClient';
-import { CurriculumData, ElementData, Allocation, TpGroup, AtpItem, isSameSubject, isSameClass } from './curriculumHelper';
+import { CurriculumData, ElementData, Allocation, TpGroup, AtpItem, isSameSubject, isSameClass, getSubjectKey } from './curriculumHelper';
 import {
     deduplicateAndEnsureCountPg,
     deduplicateAndEnsureCountIsian,
@@ -468,33 +468,69 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
     notify
 }) => {
     // 1. Identify User's Registered Class & Class Options
-    const registeredClass = userIdentity.assignedClass || user?.assignedClass || initialClass || 'Kelas 1';
+    const registeredClass = initialClass || userIdentity.assignedClass || user?.assignedClass || 'Kelas 1';
     const [activeClass, setActiveClass] = useState<string>(registeredClass);
     const [activeSubject, setActiveSubject] = useState<string>(initialSubject || 'Pendidikan Pancasila');
 
-    // Sync if registered class changes
+    // Sync if parent selected class or subject changes
     useEffect(() => {
-        if (registeredClass && !activeClass) {
+        if (registeredClass) {
             setActiveClass(registeredClass);
         }
     }, [registeredClass]);
 
-    // 2. Discover Locked Protas from database / activities
+    useEffect(() => {
+        if (initialSubject) {
+            setActiveSubject(initialSubject);
+        }
+    }, [initialSubject]);
+
+    // Semantic lock checker (handles subject name variations like "PJOK" vs "PJOK (...)" and class "6" vs "Kelas 6")
+    const isKeyLocked = (subject: string, className: string): boolean => {
+        if (!lockedProtas || !subject || !className) return false;
+        if (lockedProtas[`${subject}_${className}`]) return true;
+        return Object.entries(lockedProtas).some(([k, val]) => {
+            if (!val) return false;
+            const lastUnderscore = k.lastIndexOf('_');
+            if (lastUnderscore === -1) return false;
+            const kSubj = k.slice(0, lastUnderscore);
+            const kClass = k.slice(lastUnderscore + 1);
+            return isSameSubject(kSubj, subject) && isSameClass(kClass, className);
+        });
+    };
+
+    // 2. Discover Protas from memory & database / activities
     const lockedProtaList = useMemo(() => {
         const list: { subject: string; className: string; data: CurriculumData; locked: boolean }[] = [];
-        const seenKeys = new Set<string>();
+        const seenCanonSubjects = new Map<string, number>();
 
-        // Check currently active prota in memory
+        const addOrPreferRecord = (subj: string, cName: string, dataSnap: CurriculumData) => {
+            if (!subj || !dataSnap || !Array.isArray(dataSnap.elements)) return;
+            const canonSubj = getSubjectKey(subj) || subj.toLowerCase().trim();
+            const isLocked = isKeyLocked(subj, activeClass) || isKeyLocked(subj, cName) || isKeyLocked(dataSnap.subject || subj, activeClass);
+            const existingIdx = seenCanonSubjects.get(canonSubj);
+            if (existingIdx === undefined) {
+                seenCanonSubjects.set(canonSubj, list.length);
+                list.push({
+                    subject: subj,
+                    className: cName,
+                    data: dataSnap,
+                    locked: isLocked
+                });
+            } else if (isLocked && !list[existingIdx].locked) {
+                list[existingIdx] = {
+                    subject: subj,
+                    className: cName,
+                    data: dataSnap,
+                    locked: true
+                };
+            }
+        };
+
+        // Check currently active prota in memory first
         if (currentProtaData && currentProtaData.elements) {
-            const key = `${currentProtaData.subject}_${activeClass}`;
-            const isLocked = !!lockedProtas[key];
-            list.push({
-                subject: currentProtaData.subject,
-                className: activeClass,
-                data: currentProtaData,
-                locked: isLocked
-            });
-            seenKeys.add(key);
+            const subj = currentProtaData.subject || activeSubject;
+            addOrPreferRecord(subj, activeClass, currentProtaData);
         }
 
         // Check activities DB for saved Protas
@@ -503,37 +539,28 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
                 if ((act.type === 'ATP_JP' || act.type === 'CP_TP') && act.dataSnapshot && act.dataSnapshot.elements) {
                     const subj = act.subject || act.dataSnapshot.subject;
                     const cName = act.dataSnapshot.className || activeClass;
-                    const key = `${subj}_${cName}`;
-                    if (!seenKeys.has(key)) {
-                        const isLocked = !!lockedProtas[key];
-                        list.push({
-                            subject: subj,
-                            className: cName,
-                            data: act.dataSnapshot,
-                            locked: isLocked
-                        });
-                        seenKeys.add(key);
-                    }
+                    addOrPreferRecord(subj, cName, act.dataSnapshot);
                 }
             });
         }
 
         return list;
-    }, [currentProtaData, activities, lockedProtas, activeClass]);
+    }, [currentProtaData, activities, lockedProtas, activeClass, activeSubject]);
 
-    // Active locked prota record for the chosen subject & class
+    // Active prota record for the chosen subject & class
     const activeProtaRecord = useMemo(() => {
         const found = lockedProtaList.find(p => isSameSubject(p.subject, activeSubject));
-        if (found) return found;
-        return lockedProtaList[0] || null;
+        return found || null;
     }, [lockedProtaList, activeSubject]);
 
     // Check if current subject Prota is locked
     const isProtaLocked = useMemo(() => {
-        if (!activeProtaRecord) return false;
-        const key = `${activeProtaRecord.subject}_${activeClass}`;
-        return !!lockedProtas[key] || activeProtaRecord.locked;
-    }, [activeProtaRecord, lockedProtas, activeClass]);
+        if (isKeyLocked(activeSubject, activeClass)) return true;
+        if (activeProtaRecord && (activeProtaRecord.locked || isKeyLocked(activeProtaRecord.subject, activeClass))) {
+            return true;
+        }
+        return false;
+    }, [activeProtaRecord, lockedProtas, activeSubject, activeClass]);
 
     // 3. Extract TPs and Semesters from active Prota
     const extractedTpList = useMemo(() => {
@@ -783,16 +810,21 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON BERIKUT:
 }`;
 
                     const response = await generateGeminiContent({
-                        model: 'gemini-3.8-flash',
+                        model: 'gemini-4-hydrogen',
                         contents: prompt,
                         config: {
-                            responseMimeType: 'application/json',
-                            temperature: 0.25
+                            responseMimeType: 'application/json'
                         }
                     });
 
                     if (response && response.text) {
-                        const parsed = JSON.parse(response.text);
+                        let rawJson = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                        const firstBrace = rawJson.indexOf('{');
+                        const lastBrace = rawJson.lastIndexOf('}');
+                        if (firstBrace !== -1 && lastBrace > firstBrace) {
+                            rawJson = rawJson.slice(firstBrace, lastBrace + 1);
+                        }
+                        const parsed = JSON.parse(rawJson);
                         if (Array.isArray(parsed.pg) && parsed.pg.length > 0) {
                             generatedPg = parsed.pg.map((q: any, idx: number) => ({
                                 no: idx + 1,
@@ -845,8 +877,12 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON BERIKUT:
                             aiSucceeded = true;
                         }
                     }
-                } catch (aiErr) {
-                    console.warn("AI generation encountered issue, seamlessly using authentic curriculum bank fallback:", aiErr);
+                } catch (aiErr: any) {
+                    console.warn("AI generation encountered issue, using authentic curriculum bank fallback:", aiErr);
+                    const errMsg = String(aiErr?.message || aiErr || '');
+                    if (errMsg.includes('API Key') || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('404')) {
+                        notify(`Mode Bank Soal Otomatis digunakan (${errMsg.slice(0, 110)}). Pastikan GEMINI_API_KEY aktif di server/Vercel atau Pengaturan API Key.`, "warning");
+                    }
                 }
 
             // --- GUARANTEED ZERO-DUPLICATE DEDUPLICATION & COMPLETION PASS ---
@@ -1509,7 +1545,24 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON BERIKUT:
                         </div>
                         <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold">
                             <span className="text-slate-300">Mata Pelajaran:</span>
-                            <span className="font-bold text-blue-200">{activeSubject}</span>
+                            {lockedProtaList.length > 0 ? (
+                                <select
+                                    value={activeSubject}
+                                    onChange={(e) => setActiveSubject(e.target.value)}
+                                    className="bg-slate-900/70 text-blue-100 font-bold text-xs px-2 py-0.5 rounded-lg border border-white/20 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                                >
+                                    {!lockedProtaList.some(p => isSameSubject(p.subject, activeSubject)) && (
+                                        <option value={activeSubject}>{activeSubject}</option>
+                                    )}
+                                    {lockedProtaList.map((p, i) => (
+                                        <option key={`${p.subject}-${i}`} value={p.subject}>
+                                            {p.subject} {p.locked ? '(Terkunci)' : '(Belum Dikunci)'}
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <span className="font-bold text-blue-200">{activeSubject}</span>
+                            )}
                         </div>
                         <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold">
                             <span className="text-slate-300">Lokasi Titimangsa:</span>

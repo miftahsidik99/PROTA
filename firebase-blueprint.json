@@ -31,6 +31,12 @@
         },
         "lastActive": {
           "type": "number"
+        },
+        "lockedProtas": {
+          "type": "object"
+        },
+        "protaSnapshots": {
+          "type": "array"
         }
       },
       "required": ["email"]

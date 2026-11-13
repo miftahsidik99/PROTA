@@ -9575,11 +9575,49 @@ const App = () => {
       userDocRef,
       (userSnap: any) => {
         if (userSnap.exists()) {
-          const dbSessionId = userSnap.data()?.activeSessionId;
+          const userDataFromDb = userSnap.data() || {};
+          const dbSessionId = userDataFromDb?.activeSessionId;
           const localSessionId = localStorage.getItem('prota_session_id');
           if (dbSessionId && localSessionId && dbSessionId !== localSessionId) {
             alert('Akun Anda telah masuk di perangkat atau sesi aktif lain. Sesi saat ini akan ditutup secara otomatis.');
             handleLogout();
+            return;
+          }
+
+          // Merge cloud lockedProtas from Firestore so locks persist across Vercel/domains
+          if (userDataFromDb.lockedProtas && typeof userDataFromDb.lockedProtas === 'object') {
+            setLockedProtas(prev => {
+              const merged = { ...prev, ...userDataFromDb.lockedProtas };
+              if (JSON.stringify(merged) !== JSON.stringify(prev)) {
+                try {
+                  localStorage.setItem('prota_locked_map', JSON.stringify(merged));
+                } catch (e) {}
+                return merged;
+              }
+              return prev;
+            });
+          }
+
+          // Restore cloud Prota snapshots if local activitiesDB is missing them (e.g. fresh origin/Vercel deploy)
+          if (Array.isArray(userDataFromDb.protaSnapshots) && userDataFromDb.protaSnapshots.length > 0) {
+            (async () => {
+              try {
+                const localActs = (await activitiesDB.getItem<ActivityLog[]>(emailNormalized)) || [];
+                const existingIds = new Set(localActs.map(a => a.id));
+                const missingFromCloud = userDataFromDb.protaSnapshots
+                  .filter((snap: any) => snap && snap.id && !existingIds.has(snap.id))
+                  .map((snap: any) => ({ ...snap, timestamp: new Date(snap.timestamp || Date.now()) }));
+                if (missingFromCloud.length > 0) {
+                  const mergedActs = [...localActs, ...missingFromCloud].sort(
+                    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                  );
+                  await activitiesDB.setItem(emailNormalized, mergedActs);
+                  setActivities(mergedActs);
+                }
+              } catch (syncErr) {
+                console.warn('Could not merge cloud protaSnapshots:', syncErr);
+              }
+            })();
           }
         } else if (!userSnap?.metadata?.fromCache) {
           // Only alert deleted if confirmed by server (not unpopulated cache)
@@ -9686,17 +9724,97 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
       }
   });
 
-  const isCurrentProtaLocked = !!(data && lockedProtas[`${selectedSubject}_${selectedClass}`]);
+  const isProtaEntryLocked = (lockMap: Record<string, boolean>, subject: string, className: string): boolean => {
+      if (!lockMap || !subject || !className) return false;
+      if (lockMap[`${subject}_${className}`]) return true;
+      return Object.entries(lockMap).some(([k, val]) => {
+          if (!val) return false;
+          const lastUnderscore = k.lastIndexOf('_');
+          if (lastUnderscore === -1) return false;
+          const kSubj = k.slice(0, lastUnderscore);
+          const kCls = k.slice(lastUnderscore + 1);
+          return isSameSubject(kSubj, subject) && isSameClass(kCls, className);
+      });
+  };
+
+  const isCurrentProtaLocked = !!(data && (
+      isProtaEntryLocked(lockedProtas, selectedSubject, selectedClass) ||
+      isProtaEntryLocked(lockedProtas, data.subject, selectedClass)
+  ));
+
+  const syncProtaStateToCloud = async (email: string, nextLockedMap: Record<string, boolean>, acts?: ActivityLog[]) => {
+      const emailNormalized = String(email || '').toLowerCase().trim();
+      if (!emailNormalized) return;
+      try {
+          const payload: any = { lockedProtas: nextLockedMap };
+          if (Array.isArray(acts)) {
+              const seenSubjFase = new Set<string>();
+              const compactProtas: any[] = [];
+              for (const act of acts) {
+                  if ((act.type === 'ATP_JP' || act.type === 'CP_TP') && act.dataSnapshot && act.dataSnapshot.elements) {
+                      const subjKey = getSubjectKey(act.subject) || act.subject;
+                      const faseKey = act.dataSnapshot.fase || '';
+                      const dedupKey = `${subjKey}__${faseKey}`;
+                      if (!seenSubjFase.has(dedupKey)) {
+                          seenSubjFase.add(dedupKey);
+                          compactProtas.push({
+                              id: act.id,
+                              timestamp: new Date(act.timestamp).toISOString(),
+                              type: act.type,
+                              subject: act.subject,
+                              details: act.details,
+                              dataSnapshot: act.dataSnapshot
+                          });
+                      }
+                  }
+              }
+              if (JSON.stringify(compactProtas).length < 700000) {
+                  payload.protaSnapshots = compactProtas;
+              }
+          }
+          await setDoc(doc(db, 'users', emailNormalized), payload, { merge: true });
+      } catch (cloudErr) {
+          console.warn('Could not sync Prota lock state to cloud:', cloudErr);
+      }
+  };
 
   const handleToggleLockProta = () => {
       if (!data) return;
       const key = `${selectedSubject}_${selectedClass}`;
-      const nextLocked = !lockedProtas[key];
-      const newMap = { ...lockedProtas, [key]: nextLocked };
+      const currentlyLocked = isProtaEntryLocked(lockedProtas, selectedSubject, selectedClass) ||
+          isProtaEntryLocked(lockedProtas, data.subject, selectedClass);
+      const nextLocked = !currentlyLocked;
+      const newMap: Record<string, boolean> = { ...lockedProtas };
+
+      if (nextLocked) {
+          newMap[key] = true;
+          if (data.subject && data.subject !== selectedSubject) {
+              newMap[`${data.subject}_${selectedClass}`] = true;
+          }
+      } else {
+          // Clear both exact key and any semantic alias keys for this subject + class
+          Object.keys(newMap).forEach(existingKey => {
+              const idx = existingKey.lastIndexOf('_');
+              if (idx !== -1) {
+                  const kSubj = existingKey.slice(0, idx);
+                  const kCls = existingKey.slice(idx + 1);
+                  if ((isSameSubject(kSubj, selectedSubject) || isSameSubject(kSubj, data.subject)) && isSameClass(kCls, selectedClass)) {
+                      newMap[existingKey] = false;
+                  }
+              }
+          });
+          newMap[key] = false;
+      }
+
       setLockedProtas(newMap);
       try {
           localStorage.setItem('prota_locked_map', JSON.stringify(newMap));
       } catch (e) {}
+
+      if (user?.email) {
+          syncProtaStateToCloud(user.email, newMap, activities);
+      }
+
       if (nextLocked) {
           setSaveToastMessage(`Program Tahunan (Prota) ${selectedSubject} (${selectedClass}) Berhasil Dikunci & Diamankan!`);
       } else {
@@ -10048,6 +10166,9 @@ const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
         const updated = [newActivity, ...prev];
         await activitiesDB.setItem(user.email, updated);
         setActivities(updated);
+        if (type === 'ATP_JP' || type === 'CP_TP') {
+            syncProtaStateToCloud(user.email, lockedProtas, updated);
+        }
     } catch (e) {
         console.error("Failed to add activity", e);
     }
@@ -10465,8 +10586,7 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
     const subjectToUse = overrideSubject || selectedSubject;
     const targetClass = selectedClass;
 
-    const lockKey = `${subjectToUse}_${targetClass}`;
-    if (lockedProtas[lockKey]) {
+    if (isProtaEntryLocked(lockedProtas, subjectToUse, targetClass)) {
       alert(`Program Tahunan (Prota) untuk ${subjectToUse} (${targetClass}) sedang dikunci untuk mencegah penimpaan tidak disengaja.\n\nJika Anda ingin menyusun atau menghasilkan ulang, silakan klik tombol "Buka Kunci" terlebih dahulu pada halaman Prota.`);
       return null;
     }
