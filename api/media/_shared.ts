@@ -1,5 +1,6 @@
 import {
   MediaSearchCandidate,
+  buildTranslatedEnglishQuery,
   extractMediaCoreTokens,
   parseCommonsPages,
   parseWikipediaPages,
@@ -33,7 +34,7 @@ async function fetchJsonWithTimeout(url: string, timeoutMs = 8000): Promise<any>
   }
 }
 
-async function queryCommonsServer(query: string, limit = 8): Promise<MediaSearchCandidate[]> {
+async function queryCommonsServer(query: string, limit = 10): Promise<MediaSearchCandidate[]> {
   const endpoint =
     `https://commons.wikimedia.org/w/api.php` +
     `?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query)}` +
@@ -42,7 +43,7 @@ async function queryCommonsServer(query: string, limit = 8): Promise<MediaSearch
   return parseCommonsPages(data);
 }
 
-async function queryWikiServer(lang: 'id' | 'en', query: string, limit = 4): Promise<MediaSearchCandidate[]> {
+async function queryWikiServer(lang: 'id' | 'en', query: string, limit = 5): Promise<MediaSearchCandidate[]> {
   const endpoint =
     `https://${lang}.wikipedia.org/w/api.php` +
     `?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}` +
@@ -63,29 +64,46 @@ export async function searchEducationalMedia(
 
   if (!cleanQuery) return [];
 
-  const commons = await queryCommonsServer(cleanQuery, 8);
-  let ranked = rankAndFilterMediaCandidates(commons, cleanQuery, limit);
+  const coreTokens = extractMediaCoreTokens(cleanQuery);
+  const coreQuery = coreTokens.length > 0 ? coreTokens.join(' ') : cleanQuery;
+  const englishQuery = buildTranslatedEnglishQuery(cleanQuery);
+
+  const primarySearchTerm = coreQuery.length >= 3 ? coreQuery : cleanQuery;
+  const commonsId = await queryCommonsServer(primarySearchTerm, 10);
+  let allCandidates: MediaSearchCandidate[] = [...commonsId];
+  let ranked = rankAndFilterMediaCandidates(allCandidates, primarySearchTerm, limit);
   if (ranked.length >= limit) {
     return ranked;
   }
 
-  const [wikiId, wikiEn] = await Promise.all([
-    queryWikiServer('id', cleanQuery, 4),
-    ranked.length === 0 ? queryWikiServer('en', cleanQuery, 3) : Promise.resolve([])
+  const [wikiId, commonsEn, wikiEn] = await Promise.all([
+    queryWikiServer('id', primarySearchTerm, 5),
+    englishQuery && englishQuery.toLowerCase() !== primarySearchTerm.toLowerCase()
+      ? queryCommonsServer(englishQuery, 10)
+      : Promise.resolve([]),
+    queryWikiServer('en', englishQuery || primarySearchTerm, 5)
   ]);
 
-  ranked = rankAndFilterMediaCandidates([...commons, ...wikiId, ...wikiEn], cleanQuery, limit);
+  allCandidates = [...allCandidates, ...wikiId, ...commonsEn, ...wikiEn];
+  ranked = rankAndFilterMediaCandidates(allCandidates, primarySearchTerm, limit);
   if (ranked.length > 0) {
     return ranked;
   }
 
-  // Fallback once with top 2 core tokens if stop words or extra descriptors made the query too restrictive
-  const coreTokens = extractMediaCoreTokens(cleanQuery);
-  const compactQuery = coreTokens.slice(0, 2).join(' ');
-  if (compactQuery && compactQuery.toLowerCase() !== cleanQuery.toLowerCase()) {
-    const retryCommons = await queryCommonsServer(compactQuery, 8);
-    const retryWiki = await queryWikiServer('id', compactQuery, 4);
-    return rankAndFilterMediaCandidates([...retryCommons, ...retryWiki], compactQuery, limit);
+  // Fallback with top 2 core tokens (Indonesian & English) if 3+ tokens were too narrow
+  const compactId = coreTokens.slice(0, 2).join(' ');
+  const compactEn = compactId ? buildTranslatedEnglishQuery(compactId) : '';
+  if (compactId && compactId.toLowerCase() !== primarySearchTerm.toLowerCase()) {
+    const [retryCommonsId, retryWikiId, retryCommonsEn] = await Promise.all([
+      queryCommonsServer(compactId, 8),
+      queryWikiServer('id', compactId, 4),
+      compactEn ? queryCommonsServer(compactEn, 8) : Promise.resolve([])
+    ]);
+    return rankAndFilterMediaCandidates(
+      [...allCandidates, ...retryCommonsId, ...retryWikiId, ...retryCommonsEn],
+      compactId,
+      limit
+    );
   }
 
   return [];

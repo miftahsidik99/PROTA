@@ -148,8 +148,160 @@ const TOKEN_SYNONYMS: Record<string, string[]> = {
   teratai: ['lotus', 'nelumbo', 'water_lily'],
   monas: ['national_monument', 'monas'],
   borobudur: ['borobudur'],
-  prambanan: ['prambanan']
+  prambanan: ['prambanan'],
+  rapat: ['meeting', 'conference', 'briefing', 'discussion'],
+  meeting: ['rapat', 'musyawarah', 'pertemuan'],
+  guru: ['teacher', 'teachers', 'educator'],
+  teacher: ['guru', 'pengajar'],
+  teachers: ['guru'],
+  sekolah: ['school', 'elementary', 'classroom', 'sd'],
+  school: ['sekolah', 'sd'],
+  siswa: ['student', 'students', 'pupil', 'pupils', 'children'],
+  murid: ['student', 'students', 'pupil', 'children'],
+  student: ['siswa', 'murid', 'pelajar'],
+  students: ['siswa', 'murid'],
+  kelas: ['classroom', 'class'],
+  classroom: ['kelas'],
+  perpustakaan: ['library'],
+  library: ['perpustakaan'],
+  belajar: ['learning', 'study', 'studying'],
+  diskusi: ['discussion', 'meeting'],
+  musyawarah: ['discussion', 'meeting', 'deliberation'],
+  upacara: ['ceremony', 'assembly'],
+  bendera: ['flag'],
+  kebersihan: ['cleaning', 'hygiene', 'clean'],
+  gotong: ['cooperation', 'community', 'cleanup'],
+  royong: ['cooperation', 'cleanup'],
+  kerja: ['work'],
+  bakti: ['cleanup', 'community'],
+  keluarga: ['family'],
+  desa: ['village', 'rural'],
+  lembur: ['village'],
+  sawah: ['paddy', 'rice', 'terrace'],
+  petani: ['farmer', 'farming'],
+  pasar: ['market', 'bazaar'],
+  pantai: ['beach', 'coast', 'shore'],
+  hutan: ['forest', 'woods'],
+  sungai: ['river'],
+  banjir: ['flood', 'flooding'],
+  sampah: ['trash', 'waste', 'garbage'],
+  cuci: ['washing', 'wash'],
+  tangan: ['hand', 'hands'],
+  sabun: ['soap'],
+  kantin: ['canteen', 'cafeteria'],
+  olahraga: ['sport', 'sports', 'exercise'],
+  buku: ['book', 'books'],
+  membaca: ['reading', 'read'],
+  menulis: ['writing'],
+  sepeda: ['bicycle', 'bike'],
+  kantor: ['office'],
+  kepala: ['principal', 'headmaster', 'head'],
+  ruang: ['room'],
+  kebun: ['garden'],
+  kucing: ['cat'],
+  burung: ['bird'],
+  ikan: ['fish'],
+  sapi: ['cow', 'cattle'],
+  ayam: ['chicken', 'rooster'],
+  gajah: ['elephant'],
+  harimau: ['tiger'],
+  jerapah: ['giraffe'],
+  matahari: ['sun', 'solar'],
+  bulan: ['moon', 'lunar'],
+  hujan: ['rain', 'rainy'],
+  pelangi: ['rainbow'],
+  peta: ['map'],
+  mikroskop: ['microscope'],
+  batik: ['batik'],
+  angklung: ['angklung'],
+  gamelan: ['gamelan']
 };
+
+const ID_TO_EN_TRANSLATION: Record<string, string> = {
+  rapat: 'meeting',
+  pertemuan: 'meeting',
+  musyawarah: 'discussion',
+  diskusi: 'discussion',
+  guru: 'teachers',
+  pengajar: 'teacher',
+  sekolah: 'school',
+  sd: 'elementary school',
+  dasar: 'elementary',
+  siswa: 'students',
+  murid: 'students',
+  anak: 'children',
+  kelas: 'classroom',
+  ruang: 'room',
+  perpustakaan: 'library',
+  belajar: 'studying',
+  membaca: 'reading',
+  menulis: 'writing',
+  upacara: 'flag ceremony',
+  bendera: 'flag',
+  kebersihan: 'cleaning',
+  gotong: 'community',
+  royong: 'cooperation',
+  kerja: 'work',
+  bakti: 'cleanup',
+  lingkungan: 'environment',
+  keluarga: 'family',
+  desa: 'village',
+  sawah: 'rice paddy',
+  petani: 'farmer',
+  pasar: 'traditional market',
+  pantai: 'beach',
+  hutan: 'forest',
+  sungai: 'river',
+  gunung: 'mountain',
+  banjir: 'flood',
+  sampah: 'waste trash',
+  cuci: 'washing',
+  tangan: 'hands',
+  sabun: 'soap',
+  olahraga: 'sports',
+  buku: 'books',
+  sepeda: 'bicycle',
+  kantor: 'office',
+  kebun: 'garden',
+  kucing: 'cat',
+  burung: 'bird',
+  ikan: 'fish',
+  sapi: 'cow',
+  ayam: 'chicken',
+  gajah: 'elephant',
+  harimau: 'tiger',
+  jerapah: 'giraffe',
+  matahari: 'sun',
+  bulan: 'moon',
+  hujan: 'rain',
+  pelangi: 'rainbow',
+  tumbuhan: 'plant',
+  tanaman: 'plant',
+  bunga: 'flower',
+  pohon: 'tree',
+  makanan: 'food',
+  buah: 'fruit',
+  sayur: 'vegetable',
+  masjid: 'mosque',
+  wudu: 'ablution',
+  peta: 'map',
+  mikroskop: 'microscope'
+};
+
+export function buildTranslatedEnglishQuery(rawQuery: string): string {
+  const tokens = extractMediaCoreTokens(rawQuery);
+  if (tokens.length === 0) return '';
+  let changed = false;
+  const translated = tokens.map((tok) => {
+    const mapped = ID_TO_EN_TRANSLATION[tok];
+    if (mapped) {
+      changed = true;
+      return mapped;
+    }
+    return tok;
+  });
+  return changed ? Array.from(new Set(translated.join(' ').split(/\s+/))).slice(0, 5).join(' ') : '';
+}
 
 export function isAcceptableMediaUrl(url: string, title = ''): boolean {
   if (!url || !/^https?:\/\//i.test(url)) return false;
@@ -238,6 +390,13 @@ export function scoreMediaCandidate(
 
   if (/\b(poster|logo|kota|kabupaten|provinsi|daftar)\b/i.test(titleLower) && !/\b(poster|logo)\b/i.test(normQuery)) {
     score -= 12;
+  }
+
+  if (
+    /\b(sign[- ]?in sheet|attendance sheet|daftar hadir|formulir|surat)\b/i.test(titleLower) &&
+    !/\b(formulir|surat|daftar|sheet)\b/i.test(normQuery)
+  ) {
+    score -= 22;
   }
 
   return score;

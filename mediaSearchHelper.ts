@@ -1,5 +1,6 @@
 import type { QuestionPG, QuestionIsian, QuestionUraian, VisualType } from './NaskahSumatifGenerator';
 import {
+  buildTranslatedEnglishQuery,
   extractMediaCoreTokens,
   parseCommonsPages,
   parseWikipediaPages,
@@ -151,9 +152,9 @@ async function fetchJsonDirectCors(url: string, timeoutMs = 7000): Promise<any> 
 
 /**
  * Direct browser-side Wikimedia Commons & Wikipedia CORS fallback (&origin=*).
- * Returns up to 5 ranked candidates so duplicate images can be skipped across questions.
+ * Mirrors server-side bilingual Indonesian + English query strategy.
  */
-async function searchDirectFromBrowserWikimedia(rawQuery: string, limit = 5): Promise<WebImageHit[]> {
+async function searchDirectFromBrowserWikimedia(rawQuery: string, limit = 8): Promise<WebImageHit[]> {
   const cleanQuery = String(rawQuery || '')
     .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
     .replace(/\s+/g, ' ')
@@ -171,68 +172,81 @@ async function searchDirectFromBrowserWikimedia(rawQuery: string, limit = 5): Pr
         source: r.source || 'internet'
       }));
 
-  const tryDirect = async (q: string): Promise<WebImageHit[]> => {
-    const commonsUrl =
+  const coreTokens = extractMediaCoreTokens(cleanQuery);
+  const coreQuery = coreTokens.length > 0 ? coreTokens.join(' ') : cleanQuery;
+  const primarySearchTerm = coreQuery.length >= 3 ? coreQuery : cleanQuery;
+  const englishQuery = buildTranslatedEnglishQuery(cleanQuery);
+
+  const queryCommons = async (q: string) => {
+    const url =
       `https://commons.wikimedia.org/w/api.php` +
       `?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(q)}` +
       `&gsrlimit=10&prop=imageinfo&iiprop=url|mime|thumbmime|size&iiurlwidth=600&format=json&origin=*`;
-    const commonsData = await fetchJsonDirectCors(commonsUrl);
-    const commonsCandidates = parseCommonsPages(commonsData);
-    let ranked = rankAndFilterMediaCandidates(commonsCandidates, q, limit);
-    if (ranked.length >= 2) {
-      return toHits(ranked);
-    }
-
-    const wikiIdUrl =
-      `https://id.wikipedia.org/w/api.php` +
-      `?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}` +
-      `&gsrlimit=5&prop=pageimages&piprop=thumbnail|original&pithumbsize=600&format=json&origin=*`;
-    const wikiIdData = await fetchJsonDirectCors(wikiIdUrl);
-    const wikiIdCandidates = parseWikipediaPages(wikiIdData, 'id.wikipedia.org');
-    ranked = rankAndFilterMediaCandidates([...commonsCandidates, ...wikiIdCandidates], q, limit);
-    if (ranked.length >= 2) {
-      return toHits(ranked);
-    }
-
-    const wikiEnUrl =
-      `https://en.wikipedia.org/w/api.php` +
-      `?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}` +
-      `&gsrlimit=5&prop=pageimages&piprop=thumbnail|original&pithumbsize=600&format=json&origin=*`;
-    const wikiEnData = await fetchJsonDirectCors(wikiEnUrl);
-    const wikiEnCandidates = parseWikipediaPages(wikiEnData, 'en.wikipedia.org');
-    ranked = rankAndFilterMediaCandidates([...commonsCandidates, ...wikiIdCandidates, ...wikiEnCandidates], q, limit);
-    return toHits(ranked);
+    return parseCommonsPages(await fetchJsonDirectCors(url));
   };
 
-  const directHits = await tryDirect(cleanQuery);
-  if (directHits.length > 0) return directHits;
+  const queryWiki = async (lang: 'id' | 'en', q: string) => {
+    const url =
+      `https://${lang}.wikipedia.org/w/api.php` +
+      `?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}` +
+      `&gsrlimit=5&prop=pageimages&piprop=thumbnail|original&pithumbsize=600&format=json&origin=*`;
+    return parseWikipediaPages(await fetchJsonDirectCors(url), `${lang}.wikipedia.org`);
+  };
 
-  const coreTokens = extractMediaCoreTokens(cleanQuery);
-  const compactQuery = coreTokens.slice(0, 2).join(' ');
-  if (compactQuery && compactQuery.toLowerCase() !== cleanQuery.toLowerCase()) {
-    return await tryDirect(compactQuery);
+  const commonsId = await queryCommons(primarySearchTerm);
+  let allCandidates = [...commonsId];
+  let ranked = rankAndFilterMediaCandidates(allCandidates, primarySearchTerm, limit);
+  if (ranked.length >= limit) {
+    return toHits(ranked);
   }
+
+  const [wikiId, commonsEn, wikiEn] = await Promise.all([
+    queryWiki('id', primarySearchTerm),
+    englishQuery && englishQuery.toLowerCase() !== primarySearchTerm.toLowerCase()
+      ? queryCommons(englishQuery)
+      : Promise.resolve([]),
+    queryWiki('en', englishQuery || primarySearchTerm)
+  ]);
+
+  allCandidates = [...allCandidates, ...wikiId, ...commonsEn, ...wikiEn];
+  ranked = rankAndFilterMediaCandidates(allCandidates, primarySearchTerm, limit);
+  if (ranked.length > 0) {
+    return toHits(ranked);
+  }
+
+  const compactId = coreTokens.slice(0, 2).join(' ');
+  const compactEn = compactId ? buildTranslatedEnglishQuery(compactId) : '';
+  if (compactId && compactId.toLowerCase() !== primarySearchTerm.toLowerCase()) {
+    const [retryCommonsId, retryWikiId, retryCommonsEn] = await Promise.all([
+      queryCommons(compactId),
+      queryWiki('id', compactId),
+      compactEn ? queryCommons(compactEn) : Promise.resolve([])
+    ]);
+    return toHits(
+      rankAndFilterMediaCandidates([...allCandidates, ...retryCommonsId, ...retryWikiId, ...retryCommonsEn], compactId, limit)
+    );
+  }
+
   return [];
 }
 
 let backendMediaUnavailable = false;
-let backendEmptyStreak = 0;
 
-async function searchSingleQueryCandidates(query: string): Promise<WebImageHit[]> {
-  const key = query.trim().toLowerCase();
-  if (!key) return [];
+async function searchSingleQueryCandidates(query: string, limit = 6): Promise<WebImageHit[]> {
+  const key = `${query.trim().toLowerCase()}__${limit}`;
+  if (!query.trim()) return [];
   if (searchCandidatesCache.has(key)) {
     return searchCandidatesCache.get(key) || [];
   }
 
   if (typeof fetch !== 'function') return [];
 
-  // 1. Try app backend endpoint (/api/media/search) with short timeout unless already marked unavailable
+  // 1. Try app backend endpoint (/api/media/search) unless marked unavailable due to non-JSON/error response
   if (!backendMediaUnavailable) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(`/api/media/search?q=${encodeURIComponent(query)}&limit=5`, {
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`/api/media/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
         signal: controller.signal
       });
       clearTimeout(timer);
@@ -250,15 +264,8 @@ async function searchSingleQueryCandidates(query: string): Promise<WebImageHit[]
                   source: r.source || 'internet'
                 }))
             : [];
-          if (results.length > 0) {
-            backendEmptyStreak = 0;
-            searchCandidatesCache.set(key, results);
-            return results;
-          }
-          backendEmptyStreak++;
-          if (backendEmptyStreak >= 2) {
-            backendMediaUnavailable = true;
-          }
+          searchCandidatesCache.set(key, results);
+          return results;
         } else {
           backendMediaUnavailable = true;
         }
@@ -271,23 +278,23 @@ async function searchSingleQueryCandidates(query: string): Promise<WebImageHit[]
   }
 
   // 2. Fallback directly from browser to Wikimedia/Wikipedia CORS (&origin=*)
-  const browserHits = await searchDirectFromBrowserWikimedia(query, 5);
+  const browserHits = await searchDirectFromBrowserWikimedia(query, limit);
   searchCandidatesCache.set(key, browserHits);
   return browserHits;
 }
 
-export async function searchInternetImageCandidates(query: string, fallbackQuery?: string): Promise<WebImageHit[]> {
-  const primary = await searchSingleQueryCandidates(query);
+export async function searchInternetImageCandidates(query: string, fallbackQuery?: string, limit = 6): Promise<WebImageHit[]> {
+  const primary = await searchSingleQueryCandidates(query, limit);
   if (fallbackQuery && fallbackQuery.trim() && fallbackQuery.trim().toLowerCase() !== query.trim().toLowerCase()) {
-    if (primary.length >= 2) return primary;
-    const secondary = await searchSingleQueryCandidates(fallbackQuery);
-    return [...primary, ...secondary];
+    if (primary.length >= Math.min(2, limit)) return primary;
+    const secondary = await searchSingleQueryCandidates(fallbackQuery, limit);
+    return [...primary, ...secondary].slice(0, limit);
   }
   return primary;
 }
 
 export async function searchInternetImage(query: string, fallbackQuery?: string): Promise<WebImageHit | null> {
-  const hits = await searchInternetImageCandidates(query, fallbackQuery);
+  const hits = await searchInternetImageCandidates(query, fallbackQuery, 5);
   return hits[0] || null;
 }
 

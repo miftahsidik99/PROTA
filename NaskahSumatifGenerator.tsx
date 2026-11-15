@@ -23,7 +23,7 @@ import {
     isBahasaSundaSubject
 } from './questionBankHelper';
 import { exportAssessmentDocx, DocExportType } from './docxAssessmentExporter';
-import { enrichAssessmentWithWebImages, searchInternetImage } from './mediaSearchHelper';
+import { enrichAssessmentWithWebImages, searchInternetImageCandidates, WebImageHit } from './mediaSearchHelper';
 import { synthesizeContextual2dVisual } from './dynamic2dVisualHelper';
 
 export interface UserIdentity {
@@ -872,6 +872,8 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
         data: any;
     } | null>(null);
     const [isSearchingModalImage, setIsSearchingModalImage] = useState<boolean>(false);
+    const [modalImageCandidates, setModalImageCandidates] = useState<WebImageHit[]>([]);
+    const [modalImageError, setModalImageError] = useState<string>('');
 
     // Rule Check: Class 6 vs Class 1-5 permissions according to PPA 2026:
     const isClass6 = activeClass.toLowerCase().includes('6');
@@ -1409,6 +1411,63 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
         notify("Arsip naskah berhasil dihapus.", "info");
     };
 
+    const openEditModal = (type: 'pg' | 'isian' | 'uraian', index: number, data: any) => {
+        setModalImageCandidates([]);
+        setModalImageError('');
+        setEditingQuestionModal({ type, index, data: { ...data } });
+    };
+
+    const closeEditModal = () => {
+        setModalImageCandidates([]);
+        setModalImageError('');
+        setEditingQuestionModal(null);
+    };
+
+    const handleSearchModalImages = async () => {
+        if (!editingQuestionModal) return;
+        const qText = (editingQuestionModal.data.visualQuery || editingQuestionModal.data.question || '').trim();
+        if (!qText) {
+            setModalImageError('Ketik kata kunci gambar terlebih dahulu.');
+            return;
+        }
+        setModalImageError('');
+        if (/^https?:\/\/\S+/i.test(qText)) {
+            setModalImageCandidates([]);
+            setEditingQuestionModal(prev => prev ? ({
+                ...prev,
+                data: {
+                    ...prev.data,
+                    visualImageUrl: qText,
+                    visualSvg: undefined
+                }
+            }) : null);
+            notify('URL gambar langsung diterapkan.', 'success');
+            return;
+        }
+
+        setIsSearchingModalImage(true);
+        try {
+            const hits = await searchInternetImageCandidates(qText, undefined, 8);
+            setModalImageCandidates(hits);
+            if (hits.length > 0) {
+                setEditingQuestionModal(prev => prev ? ({
+                    ...prev,
+                    data: {
+                        ...prev.data,
+                        visualImageUrl: hits[0].thumbUrl,
+                        visualSvg: undefined
+                    }
+                }) : null);
+                notify(`Ditemukan ${hits.length} gambar dari internet. Pilih gambar terbaik di bawah.`, 'success');
+            } else {
+                setModalImageError('Gambar tidak ditemukan di internet. Coba kata kunci yang lebih singkat atau umum (misal: "rapat guru", "upacara bendera").');
+                notify('Gambar tidak ditemukan. Coba kata kunci yang lebih umum.', 'warning');
+            }
+        } finally {
+            setIsSearchingModalImage(false);
+        }
+    };
+
     // Helper to update a question directly (Inline Editing)
     const handleUpdateQuestion = (updatedQ: any) => {
         if (!generatedAssessment || !editingQuestionModal) return;
@@ -1440,7 +1499,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
             archivedAssessments.map(a => (a.id === copy.id ? copy : a))
         );
         setArchivedAssessments(updatedArchive);
-        setEditingQuestionModal(null);
+        closeEditModal();
         notify("Perubahan butir soal berhasil disimpan!", "success");
     };
 
@@ -2293,7 +2352,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
 
                                                 {/* Edit Question Action Button */}
                                                 <button
-                                                    onClick={() => setEditingQuestionModal({ type: 'pg', index: idx, data: { ...q } })}
+                                                    onClick={() => openEditModal('pg', idx, q)}
                                                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-white self-start shrink-0 cursor-pointer"
                                                     title="Edit butir soal ini"
                                                 >
@@ -2355,7 +2414,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                             {String(q.question || '').replace(/^\s*\n+/, '')}
                                                         </span>
                                                         <button
-                                                            onClick={() => setEditingQuestionModal({ type: 'isian', index: idx, data: { ...q } })}
+                                                            onClick={() => openEditModal('isian', idx, q)}
                                                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 self-start shrink-0 cursor-pointer"
                                                         >
                                                             <Edit3 className="w-3.5 h-3.5" />
@@ -2418,7 +2477,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                             {String(q.question || '').replace(/^\s*\n+/, '')}
                                                         </span>
                                                         <button
-                                                            onClick={() => setEditingQuestionModal({ type: 'uraian', index: idx, data: { ...q } })}
+                                                            onClick={() => openEditModal('uraian', idx, q)}
                                                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 self-start shrink-0 cursor-pointer"
                                                         >
                                                             <Edit3 className="w-3.5 h-3.5" />
@@ -2629,7 +2688,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                 <span>Edit Butir Soal #{editingQuestionModal.data.no} ({editingQuestionModal.type.toUpperCase()})</span>
                             </h3>
                             <button 
-                                onClick={() => setEditingQuestionModal(null)}
+                                onClick={closeEditModal}
                                 className="text-slate-400 hover:text-slate-700 p-1"
                             >
                                 <X className="w-5 h-5" />
@@ -2665,7 +2724,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                             </div>
 
                             {/* Internet Image Search / Visual Controls for Any Question Type */}
-                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                                 <label className="block font-bold text-slate-700">Cari Gambar dari Internet (Opsional):</label>
                                 <div className="flex gap-2">
                                     <input
@@ -2675,57 +2734,147 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                             ...editingQuestionModal,
                                             data: { ...editingQuestionModal.data, visualQuery: e.target.value }
                                         })}
-                                        placeholder="Kata kunci gambar (misal: angklung jawa barat)"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleSearchModalImages();
+                                            }
+                                        }}
+                                        placeholder="Kata kunci atau URL gambar (misal: rapat guru di sekolah)"
                                         className="flex-1 p-2 border border-slate-300 rounded-xl bg-white"
                                     />
                                     <button
                                         type="button"
                                         disabled={isSearchingModalImage}
-                                        onClick={async () => {
-                                            const qText = (editingQuestionModal.data.visualQuery || editingQuestionModal.data.question || '').trim();
-                                            if (!qText) return;
-                                            setIsSearchingModalImage(true);
-                                            try {
-                                                const hit = await searchInternetImage(qText);
-                                                if (hit) {
-                                                    setEditingQuestionModal(prev => prev ? ({
-                                                        ...prev,
-                                                        data: {
-                                                            ...prev.data,
-                                                            visualImageUrl: hit.thumbUrl,
-                                                            visualTitle: prev.data.visualTitle || hit.title
-                                                        }
-                                                    }) : null);
-                                                    notify(`Gambar ditemukan dari ${hit.source}`, 'success');
-                                                } else {
-                                                    notify('Gambar tidak ditemukan. Coba kata kunci lebih spesifik.', 'warning');
-                                                }
-                                            } finally {
-                                                setIsSearchingModalImage(false);
-                                            }
-                                        }}
+                                        onClick={handleSearchModalImages}
                                         className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs shrink-0 disabled:opacity-50 cursor-pointer"
                                     >
                                         {isSearchingModalImage ? 'Mencari...' : 'Cari Gambar'}
                                     </button>
                                 </div>
-                                {editingQuestionModal.data.visualImageUrl && (
-                                    <div className="flex items-center justify-between gap-2 pt-1">
-                                        <img
-                                            src={editingQuestionModal.data.visualImageUrl}
-                                            alt="Preview"
-                                            className="h-16 w-auto rounded border border-slate-200 bg-white object-contain"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditingQuestionModal({
-                                                ...editingQuestionModal,
-                                                data: { ...editingQuestionModal.data, visualImageUrl: undefined, visualQuery: '', visualTitle: '' }
+
+                                {modalImageError && (
+                                    <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                                        {modalImageError}
+                                    </div>
+                                )}
+
+                                {modalImageCandidates.length > 0 && (
+                                    <div className="space-y-1.5">
+                                        <div className="text-[11px] font-semibold text-slate-600">
+                                            Hasil Pencarian ({modalImageCandidates.length}) — klik gambar untuk memasang pada soal:
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-44 overflow-y-auto p-0.5">
+                                            {modalImageCandidates.map((hit, hitIdx) => {
+                                                const isSelected = editingQuestionModal.data.visualImageUrl === hit.thumbUrl;
+                                                return (
+                                                    <button
+                                                        key={`${hit.thumbUrl}_${hitIdx}`}
+                                                        type="button"
+                                                        onClick={() => setEditingQuestionModal(prev => prev ? ({
+                                                            ...prev,
+                                                            data: {
+                                                                ...prev.data,
+                                                                visualImageUrl: hit.thumbUrl,
+                                                                visualSvg: undefined
+                                                            }
+                                                        }) : null)}
+                                                        className={`group relative rounded-lg border p-1 bg-white text-left transition-all cursor-pointer ${
+                                                            isSelected
+                                                                ? 'border-purple-600 ring-2 ring-purple-400/50 bg-purple-50/40'
+                                                                : 'border-slate-200 hover:border-purple-400'
+                                                        }`}
+                                                        title={hit.title}
+                                                    >
+                                                        <img
+                                                            src={hit.thumbUrl}
+                                                            alt={hit.title}
+                                                            className="w-full h-16 object-cover rounded bg-slate-100"
+                                                            referrerPolicy="no-referrer"
+                                                            onError={(e) => {
+                                                                const imgEl = e.currentTarget;
+                                                                if (!imgEl.dataset.proxied) {
+                                                                    imgEl.dataset.proxied = '1';
+                                                                    imgEl.src = `/api/media/proxy?url=${encodeURIComponent(hit.thumbUrl)}`;
+                                                                }
+                                                            }}
+                                                        />
+                                                        <div className="text-[10px] text-slate-600 truncate mt-1 px-0.5">
+                                                            {hit.title}
+                                                        </div>
+                                                    </button>
+                                                );
                                             })}
-                                            className="text-[11px] font-bold text-red-600 hover:underline cursor-pointer"
-                                        >
-                                            Hapus Gambar
-                                        </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(editingQuestionModal.data.visualImageUrl || editingQuestionModal.data.visualSvg) && (
+                                    <div className="space-y-2 pt-1 border-t border-slate-200">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                {editingQuestionModal.data.visualImageUrl ? (
+                                                    <img
+                                                        src={editingQuestionModal.data.visualImageUrl}
+                                                        alt="Preview gambar soal"
+                                                        className="h-16 w-24 rounded-lg border border-slate-200 bg-white object-contain shrink-0"
+                                                        referrerPolicy="no-referrer"
+                                                        onError={(e) => {
+                                                            const imgEl = e.currentTarget;
+                                                            if (!imgEl.dataset.proxied && editingQuestionModal.data.visualImageUrl) {
+                                                                imgEl.dataset.proxied = '1';
+                                                                imgEl.src = `/api/media/proxy?url=${encodeURIComponent(editingQuestionModal.data.visualImageUrl)}`;
+                                                            }
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className="h-16 w-24 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0 [&>svg]:max-h-14 [&>svg]:w-auto"
+                                                        dangerouslySetInnerHTML={{ __html: editingQuestionModal.data.visualSvg }}
+                                                    />
+                                                )}
+                                                <div className="text-[11px] text-slate-600 min-w-0">
+                                                    <div className="font-bold text-emerald-700">
+                                                        {editingQuestionModal.data.visualImageUrl ? 'Gambar Internet Terpilih' : 'Ilustrasi 2D Aktif'}
+                                                    </div>
+                                                    <div className="truncate text-slate-500">
+                                                        Klik "Simpan Perubahan" untuk menerapkan ke naskah &amp; ekspor Word.
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingQuestionModal({
+                                                    ...editingQuestionModal,
+                                                    data: {
+                                                        ...editingQuestionModal.data,
+                                                        visualImageUrl: undefined,
+                                                        visualSvg: undefined,
+                                                        visualType: 'none',
+                                                        visualQuery: '',
+                                                        visualTitle: ''
+                                                    }
+                                                })}
+                                                className="text-[11px] font-bold text-red-600 hover:underline shrink-0 cursor-pointer"
+                                            >
+                                                Hapus Gambar
+                                            </button>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                                Keterangan / Judul Gambar (Opsional):
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={editingQuestionModal.data.visualTitle || ''}
+                                                onChange={(e) => setEditingQuestionModal({
+                                                    ...editingQuestionModal,
+                                                    data: { ...editingQuestionModal.data, visualTitle: e.target.value }
+                                                })}
+                                                placeholder="Contoh: Suasana rapat dewan guru di sekolah"
+                                                className="w-full p-1.5 px-2.5 border border-slate-300 rounded-lg bg-white text-xs"
+                                            />
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -2842,7 +2991,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                         <div className="flex justify-end gap-2 pt-3 border-t">
                             <button
                                 type="button"
-                                onClick={() => setEditingQuestionModal(null)}
+                                onClick={closeEditModal}
                                 className="px-4 py-2 border rounded-xl text-slate-600 font-bold hover:bg-slate-100"
                             >
                                 Batal
