@@ -23,6 +23,7 @@ import {
 } from './questionBankHelper';
 import { exportAssessmentDocx, DocExportType } from './docxAssessmentExporter';
 import { enrichAssessmentWithWebImages, searchInternetImage } from './mediaSearchHelper';
+import { synthesizeContextual2dVisual } from './dynamic2dVisualHelper';
 
 export interface UserIdentity {
     authorName: string;
@@ -52,6 +53,7 @@ export type VisualType =
     | 'shape_rect'
     | 'shape_triangle'
     | 'shape_cube'
+    | 'shape_cuboid'
     | 'cube_net'
     | 'plant_anatomy'
     | 'water_cycle'
@@ -62,7 +64,33 @@ export type VisualType =
     | 'garuda_banteng'
     | 'garuda_padi_kapas'
     | 'traffic_sign'
-    | 'chart_bar';
+    | 'chart_bar'
+    | 'dynamic_clock'
+    | 'dynamic_angle'
+    | 'dynamic_circle'
+    | 'dynamic_numline'
+    | 'dynamic_scale'
+    | 'dynamic_placevalue'
+    | 'dynamic_sequence'
+    | 'dynamic_circuit'
+    | 'dynamic_magnet'
+    | 'dynamic_eclipse'
+    | 'dynamic_sound'
+    | 'dynamic_states'
+    | 'dynamic_poster'
+    | 'dynamic_notice'
+    | 'dynamic_procedure'
+    | 'dynamic_letter'
+    | 'dynamic_dialogue'
+    | 'dynamic_nature'
+    | 'dynamic_book'
+    | 'dynamic_denah'
+    | 'dynamic_healthy'
+    | 'dynamic_court'
+    | 'dynamic_color'
+    | 'dynamic_pattern'
+    | 'dynamic_mosque'
+    | 'dynamic_quran';
 
 export interface QuestionPG {
     no: number;
@@ -826,19 +854,35 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
         [user?.email, user?.name, registeredClass]
     );
 
+    const resolveQuestionVisualSvg = (
+        q: { question: string; stimulus?: string; options?: any[]; visualType?: any; visualTitle?: string },
+        subjectName: string
+    ): string => {
+        if (!q.visualType || q.visualType === 'none') return '';
+        const synth = synthesizeContextual2dVisual(q, subjectName, { allowGeneralScene: true });
+        if (synth?.svg) return synth.svg;
+        return renderVisualSvg(q.visualType, q.visualTitle);
+    };
+
     const rehydrateAssessmentVisuals = (item: GeneratedAssessmentData): GeneratedAssessmentData => ({
         ...item,
         pgQuestions: (item.pgQuestions || []).map((q) => ({
             ...q,
-            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none' ? renderVisualSvg(q.visualType, q.visualTitle) : undefined
+            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none'
+                ? resolveQuestionVisualSvg(q, item.subject)
+                : undefined
         })),
         isianQuestions: (item.isianQuestions || []).map((q) => ({
             ...q,
-            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none' ? renderVisualSvg(q.visualType, q.visualTitle) : undefined
+            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none'
+                ? resolveQuestionVisualSvg(q, item.subject)
+                : undefined
         })),
         uraianQuestions: (item.uraianQuestions || []).map((q) => ({
             ...q,
-            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none' ? renderVisualSvg(q.visualType, q.visualTitle) : undefined
+            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none'
+                ? resolveQuestionVisualSvg(q, item.subject)
+                : undefined
         }))
     });
 
@@ -1028,9 +1072,13 @@ JUMLAH BUTIR SOAL YANG WAJIB DISUSUN:
 ATURAN WAJIB PADA GAMBAR & BUTIR SOAL:
 1. Soal HARUS BENAR-BENAR BERISI TEKS SOAL ASLI dan ringkas-jelas (stimulus 1-3 kalimat, pembahasan 1-2 kalimat) agar siswa ${activeClass} mudah memahami.
 2. ${includeVisuals
-    ? `MODE GAMBAR INTERNET AKTIF (WAJIB DISERTAKAN): Pilih 2 sampai 4 butir soal Pilihan Ganda yang objeknya bisa diamati melalui gambar nyata dari internet (sesuai mapel: misalnya simbol Pancasila/rambu, masjid/tempat wudhu/Al-Quran/Ka'bah untuk PAI, cabang olahraga untuk PJOK, siklus air/rantai makanan/hewan/tumbuhan untuk IPAS, angklung/Situ Bagendit/Tangkuban Parahu untuk Sunda, batik/gamelan untuk Seni, atau objek nyata untuk Bahasa Indonesia/Inggris). Isikan "visualQuery" dengan 2-3 kata kunci objek yang JELAS dan SPESIFIK (contoh: "Masjid Istiqlal Jakarta", "Tempat wudhu", "Pertandingan sepak bola", "Bola voli", "Angklung", "Hutan bakau", "Pancasila Sila 4 Buffalo") serta awali stimulus/pertanyaan dengan ajakan mengamati gambar tersebut (misal: "Perhatikan gambar berikut!"). DILARANG memasang "visualQuery" pada soal hitungan angka murni atau soal Uraian yang tidak mengamati gambar ("visualQuery": "", "visualType": "none").`
+    ? `MODE GAMBAR & ILUSTRASI 2D AKTIF (WAJIB DISERTAKAN — MINIMAL 2–4 BUTIR PG UNIK):
+   - KHUSUS MATEMATIKA: Wajib sertakan 2 sampai 4 butir Pilihan Ganda yang memakai ilustrasi diagram 2D dengan mengisi "visualType" salah satu dari ["dynamic_clock", "fraction_circle", "fraction_rect", "shape_rect", "shape_triangle", "shape_cube", "shape_cuboid", "cube_net", "chart_bar", "dynamic_angle"] dan "visualQuery": "". Tulis angka/ukuran yang JELAS di stimulus/pertanyaan (contoh: "pukul 04.30", "pecahan 3/8", "panjang 15 cm dan lebar 8 cm", "sudut 60 derajat") agar diagram 2D tergambar persis sesuai ukuran soal!
+   - KHUSUS BAHASA INDONESIA / BAHASA DAERAH / INGGRIS: Wajib sertakan 2 sampai 4 butir PG yang memiliki visual relevan: gunakan "visualQuery" kata kunci objek nyata (contoh: "Perpustakaan sekolah", "Candi Borobudur", "Komodo", "Sawah padi Indonesia", "Pohon kelapa pantai") ATAU untuk soal poster/pengumuman/petunjuk/surat/dialog/denah/rambu isikan "visualType" salah satu dari ["dynamic_poster", "dynamic_notice", "dynamic_procedure", "dynamic_letter", "dynamic_dialogue", "dynamic_denah", "traffic_sign"].
+   - UNTUK IPAS, PANCASILA, PAI, PJOK, SENI RUPA: Wajib sertakan 2 sampai 4 butir PG yang mengamati gambar nyata dari internet dengan mengisi "visualQuery" 2–3 kata kunci SPESIFIK (contoh: "Masjid Istiqlal Jakarta", "Tempat wudhu", "Pertandingan sepak bola", "Bola voli", "Angklung", "Hutan bakau", "Pancasila Sila 4 Buffalo") serta awali stimulus/pertanyaan dengan ajakan mengamati gambar ("Perhatikan gambar berikut!").
+   - LARANGAN GAMBAR KEMBAR: DILARANG menggunakan "visualQuery" atau "visualType" yang sama/kembar untuk dua nomor soal berbeda dalam satu naskah.`
     : `MODE TANPA GAMBAR: Jangan sertakan soal yang bergantung pada gambar ("visualQuery": "", "visualType": "none").`}
-3. PENTING: Jangan pernah menulis "Perhatikan gambar..." jika "visualQuery" dikosongkan. Jika topik soal tidak membutuhkan foto/diagram visual dari internet, isi "visualQuery": "" dan "visualType": "none".
+3. PENTING: Jangan pernah menulis "Perhatikan gambar..." jika kedua kolom "visualQuery" dan "visualType" dikosongkan. Pada soal Uraian yang murni teks/hitungan tanpa gambar, isi "visualQuery": "" dan "visualType": "none".
 4. PERATURAN MUTLAK ANTI-DUPLIKASI (ZERO DUPLICATE POLICY):
    - Setiap nomor butir soal (PG 1..${pgCount}, Isian 1..${isianCount}, Uraian 1..${uraianCount}) WAJIB 100% UNIK, BERBEDA, dan tidak boleh ada soal kembar.
    - Distribusikan butir soal secara merata ke seluruh TP yang tersedia.${crossClassExclusionNote}
@@ -1129,7 +1177,9 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     visualType: includeVisuals ? normVisualType : 'none',
                                     visualTitle: includeVisuals ? (q.visualTitle || '') : '',
                                     visualQuery: includeVisuals ? (q.visualQuery || '') : '',
-                                    visualSvg: includeVisuals && normVisualType !== 'none' ? renderVisualSvg(normVisualType, q.visualTitle) : undefined
+                                    visualSvg: includeVisuals && normVisualType !== 'none'
+                                        ? resolveQuestionVisualSvg({ question: q.question, stimulus: q.stimulus, options: normalizedOpts, visualType: normVisualType, visualTitle: q.visualTitle }, activeSubject)
+                                        : undefined
                                 };
                             });
 
@@ -1148,7 +1198,9 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     visualType: includeVisuals ? normVisualType : 'none',
                                     visualTitle: includeVisuals ? (q.visualTitle || '') : '',
                                     visualQuery: includeVisuals ? (q.visualQuery || '') : '',
-                                    visualSvg: includeVisuals && normVisualType !== 'none' ? renderVisualSvg(normVisualType, q.visualTitle) : undefined
+                                    visualSvg: includeVisuals && normVisualType !== 'none'
+                                        ? resolveQuestionVisualSvg({ question: q.question, stimulus: q.stimulus, visualType: normVisualType, visualTitle: q.visualTitle }, activeSubject)
+                                        : undefined
                                 };
                             });
                         }
@@ -1168,7 +1220,9 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     visualType: includeVisuals ? normVisualType : 'none',
                                     visualTitle: includeVisuals ? (q.visualTitle || '') : '',
                                     visualQuery: includeVisuals ? (q.visualQuery || '') : '',
-                                    visualSvg: includeVisuals && normVisualType !== 'none' ? renderVisualSvg(normVisualType, q.visualTitle) : undefined,
+                                    visualSvg: includeVisuals && normVisualType !== 'none'
+                                        ? resolveQuestionVisualSvg({ question: q.question, stimulus: q.stimulus, visualType: normVisualType, visualTitle: q.visualTitle }, activeSubject)
+                                        : undefined,
                                     rubric: q.rubric || {
                                         score3: 'Jawaban sangat lengkap, benar secara konsep dan runtut.',
                                         score2: 'Jawaban benar secara umum namun kurang mendalam.',
@@ -1332,7 +1386,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
         const normalizedUpdated = {
             ...updatedQ,
             visualSvg: !updatedQ.visualImageUrl && updatedQ.visualType && updatedQ.visualType !== 'none'
-                ? renderVisualSvg(updatedQ.visualType, updatedQ.visualTitle)
+                ? resolveQuestionVisualSvg(updatedQ, copy.subject)
                 : undefined
         };
 
@@ -1375,7 +1429,10 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                 type,
                 userIdentity,
                 paperSize,
-                resolveVisualSvg: renderVisualSvg
+                resolveVisualSvg: (vType, vTitle, qObj) =>
+                    qObj
+                        ? resolveQuestionVisualSvg({ ...qObj, visualType: vType, visualTitle: vTitle }, generatedAssessment.subject)
+                        : renderVisualSvg(vType, vTitle)
             });
 
             const url = URL.createObjectURL(blob);

@@ -5,6 +5,7 @@ import {
   parseWikipediaPages,
   rankAndFilterMediaCandidates
 } from './api/media/_relevance';
+import { synthesizeContextual2dVisual } from './dynamic2dVisualHelper';
 
 export interface WebImageHit {
   url: string;
@@ -13,11 +14,11 @@ export interface WebImageHit {
   source: string;
 }
 
-const searchCache = new Map<string, WebImageHit | null>();
+const searchCandidatesCache = new Map<string, WebImageHit[]>();
 
 // Real-world concepts whose internet photos/diagrams accurately match the question context.
-// Exact numeric/labeled bank diagrams (clock_0900, fraction_circle 2/6, shape_rect 12x6, plant_anatomy nomor (2), chart_bar)
-// keep their exact labeled visualSvg fallback so measurements & numbered labels stay 100% consistent.
+// Exact numeric/labeled bank diagrams (clock_*, fraction_*, shape_*, plant_anatomy nomor (2), chart_bar)
+// keep their exact labeled visualSvg so measurements & numbered labels stay 100% consistent.
 const VISUAL_TYPE_SEARCH_QUERIES: Partial<Record<VisualType, { query: string; fallbackQuery?: string; title: string }>> = {
   water_cycle: { query: 'Siklus air', fallbackQuery: 'Water cycle diagram', title: 'Diagram Siklus Air (Evaporasi - Kondensasi - Presipitasi)' },
   food_chain: { query: 'Rantai makanan', fallbackQuery: 'Simple food chain diagram', title: 'Diagram Rantai Makanan' },
@@ -87,6 +88,7 @@ const CONTEXTUAL_VISUAL_RULES: ContextualVisualRule[] = [
 
   // Pendidikan Pancasila, Bahasa Indonesia & IPS
   { pattern: /\bgaruda\s+pancasila\b/i, query: 'Garuda Pancasila', title: 'Lambang Negara Garuda Pancasila' },
+  { pattern: /\bbendera\s+merah\s+putih|upacara\s+bendera\b/i, query: 'Bendera Indonesia', title: 'Upacara Bendera Merah Putih' },
   { pattern: /\bcandi\s+borobudur\b/i, query: 'Candi Borobudur', title: 'Candi Borobudur' },
   { pattern: /\bcandi\s+prambanan\b/i, query: 'Candi Prambanan', title: 'Candi Prambanan' },
   { pattern: /\bmonas|monumen\s+nasional\b/i, query: 'Monas Jakarta', title: 'Monumen Nasional' },
@@ -95,8 +97,13 @@ const CONTEXTUAL_VISUAL_RULES: ContextualVisualRule[] = [
   { pattern: /\bpohon\s+kelapa|tepi\s+pantai\b/i, query: 'Pohon kelapa pantai', title: 'Pemandangan Pesisir Pantai' },
   { pattern: /\breboisasi|menanam\s+pohon\b/i, query: 'Penanaman pohon', title: 'Kegiatan Reboisasi' },
   { pattern: /\bsemut\b/i, query: 'Semut', title: 'Ilustrasi Cerita Fabel' },
+  { pattern: /\bkancil\b/i, query: 'Kancil', fallbackQuery: 'Tragulus', title: 'Ilustrasi Cerita Fabel' },
   { pattern: /\bperpustakaan\b/i, query: 'School library', title: 'Perpustakaan Sekolah' },
   { pattern: /\bsawah|petani\s+padi\b/i, query: 'Sawah padi Indonesia', fallbackQuery: 'Rice paddy terrace Indonesia', title: 'Lahan Pertanian Padi' },
+  { pattern: /\bpasar\s+tradisional\b/i, query: 'Pasar tradisional Indonesia', title: 'Pasar Tradisional' },
+  { pattern: /\bzebra\s+cross|lampu\s+lalu\s+lintas\b/i, query: 'Traffic light Indonesia', fallbackQuery: 'Zebra crossing', title: 'Keselamatan Jalan Raya' },
+  { pattern: /\brumah\s+adat|rumah\s+gadang|joglo\b/i, query: 'Rumah Gadang', fallbackQuery: 'Rumah adat Indonesia', title: 'Rumah Adat Nusantara' },
+  { pattern: /\bgotong\s+royong|kerja\s+bakti\b/i, query: 'Gotong royong Indonesia', title: 'Kegiatan Gotong Royong' },
 
   // Bahasa Inggris
   { pattern: /\bfried\s+rice|chicken\s+noodles\b/i, query: 'Nasi goreng', title: 'Indonesian Food' },
@@ -144,96 +151,88 @@ async function fetchJsonDirectCors(url: string, timeoutMs = 7000): Promise<any> 
 
 /**
  * Direct browser-side Wikimedia Commons & Wikipedia CORS fallback (&origin=*).
- * Guarantees image search still succeeds when Vercel serverless IPs hit Wikimedia datacenter rate limits.
+ * Returns up to 5 ranked candidates so duplicate images can be skipped across questions.
  */
-async function searchDirectFromBrowserWikimedia(rawQuery: string): Promise<WebImageHit | null> {
+async function searchDirectFromBrowserWikimedia(rawQuery: string, limit = 5): Promise<WebImageHit[]> {
   const cleanQuery = String(rawQuery || '')
     .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 120);
-  if (!cleanQuery || typeof fetch !== 'function') return null;
+  if (!cleanQuery || typeof fetch !== 'function') return [];
 
-  const tryDirect = async (q: string): Promise<WebImageHit | null> => {
+  const toHits = (ranked: any[]): WebImageHit[] =>
+    ranked
+      .filter((r) => r && r.thumbUrl)
+      .map((r) => ({
+        url: r.url || r.thumbUrl,
+        thumbUrl: r.thumbUrl,
+        title: r.title || cleanQuery,
+        source: r.source || 'internet'
+      }));
+
+  const tryDirect = async (q: string): Promise<WebImageHit[]> => {
     const commonsUrl =
       `https://commons.wikimedia.org/w/api.php` +
       `?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(q)}` +
-      `&gsrlimit=8&prop=imageinfo&iiprop=url|mime|thumbmime|size&iiurlwidth=600&format=json&origin=*`;
+      `&gsrlimit=10&prop=imageinfo&iiprop=url|mime|thumbmime|size&iiurlwidth=600&format=json&origin=*`;
     const commonsData = await fetchJsonDirectCors(commonsUrl);
     const commonsCandidates = parseCommonsPages(commonsData);
-    let ranked = rankAndFilterMediaCandidates(commonsCandidates, q, 3);
-    if (ranked.length > 0) {
-      return {
-        url: ranked[0].url,
-        thumbUrl: ranked[0].thumbUrl,
-        title: ranked[0].title,
-        source: ranked[0].source
-      };
+    let ranked = rankAndFilterMediaCandidates(commonsCandidates, q, limit);
+    if (ranked.length >= 2) {
+      return toHits(ranked);
     }
 
     const wikiIdUrl =
       `https://id.wikipedia.org/w/api.php` +
       `?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}` +
-      `&gsrlimit=4&prop=pageimages&piprop=thumbnail|original&pithumbsize=600&format=json&origin=*`;
+      `&gsrlimit=5&prop=pageimages&piprop=thumbnail|original&pithumbsize=600&format=json&origin=*`;
     const wikiIdData = await fetchJsonDirectCors(wikiIdUrl);
     const wikiIdCandidates = parseWikipediaPages(wikiIdData, 'id.wikipedia.org');
-    ranked = rankAndFilterMediaCandidates([...commonsCandidates, ...wikiIdCandidates], q, 3);
-    if (ranked.length > 0) {
-      return {
-        url: ranked[0].url,
-        thumbUrl: ranked[0].thumbUrl,
-        title: ranked[0].title,
-        source: ranked[0].source
-      };
+    ranked = rankAndFilterMediaCandidates([...commonsCandidates, ...wikiIdCandidates], q, limit);
+    if (ranked.length >= 2) {
+      return toHits(ranked);
     }
 
     const wikiEnUrl =
       `https://en.wikipedia.org/w/api.php` +
       `?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}` +
-      `&gsrlimit=4&prop=pageimages&piprop=thumbnail|original&pithumbsize=600&format=json&origin=*`;
+      `&gsrlimit=5&prop=pageimages&piprop=thumbnail|original&pithumbsize=600&format=json&origin=*`;
     const wikiEnData = await fetchJsonDirectCors(wikiEnUrl);
     const wikiEnCandidates = parseWikipediaPages(wikiEnData, 'en.wikipedia.org');
-    ranked = rankAndFilterMediaCandidates([...commonsCandidates, ...wikiIdCandidates, ...wikiEnCandidates], q, 3);
-    if (ranked.length > 0) {
-      return {
-        url: ranked[0].url,
-        thumbUrl: ranked[0].thumbUrl,
-        title: ranked[0].title,
-        source: ranked[0].source
-      };
-    }
-    return null;
+    ranked = rankAndFilterMediaCandidates([...commonsCandidates, ...wikiIdCandidates, ...wikiEnCandidates], q, limit);
+    return toHits(ranked);
   };
 
-  const directHit = await tryDirect(cleanQuery);
-  if (directHit) return directHit;
+  const directHits = await tryDirect(cleanQuery);
+  if (directHits.length > 0) return directHits;
 
   const coreTokens = extractMediaCoreTokens(cleanQuery);
   const compactQuery = coreTokens.slice(0, 2).join(' ');
   if (compactQuery && compactQuery.toLowerCase() !== cleanQuery.toLowerCase()) {
     return await tryDirect(compactQuery);
   }
-  return null;
+  return [];
 }
 
 let backendMediaUnavailable = false;
 let backendEmptyStreak = 0;
 
-async function searchSingleQuery(query: string): Promise<WebImageHit | null> {
+async function searchSingleQueryCandidates(query: string): Promise<WebImageHit[]> {
   const key = query.trim().toLowerCase();
-  if (!key) return null;
-  if (searchCache.has(key)) {
-    return searchCache.get(key) || null;
+  if (!key) return [];
+  if (searchCandidatesCache.has(key)) {
+    return searchCandidatesCache.get(key) || [];
   }
 
-  if (typeof fetch !== 'function') return null;
+  if (typeof fetch !== 'function') return [];
 
   // 1. Try app backend endpoint (/api/media/search) with short timeout unless already marked unavailable
   if (!backendMediaUnavailable) {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(`/api/media/search?q=${encodeURIComponent(query)}&limit=3`, {
+      const res = await fetch(`/api/media/search?q=${encodeURIComponent(query)}&limit=5`, {
         signal: controller.signal
       });
       clearTimeout(timer);
@@ -241,47 +240,90 @@ async function searchSingleQuery(query: string): Promise<WebImageHit | null> {
         const text = await res.text();
         if (text && text.trim().startsWith('{')) {
           const data = JSON.parse(text);
-          const first = Array.isArray(data?.results) && data.results.length > 0 ? data.results[0] : null;
-          if (first && first.thumbUrl) {
+          const results: WebImageHit[] = Array.isArray(data?.results)
+            ? data.results
+                .filter((r: any) => r && r.thumbUrl)
+                .map((r: any) => ({
+                  url: r.url || r.thumbUrl,
+                  thumbUrl: r.thumbUrl,
+                  title: r.title || query,
+                  source: r.source || 'internet'
+                }))
+            : [];
+          if (results.length > 0) {
             backendEmptyStreak = 0;
-            const hit: WebImageHit = {
-              url: first.url || first.thumbUrl,
-              thumbUrl: first.thumbUrl,
-              title: first.title || query,
-              source: first.source || 'internet'
-            };
-            searchCache.set(key, hit);
-            return hit;
+            searchCandidatesCache.set(key, results);
+            return results;
           }
           backendEmptyStreak++;
           if (backendEmptyStreak >= 2) {
             backendMediaUnavailable = true;
           }
         } else {
-          // Non-JSON (e.g. Vercel SPA HTML rewrite) -> skip backend on subsequent queries
           backendMediaUnavailable = true;
         }
       } else {
         backendMediaUnavailable = true;
       }
     } catch {
-      // Network/timeout error -> skip backend for rest of session and use direct browser CORS
       backendMediaUnavailable = true;
     }
   }
 
   // 2. Fallback directly from browser to Wikimedia/Wikipedia CORS (&origin=*)
-  // Bypassing Vercel serverless shared IP limits guarantees consistent results in production!
-  const browserHit = await searchDirectFromBrowserWikimedia(query);
-  searchCache.set(key, browserHit);
-  return browserHit;
+  const browserHits = await searchDirectFromBrowserWikimedia(query, 5);
+  searchCandidatesCache.set(key, browserHits);
+  return browserHits;
+}
+
+export async function searchInternetImageCandidates(query: string, fallbackQuery?: string): Promise<WebImageHit[]> {
+  const primary = await searchSingleQueryCandidates(query);
+  if (fallbackQuery && fallbackQuery.trim() && fallbackQuery.trim().toLowerCase() !== query.trim().toLowerCase()) {
+    if (primary.length >= 2) return primary;
+    const secondary = await searchSingleQueryCandidates(fallbackQuery);
+    return [...primary, ...secondary];
+  }
+  return primary;
 }
 
 export async function searchInternetImage(query: string, fallbackQuery?: string): Promise<WebImageHit | null> {
-  const primary = await searchSingleQuery(query);
-  if (primary) return primary;
-  if (fallbackQuery && fallbackQuery.trim() && fallbackQuery.trim().toLowerCase() !== query.trim().toLowerCase()) {
-    return await searchSingleQuery(fallbackQuery);
+  const hits = await searchInternetImageCandidates(query, fallbackQuery);
+  return hits[0] || null;
+}
+
+function canonicalizeImageUrl(rawUrl: string): { urlKey: string; baseName: string } {
+  const clean = String(rawUrl || '').trim().split('?')[0].toLowerCase();
+  const segments = clean.split('/').filter(Boolean);
+  let lastSeg = segments[segments.length - 1] || clean;
+  // Normalize Wikimedia thumb filename (e.g., "600px-Foo.jpg" -> "foo.jpg")
+  lastSeg = lastSeg.replace(/^\d+px-/, '');
+  return { urlKey: clean, baseName: lastSeg };
+}
+
+function isUrlAlreadyUsed(rawUrl: string, usedUrls: Set<string>, usedBaseNames: Set<string>): boolean {
+  const { urlKey, baseName } = canonicalizeImageUrl(rawUrl);
+  if (!urlKey) return true;
+  if (usedUrls.has(urlKey)) return true;
+  if (baseName && baseName.length > 4 && usedBaseNames.has(baseName)) return true;
+  return false;
+}
+
+function markUrlAsUsed(rawUrl: string, usedUrls: Set<string>, usedBaseNames: Set<string>): void {
+  const { urlKey, baseName } = canonicalizeImageUrl(rawUrl);
+  if (urlKey) usedUrls.add(urlKey);
+  if (baseName && baseName.length > 4) usedBaseNames.add(baseName);
+}
+
+function pickUnusedWebHit(
+  hits: WebImageHit[],
+  usedUrls: Set<string>,
+  usedBaseNames: Set<string>
+): WebImageHit | null {
+  for (const hit of hits) {
+    if (!hit || !hit.thumbUrl) continue;
+    if (!isUrlAlreadyUsed(hit.thumbUrl, usedUrls, usedBaseNames)) {
+      return hit;
+    }
   }
   return null;
 }
@@ -305,10 +347,10 @@ export function deriveVisualSearchSpec(
   visualTitle?: string,
   explicitQuery?: string,
   allowStrictPgTopicRule = false
-): { query: string; fallbackQuery?: string; title: string } | null {
+): { query: string; fallbackQuery?: string; title: string; ruleKey?: string } | null {
   const normType = String(visualType || 'none').trim().toLowerCase() as VisualType;
 
-  // Preserve exact labeled/measured bank diagrams instead of swapping them to unmatching web photos
+  // Preserve exact labeled/measured 2D SVG diagrams instead of swapping them to unmatching web photos
   if (
     normType === 'clock_0900' ||
     normType === 'clock_0200' ||
@@ -317,9 +359,11 @@ export function deriveVisualSearchSpec(
     normType === 'shape_rect' ||
     normType === 'shape_triangle' ||
     normType === 'shape_cube' ||
+    normType === 'shape_cuboid' ||
     normType === 'cube_net' ||
     normType === 'plant_anatomy' ||
-    normType === 'chart_bar'
+    normType === 'chart_bar' ||
+    normType.startsWith('dynamic_')
   ) {
     return null;
   }
@@ -331,7 +375,8 @@ export function deriveVisualSearchSpec(
     return {
       query: mapped.query,
       fallbackQuery: mapped.fallbackQuery,
-      title: avoidSpoiler ? 'Gambar Konteks Soal' : (visualTitle?.trim() || mapped.title)
+      title: avoidSpoiler ? 'Gambar Konteks Soal' : (visualTitle?.trim() || mapped.title),
+      ruleKey: `type:${normType}`
     };
   }
 
@@ -344,20 +389,22 @@ export function deriveVisualSearchSpec(
     if (isPureMathMeasurementQuestion(question, stimulus) && !explicitlyAsksForImage) {
       return null;
     }
+    const cleanExplicit = explicitQuery.trim();
     return {
-      query: explicitQuery.trim(),
-      title: avoidSpoiler ? 'Gambar Konteks Soal' : (visualTitle?.trim() || explicitQuery.trim())
+      query: cleanExplicit,
+      title: avoidSpoiler ? 'Gambar Konteks Soal' : (visualTitle?.trim() || cleanExplicit),
+      ruleKey: `query:${cleanExplicit.toLowerCase()}`
     };
   }
 
   if (explicitlyAsksForImage || (allowStrictPgTopicRule && !isPureMathMeasurementQuestion(question, stimulus))) {
-    // Only match inside the actual question/stimulus (never subject header alone)
     for (const rule of CONTEXTUAL_VISUAL_RULES) {
       if (rule.pattern.test(combinedText)) {
         return {
           query: rule.query,
           fallbackQuery: rule.fallbackQuery,
-          title: avoidSpoiler ? 'Gambar Konteks Soal' : (visualTitle?.trim() || rule.title)
+          title: avoidSpoiler ? 'Gambar Konteks Soal' : (visualTitle?.trim() || rule.title),
+          ruleKey: `rule:${rule.query.toLowerCase()}`
         };
       }
     }
@@ -367,8 +414,11 @@ export function deriveVisualSearchSpec(
 }
 
 /**
- * Enriches questions that explicitly need visual observation with verified internet images.
- * Uses backend /api/media/search with seamless browser-CORS Wikimedia fallback so it works identically on localhost and Vercel.
+ * Enriches assessment questions with:
+ * 1. Exact parameterized 2D Math/Science SVG diagrams matching exact numbers/dimensions in the question.
+ * 2. Real internet images for real-world/observational questions, strictly deduplicated across ALL items.
+ * 3. Context-matched 2D fallback SVG illustrations whenever internet search has no relevant/unique match,
+ *    guaranteeing Matematika, Bahasa Indonesia, and all subjects show relevant non-duplicate visuals.
  */
 export async function enrichAssessmentWithWebImages(params: {
   pgQuestions: QuestionPG[];
@@ -415,31 +465,101 @@ export async function enrichAssessmentWithWebImages(params: {
   const MAX_WEB_IMAGES = 8;
   let fetchedWebCount = 0;
 
-  const resolveSequential = async <
-    T extends {
-      question: string;
-      stimulus?: string;
-      visualType?: VisualType | string;
-      visualTitle?: string;
-      visualSvg?: string;
-      visualQuery?: string;
-      visualImageUrl?: string;
-    }
-  >(
-    items: T[],
-    allowStrictTopicFallback: boolean
-  ): Promise<T[]> => {
-    const out: T[] = [];
-    for (const q of items) {
+  const usedCanonicalUrls = new Set<string>();
+  const usedFileBasenames = new Set<string>();
+  const usedSvgSignatures = new Set<string>();
+  const usedRuleKeys = new Set<string>();
+
+  type EnrichableQ = {
+    question: string;
+    stimulus?: string;
+    options?: { key: string; text: string }[];
+    visualType?: VisualType | string;
+    visualTitle?: string;
+    visualSvg?: string;
+    visualQuery?: string;
+    visualImageUrl?: string;
+    __lockedExact2d?: boolean;
+  };
+
+  // Step 0: Parameterize exact 2D Math/Science SVGs and deduplicate pre-existing static SVGs/URLs
+  const prepareExactAndDedupe = <T extends EnrichableQ>(items: T[]): T[] =>
+    items.map((q) => {
       if (q.visualImageUrl) {
-        out.push({ ...q, visualSvg: undefined });
-        continue;
+        if (isUrlAlreadyUsed(q.visualImageUrl, usedCanonicalUrls, usedFileBasenames)) {
+          return { ...q, visualImageUrl: undefined, visualSvg: undefined, visualType: 'none', visualQuery: undefined };
+        }
+        markUrlAsUsed(q.visualImageUrl, usedCanonicalUrls, usedFileBasenames);
+        return { ...q, visualSvg: undefined };
       }
 
-      if (fetchedWebCount >= MAX_WEB_IMAGES) {
+      const avoidSpoiler = isSpoilerIdentificationQuestion(q.question);
+      const exact2d = synthesizeContextual2dVisual(q, subject, { allowGeneralScene: false });
+      if (exact2d) {
+        if (usedSvgSignatures.has(exact2d.signature)) {
+          // Exact same parameterized SVG already exists on another question -> avoid duplicate diagram
+          return { ...q, visualSvg: undefined, visualType: 'none', visualTitle: '', visualQuery: undefined };
+        }
+        usedSvgSignatures.add(exact2d.signature);
+        return {
+          ...q,
+          visualType: exact2d.visualType as VisualType,
+          visualTitle: avoidSpoiler ? 'Gambar Konteks Soal' : (q.visualTitle?.trim() || exact2d.title),
+          visualSvg: exact2d.svg,
+          visualImageUrl: undefined,
+          visualQuery: undefined,
+          __lockedExact2d: true
+        };
+      }
+
+      const normType = String(q.visualType || 'none').trim().toLowerCase();
+      if (q.visualSvg && normType && normType !== 'none') {
+        const staticSig = `static_${normType}`;
+        if (usedSvgSignatures.has(staticSig)) {
+          return { ...q, visualSvg: undefined, visualType: 'none', visualTitle: '', visualQuery: undefined };
+        }
+        usedSvgSignatures.add(staticSig);
+      }
+
+      return q;
+    });
+
+  let pgPrepared = prepareExactAndDedupe(pgQuestions as EnrichableQ[]);
+  let isianPrepared = prepareExactAndDedupe(isianQuestions as EnrichableQ[]);
+  let uraianPrepared = prepareExactAndDedupe(uraianQuestions as EnrichableQ[]);
+
+  // Helper to resolve internet search + 2D contextual fallback for a list of questions
+  const resolvePass = async <T extends EnrichableQ>(
+    items: T[],
+    allowContextualTopicFallback: boolean,
+    targetPgVisualCap: number
+  ): Promise<T[]> => {
+    const currentVisualTotal = pgPrepared.filter((x) => x.visualImageUrl || x.visualSvg).length;
+    let addedInPass = 0;
+
+    const out: T[] = [];
+    for (const q of items) {
+      if (q.__lockedExact2d || q.visualImageUrl) {
         out.push(q);
         continue;
       }
+
+      // When running Pass 2 contextual enrichment on PG, stop once we already have target visuals
+      if (allowContextualTopicFallback && currentVisualTotal + addedInPass >= targetPgVisualCap) {
+        out.push(q);
+        continue;
+      }
+
+      // Skip already-assigned static visual during Pass 2
+      if (allowContextualTopicFallback && q.visualSvg) {
+        out.push(q);
+        continue;
+      }
+
+      const combinedText = `${q.stimulus || ''} ${q.question || ''}`;
+      const explicitlyAsksForImage = /\b(perhatikan\s+gambar|amati\s+gambar|titénan\s+gambar|titenan\s+gambar|gambar\s+di\s+handap|gambar\s+berikut|ilustrasi\s+berikut)\b/i.test(
+        combinedText
+      );
 
       const spec = deriveVisualSearchSpec(
         q.question,
@@ -448,54 +568,102 @@ export async function enrichAssessmentWithWebImages(params: {
         q.visualType,
         q.visualTitle,
         q.visualQuery,
-        allowStrictTopicFallback && fetchedWebCount < 3
+        allowContextualTopicFallback
       );
 
-      if (!spec) {
-        out.push(q);
+      let resolvedWebHit: WebImageHit | null = null;
+      if (spec && fetchedWebCount < MAX_WEB_IMAGES) {
+        const ruleUsed = spec.ruleKey && usedRuleKeys.has(spec.ruleKey);
+        if (!ruleUsed) {
+          const candidates = await searchInternetImageCandidates(spec.query, spec.fallbackQuery);
+          resolvedWebHit = pickUnusedWebHit(candidates, usedCanonicalUrls, usedFileBasenames);
+          if (resolvedWebHit && spec.ruleKey) {
+            usedRuleKeys.add(spec.ruleKey);
+          }
+        }
+      }
+
+      if (resolvedWebHit && resolvedWebHit.thumbUrl) {
+        fetchedWebCount++;
+        addedInPass++;
+        markUrlAsUsed(resolvedWebHit.thumbUrl, usedCanonicalUrls, usedFileBasenames);
+        // If replacing a static SVG placeholder (e.g. garuda_bintang / water_cycle), free its static signature
+        const normType = String(q.visualType || 'none').trim().toLowerCase();
+        if (normType && normType !== 'none') {
+          usedSvgSignatures.delete(`static_${normType}`);
+        }
+        out.push({
+          ...q,
+          visualQuery: spec!.query,
+          visualTitle: spec!.title || q.visualTitle?.trim() || '',
+          visualImageUrl: resolvedWebHit.thumbUrl,
+          visualSvg: undefined
+        });
         continue;
       }
 
-      const hit = await searchInternetImage(spec.query, spec.fallbackQuery);
-      if (hit && hit.thumbUrl) {
-        fetchedWebCount++;
-        out.push({
-          ...q,
-          visualQuery: spec.query,
-          visualTitle: spec.title || q.visualTitle?.trim() || '',
-          visualImageUrl: hit.thumbUrl,
-          visualSvg: undefined
-        });
+      // Web search returned no relevant/unique match (or item has no web rule):
+      // Fall back to contextual 2D SVG if question asks for image, has a visualType, OR in Pass 2!
+      const normType = String(q.visualType || 'none').trim().toLowerCase();
+      const shouldTry2dFallback =
+        explicitlyAsksForImage ||
+        allowContextualTopicFallback ||
+        (normType !== 'none' && !q.visualSvg) ||
+        Boolean(q.visualQuery && q.visualQuery.trim());
+
+      if (shouldTry2dFallback) {
+        const scene2d = synthesizeContextual2dVisual(q, subject, { allowGeneralScene: true });
+        if (scene2d && !usedSvgSignatures.has(scene2d.signature)) {
+          usedSvgSignatures.add(scene2d.signature);
+          addedInPass++;
+          const avoidSpoiler = isSpoilerIdentificationQuestion(q.question);
+          out.push({
+            ...q,
+            visualType: scene2d.visualType as VisualType,
+            visualTitle: avoidSpoiler ? 'Gambar Konteks Soal' : (q.visualTitle?.trim() || scene2d.title),
+            visualSvg: scene2d.svg,
+            visualImageUrl: undefined,
+            visualQuery: undefined
+          });
+          continue;
+        }
+      }
+
+      // Keep pre-existing unique static SVG if it exists (e.g. water_cycle / plant_anatomy / garuda_* offline)
+      if (q.visualSvg) {
+        out.push(q);
       } else {
         out.push({
           ...q,
           visualQuery: undefined,
-          visualImageUrl: undefined
+          visualImageUrl: undefined,
+          visualSvg: undefined
         });
       }
     }
     return out;
   };
 
-  // Pass 1: Explicit visual queries, visualType symbols, and explicit "Perhatikan gambar..." across all sections
-  let pgResolved = await resolveSequential(pgQuestions, false);
-  const isianResolved = await resolveSequential(isianQuestions, false);
-  const uraianResolved = await resolveSequential(uraianQuestions, false);
+  // Pass 1: Explicit visual queries, symbol visualTypes, and explicit "Perhatikan gambar..." across all sections
+  pgPrepared = await resolvePass(pgPrepared, false, 8);
+  isianPrepared = await resolvePass(isianPrepared, false, 8);
+  uraianPrepared = await resolvePass(uraianPrepared, false, 8);
 
-  // Pass 2 (PG ONLY, never Essay #4!): If fewer than 2 visual questions exist overall (e.g. PJOK, Sunda, Seni, PAI),
-  // enrich up to 2 unambiguous concrete PG topics using verified web images.
-  const totalVisualsSoFar =
-    pgResolved.filter((q) => q.visualImageUrl || q.visualSvg).length +
-    isianResolved.filter((q) => q.visualImageUrl || q.visualSvg).length +
-    uraianResolved.filter((q) => q.visualImageUrl || q.visualSvg).length;
-
-  if (totalVisualsSoFar < 2) {
-    pgResolved = await resolveSequential(pgResolved, true);
+  // Pass 2 (PG ONLY, never Isian/Uraian Essay #4!):
+  // Guarantee 2–4 distinct relevant visuals (internet OR 2D SVG) across ALL subjects including Matematika & Bahasa Indonesia!
+  const pgTargetVisuals = pgPrepared.length >= 10 ? 3 : 2;
+  const currentPgVisuals = pgPrepared.filter((q) => q.visualImageUrl || q.visualSvg).length;
+  if (currentPgVisuals < pgTargetVisuals) {
+    pgPrepared = await resolvePass(pgPrepared, true, Math.max(pgTargetVisuals, 4));
   }
 
+  const stripInternal = <T extends EnrichableQ>(items: T[]): T[] =>
+    items.map(({ __lockedExact2d: _ignored, ...rest }) => rest as T);
+
   return {
-    pgQuestions: pgResolved,
-    isianQuestions: isianResolved,
-    uraianQuestions: uraianResolved
+    pgQuestions: stripInternal(pgPrepared) as QuestionPG[],
+    isianQuestions: stripInternal(isianPrepared) as QuestionIsian[],
+    uraianQuestions: stripInternal(uraianPrepared) as QuestionUraian[]
   };
 }
+

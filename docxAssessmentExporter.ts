@@ -520,7 +520,7 @@ export const exportAssessmentDocx = async (params: {
     type: DocExportType;
     userIdentity: UserIdentity;
     paperSize: 'A4' | 'F4';
-    resolveVisualSvg?: (visualType?: any, visualTitle?: string) => string;
+    resolveVisualSvg?: (visualType?: any, visualTitle?: string, questionObj?: any) => string;
 }): Promise<{ blob: Blob; filename: string }> => {
     const { data, type, userIdentity, paperSize, resolveVisualSvg } = params;
     const fontName = data.fontFamily || 'Times New Roman';
@@ -552,7 +552,7 @@ export const exportAssessmentDocx = async (params: {
                 return;
             }
         }
-        const rawSvg = q.visualSvg || (q.visualType && q.visualType !== 'none' && resolveVisualSvg ? resolveVisualSvg(q.visualType, q.visualTitle) : '');
+        const rawSvg = q.visualSvg || (q.visualType && q.visualType !== 'none' && resolveVisualSvg ? resolveVisualSvg(q.visualType, q.visualTitle, q) : '');
         if (rawSvg && rawSvg.trim()) {
             const png = await rasterizeVisualToPng(rawSvg);
             if (png) {
