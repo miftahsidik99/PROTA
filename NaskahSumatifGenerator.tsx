@@ -1028,7 +1028,7 @@ JUMLAH BUTIR SOAL YANG WAJIB DISUSUN:
 ATURAN WAJIB PADA GAMBAR & BUTIR SOAL:
 1. Soal HARUS BENAR-BENAR BERISI TEKS SOAL ASLI dan ringkas-jelas (stimulus 1-3 kalimat, pembahasan 1-2 kalimat) agar siswa ${activeClass} mudah memahami.
 2. ${includeVisuals
-    ? `MODE GAMBAR INTERNET AKTIF: Untuk maksimal 2 sampai 4 butir soal Pilihan Ganda yang memang membutuhkan pengamatan gambar nyata dari website internet (misalnya simbol Pancasila, rambu lalu lintas, alat musik tradisional seperti angklung/suling, siklus air, rantai makanan, candi Borobudur, batik, atau cabang olahraga), isikan "visualQuery" dengan kata kunci objek yang SANGAT SPESIFIK dalam 2-4 kata (contoh: "Pancasila Sila 4 Buffalo", "Rambu dilarang parkir", "Angklung Jawa Barat", "Siklus air watercycle", "Candi Borobudur") dan pastikan kalimat soalnya secara eksplisit mengajak siswa mengamati gambar tersebut (misal: "Perhatikan gambar ... berikut!"). DILARANG memasang "visualQuery" pada soal cerita hitungan matematika berangka, soal teks bacaan panjang, ataupun soal uraian yang tidak mengamati gambar ("visualQuery": "", "visualType": "none").`
+    ? `MODE GAMBAR INTERNET AKTIF (WAJIB DISERTAKAN): Pilih 2 sampai 4 butir soal Pilihan Ganda yang objeknya bisa diamati melalui gambar nyata dari internet (sesuai mapel: misalnya simbol Pancasila/rambu, masjid/tempat wudhu/Al-Quran/Ka'bah untuk PAI, cabang olahraga untuk PJOK, siklus air/rantai makanan/hewan/tumbuhan untuk IPAS, angklung/Situ Bagendit/Tangkuban Parahu untuk Sunda, batik/gamelan untuk Seni, atau objek nyata untuk Bahasa Indonesia/Inggris). Isikan "visualQuery" dengan 2-3 kata kunci objek yang JELAS dan SPESIFIK (contoh: "Masjid Istiqlal Jakarta", "Tempat wudhu", "Pertandingan sepak bola", "Bola voli", "Angklung", "Hutan bakau", "Pancasila Sila 4 Buffalo") serta awali stimulus/pertanyaan dengan ajakan mengamati gambar tersebut (misal: "Perhatikan gambar berikut!"). DILARANG memasang "visualQuery" pada soal hitungan angka murni atau soal Uraian yang tidak mengamati gambar ("visualQuery": "", "visualType": "none").`
     : `MODE TANPA GAMBAR: Jangan sertakan soal yang bergantung pada gambar ("visualQuery": "", "visualType": "none").`}
 3. PENTING: Jangan pernah menulis "Perhatikan gambar..." jika "visualQuery" dikosongkan. Jika topik soal tidak membutuhkan foto/diagram visual dari internet, isi "visualQuery": "" dan "visualType": "none".
 4. PERATURAN MUTLAK ANTI-DUPLIKASI (ZERO DUPLICATE POLICY):
@@ -2163,7 +2163,6 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                                 alt={q.visualTitle || `Gambar soal ${q.no}`}
                                                                 className="max-h-44 w-auto mx-auto rounded-lg object-contain"
                                                                 referrerPolicy="no-referrer"
-                                                                loading="lazy"
                                                                 onError={(e) => {
                                                                     const imgEl = e.currentTarget;
                                                                     if (!imgEl.dataset.proxied && q.visualImageUrl) {

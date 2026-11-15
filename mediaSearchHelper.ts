@@ -38,18 +38,23 @@ interface ContextualVisualRule {
 
 const CONTEXTUAL_VISUAL_RULES: ContextualVisualRule[] = [
   // Bahasa Sunda & Seni Budaya Daerah
+  { pattern: /\btangkuban\s+parahu\b/i, query: 'Tangkuban Parahu', title: 'Gunung Tangkuban Parahu' },
+  { pattern: /\bsitu\s+bagendit\b/i, query: 'Situ Bagendit Garut', title: 'Situ Bagendit' },
   { pattern: /\bangklung\b/i, query: 'Angklung', fallbackQuery: 'Angklung Jawa Barat', title: 'Alat Musik Tradisional' },
   { pattern: /\bwayang\s+golek\b/i, query: 'Wayang Golek', fallbackQuery: 'Wayang golek Sunda', title: 'Kasenian Wayang Golek' },
   { pattern: /\bjaipong\b/i, query: 'Tari Jaipong', title: 'Tari Jaipongan' },
-  { pattern: /\bsitu\s+bagendit\b/i, query: 'Situ Bagendit Garut', title: 'Situ Bagendit' },
   { pattern: /\bcongklak\b/i, query: 'Congklak', fallbackQuery: 'Dakon congklak', title: 'Kaulinan Tradisional' },
   { pattern: /\begrang|jajangkungan\b/i, query: 'Egrang', fallbackQuery: 'Stilts Indonesia', title: 'Kaulinan Tradisional' },
   { pattern: /\bsurabi|serabi\b/i, query: 'Serabi', fallbackQuery: 'Surabi makanan', title: 'Kadaharan Khas Daerah' },
   { pattern: /\baksara\s+sunda|kaganga\b/i, query: 'Aksara Sunda', fallbackQuery: 'Sundanese script', title: 'Aksara Sunda Kaganga' },
-  { pattern: /\bjulang\s+ngapak\b/i, query: 'Julang Ngapak', fallbackQuery: 'Rumah adat Sunda', title: 'Imah Adat Sunda' },
+  { pattern: /\bjulang\s+ngapak|tepas\s+imah\b/i, query: 'Rumah adat Sunda', fallbackQuery: 'Julang Ngapak', title: 'Imah Adat Sunda' },
   { pattern: /\bsisingaan\b/i, query: 'Sisingaan Subang', title: 'Kasenian Sisingaan' },
   { pattern: /\bkujang\b/i, query: 'Kujang Jawa Barat', title: 'Kujang' },
   { pattern: /\bcalung\b/i, query: 'Calung', title: 'Alat Musik Tradisional' },
+  { pattern: /\bhayam\s+jago\b/i, query: 'Ayam jago', title: 'Sasatoan Piaraan' },
+  { pattern: /\bmelak\s+cau|tangkal\s+cau\b/i, query: 'Pohon pisang', title: 'Tangkal Cau' },
+  { pattern: /\btangkal\s+kalapa\b/i, query: 'Pohon kelapa pantai', title: 'Tangkal Kalapa' },
+  { pattern: /\bbubuahan\s+seger|gedang\b/i, query: 'Buah pepaya', title: 'Bubuahan Seger' },
 
   // IPAS / IPA
   { pattern: /\bfotosintesis\b/i, query: 'Fotosintesis', fallbackQuery: 'Photosynthesis diagram', title: 'Proses Fotosintesis' },
@@ -64,39 +69,61 @@ const CONTEXTUAL_VISUAL_RULES: ContextualVisualRule[] = [
   { pattern: /\bmagnet\b/i, query: 'Magnet batang', fallbackQuery: 'Bar magnet', title: 'Sifat Magnet' },
   { pattern: /\bhutan\s+bakau|mangrove\b/i, query: 'Hutan bakau', fallbackQuery: 'Mangrove forest', title: 'Ekosistem Hutan Bakau' },
   { pattern: /\btata\s+surya\b/i, query: 'Tata surya', fallbackQuery: 'Solar system', title: 'Sistem Tata Surya' },
+  { pattern: /\bkucing\b/i, query: 'Kucing', title: 'Makhluk Hidup di Sekitar' },
+  { pattern: /\bsinar\s+matahari\b/i, query: 'Matahari pagi', title: 'Sumber Energi Matahari' },
+  { pattern: /\bes\s+lilin|es\s+batu|freezer\b/i, query: 'Es batu', title: 'Perubahan Wujud Benda' },
 
   // PJOK
   { pattern: /\bpencak\s+silat\b/i, query: 'Pencak silat', title: 'Olahraga Pencak Silat' },
   { pattern: /\bbola\s+voli\b/i, query: 'Bola voli', fallbackQuery: 'Volleyball match', title: 'Permainan Bola Voli' },
-  { pattern: /\bsepak\s+bola\b/i, query: 'Pertandingan sepak bola', fallbackQuery: 'Association football', title: 'Permainan Sepak Bola' },
+  { pattern: /\bsepak\s+bola|bermain\s+bola\b/i, query: 'Pertandingan sepak bola', fallbackQuery: 'Association football', title: 'Permainan Sepak Bola' },
   { pattern: /\bbola\s+basket\b/i, query: 'Bola basket', fallbackQuery: 'Basketball game', title: 'Permainan Bola Basket' },
   { pattern: /\bbulu\s+tangkis\b/i, query: 'Bulu tangkis', fallbackQuery: 'Badminton', title: 'Permainan Bulu Tangkis' },
   { pattern: /\btenis\s+meja\b/i, query: 'Tenis meja', fallbackQuery: 'Table tennis', title: 'Permainan Tenis Meja' },
   { pattern: /\blompat\s+jauh\b/i, query: 'Lompat jauh', fallbackQuery: 'Long jump', title: 'Atletik Lompat Jauh' },
   { pattern: /\bsenam\s+lantai\b/i, query: 'Senam lantai', fallbackQuery: 'Floor gymnastics', title: 'Senam Lantai' },
   { pattern: /\brenang\b/i, query: 'Renang olahraga', fallbackQuery: 'Swimming pool sport', title: 'Olahraga Renang' },
+  { pattern: /\bluka\s+lecet|pertolongan\s+pertama|p3k\b/i, query: 'Kotak P3K', title: 'Pertolongan Pertama (P3K)' },
 
-  // Pendidikan Pancasila & IPS & Bahasa Indonesia
+  // Pendidikan Pancasila, Bahasa Indonesia & IPS
   { pattern: /\bgaruda\s+pancasila\b/i, query: 'Garuda Pancasila', title: 'Lambang Negara Garuda Pancasila' },
   { pattern: /\bcandi\s+borobudur\b/i, query: 'Candi Borobudur', title: 'Candi Borobudur' },
   { pattern: /\bcandi\s+prambanan\b/i, query: 'Candi Prambanan', title: 'Candi Prambanan' },
   { pattern: /\bmonas|monumen\s+nasional\b/i, query: 'Monas Jakarta', title: 'Monumen Nasional' },
   { pattern: /\bkomodo\b/i, query: 'Komodo', title: 'Komodo' },
   { pattern: /\borangutan\b/i, query: 'Orangutan', title: 'Orangutan' },
+  { pattern: /\bpohon\s+kelapa|tepi\s+pantai\b/i, query: 'Pohon kelapa pantai', title: 'Pemandangan Pesisir Pantai' },
+  { pattern: /\breboisasi|menanam\s+pohon\b/i, query: 'Penanaman pohon', title: 'Kegiatan Reboisasi' },
+  { pattern: /\bsemut\b/i, query: 'Semut', title: 'Ilustrasi Cerita Fabel' },
+  { pattern: /\bperpustakaan\b/i, query: 'School library', title: 'Perpustakaan Sekolah' },
   { pattern: /\bsawah|petani\s+padi\b/i, query: 'Sawah padi Indonesia', fallbackQuery: 'Rice paddy terrace Indonesia', title: 'Lahan Pertanian Padi' },
+
+  // Bahasa Inggris
+  { pattern: /\bfried\s+rice|chicken\s+noodles\b/i, query: 'Nasi goreng', title: 'Indonesian Food' },
+  { pattern: /\bapples?\b/i, query: 'Red apple', title: 'Fruits' },
+  { pattern: /\btall\s+wild\s+animal|giraffe\b/i, query: 'Giraffe', title: 'Wild Animal' },
+  { pattern: /\blibrary\b/i, query: 'School library', title: 'School Library' },
+  { pattern: /\belephant\b/i, query: 'Elephant', title: 'Wild Animal' },
+  { pattern: /\bsumatran\s+tiger|\btiger\b/i, query: 'Sumatran tiger', title: 'Wild Animal' },
+  { pattern: /\bclassroom\b/i, query: 'Classroom', title: 'Classroom' },
+  { pattern: /\bbicycle\b/i, query: 'Bicycle', title: 'Transportation' },
 
   // PAI
   { pattern: /\bka'?bah|masjidil\s+haram\b/i, query: 'Kabah Mekkah', fallbackQuery: 'Kaaba Mecca', title: "Ka'bah Masjidil Haram" },
-  { pattern: /\bmasjid\b/i, query: 'Masjid Istiqlal', fallbackQuery: 'Mosque Indonesia', title: 'Masjid' },
-  { pattern: /\bwud[hu]u?\b/i, query: 'Wudu ablution', fallbackQuery: 'Wudhu', title: 'Tata Cara Berwudu' },
-  { pattern: /\bal-?qur'?an|mushaf\b/i, query: 'Mushaf Quran', fallbackQuery: 'Al-Quran', title: 'Kitab Suci Al-Quran' },
+  { pattern: /(?:ber)?wud[hu]u?\b/i, query: 'Tempat wudhu', fallbackQuery: 'Wudhu', title: 'Tata Cara Berwudu' },
+  { pattern: /\b(?:salat|shalat)\s+(?:fardu|wajib|lima\s+waktu|berjamaah)\b|\bmasjid\b/i, query: 'Masjid Istiqlal Jakarta', fallbackQuery: 'Mosque Indonesia', title: 'Ibadah di Masjid' },
+  { pattern: /\bal-?qur'?an|mushaf|surah\s+al-/i, query: 'Mushaf Quran', fallbackQuery: 'Quran', title: 'Kitab Suci Al-Quran' },
+  { pattern: /\bidulfitri|bulan\s+ramadan\b/i, query: 'Ketupat Lebaran', fallbackQuery: 'Masjid Istiqlal Jakarta', title: 'Tradisi Hari Raya Idulfitri' },
 
   // Seni Rupa
   { pattern: /\bbatik\b/i, query: 'Batik Indonesia', title: 'Seni Batik Nusantara' },
   { pattern: /\bgamelan\b/i, query: 'Gamelan Indonesia', title: 'Alat Musik Gamelan' },
   { pattern: /\banyaman\b/i, query: 'Anyaman bambu', fallbackQuery: 'Bamboo weaving Indonesia', title: 'Kerajinan Anyaman' },
   { pattern: /\bgerabah\b/i, query: 'Gerabah Indonesia', fallbackQuery: 'Indonesian pottery', title: 'Kerajinan Gerabah' },
-  { pattern: /\btopeng\b/i, query: 'Topeng Indonesia', fallbackQuery: 'Tari topeng', title: 'Karya Seni Topeng' }
+  { pattern: /\btopeng\b/i, query: 'Topeng Indonesia', fallbackQuery: 'Tari topeng', title: 'Karya Seni Topeng' },
+  { pattern: /\bmelukis|cat\s+air\b/i, query: 'Melukis cat air', title: 'Seni Lukis Cat Air' },
+  { pattern: /\bkolase|mozaik\b/i, query: 'Mosaic art', title: 'Karya Seni Mozaik' },
+  { pattern: /\bpatung\b/i, query: 'Patung Indonesia', title: 'Karya Seni Patung' }
 ];
 
 async function fetchJsonDirectCors(url: string, timeoutMs = 7000): Promise<any> {
@@ -189,6 +216,9 @@ async function searchDirectFromBrowserWikimedia(rawQuery: string): Promise<WebIm
   return null;
 }
 
+let backendMediaUnavailable = false;
+let backendEmptyStreak = 0;
+
 async function searchSingleQuery(query: string): Promise<WebImageHit | null> {
   const key = query.trim().toLowerCase();
   if (!key) return null;
@@ -198,33 +228,46 @@ async function searchSingleQuery(query: string): Promise<WebImageHit | null> {
 
   if (typeof fetch !== 'function') return null;
 
-  // 1. Try app backend endpoint (/api/media/search) with short timeout
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`/api/media/search?q=${encodeURIComponent(query)}&limit=3`, {
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    if (res.ok) {
-      const text = await res.text();
-      if (text && text.trim().startsWith('{')) {
-        const data = JSON.parse(text);
-        const first = Array.isArray(data?.results) && data.results.length > 0 ? data.results[0] : null;
-        if (first && first.thumbUrl) {
-          const hit: WebImageHit = {
-            url: first.url || first.thumbUrl,
-            thumbUrl: first.thumbUrl,
-            title: first.title || query,
-            source: first.source || 'internet'
-          };
-          searchCache.set(key, hit);
-          return hit;
+  // 1. Try app backend endpoint (/api/media/search) with short timeout unless already marked unavailable
+  if (!backendMediaUnavailable) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(`/api/media/search?q=${encodeURIComponent(query)}&limit=3`, {
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim().startsWith('{')) {
+          const data = JSON.parse(text);
+          const first = Array.isArray(data?.results) && data.results.length > 0 ? data.results[0] : null;
+          if (first && first.thumbUrl) {
+            backendEmptyStreak = 0;
+            const hit: WebImageHit = {
+              url: first.url || first.thumbUrl,
+              thumbUrl: first.thumbUrl,
+              title: first.title || query,
+              source: first.source || 'internet'
+            };
+            searchCache.set(key, hit);
+            return hit;
+          }
+          backendEmptyStreak++;
+          if (backendEmptyStreak >= 2) {
+            backendMediaUnavailable = true;
+          }
+        } else {
+          // Non-JSON (e.g. Vercel SPA HTML rewrite) -> skip backend on subsequent queries
+          backendMediaUnavailable = true;
         }
+      } else {
+        backendMediaUnavailable = true;
       }
+    } catch {
+      // Network/timeout error -> skip backend for rest of session and use direct browser CORS
+      backendMediaUnavailable = true;
     }
-  } catch {
-    // Fall through cleanly to direct browser CORS search
   }
 
   // 2. Fallback directly from browser to Wikimedia/Wikipedia CORS (&origin=*)
