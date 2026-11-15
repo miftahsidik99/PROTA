@@ -7,6 +7,7 @@ import {
   generateContentWithFallback,
   generateContentStreamWithFallback
 } from './api/gemini/_shared';
+import { searchEducationalMedia, fetchSafeRemoteImage } from './api/media/_shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,6 +81,41 @@ app.post('/api/gemini/stream', async (req: Request, res: Response) => {
       res.write(`data: ${JSON.stringify({ error: error?.message })}\n\n`);
       res.end();
     }
+  }
+});
+
+// Educational Internet Media Search Endpoint
+app.get('/api/media/search', async (req: Request, res: Response) => {
+  const q = String(req.query?.q || '').trim();
+  const limit = Math.min(8, Math.max(1, Number(req.query?.limit || 4)));
+  if (!q) {
+    res.status(400).json({ error: 'Parameter pencarian q wajib diisi', results: [] });
+    return;
+  }
+  try {
+    const results = await searchEducationalMedia(q, limit);
+    res.json({ query: q, results });
+  } catch (error: any) {
+    console.error('Server media search error:', error);
+    res.json({ query: q, results: [] });
+  }
+});
+
+// Safe Image Proxy Endpoint for CORS-free Word (.docx) Rasterization
+app.get('/api/media/proxy', async (req: Request, res: Response) => {
+  const targetUrl = String(req.query?.url || '').trim();
+  if (!targetUrl) {
+    res.status(400).json({ error: 'Parameter url wajib diisi' });
+    return;
+  }
+  try {
+    const { buffer, contentType } = await fetchSafeRemoteImage(targetUrl);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(Buffer.from(buffer));
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Gagal mengunduh gambar' });
   }
 });
 

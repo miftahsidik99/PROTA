@@ -22,6 +22,7 @@ import {
     isBahasaSundaSubject
 } from './questionBankHelper';
 import { exportAssessmentDocx, DocExportType } from './docxAssessmentExporter';
+import { enrichAssessmentWithWebImages, searchInternetImage } from './mediaSearchHelper';
 
 export interface UserIdentity {
     authorName: string;
@@ -77,6 +78,8 @@ export interface QuestionPG {
     visualType?: VisualType;
     visualTitle?: string;
     visualSvg?: string;
+    visualQuery?: string;
+    visualImageUrl?: string;
 }
 
 export interface QuestionIsian {
@@ -91,6 +94,8 @@ export interface QuestionIsian {
     visualType?: VisualType;
     visualTitle?: string;
     visualSvg?: string;
+    visualQuery?: string;
+    visualImageUrl?: string;
 }
 
 export interface QuestionUraian {
@@ -105,6 +110,8 @@ export interface QuestionUraian {
     visualType?: VisualType;
     visualTitle?: string;
     visualSvg?: string;
+    visualQuery?: string;
+    visualImageUrl?: string;
     rubric: {
         score3: string;
         score2: string;
@@ -239,6 +246,46 @@ const saveDeviceUsedQuestions = (
         registry[canonSubj] = [...newEntries, ...keptOtherClasses].slice(0, 360);
         localStorage.setItem(DEVICE_USED_QUESTIONS_KEY, JSON.stringify(registry));
     } catch {}
+};
+
+const getUserArchiveStorageKey = (userObj: any, fallbackClass: string): string => {
+    const rawId = userObj?.email || userObj?.name || fallbackClass || 'default';
+    const slug = String(rawId).trim().toLowerCase().replace(/[^a-z0-9@._-]/g, '_');
+    return `prota_sumatif_archive_${slug}`;
+};
+
+const serializeQuestionForArchive = <T extends { visualSvg?: string }>(q: T): T => {
+    const { visualSvg: _stripped, ...rest } = q;
+    return rest as T;
+};
+
+const serializeAssessmentForArchive = (data: GeneratedAssessmentData): GeneratedAssessmentData => ({
+    ...data,
+    pgQuestions: (data.pgQuestions || []).map(serializeQuestionForArchive),
+    isianQuestions: (data.isianQuestions || []).map(serializeQuestionForArchive),
+    uraianQuestions: (data.uraianQuestions || []).map(serializeQuestionForArchive)
+});
+
+const persistArchiveList = (storageKey: string, list: GeneratedAssessmentData[]): GeneratedAssessmentData[] => {
+    const trimmed = list.slice(0, 20).map(serializeAssessmentForArchive);
+    let working = [...trimmed];
+    while (working.length > 0) {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(working));
+            return working;
+        } catch (err: any) {
+            const msg = String(err?.message || '').toLowerCase();
+            if (err?.name === 'QuotaExceededError' || msg.includes('quota') || msg.includes('exceeded')) {
+                working.pop();
+            } else {
+                break;
+            }
+        }
+    }
+    try {
+        if (working.length === 0) localStorage.setItem(storageKey, '[]');
+    } catch {}
+    return working;
 };
 
 // --- AUTHENTIC ELEMENTARY VISUAL GENERATOR LIBRARY ---
@@ -762,6 +809,7 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const [isExporting, setIsExporting] = useState<boolean>(false);
     const [generatedAssessment, setGeneratedAssessment] = useState<GeneratedAssessmentData | null>(null);
+    const [archivedAssessments, setArchivedAssessments] = useState<GeneratedAssessmentData[]>([]);
 
     // Editing State for manual refinements
     const [editingQuestionModal, setEditingQuestionModal] = useState<{
@@ -769,14 +817,47 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
         index: number;
         data: any;
     } | null>(null);
+    const [isSearchingModalImage, setIsSearchingModalImage] = useState<boolean>(false);
 
     // Rule Check: Class 6 vs Class 1-5 permissions according to PPA 2026:
     const isClass6 = activeClass.toLowerCase().includes('6');
+    const archiveStorageKey = useMemo(
+        () => getUserArchiveStorageKey(user, registeredClass),
+        [user?.email, user?.name, registeredClass]
+    );
 
-    // Clear stale generated assessment and enforce PPA 2026 assessmentType rules when user/class changes
+    const rehydrateAssessmentVisuals = (item: GeneratedAssessmentData): GeneratedAssessmentData => ({
+        ...item,
+        pgQuestions: (item.pgQuestions || []).map((q) => ({
+            ...q,
+            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none' ? renderVisualSvg(q.visualType, q.visualTitle) : undefined
+        })),
+        isianQuestions: (item.isianQuestions || []).map((q) => ({
+            ...q,
+            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none' ? renderVisualSvg(q.visualType, q.visualTitle) : undefined
+        })),
+        uraianQuestions: (item.uraianQuestions || []).map((q) => ({
+            ...q,
+            visualSvg: !q.visualImageUrl && q.visualType && q.visualType !== 'none' ? renderVisualSvg(q.visualType, q.visualTitle) : undefined
+        }))
+    });
+
+    // Load saved per-user assessment archive whenever active user account changes
     useEffect(() => {
+        try {
+            const raw = localStorage.getItem(archiveStorageKey);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setArchivedAssessments(parsed);
+                    setGeneratedAssessment(rehydrateAssessmentVisuals(parsed[0]));
+                    return;
+                }
+            }
+        } catch {}
+        setArchivedAssessments([]);
         setGeneratedAssessment(null);
-    }, [user?.email]);
+    }, [archiveStorageKey]);
 
     useEffect(() => {
         setSelectedTpId(1);
@@ -946,9 +1027,10 @@ JUMLAH BUTIR SOAL YANG WAJIB DISUSUN:
 
 ATURAN WAJIB PADA GAMBAR & BUTIR SOAL:
 1. Soal HARUS BENAR-BENAR BERISI TEKS SOAL ASLI dan ringkas-jelas (stimulus 1-3 kalimat, pembahasan 1-2 kalimat) agar siswa ${activeClass} mudah memahami.
-2. Jika suatu butir soal PG memerlukan konteks gambar visual bagi anak SD (hanya jika relevan dengan "${activeSubject}" dan sesuai ${activeClass}), pilihlah salah satu kode visual berikut:
-   - "clock_0900", "clock_0200", "fraction_circle", "fraction_rect", "shape_rect", "shape_triangle", "shape_cube", "cube_net", "plant_anatomy", "water_cycle", "food_chain", "garuda_bintang", "garuda_rantai", "garuda_beringin", "garuda_banteng", "garuda_padi_kapas", "traffic_sign", "chart_bar", atau "none".
-3. PENTING: Jika visualType BUKAN "none", teks stimulus dan pertanyaan HARUS SECARA LANGSUNG MEMBAHAS GAMBAR TERSEBUT. Jika tidak cocok dengan materi "${activeSubject}" atau terlalu tinggi untuk ${activeClass}, wajib isi "none".
+2. ${includeVisuals
+    ? `MODE GAMBAR INTERNET AKTIF: Untuk maksimal 2 sampai 4 butir soal Pilihan Ganda yang memang membutuhkan pengamatan gambar nyata dari website internet (misalnya simbol Pancasila, rambu lalu lintas, alat musik tradisional seperti angklung/suling, siklus air, rantai makanan, candi Borobudur, batik, atau cabang olahraga), isikan "visualQuery" dengan kata kunci objek yang SANGAT SPESIFIK dalam 2-4 kata (contoh: "Pancasila Sila 4 Buffalo", "Rambu dilarang parkir", "Angklung Jawa Barat", "Siklus air watercycle", "Candi Borobudur") dan pastikan kalimat soalnya secara eksplisit mengajak siswa mengamati gambar tersebut (misal: "Perhatikan gambar ... berikut!"). DILARANG memasang "visualQuery" pada soal cerita hitungan matematika berangka, soal teks bacaan panjang, ataupun soal uraian yang tidak mengamati gambar ("visualQuery": "", "visualType": "none").`
+    : `MODE TANPA GAMBAR: Jangan sertakan soal yang bergantung pada gambar ("visualQuery": "", "visualType": "none").`}
+3. PENTING: Jangan pernah menulis "Perhatikan gambar..." jika "visualQuery" dikosongkan. Jika topik soal tidak membutuhkan foto/diagram visual dari internet, isi "visualQuery": "" dan "visualType": "none".
 4. PERATURAN MUTLAK ANTI-DUPLIKASI (ZERO DUPLICATE POLICY):
    - Setiap nomor butir soal (PG 1..${pgCount}, Isian 1..${isianCount}, Uraian 1..${uraianCount}) WAJIB 100% UNIK, BERBEDA, dan tidak boleh ada soal kembar.
    - Distribusikan butir soal secara merata ke seluruh TP yang tersedia.${crossClassExclusionNote}
@@ -971,6 +1053,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
       "tp": "Tujuan Pembelajaran terkait",
       "indikator": "Indikator spesifik butir soal",
       "materi": "Lingkup materi",
+      "visualQuery": "",
       "visualType": "none",
       "visualTitle": ""
     }
@@ -983,7 +1066,9 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
       "cognitiveLevel": "LOTS",
       "tp": "Tujuan Pembelajaran terkait",
       "indikator": "Indikator butir soal",
-      "materi": "Lingkup materi"
+      "materi": "Lingkup materi",
+      "visualQuery": "",
+      "visualTitle": ""
     }
   ],
   "uraian": [
@@ -995,6 +1080,8 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
       "tp": "Tujuan Pembelajaran terkait",
       "indikator": "Indikator butir soal",
       "materi": "Lingkup materi",
+      "visualQuery": "",
+      "visualTitle": "",
       "rubric": {
         "score3": "Kriteria skor 3 sangat lengkap",
         "score2": "Kriteria skor 2 cukup lengkap",
@@ -1039,9 +1126,10 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     tp: q.tp || targetTps[0].tp,
                                     indikator: q.indikator || `Peserta didik mampu menjawab butir soal terkait ${targetTps[0].element}`,
                                     materi: q.materi || targetTps[0].element,
-                                    visualType: normVisualType,
-                                    visualTitle: q.visualTitle || '',
-                                    visualSvg: renderVisualSvg(normVisualType, q.visualTitle)
+                                    visualType: includeVisuals ? normVisualType : 'none',
+                                    visualTitle: includeVisuals ? (q.visualTitle || '') : '',
+                                    visualQuery: includeVisuals ? (q.visualQuery || '') : '',
+                                    visualSvg: undefined
                                 };
                             });
 
@@ -1057,9 +1145,10 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     tp: q.tp || targetTps[0].tp,
                                     indikator: q.indikator || `Peserta didik mampu melengkapi isian terkait ${targetTps[0].element}`,
                                     materi: q.materi || targetTps[0].element,
-                                    visualType: normVisualType,
-                                    visualTitle: q.visualTitle || '',
-                                    visualSvg: renderVisualSvg(normVisualType, q.visualTitle)
+                                    visualType: includeVisuals ? normVisualType : 'none',
+                                    visualTitle: includeVisuals ? (q.visualTitle || '') : '',
+                                    visualQuery: includeVisuals ? (q.visualQuery || '') : '',
+                                    visualSvg: undefined
                                 };
                             });
                         }
@@ -1076,9 +1165,10 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     tp: q.tp || targetTps[0].tp,
                                     indikator: q.indikator || `Peserta didik mampu menguraikan solusi terkait ${targetTps[0].element}`,
                                     materi: q.materi || targetTps[0].element,
-                                    visualType: normVisualType,
-                                    visualTitle: q.visualTitle || '',
-                                    visualSvg: renderVisualSvg(normVisualType, q.visualTitle),
+                                    visualType: includeVisuals ? normVisualType : 'none',
+                                    visualTitle: includeVisuals ? (q.visualTitle || '') : '',
+                                    visualQuery: includeVisuals ? (q.visualQuery || '') : '',
+                                    visualSvg: undefined,
                                     rubric: q.rubric || {
                                         score3: 'Jawaban sangat lengkap, benar secara konsep dan runtut.',
                                         score2: 'Jawaban benar secara umum namun kurang mendalam.',
@@ -1161,6 +1251,18 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                 sessionSeenFingerprints
             );
 
+            // Search real internet images for questions needing visualization (do not draw SVGs on the fly when web images are found)
+            const enrichedVisuals = await enrichAssessmentWithWebImages({
+                pgQuestions: generatedPg,
+                isianQuestions: generatedIsian,
+                uraianQuestions: generatedUraian,
+                subject: activeSubject,
+                includeVisuals
+            });
+            generatedPg = enrichedVisuals.pgQuestions;
+            generatedIsian = enrichedVisuals.isianQuestions;
+            generatedUraian = enrichedVisuals.uraianQuestions;
+
             saveDeviceUsedQuestions(activeSubject, activeClass, generatedPg, generatedIsian, generatedUraian);
 
             const totalScore = (generatedPg.length * 1) + (generatedIsian.length * 2) + (generatedUraian.length * 3);
@@ -1186,12 +1288,12 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
 
             setGeneratedAssessment(assessmentData);
 
-            // Persist to local storage history
-            try {
-                const prevHistory = JSON.parse(localStorage.getItem('prota_sumatif_history') || '[]');
-                const updated = [assessmentData, ...prevHistory.filter((h: any) => h.id !== assessmentData.id)].slice(0, 15);
-                localStorage.setItem('prota_sumatif_history', JSON.stringify(updated));
-            } catch (e) {}
+            // Persist per-user saved assessment archive in localStorage
+            const nextArchive = persistArchiveList(
+                archiveStorageKey,
+                [assessmentData, ...archivedAssessments.filter(a => a.id !== assessmentData.id)]
+            );
+            setArchivedAssessments(nextArchive);
 
             notify(
                 aiSucceeded
@@ -1207,28 +1309,53 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
         }
     };
 
+    const handleSelectArchive = (archiveItem: GeneratedAssessmentData) => {
+        setGeneratedAssessment(rehydrateAssessmentVisuals(archiveItem));
+        setActiveDocTab('naskah_soal');
+    };
+
+    const handleDeleteArchive = (archiveId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const remaining = archivedAssessments.filter(a => a.id !== archiveId);
+        const persisted = persistArchiveList(archiveStorageKey, remaining);
+        setArchivedAssessments(persisted);
+        if (generatedAssessment?.id === archiveId) {
+            setGeneratedAssessment(persisted[0] ? rehydrateAssessmentVisuals(persisted[0]) : null);
+        }
+        notify("Arsip naskah berhasil dihapus.", "info");
+    };
+
     // Helper to update a question directly (Inline Editing)
     const handleUpdateQuestion = (updatedQ: any) => {
         if (!generatedAssessment || !editingQuestionModal) return;
         const copy = { ...generatedAssessment };
+        const normalizedUpdated = {
+            ...updatedQ,
+            visualSvg: !updatedQ.visualImageUrl && updatedQ.visualType && updatedQ.visualType !== 'none'
+                ? renderVisualSvg(updatedQ.visualType, updatedQ.visualTitle)
+                : undefined
+        };
 
         if (editingQuestionModal.type === 'pg') {
-            copy.pgQuestions = copy.pgQuestions.map((q, idx) => {
-                if (idx === editingQuestionModal.index) {
-                    return {
-                        ...updatedQ,
-                        visualSvg: renderVisualSvg(updatedQ.visualType, updatedQ.visualTitle)
-                    };
-                }
-                return q;
-            });
+            copy.pgQuestions = copy.pgQuestions.map((q, idx) =>
+                idx === editingQuestionModal.index ? normalizedUpdated : q
+            );
         } else if (editingQuestionModal.type === 'isian') {
-            copy.isianQuestions = copy.isianQuestions.map((q, idx) => idx === editingQuestionModal.index ? updatedQ : q);
+            copy.isianQuestions = copy.isianQuestions.map((q, idx) =>
+                idx === editingQuestionModal.index ? normalizedUpdated : q
+            );
         } else if (editingQuestionModal.type === 'uraian') {
-            copy.uraianQuestions = copy.uraianQuestions.map((q, idx) => idx === editingQuestionModal.index ? updatedQ : q);
+            copy.uraianQuestions = copy.uraianQuestions.map((q, idx) =>
+                idx === editingQuestionModal.index ? normalizedUpdated : q
+            );
         }
 
         setGeneratedAssessment(copy);
+        const updatedArchive = persistArchiveList(
+            archiveStorageKey,
+            archivedAssessments.map(a => (a.id === copy.id ? copy : a))
+        );
+        setArchivedAssessments(updatedArchive);
         setEditingQuestionModal(null);
         notify("Perubahan butir soal berhasil disimpan!", "success");
     };
@@ -1748,13 +1875,13 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                         </div>
                     </div>
 
-                    {/* Gambar Animasi / Visual Soal PPA 2026 */}
+                    {/* Gambar Visual Kontekstual dari Website Internet */}
                     <div className="space-y-2 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                                     <ImageIcon className="w-3.5 h-3.5 text-purple-600" />
-                                    <span>Gambar Visual Kontekstual Edukatif:</span>
+                                    <span>Gambar Visual Kontekstual (Internet):</span>
                                 </span>
                                 <input
                                     type="checkbox"
@@ -1764,11 +1891,11 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                 />
                             </div>
                             <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                                Gambar otomatis diselaraskan secara akurat dan valid dengan pertanyaan soal (sudut jam, pecahan, geometri, anatomi, siklus, perisai Garuda, diagram data).
+                                Jika dicentang, sistem otomatis mencari gambar asli yang sesuai konteks soal dari situs web edukatif di internet (bukan membuat gambar acak), dan turut tertuang pada file Word (.docx).
                             </p>
                         </div>
                         <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded border border-purple-200 inline-block w-fit">
-                            Relevan &bull; Terhubung Langsung ke Butir Soal
+                            Cari dari Website Internet &bull; Ikut Terunduh di Word
                         </span>
                     </div>
 
@@ -1830,6 +1957,51 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                     </button>
                 </div>
             </div>
+
+            {/* ARSIP NASKAH SUMATIF TERSIMPAN PER PENGGUNA */}
+            {archivedAssessments.length > 0 && (
+                <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3 animate-in fade-in duration-300">
+                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
+                        ARSIP NASKAH SUMATIF TERSIMPAN ({archivedAssessments.length})
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto pb-1">
+                        {archivedAssessments.map((item) => {
+                            const isActive = generatedAssessment?.id === item.id;
+                            return (
+                                <div
+                                    key={item.id}
+                                    onClick={() => handleSelectArchive(item)}
+                                    className={`shrink-0 min-w-[205px] max-w-[260px] rounded-xl border px-3.5 py-2.5 flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                                        isActive
+                                            ? 'bg-emerald-50/80 border-emerald-500 shadow-2xs'
+                                            : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70'
+                                    }`}
+                                >
+                                    <div className="min-w-0">
+                                        <div className={`text-xs font-extrabold truncate ${isActive ? 'text-emerald-950' : 'text-slate-800'}`}>
+                                            {item.assessmentType.toUpperCase()} &bull; {item.className}
+                                        </div>
+                                        <div className={`text-[11px] font-medium mt-0.5 truncate ${isActive ? 'text-emerald-800' : 'text-slate-500'}`}>
+                                            {item.pgQuestions.length} PG / {item.isianQuestions.length} Isian / {item.uraianQuestions.length} Uraian
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                                            {item.subject}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => handleDeleteArchive(item.id, e)}
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
+                                        title="Hapus arsip ini"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Step 3: OUTPUT DOKUMEN PREVIEW & UNDUH WORD */}
             {generatedAssessment && (
@@ -1970,25 +2142,41 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                 <div className="space-y-6">
                                     {generatedAssessment.pgQuestions.map((q, idx) => (
                                         <div key={q.no} className="text-xs sm:text-sm space-y-2 p-3 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50/50 transition-colors group relative">
-                                            <div className="flex gap-2">
-                                                <span className="font-bold">{q.no}.</span>
-                                                <div className="flex-1">
-                                                    {q.stimulus && (
-                                                        <div className="italic text-slate-700 font-medium mb-1.5 leading-relaxed bg-slate-50 p-2 rounded-lg border-l-3 border-blue-400 whitespace-pre-line">
-                                                            {q.stimulus}
-                                                        </div>
-                                                    )}
-                                                    {q.visualSvg && (
-                                                        <div className="my-2.5 p-3 bg-white border border-slate-200 rounded-xl text-center shadow-2xs max-w-xs mx-auto">
-                                                            {q.visualTitle && (
-                                                                <div className="text-[11px] font-bold text-slate-700 mb-1">
-                                                                    {q.visualTitle}
-                                                                </div>
-                                                            )}
+                                            {q.stimulus && (
+                                                <div className="pl-6">
+                                                    <div className="italic text-slate-700 font-medium leading-relaxed bg-slate-50 p-2.5 rounded-lg border-l-3 border-blue-400 whitespace-pre-line">
+                                                        {q.stimulus}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {(q.visualImageUrl || q.visualSvg) && (
+                                                <div className="pl-6">
+                                                    <div className="my-2 p-3 bg-white border border-slate-200 rounded-xl text-center shadow-2xs max-w-xs mx-auto">
+                                                        {q.visualTitle && (
+                                                            <div className="text-[11px] font-bold text-slate-700 mb-1.5">
+                                                                {q.visualTitle}
+                                                            </div>
+                                                        )}
+                                                        {q.visualImageUrl ? (
+                                                            <img
+                                                                src={q.visualImageUrl}
+                                                                alt={q.visualTitle || `Gambar soal ${q.no}`}
+                                                                className="max-h-44 w-auto mx-auto rounded-lg object-contain"
+                                                                loading="lazy"
+                                                            />
+                                                        ) : q.visualSvg ? (
                                                             <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
-                                                        </div>
-                                                    )}
-                                                    <div className="font-semibold text-slate-900 leading-snug whitespace-pre-line">{q.question}</div>
+                                                        ) : null}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-start gap-2">
+                                                <span className="font-bold shrink-0 min-w-[1.25rem]">{q.no}.</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-semibold text-slate-900 leading-snug whitespace-pre-line">
+                                                        {String(q.question || '').replace(/^\s*\n+/, '')}
+                                                    </div>
 
                                                     {generatedAssessment.optionsLayout === 'horizontal' ? (
                                                         <div className="flex flex-wrap gap-4 mt-2.5">
@@ -1999,7 +2187,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                             ))}
                                                         </div>
                                                     ) : (
-                                                        <div className="space-y-1.5 mt-2 pl-2">
+                                                        <div className="space-y-1.5 mt-2">
                                                             {q.options.map(opt => (
                                                                 <div key={opt.key}>
                                                                     <b>{opt.key}.</b> {opt.text}
@@ -2012,7 +2200,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                 {/* Edit Question Action Button */}
                                                 <button
                                                     onClick={() => setEditingQuestionModal({ type: 'pg', index: idx, data: { ...q } })}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-white self-start"
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-white self-start shrink-0 cursor-pointer"
                                                     title="Edit butir soal ini"
                                                 >
                                                     <Edit3 className="w-4 h-4" />
@@ -2032,28 +2220,45 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                         </div>
                                         <div className="space-y-3">
                                             {generatedAssessment.isianQuestions.map((q, idx) => (
-                                                <div key={q.no} className="flex gap-2 text-xs sm:text-sm p-2 rounded-lg hover:bg-slate-50 group">
-                                                    <span className="font-bold">{q.no}.</span>
-                                                    <span className="flex-1">
-                                                        {q.stimulus && <span className="italic text-slate-600 block mb-1 whitespace-pre-line">{q.stimulus}</span>}
-                                                        {q.visualSvg && (
+                                                <div key={q.no} className="text-xs sm:text-sm p-2 rounded-lg hover:bg-slate-50 group space-y-1.5">
+                                                    {q.stimulus && (
+                                                        <div className="pl-6">
+                                                            <span className="italic text-slate-600 block whitespace-pre-line">{q.stimulus}</span>
+                                                        </div>
+                                                    )}
+                                                    {(q.visualImageUrl || q.visualSvg) && (
+                                                        <div className="pl-6">
                                                             <div className="my-2 p-2.5 bg-white border border-slate-200 rounded-xl text-center max-w-xs mx-auto">
                                                                 {q.visualTitle && (
-                                                                    <div className="text-[11px] font-bold text-slate-700 mb-1">
+                                                                    <div className="text-[11px] font-bold text-slate-700 mb-1.5">
                                                                         {q.visualTitle}
                                                                     </div>
                                                                 )}
-                                                                <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
+                                                                {q.visualImageUrl ? (
+                                                                    <img
+                                                                        src={q.visualImageUrl}
+                                                                        alt={q.visualTitle || `Gambar isian ${q.no}`}
+                                                                        className="max-h-40 w-auto mx-auto rounded-lg object-contain"
+                                                                        loading="lazy"
+                                                                    />
+                                                                ) : q.visualSvg ? (
+                                                                    <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
+                                                                ) : null}
                                                             </div>
-                                                        )}
-                                                        <span className="whitespace-pre-line">{q.question}</span>
-                                                    </span>
-                                                    <button
-                                                        onClick={() => setEditingQuestionModal({ type: 'isian', index: idx, data: { ...q } })}
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 self-start"
-                                                    >
-                                                        <Edit3 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="font-bold shrink-0 min-w-[1.25rem]">{q.no}.</span>
+                                                        <span className="flex-1 whitespace-pre-line">
+                                                            {String(q.question || '').replace(/^\s*\n+/, '')}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => setEditingQuestionModal({ type: 'isian', index: idx, data: { ...q } })}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 self-start shrink-0 cursor-pointer"
+                                                        >
+                                                            <Edit3 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -2071,31 +2276,48 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                         <div className="space-y-5">
                                             {generatedAssessment.uraianQuestions.map((q, idx) => (
                                                 <div key={q.no} className="text-xs sm:text-sm space-y-2 p-2 rounded-lg hover:bg-slate-50 group">
-                                                    <div className="flex gap-2">
-                                                        <span className="font-bold">{q.no}.</span>
-                                                        <span className="flex-1">
-                                                            {q.stimulus && <span className="italic text-slate-600 block mb-1 whitespace-pre-line">{q.stimulus}</span>}
-                                                            {q.visualSvg && (
-                                                                <div className="my-2 p-2.5 bg-white border border-slate-200 rounded-xl text-center max-w-xs mx-auto">
-                                                                    {q.visualTitle && (
-                                                                        <div className="text-[11px] font-bold text-slate-700 mb-1">
-                                                                            {q.visualTitle}
-                                                                        </div>
-                                                                    )}
+                                                    {q.stimulus && (
+                                                        <div className="pl-6">
+                                                            <span className="italic text-slate-600 block whitespace-pre-line">{q.stimulus}</span>
+                                                        </div>
+                                                    )}
+                                                    {(q.visualImageUrl || q.visualSvg) && (
+                                                        <div className="pl-6">
+                                                            <div className="my-2 p-2.5 bg-white border border-slate-200 rounded-xl text-center max-w-xs mx-auto">
+                                                                {q.visualTitle && (
+                                                                    <div className="text-[11px] font-bold text-slate-700 mb-1.5">
+                                                                        {q.visualTitle}
+                                                                    </div>
+                                                                )}
+                                                                {q.visualImageUrl ? (
+                                                                    <img
+                                                                        src={q.visualImageUrl}
+                                                                        alt={q.visualTitle || `Gambar uraian ${q.no}`}
+                                                                        className="max-h-40 w-auto mx-auto rounded-lg object-contain"
+                                                                        loading="lazy"
+                                                                    />
+                                                                ) : q.visualSvg ? (
                                                                     <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
-                                                                </div>
-                                                            )}
-                                                            <span className="whitespace-pre-line">{q.question}</span>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="font-bold shrink-0 min-w-[1.25rem]">{q.no}.</span>
+                                                        <span className="flex-1 whitespace-pre-line">
+                                                            {String(q.question || '').replace(/^\s*\n+/, '')}
                                                         </span>
                                                         <button
                                                             onClick={() => setEditingQuestionModal({ type: 'uraian', index: idx, data: { ...q } })}
-                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 self-start"
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 self-start shrink-0 cursor-pointer"
                                                         >
                                                             <Edit3 className="w-3.5 h-3.5" />
                                                         </button>
                                                     </div>
-                                                    <div className="border-b border-dotted border-slate-300 h-6 w-full"></div>
-                                                    <div className="border-b border-dotted border-slate-300 h-6 w-full"></div>
+                                                    <div className="pl-6 space-y-1">
+                                                        <div className="border-b border-dotted border-slate-300 h-6 w-full"></div>
+                                                        <div className="border-b border-dotted border-slate-300 h-6 w-full"></div>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -2332,11 +2554,77 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                 />
                             </div>
 
+                            {/* Internet Image Search / Visual Controls for Any Question Type */}
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                                <label className="block font-bold text-slate-700">Cari Gambar dari Internet (Opsional):</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={editingQuestionModal.data.visualQuery || ''}
+                                        onChange={(e) => setEditingQuestionModal({
+                                            ...editingQuestionModal,
+                                            data: { ...editingQuestionModal.data, visualQuery: e.target.value }
+                                        })}
+                                        placeholder="Kata kunci gambar (misal: angklung jawa barat)"
+                                        className="flex-1 p-2 border border-slate-300 rounded-xl bg-white"
+                                    />
+                                    <button
+                                        type="button"
+                                        disabled={isSearchingModalImage}
+                                        onClick={async () => {
+                                            const qText = (editingQuestionModal.data.visualQuery || editingQuestionModal.data.question || '').trim();
+                                            if (!qText) return;
+                                            setIsSearchingModalImage(true);
+                                            try {
+                                                const hit = await searchInternetImage(qText);
+                                                if (hit) {
+                                                    setEditingQuestionModal(prev => prev ? ({
+                                                        ...prev,
+                                                        data: {
+                                                            ...prev.data,
+                                                            visualImageUrl: hit.thumbUrl,
+                                                            visualTitle: prev.data.visualTitle || hit.title
+                                                        }
+                                                    }) : null);
+                                                    notify(`Gambar ditemukan dari ${hit.source}`, 'success');
+                                                } else {
+                                                    notify('Gambar tidak ditemukan. Coba kata kunci lebih spesifik.', 'warning');
+                                                }
+                                            } finally {
+                                                setIsSearchingModalImage(false);
+                                            }
+                                        }}
+                                        className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs shrink-0 disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {isSearchingModalImage ? 'Mencari...' : 'Cari Gambar'}
+                                    </button>
+                                </div>
+                                {editingQuestionModal.data.visualImageUrl && (
+                                    <div className="flex items-center justify-between gap-2 pt-1">
+                                        <img
+                                            src={editingQuestionModal.data.visualImageUrl}
+                                            alt="Preview"
+                                            className="h-16 w-auto rounded border border-slate-200 bg-white object-contain"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingQuestionModal({
+                                                ...editingQuestionModal,
+                                                data: { ...editingQuestionModal.data, visualImageUrl: undefined, visualQuery: '', visualTitle: '' }
+                                            })}
+                                            className="text-[11px] font-bold text-red-600 hover:underline cursor-pointer"
+                                        >
+                                            Hapus Gambar
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* If PG: Options & Visual Type */}
                             {editingQuestionModal.type === 'pg' && (
                                 <>
                                     <div>
-                                        <label className="block font-bold text-slate-700 mb-1">Pilihan Gambar Visual:</label>
+                                        <label className="block font-bold text-slate-700 mb-1">Diagram Cadangan (Jika Tanpa Internet):</label>
                                         <select
                                             value={editingQuestionModal.data.visualType || 'none'}
                                             onChange={(e) => setEditingQuestionModal({

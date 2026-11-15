@@ -205,6 +205,83 @@ export const rasterizeVisualToPng = async (visualMarkup?: string): Promise<Raste
     }
 };
 
+/**
+ * Fetches an external internet image URL via the same-origin proxy (with direct fallback)
+ * and normalizes it via Canvas into a print-sized PNG Uint8Array for Word .docx embedding.
+ */
+export const rasterizeRemoteImageToPng = async (imageUrl?: string): Promise<RasterizedImage | null> => {
+    const cleanUrl = String(imageUrl || '').trim();
+    if (!cleanUrl) return null;
+
+    if (cleanUrl.startsWith('data:image/') || cleanUrl.startsWith('<svg')) {
+        return rasterizeVisualToPng(cleanUrl.startsWith('<svg') ? cleanUrl : `<img src="${cleanUrl}" />`);
+    }
+
+    if (typeof fetch !== 'function') return null;
+
+    const tryFetchBytes = async (urlToFetch: string): Promise<Blob | null> => {
+        try {
+            const res = await fetch(urlToFetch);
+            if (!res.ok) return null;
+            const blob = await res.blob();
+            if (!blob || blob.size === 0) return null;
+            return blob;
+        } catch {
+            return null;
+        }
+    };
+
+    // Prefer same-origin proxy to bypass upstream CORS headers cleanly
+    const proxiedUrl = `/api/media/proxy?url=${encodeURIComponent(cleanUrl)}`;
+    const imageBlob = (await tryFetchBytes(proxiedUrl)) || (await tryFetchBytes(cleanUrl));
+    if (!imageBlob) return null;
+
+    // Browser environment: normalize any JPEG/WebP/PNG to clean resized PNG via Canvas
+    if (typeof document !== 'undefined') {
+        let objUrl: string | null = null;
+        try {
+            objUrl = URL.createObjectURL(imageBlob);
+            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const el = new Image();
+                el.onload = () => resolve(el);
+                el.onerror = reject;
+                el.src = objUrl!;
+            });
+
+            const natW = Math.max(80, img.naturalWidth || 240);
+            const natH = Math.max(60, img.naturalHeight || 180);
+            const maxW = 240;
+            const maxH = 165;
+            const scale = Math.min(maxW / natW, maxH / natH, 1);
+            const displayW = Math.max(80, Math.round(natW * scale));
+            const displayH = Math.max(55, Math.round(natH * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(displayW * 2);
+            canvas.height = Math.round(displayH * 2);
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const pngBlob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+                if (pngBlob) {
+                    const buf = await pngBlob.arrayBuffer();
+                    return { data: new Uint8Array(buf), width: displayW, height: displayH };
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to normalize remote image to PNG:', err);
+        } finally {
+            if (objUrl) URL.revokeObjectURL(objUrl);
+        }
+    }
+
+    // Node/SSR fallback for non-DOM tests
+    const rawBuf = new Uint8Array(await imageBlob.arrayBuffer());
+    return { data: rawBuf, width: 200, height: 140 };
+};
+
 const parseFontSizeHalfPoints = (fontSizeStr: string): number => {
     const pt = parseInt(String(fontSizeStr || '11pt').replace(/\D/g, ''), 10) || 11;
     return pt * 2;
@@ -463,9 +540,16 @@ export const exportAssessmentDocx = async (params: {
     const pageHeightTwip = convertMillimetersToTwip(paperSize === 'F4' ? 330 : 297);
     const marginTwip = convertMillimetersToTwip(20);
 
-    // Pre-rasterize ALL visual SVGs across PG, Isian, and Uraian questions into PNG bytes
+    // Pre-rasterize ALL visuals (remote internet images preferred, SVG fallback if offline) across PG, Isian, and Uraian
     const visualImageMap = new Map<string, RasterizedImage>();
     const collectAndRasterize = async (prefix: string, q: any) => {
+        if (q.visualImageUrl && String(q.visualImageUrl).trim()) {
+            const remotePng = await rasterizeRemoteImageToPng(q.visualImageUrl);
+            if (remotePng) {
+                visualImageMap.set(`${prefix}_${q.no}`, remotePng);
+                return;
+            }
+        }
         const rawSvg = q.visualSvg || (q.visualType && q.visualType !== 'none' && resolveVisualSvg ? resolveVisualSvg(q.visualType, q.visualTitle) : '');
         if (rawSvg && rawSvg.trim()) {
             const png = await rasterizeVisualToPng(rawSvg);
@@ -635,20 +719,22 @@ export const exportAssessmentDocx = async (params: {
             );
         });
 
-        const buildQuestionRow = (
+        const buildQuestionBlocks = (
             no: number,
             stimulus: string | undefined,
             visualKey: string,
             visualTitle: string | undefined,
             questionText: string,
             extraParagraphsOrTables: (Paragraph | Table)[]
-        ): Table => {
-            const bodyItems: (Paragraph | Table)[] = [];
+        ): (Paragraph | Table)[] => {
+            const blocks: (Paragraph | Table)[] = [];
 
             if (stimulus && stimulus.trim()) {
-                bodyItems.push(
+                blocks.push(
                     new Paragraph({
-                        spacing: { after: 80 },
+                        indent: { left: 360 },
+                        spacing: { before: 80, after: 60 },
+                        keepNext: true,
                         children: [
                             new TextRun({
                                 text: stimulus.trim(),
@@ -665,10 +751,11 @@ export const exportAssessmentDocx = async (params: {
             const imgData = visualImageMap.get(visualKey);
             if (imgData) {
                 if (visualTitle && visualTitle.trim()) {
-                    bodyItems.push(
+                    blocks.push(
                         new Paragraph({
                             alignment: AlignmentType.CENTER,
-                            spacing: { before: 40, after: 40 },
+                            spacing: { before: 40, after: 30 },
+                            keepNext: true,
                             children: [
                                 new TextRun({
                                     text: visualTitle.trim(),
@@ -681,10 +768,11 @@ export const exportAssessmentDocx = async (params: {
                         })
                     );
                 }
-                bodyItems.push(
+                blocks.push(
                     new Paragraph({
                         alignment: AlignmentType.CENTER,
-                        spacing: { before: 60, after: 100 },
+                        spacing: { before: 40, after: 80 },
+                        keepNext: true,
                         children: [
                             new ImageRun({
                                 type: 'png',
@@ -699,12 +787,28 @@ export const exportAssessmentDocx = async (params: {
                 );
             }
 
-            bodyItems.push(
+            // Clean leading/trailing newlines so question number is always strictly inline on the same line
+            const normalizedQuestionLines = String(questionText || '')
+                .replace(/^\s*\n+/, '')
+                .trim()
+                .split(/\r?\n/);
+            const firstLine = (normalizedQuestionLines[0] || '').trim();
+            const restLines = normalizedQuestionLines.slice(1).filter(l => l.trim().length > 0);
+
+            blocks.push(
                 new Paragraph({
-                    spacing: { after: 80 },
+                    indent: { left: 360, hanging: 360 },
+                    spacing: { before: stimulus || imgData ? 20 : 80, after: restLines.length > 0 || extraParagraphsOrTables.length > 0 ? 50 : 120 },
+                    keepNext: extraParagraphsOrTables.length > 0 || restLines.length > 0,
                     children: [
                         new TextRun({
-                            text: questionText,
+                            text: `${no}. `,
+                            bold: true,
+                            size: fontSizeHp,
+                            font: fontName
+                        }),
+                        new TextRun({
+                            text: firstLine,
                             size: fontSizeHp,
                             font: fontName
                         })
@@ -712,45 +816,26 @@ export const exportAssessmentDocx = async (params: {
                 })
             );
 
-            bodyItems.push(...extraParagraphsOrTables);
-
-            return new Table({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                layout: TableLayoutType.FIXED,
-                borders: NO_BORDERS,
-                rows: [
-                    new TableRow({
-                        cantSplit: true,
+            restLines.forEach((line, idx) => {
+                blocks.push(
+                    new Paragraph({
+                        indent: { left: 360 },
+                        spacing: { after: idx === restLines.length - 1 && extraParagraphsOrTables.length === 0 ? 120 : 40 },
+                        keepNext: extraParagraphsOrTables.length > 0,
                         children: [
-                            new TableCell({
-                                width: { size: 5, type: WidthType.PERCENTAGE },
-                                borders: NO_BORDERS,
-                                verticalAlign: VerticalAlign.TOP,
-                                margins: { top: 40, bottom: 80, left: 0, right: 60 },
-                                children: [
-                                    new Paragraph({
-                                        children: [
-                                            new TextRun({
-                                                text: `${no}.`,
-                                                bold: true,
-                                                size: fontSizeHp,
-                                                font: fontName
-                                            })
-                                        ]
-                                    })
-                                ]
-                            }),
-                            new TableCell({
-                                width: { size: 95, type: WidthType.PERCENTAGE },
-                                borders: NO_BORDERS,
-                                verticalAlign: VerticalAlign.TOP,
-                                margins: { top: 40, bottom: 120, left: 0, right: 0 },
-                                children: bodyItems
+                            new TextRun({
+                                text: line.trim(),
+                                size: fontSizeHp,
+                                font: fontName
                             })
                         ]
                     })
-                ]
+                );
             });
+
+            blocks.push(...extraParagraphsOrTables);
+            blocks.push(new Paragraph({ spacing: { after: 60 }, children: [] }));
+            return blocks;
         };
 
         // BAGIAN I: PILIHAN GANDA
@@ -769,7 +854,9 @@ export const exportAssessmentDocx = async (params: {
         data.pgQuestions.forEach(q => {
             const optionBlocks: (Paragraph | Table)[] = [];
             if (data.optionsLayout === 'horizontal' && q.options.length > 0) {
-                const colWidth = Math.floor(100 / q.options.length);
+                const spacerPct = 5;
+                const remainingPct = 95;
+                const colWidth = Math.floor(remainingPct / q.options.length);
                 optionBlocks.push(
                     new Table({
                         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -778,21 +865,28 @@ export const exportAssessmentDocx = async (params: {
                         rows: [
                             new TableRow({
                                 cantSplit: true,
-                                children: q.options.map(opt =>
+                                children: [
                                     new TableCell({
-                                        width: { size: colWidth, type: WidthType.PERCENTAGE },
+                                        width: { size: spacerPct, type: WidthType.PERCENTAGE },
                                         borders: NO_BORDERS,
-                                        margins: { top: 30, bottom: 30, left: 0, right: 80 },
-                                        children: [
-                                            new Paragraph({
-                                                children: [
-                                                    new TextRun({ text: `${opt.key}. `, bold: true, size: fontSizeHp, font: fontName }),
-                                                    new TextRun({ text: opt.text, size: fontSizeHp, font: fontName })
-                                                ]
-                                            })
-                                        ]
-                                    })
-                                )
+                                        children: [new Paragraph({ children: [] })]
+                                    }),
+                                    ...q.options.map(opt =>
+                                        new TableCell({
+                                            width: { size: colWidth, type: WidthType.PERCENTAGE },
+                                            borders: NO_BORDERS,
+                                            margins: { top: 30, bottom: 30, left: 0, right: 80 },
+                                            children: [
+                                                new Paragraph({
+                                                    children: [
+                                                        new TextRun({ text: `${opt.key}. `, bold: true, size: fontSizeHp, font: fontName }),
+                                                        new TextRun({ text: opt.text, size: fontSizeHp, font: fontName })
+                                                    ]
+                                                })
+                                            ]
+                                        })
+                                    )
+                                ]
                             })
                         ]
                     })
@@ -801,7 +895,7 @@ export const exportAssessmentDocx = async (params: {
                 q.options.forEach(opt => {
                     optionBlocks.push(
                         new Paragraph({
-                            indent: { left: 100 },
+                            indent: { left: 360 },
                             spacing: { after: 30 },
                             children: [
                                 new TextRun({ text: `${opt.key}. `, bold: true, size: fontSizeHp, font: fontName }),
@@ -813,7 +907,7 @@ export const exportAssessmentDocx = async (params: {
             }
 
             children.push(
-                buildQuestionRow(
+                ...buildQuestionBlocks(
                     q.no,
                     q.stimulus,
                     `pg_${q.no}`,
@@ -837,7 +931,7 @@ export const exportAssessmentDocx = async (params: {
             );
             data.isianQuestions.forEach((q: any) => {
                 children.push(
-                    buildQuestionRow(
+                    ...buildQuestionBlocks(
                         q.no,
                         q.stimulus,
                         `isian_${q.no}`,
@@ -863,6 +957,7 @@ export const exportAssessmentDocx = async (params: {
             data.uraianQuestions.forEach((q: any) => {
                 const answerLines = [0, 1, 2].map(() =>
                     new Paragraph({
+                        indent: { left: 360 },
                         spacing: { before: 140, after: 40 },
                         border: {
                             bottom: { style: BorderStyle.DOTTED, size: 6, color: '94A3B8' }
@@ -871,7 +966,7 @@ export const exportAssessmentDocx = async (params: {
                     })
                 );
                 children.push(
-                    buildQuestionRow(
+                    ...buildQuestionBlocks(
                         q.no,
                         q.stimulus,
                         `uraian_${q.no}`,

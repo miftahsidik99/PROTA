@@ -5901,13 +5901,15 @@ export function deduplicateAndEnsureCountPg(
         }
     }
 
-    // 3. Sequential 1..N re-numbering and SVG assignment
+    // 3. Sequential 1..N re-numbering and SVG assignment (strictly gated by includeVisuals)
     return uniqueResult.slice(0, targetCount).map((q, idx) => ({
         ...q,
         no: idx + 1,
-        visualSvg: q.visualType && q.visualType !== 'none' && renderVisualSvgFn
+        visualType: includeVisuals ? (q.visualType || 'none') : 'none',
+        visualTitle: includeVisuals ? (q.visualTitle || '') : '',
+        visualSvg: includeVisuals && !q.visualImageUrl && q.visualType && q.visualType !== 'none' && renderVisualSvgFn
             ? renderVisualSvgFn(q.visualType, q.visualTitle)
-            : q.visualSvg
+            : undefined
     }));
 }
 

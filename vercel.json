@@ -2,6 +2,9 @@
   "functions": {
     "api/gemini/*.ts": {
       "maxDuration": 60
+    },
+    "api/media/*.ts": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
