@@ -15,6 +15,7 @@ import {
     deduplicateAndEnsureCountUraian,
     getQuestionFingerprint,
     getQuestionStemFingerprint,
+    getStrippedStemFingerprint,
     getQuestionCoreFingerprint,
     generateAuthenticPgQuestions as generateAuthenticPgQuestionsFromBank,
     generateAuthenticIsianQuestions as generateAuthenticIsianQuestionsFromBank,
@@ -90,7 +91,29 @@ export type VisualType =
     | 'dynamic_color'
     | 'dynamic_pattern'
     | 'dynamic_mosque'
-    | 'dynamic_quran';
+    | 'dynamic_quran'
+    | 'dynamic_grammar'
+    | 'dynamic_pjok_stretch'
+    | 'dynamic_pjok_firstaid'
+    | 'dynamic_pjok_mat'
+    | 'dynamic_pjok_pool'
+    | 'dynamic_pjok_badminton'
+    | 'dynamic_pjok_silat'
+    | 'dynamic_pjok_gerak'
+    | 'dynamic_seni_elements'
+    | 'dynamic_seni_collage'
+    | 'dynamic_music'
+    | 'dynamic_dance'
+    | 'dynamic_theater'
+    | 'dynamic_pai_wudu'
+    | 'dynamic_pai_charity'
+    | 'dynamic_pai_akhlak'
+    | 'dynamic_coding'
+    | 'dynamic_sunda'
+    | 'dynamic_english'
+    | 'dynamic_pancasila'
+    | 'dynamic_bio'
+    | 'dynamic_physics';
 
 export interface QuestionPG {
     no: number;
@@ -212,6 +235,7 @@ const DEVICE_USED_QUESTIONS_KEY = 'prota_device_used_questions';
 
 interface DeviceUsedQuestionEntry {
     stemFp: string;
+    strippedFp?: string;
     fullFp: string;
     coreFp: string;
     className: string;
@@ -254,11 +278,13 @@ const saveDeviceUsedQuestions = (
 
         const pushItem = (question?: string, stimulus?: string) => {
             const stemFp = getQuestionStemFingerprint(question);
+            const strippedFp = getStrippedStemFingerprint(question);
             const fullFp = getQuestionFingerprint(question, stimulus);
             const coreFp = getQuestionCoreFingerprint(question);
             if (!stemFp) return;
             newEntries.push({
                 stemFp,
+                strippedFp,
                 fullFp,
                 coreFp,
                 className: currentClass,
@@ -855,7 +881,7 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
     );
 
     const resolveQuestionVisualSvg = (
-        q: { question: string; stimulus?: string; options?: any[]; visualType?: any; visualTitle?: string },
+        q: { question: string; stimulus?: string; options?: any[]; correctAnswer?: string; visualType?: any; visualTitle?: string },
         subjectName: string
     ): string => {
         if (!q.visualType || q.visualType === 'none') return '';
@@ -1273,6 +1299,10 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                 }
                 if (entry.stemFp) {
                     sessionSeenFingerprints.add(`stem:${entry.stemFp}`);
+                }
+                const sfp = entry.strippedFp || getStrippedStemFingerprint(entry.sample);
+                if (sfp) {
+                    sessionSeenFingerprints.add(`stripped:${sfp}`);
                 }
             });
 

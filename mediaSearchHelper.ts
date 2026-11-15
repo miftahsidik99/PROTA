@@ -5,7 +5,7 @@ import {
   parseWikipediaPages,
   rankAndFilterMediaCandidates
 } from './api/media/_relevance';
-import { synthesizeContextual2dVisual } from './dynamic2dVisualHelper';
+import { isSpoilerIdentificationQuestion, synthesizeContextual2dVisual } from './dynamic2dVisualHelper';
 
 export interface WebImageHit {
   url: string;
@@ -333,9 +333,14 @@ function isPureMathMeasurementQuestion(question: string, stimulus?: string): boo
   return /\b(\d+\s*(cm|mm|dm|m|km|kg|gram|gr|liter|ml|jam|menit|detik|derajat|°)|pecahan\s+\d+\/\d+|berukuran\s+\d+|keliling\s+(persegi|segitiga|lingkaran)|luas\s+(persegi|segitiga|lingkaran)|volume\s+(kubus|balok))\b/.test(txt);
 }
 
-function isSpoilerIdentificationQuestion(question: string): boolean {
-  return /\b(naon\s+ngaran|ngaran\s+alat|sebutkeun\s+ngaran|apa\s+nama|disebut\s+dengan|tersebut\s+merupakan\s+lambang|termasuk\s+simbol)\b/i.test(
-    question || ''
+function isLinguisticGrammarQuestion(question: string, stimulus?: string): boolean {
+  const qLower = (question || '').toLowerCase();
+  const txt = `${stimulus || ''} ${question || ''}`.toLowerCase();
+  return (
+    /\b(kata\s+tanya|kata\s+hubung|konjungsi|imbuhan|awalan|akhiran|sinonim|antonim|ide\s+pokok|gagasan\s+utama|kalimat\s+utama|tanda\s+(?:petik|tanya|seru|titik|koma)|huruf\s+kapital|kalimat\s+(?:efektif|langsung|rumpang)|majas|personifikasi|hiperbola|metafora)\b/.test(
+      qLower
+    ) ||
+    (/\[\.\.\.\]|\.\.\./.test(qLower) && /\b(kapan|siapa|mengapa|di\s+mana|bagaimana|tanda|imbuhan)\b/.test(txt))
   );
 }
 
@@ -397,7 +402,12 @@ export function deriveVisualSearchSpec(
     };
   }
 
-  if (explicitlyAsksForImage || (allowStrictPgTopicRule && !isPureMathMeasurementQuestion(question, stimulus))) {
+  if (
+    explicitlyAsksForImage ||
+    (allowStrictPgTopicRule &&
+      !isPureMathMeasurementQuestion(question, stimulus) &&
+      !isLinguisticGrammarQuestion(question, stimulus))
+  ) {
     for (const rule of CONTEXTUAL_VISUAL_RULES) {
       if (rule.pattern.test(combinedText)) {
         return {
@@ -474,6 +484,7 @@ export async function enrichAssessmentWithWebImages(params: {
     question: string;
     stimulus?: string;
     options?: { key: string; text: string }[];
+    correctAnswer?: string;
     visualType?: VisualType | string;
     visualTitle?: string;
     visualSvg?: string;

@@ -1,4 +1,28 @@
 import { QuestionPG, QuestionIsian, QuestionUraian, VisualType } from './NaskahSumatifGenerator';
+import {
+    EXTENDED_INDO_PG,
+    EXTENDED_PANCASILA_PG,
+    EXTENDED_IPAS_PG,
+    EXTENDED_PJOK_PG
+} from './questionBankExtendedPart1';
+import {
+    EXTENDED_SENI_PG,
+    EXTENDED_INGGRIS_PG,
+    EXTENDED_PAI_PG,
+    EXTENDED_KODING_PG,
+    EXTENDED_MULOK_PG
+} from './questionBankExtendedPart2';
+import {
+    EXTRA_PG_BY_CAT,
+    EXTENDED_ISIAN_BY_CAT,
+    EXTENDED_URAIAN_BY_CAT
+} from './questionBankExtendedPart3';
+import { PART4_PG_BY_CAT } from './questionBankExtendedPart4';
+import {
+    PART5_PG_BY_CAT,
+    PART5_ISIAN_BY_CAT,
+    PART5_URAIAN_BY_CAT
+} from './questionBankExtendedPart5';
 
 /**
  * Normalizes question and stimulus text to create a robust fingerprint for detecting duplicate questions.
@@ -22,6 +46,24 @@ export function getQuestionStemFingerprint(question?: string): string {
 }
 
 /**
+ * Strips canned framing prefixes & swaps back synonyms so rephrased/cloned variants are always caught as duplicates.
+ */
+export function getStrippedStemFingerprint(question?: string): string {
+    const cleaned = (question || '')
+        .toLowerCase()
+        .replace(/^(saat belajar bersama tentang|coba pahami hal sederhana mengenai|perhatikan cerita singkat tentang|dalam kegiatan bermain sambil belajar|ayo ingat kembali materi|simak penjelasan ringan mengenai|di dalam kelas saat membahas|mari berlatih menjawab soal|perhatikan contoh sehari-hari terkait|ingat kembali pelajaran|ayo amati pertanyaan mudah tentang|sesuai topik|pada kegiatan belajar materi|cermati contoh mengenai|ketika membahas topik|pahami uraian materi|dalam latihan soal|perhatikan pertanyaan tentang|saat berdiskusi singkat mengenai|simak petunjuk materi|amati situasi yang berkaitan dengan|untuk mengingat pelajaran|coba jawab latihan seputar|melalui kegiatan belajar|berdasarkan pemahaman tentang|saat mengamati topik|dalam pembahasan materi|cermatilah pertanyaan terkait|merujuk pada pokok bahasan|ketika mempelajari konsep|pada uraian pembelajaran|perhatikan konteks permasalahan|melalui pengamatan terhadap|untuk menguji pemahaman|dalam rangkaian kegiatan belajar|berkaitan dengan hal pokok pada|pada pendalaman materi|berdasarkan konsep|dalam analisis singkat mengenai|telitilah pokok bahasan|dari pembelajaran materi|berkaitan dengan pemahaman|saat menelaah contoh kasus|cermatilah persoalan seputar|dalam penerapan pelajaran|untuk memperdalam wawasan|merujuk pada kaidah|melalui latihan pemecahan masalah|berdasarkan kajian materi|dalam penerapan konsep|cermati konteks pembelajaran|saat mengidentifikasi persoalan|merujuk pada prinsip dasar|pada evaluasi pemahaman|melalui telaah mendalam terhadap|dalam studi konteks nyata mengenai|perhatikan hubungan konsep pada|untuk membuktikan pemahaman tentang|dari hasil pengamatan topik|dalam penguasaan materi inti|berdasarkan penguasaan konsep|dalam pemahaman mendalam mengenai|tinjauan materi|cermati uraian topik|pada penalaran materi|berkaitan dengan prinsip|dalam analisis terpadu mengenai|merujuk pada sintesis konsep|saat mengevaluasi permasalahan|perhatikan penjabaran logis tentang|melalui pendalaman kompetensi|sebagai bagian dari penguasaan|dina pangajaran|pék jawab pananya ngeunaan|titénan pedaran basajan ngeunaan|nalika diajar babarengan ngeunaan|dina kagiatan diajar|dumasar kana pamahaman ngeunaan|focus on|read carefully and answer about|think about what you learned in|reviewing|answer this prompt on|in daily english practice for|based on the topic of|check your understanding of)[^:.,!?]{0,90}[:.,!?]\s*/gi, '')
+        .replace(/\b(dinamakan|disebut|dikenal sebagai|katelah)\b/g, 'disebut')
+        .replace(/\b(peserta didik|para siswa|siswa)\b/g, 'siswa')
+        .replace(/\b(merupakan|termasuk|nyaéta|mangrupa|nyata)\b/g, 'adalah')
+        .replace(/\b(memiliki|mempunyai|miboga|boga)\b/g, 'punya')
+        .replace(/\b(menggunakan|memakai|dimanfaatkan untuk)\b/g, 'pakai')
+        .replace(/\b(paling tepat|paling benar|paling sesuai|pangmerenahna|pangbenerna)\b/g, 'tepat')
+        .replace(/\b(berperan penting untuk|berfungsi untuk|berperan untuk)\b/g, 'untuk')
+        .replace(/[^a-z0-9]/g, '');
+    return cleaned.slice(0, 160);
+}
+
+/**
  * Extracts a compact semantic core fingerprint (stripping filler framing words) for AI prompt & device history comparison.
  */
 export function getQuestionCoreFingerprint(question?: string): string {
@@ -35,19 +77,29 @@ export function getQuestionCoreFingerprint(question?: string): string {
 export function isDuplicateQuestion(seen: Set<string>, question?: string, stimulus?: string): boolean {
     const fullFp = getQuestionFingerprint(question, stimulus);
     const stemFp = getQuestionStemFingerprint(question);
+    const strippedFp = getStrippedStemFingerprint(question);
     if (!stemFp) return true;
-    return seen.has(fullFp) || seen.has(`full:${fullFp}`) || seen.has(`stem:${stemFp}`);
+    return (
+        seen.has(fullFp) ||
+        seen.has(`full:${fullFp}`) ||
+        seen.has(`stem:${stemFp}`) ||
+        (Boolean(strippedFp) && seen.has(`stripped:${strippedFp}`))
+    );
 }
 
 export function markQuestionSeen(seen: Set<string>, question?: string, stimulus?: string): void {
     const fullFp = getQuestionFingerprint(question, stimulus);
     const stemFp = getQuestionStemFingerprint(question);
+    const strippedFp = getStrippedStemFingerprint(question);
     if (fullFp) {
         seen.add(fullFp);
         seen.add(`full:${fullFp}`);
     }
     if (stemFp) {
         seen.add(`stem:${stemFp}`);
+    }
+    if (strippedFp) {
+        seen.add(`stripped:${strippedFp}`);
     }
 }
 
@@ -4058,59 +4110,62 @@ function getPgBankForSubject(subject: string): QuestionBankItemPG[] {
     const cat = detectSubjectCategory(subject);
     switch (cat) {
         case 'math': return MATH_PG_BANK;
-        case 'pancasila': return PANCASILA_PG_BANK;
-        case 'ipas': return IPAS_PG_BANK;
-        case 'pjok': return PJOK_PG_BANK;
+        case 'pancasila': return [...PANCASILA_PG_BANK, ...EXTENDED_PANCASILA_PG, ...(EXTRA_PG_BY_CAT.pancasila || []), ...(PART4_PG_BY_CAT.pancasila || []), ...(PART5_PG_BY_CAT.pancasila || [])];
+        case 'ipas': return [...IPAS_PG_BANK, ...EXTENDED_IPAS_PG, ...(EXTRA_PG_BY_CAT.ipas || []), ...(PART4_PG_BY_CAT.ipas || []), ...(PART5_PG_BY_CAT.ipas || [])];
+        case 'pjok': return [...PJOK_PG_BANK, ...EXTENDED_PJOK_PG, ...(EXTRA_PG_BY_CAT.pjok || []), ...(PART4_PG_BY_CAT.pjok || []), ...(PART5_PG_BY_CAT.pjok || [])];
         case 'seni': {
+            const combined = [...SENI_PG_BANK, ...EXTENDED_SENI_PG, ...(EXTRA_PG_BY_CAT.seni || []), ...(PART4_PG_BY_CAT.seni || []), ...(PART5_PG_BY_CAT.seni || [])];
             const s = subject.toLowerCase();
             if (s.includes('musik')) {
-                return [...SENI_PG_BANK].sort((a, b) => (b.topic.toLowerCase().includes('musik') ? 1 : 0) - (a.topic.toLowerCase().includes('musik') ? 1 : 0));
+                return [...combined].sort((a, b) => (b.topic.toLowerCase().includes('musik') ? 1 : 0) - (a.topic.toLowerCase().includes('musik') ? 1 : 0));
             }
             if (s.includes('tari')) {
-                return [...SENI_PG_BANK].sort((a, b) => (b.topic.toLowerCase().includes('tari') ? 1 : 0) - (a.topic.toLowerCase().includes('tari') ? 1 : 0));
+                return [...combined].sort((a, b) => (b.topic.toLowerCase().includes('tari') ? 1 : 0) - (a.topic.toLowerCase().includes('tari') ? 1 : 0));
             }
             if (s.includes('teater')) {
-                return [...SENI_PG_BANK].sort((a, b) => (b.topic.toLowerCase().includes('teater') ? 1 : 0) - (a.topic.toLowerCase().includes('teater') ? 1 : 0));
+                return [...combined].sort((a, b) => (b.topic.toLowerCase().includes('teater') ? 1 : 0) - (a.topic.toLowerCase().includes('teater') ? 1 : 0));
             }
-            return SENI_PG_BANK;
+            return combined;
         }
-        case 'inggris': return INGGRIS_PG_BANK;
-        case 'pai': return PAI_PG_BANK;
-        case 'koding': return KODING_PG_BANK;
-        case 'mulok': return MULOK_PG_BANK;
-        default: return INDO_PG_BANK;
+        case 'inggris': return [...INGGRIS_PG_BANK, ...EXTENDED_INGGRIS_PG, ...(EXTRA_PG_BY_CAT.inggris || []), ...(PART4_PG_BY_CAT.inggris || []), ...(PART5_PG_BY_CAT.inggris || [])];
+        case 'pai': return [...PAI_PG_BANK, ...EXTENDED_PAI_PG, ...(EXTRA_PG_BY_CAT.pai || []), ...(PART4_PG_BY_CAT.pai || []), ...(PART5_PG_BY_CAT.pai || [])];
+        case 'koding': return [...KODING_PG_BANK, ...EXTENDED_KODING_PG, ...(EXTRA_PG_BY_CAT.koding || []), ...(PART4_PG_BY_CAT.koding || []), ...(PART5_PG_BY_CAT.koding || [])];
+        case 'mulok': return [...MULOK_PG_BANK, ...EXTENDED_MULOK_PG, ...(EXTRA_PG_BY_CAT.mulok || []), ...(PART4_PG_BY_CAT.mulok || []), ...(PART5_PG_BY_CAT.mulok || [])];
+        default: return [...INDO_PG_BANK, ...EXTENDED_INDO_PG, ...(EXTRA_PG_BY_CAT.indo || []), ...(PART4_PG_BY_CAT.indo || []), ...(PART5_PG_BY_CAT.indo || [])];
     }
 }
 
 function getIsianBankForSubject(subject: string): QuestionBankItemIsian[] {
     const cat = detectSubjectCategory(subject);
+    const ext = [...(EXTENDED_ISIAN_BY_CAT[cat] || []), ...(PART5_ISIAN_BY_CAT[cat] || [])];
     switch (cat) {
         case 'math': return ISIAN_POOL_MATEMATIKA;
-        case 'pancasila': return ISIAN_POOL_PANCASILA;
-        case 'ipas': return ISIAN_POOL_IPAS;
-        case 'pjok': return ISIAN_POOL_PJOK;
-        case 'seni': return ISIAN_POOL_SENI;
-        case 'inggris': return ISIAN_POOL_INGGRIS;
-        case 'pai': return ISIAN_POOL_PAI;
-        case 'koding': return ISIAN_POOL_KODING;
-        case 'mulok': return ISIAN_POOL_MULOK;
-        default: return ISIAN_POOL_INDO;
+        case 'pancasila': return [...ISIAN_POOL_PANCASILA, ...ext];
+        case 'ipas': return [...ISIAN_POOL_IPAS, ...ext];
+        case 'pjok': return [...ISIAN_POOL_PJOK, ...ext];
+        case 'seni': return [...ISIAN_POOL_SENI, ...ext];
+        case 'inggris': return [...ISIAN_POOL_INGGRIS, ...ext];
+        case 'pai': return [...ISIAN_POOL_PAI, ...ext];
+        case 'koding': return [...ISIAN_POOL_KODING, ...ext];
+        case 'mulok': return [...ISIAN_POOL_MULOK, ...ext];
+        default: return [...ISIAN_POOL_INDO, ...ext];
     }
 }
 
 function getUraianBankForSubject(subject: string): QuestionBankItemUraian[] {
     const cat = detectSubjectCategory(subject);
+    const ext = [...(EXTENDED_URAIAN_BY_CAT[cat] || []), ...(PART5_URAIAN_BY_CAT[cat] || [])];
     switch (cat) {
         case 'math': return URAIAN_POOL_MATEMATIKA;
-        case 'pancasila': return URAIAN_POOL_PANCASILA;
-        case 'ipas': return URAIAN_POOL_IPAS;
-        case 'pjok': return URAIAN_POOL_PJOK;
-        case 'seni': return URAIAN_POOL_SENI;
-        case 'inggris': return URAIAN_POOL_INGGRIS;
-        case 'pai': return URAIAN_POOL_PAI;
-        case 'koding': return URAIAN_POOL_KODING;
-        case 'mulok': return URAIAN_POOL_MULOK;
-        default: return URAIAN_POOL_INDO;
+        case 'pancasila': return [...URAIAN_POOL_PANCASILA, ...ext];
+        case 'ipas': return [...URAIAN_POOL_IPAS, ...ext];
+        case 'pjok': return [...URAIAN_POOL_PJOK, ...ext];
+        case 'seni': return [...URAIAN_POOL_SENI, ...ext];
+        case 'inggris': return [...URAIAN_POOL_INGGRIS, ...ext];
+        case 'pai': return [...URAIAN_POOL_PAI, ...ext];
+        case 'koding': return [...URAIAN_POOL_KODING, ...ext];
+        case 'mulok': return [...URAIAN_POOL_MULOK, ...ext];
+        default: return [...URAIAN_POOL_INDO, ...ext];
     }
 }
 
@@ -5051,17 +5106,10 @@ function createDynamicIndoVariant(index: number, isFaseA: boolean, grade: number
     const filteredVariants = filterAndPrioritizeByGrade(variants, grade);
     const activeVariants = filteredVariants.length > 0 ? filteredVariants : variants;
     const pickIdx = (index - 1) % activeVariants.length;
-    const cycle = Math.floor((index - 1) / activeVariants.length);
-    const base = activeVariants[pickIdx];
-    const rephrased = rephraseQuestionNatural(base.question, base.stimulus, base.topic, grade, cycle, false);
-    return {
-        ...base,
-        stimulus: rephrased.stimulus,
-        question: rephrased.question
-    };
+    return activeVariants[pickIdx];
 }
 
-// Subject-aware dynamic PG variant generator when a subject's base bank is exhausted
+// Subject-aware dynamic PG variant generator: only generates parameterized math or clean unused Indonesian/topic pool items (NO cloning rephrase!)
 function createDynamicSubjectPgVariant(subject: string, index: number, isFaseA: boolean, grade: number): QuestionBankItemPG {
     const cat = detectSubjectCategory(subject);
     if (cat === 'math') {
@@ -5075,23 +5123,7 @@ function createDynamicSubjectPgVariant(subject: string, index: number, isFaseA: 
     const filtered = filterAndPrioritizeByGrade(rawBank, grade);
     const bank = filtered.length > 0 ? filtered : rawBank;
     const pickIdx = (index - 1) % bank.length;
-    const cycle = Math.floor((index - 1) / bank.length);
-    const base = bank[pickIdx];
-
-    const rephrased = rephraseQuestionNatural(
-        base.question,
-        base.stimulus,
-        base.topic,
-        grade,
-        cycle,
-        cat === 'inggris',
-        cat === 'mulok' && isBahasaSundaSubject(subject)
-    );
-    return {
-        ...base,
-        stimulus: rephrased.stimulus,
-        question: rephrased.question
-    };
+    return bank[pickIdx];
 }
 
 // ==========================================
@@ -5109,31 +5141,17 @@ export function generateAuthenticPgQuestions(
     renderVisualSvgFn?: (type?: VisualType, title?: string) => string
 ): QuestionPG[] {
     const grade = parseGradeFromClassName(className, isFaseA);
+    const cat = detectSubjectCategory(subject);
     const rawBank = getPgBankForSubject(subject);
     const gradeBank = filterAndPrioritizeByGrade(rawBank, grade);
     const bank = gradeBank.length > 0 ? gradeBank : rawBank;
     const seen = existingFingerprints || new Set<string>();
+    const intraSeen = new Set<string>();
     const result: QuestionPG[] = [];
 
-    let bankIndex = 0;
-    let variantIndex = 1;
-
-    while (result.length < count && (bankIndex < bank.length || variantIndex < 500)) {
-        let item: QuestionBankItemPG;
-
-        if (bankIndex < bank.length) {
-            item = bank[bankIndex];
-            bankIndex++;
-        } else {
-            // Generate distinct subject-matched and grade-matched variant
-            item = createDynamicSubjectPgVariant(subject, variantIndex++, isFaseA, grade);
-        }
-
-        if (isDuplicateQuestion(seen, item.question, item.stimulus)) {
-            continue;
-        }
-
+    const pushItem = (item: QuestionBankItemPG) => {
         markQuestionSeen(seen, item.question, item.stimulus);
+        markQuestionSeen(intraSeen, item.question, item.stimulus);
         const tpItem = targetTps[result.length % targetTps.length] || { tp: 'Tujuan Pembelajaran Kurikulum Merdeka', element: subject };
         const visual = includeVisuals && item.visualType ? item.visualType : 'none';
 
@@ -5152,6 +5170,46 @@ export function generateAuthenticPgQuestions(
             visualTitle: item.visualTitle || '',
             visualSvg: visual !== 'none' && renderVisualSvgFn ? renderVisualSvgFn(visual, item.visualTitle) : undefined
         });
+    };
+
+    // Pass 1: Pick strictly unused grade-appropriate bank items (no cross-class & no within-exam duplicates)
+    for (const item of bank) {
+        if (result.length >= count) break;
+        if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
+        pushItem(item);
+    }
+
+    // Pass 2: For Math -> parameterized generation; for Indo -> additional distinct variants in createDynamicIndoVariant
+    if (result.length < count && (cat === 'math' || cat === 'indo')) {
+        let variantIndex = 1;
+        const maxVariants = cat === 'math' ? 500 : 24;
+        while (result.length < count && variantIndex <= maxVariants) {
+            const item = createDynamicSubjectPgVariant(subject, variantIndex++, isFaseA, grade);
+            if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
+            pushItem(item);
+        }
+    }
+
+    // Pass 3 (Fallback if cross-class history consumed most items across 5 other classes):
+    // Prefer any unused grade-compatible items from rawBank first, avoiding within-exam duplicates strictly
+    if (result.length < count) {
+        const broadCompatible = rawBank.filter(item => !isGradeMismatchedQuestion(item.question, item.stimulus, grade));
+        const broadPool = rotateArrayByOffset(broadCompatible.length > 0 ? broadCompatible : rawBank, grade * 7);
+        for (const item of broadPool) {
+            if (result.length >= count) break;
+            if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
+            pushItem(item);
+        }
+    }
+
+    // Final safety: if ALL 6 classes exhausted cross-class history, reuse items ONLY from other classes (NEVER duplicate within THIS exam!)
+    if (result.length < count) {
+        const pool = rotateArrayByOffset(bank.length > 0 ? bank : rawBank, grade * 7);
+        for (const item of pool) {
+            if (result.length >= count) break;
+            if (isDuplicateQuestion(intraSeen, item.question, item.stimulus)) continue;
+            pushItem(item);
+        }
     }
 
     return result;
@@ -5324,23 +5382,7 @@ function createDynamicIsianVariant(subject: string, index: number, grade: number
         grade
     );
     const activePool = combinedPool.length > 0 ? combinedPool : (extraIsianMap[cat] || getIsianBankForSubject(subject));
-    const picked = activePool[(index - 1) % activePool.length];
-    const cycle = Math.floor((index - 1) / activePool.length);
-
-    const rephrased = rephraseQuestionNatural(
-        picked.question,
-        picked.stimulus,
-        picked.topic,
-        grade,
-        cycle,
-        cat === 'inggris',
-        cat === 'mulok' && isBahasaSundaSubject(subject)
-    );
-    return {
-        ...picked,
-        stimulus: rephrased.stimulus,
-        question: rephrased.question
-    };
+    return activePool[(index - 1) % activePool.length];
 }
 
 export function generateAuthenticIsianQuestions(
@@ -5351,18 +5393,17 @@ export function generateAuthenticIsianQuestions(
     existingFingerprints?: Set<string>
 ): QuestionIsian[] {
     const grade = parseGradeFromClassName(className);
+    const cat = detectSubjectCategory(subject);
     const rawBank = getIsianBankForSubject(subject);
     const gradeBank = filterAndPrioritizeByGrade(rawBank, grade);
     const bank = gradeBank.length > 0 ? gradeBank : rawBank;
     const seen = existingFingerprints || new Set<string>();
+    const intraSeen = new Set<string>();
     const result: QuestionIsian[] = [];
 
-    let idx = 0;
-    while (result.length < count && idx < bank.length) {
-        const item = bank[idx++];
-        if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
-
+    const pushIsian = (item: QuestionBankItemIsian) => {
         markQuestionSeen(seen, item.question, item.stimulus);
+        markQuestionSeen(intraSeen, item.question, item.stimulus);
         const tpItem = targetTps[result.length % targetTps.length] || { tp: 'Tujuan Pembelajaran Kurikulum Merdeka', element: subject };
 
         result.push({
@@ -5375,27 +5416,42 @@ export function generateAuthenticIsianQuestions(
             indikator: `Peserta didik ${className} mampu melengkapi isian terkait ${item.topic}.`,
             materi: item.topic || tpItem.element || subject
         });
+    };
+
+    for (const item of bank) {
+        if (result.length >= count) break;
+        if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
+        pushIsian(item);
     }
 
-    // Dynamic generation if count exceeds base bank
+    // Dynamic generation (Math: infinite parameterized; Non-math: distinct items in extraIsianMap without fake rephrase)
     let dynIndex = 1;
-    while (result.length < count && dynIndex < 350) {
+    const maxDyn = cat === 'math' ? 350 : 25;
+    while (result.length < count && dynIndex <= maxDyn) {
         const dynItem = createDynamicIsianVariant(subject, dynIndex++, grade);
         if (isDuplicateQuestion(seen, dynItem.question, dynItem.stimulus)) continue;
+        pushIsian(dynItem);
+    }
 
-        markQuestionSeen(seen, dynItem.question, dynItem.stimulus);
-        const tpItem = targetTps[result.length % targetTps.length] || { tp: 'Tujuan Pembelajaran Kurikulum Merdeka', element: subject };
+    // Broad grade-compatible fallback if cross-class depleted narrow pool
+    if (result.length < count) {
+        const broadCompatible = rawBank.filter(item => !isGradeMismatchedQuestion(item.question, item.stimulus, grade));
+        const broadPool = rotateArrayByOffset(broadCompatible.length > 0 ? broadCompatible : rawBank, grade * 5);
+        for (const item of broadPool) {
+            if (result.length >= count) break;
+            if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
+            pushIsian(item);
+        }
+    }
 
-        result.push({
-            no: result.length + 1,
-            stimulus: dynItem.stimulus || '',
-            question: dynItem.question,
-            correctAnswer: dynItem.correctAnswer,
-            cognitiveLevel: dynItem.cognitiveLevel,
-            tp: tpItem.tp,
-            indikator: `Peserta didik ${className} mampu melengkapi isian terkait ${dynItem.topic}.`,
-            materi: dynItem.topic || tpItem.element || subject
-        });
+    // Final safety: never duplicate within THIS assessment
+    if (result.length < count) {
+        const pool = rotateArrayByOffset(bank.length > 0 ? bank : rawBank, grade * 5);
+        for (const item of pool) {
+            if (result.length >= count) break;
+            if (isDuplicateQuestion(intraSeen, item.question, item.stimulus)) continue;
+            pushIsian(item);
+        }
     }
 
     return result;
@@ -5409,18 +5465,17 @@ export function generateAuthenticUraianQuestions(
     existingFingerprints?: Set<string>
 ): QuestionUraian[] {
     const grade = parseGradeFromClassName(className);
+    const cat = detectSubjectCategory(subject);
     const rawBank = getUraianBankForSubject(subject);
     const gradeBank = filterAndPrioritizeByGrade(rawBank, grade);
     const bank = gradeBank.length > 0 ? gradeBank : rawBank;
     const seen = existingFingerprints || new Set<string>();
+    const intraSeen = new Set<string>();
     const result: QuestionUraian[] = [];
 
-    let idx = 0;
-    while (result.length < count && idx < bank.length) {
-        const item = bank[idx++];
-        if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
-
+    const pushUraian = (item: QuestionBankItemUraian) => {
         markQuestionSeen(seen, item.question, item.stimulus);
+        markQuestionSeen(intraSeen, item.question, item.stimulus);
         const tpItem = targetTps[result.length % targetTps.length] || { tp: 'Tujuan Pembelajaran Kurikulum Merdeka', element: subject };
 
         result.push({
@@ -5434,28 +5489,40 @@ export function generateAuthenticUraianQuestions(
             materi: item.topic || tpItem.element || subject,
             rubric: item.rubric
         });
+    };
+
+    for (const item of bank) {
+        if (result.length >= count) break;
+        if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
+        pushUraian(item);
     }
 
-    // Dynamic generation if count exceeds base uraian bank
+    // Dynamic generation (Math: infinite parameterized; Non-math: distinct items in extraTopicsByCat without fake rephrase)
     let dynIdx = 1;
-    while (result.length < count && dynIdx < 250) {
+    const maxDyn = cat === 'math' ? 250 : 20;
+    while (result.length < count && dynIdx <= maxDyn) {
         const dynItem = createDynamicUraianVariant(subject, dynIdx++, grade);
         if (isDuplicateQuestion(seen, dynItem.question, dynItem.stimulus)) continue;
+        pushUraian(dynItem);
+    }
 
-        markQuestionSeen(seen, dynItem.question, dynItem.stimulus);
-        const tpItem = targetTps[result.length % targetTps.length] || { tp: 'Tujuan Pembelajaran Kurikulum Merdeka', element: subject };
+    if (result.length < count) {
+        const broadCompatible = rawBank.filter(item => !isGradeMismatchedQuestion(item.question, item.stimulus, grade));
+        const broadPool = rotateArrayByOffset(broadCompatible.length > 0 ? broadCompatible : rawBank, grade * 3);
+        for (const item of broadPool) {
+            if (result.length >= count) break;
+            if (isDuplicateQuestion(seen, item.question, item.stimulus)) continue;
+            pushUraian(item);
+        }
+    }
 
-        result.push({
-            no: result.length + 1,
-            stimulus: dynItem.stimulus || '',
-            question: dynItem.question,
-            correctAnswer: dynItem.correctAnswer,
-            cognitiveLevel: 'HOTS',
-            tp: tpItem.tp,
-            indikator: `Peserta didik ${className} mampu menguraikan solusi mendalam terkait ${dynItem.topic}.`,
-            materi: dynItem.topic || tpItem.element || subject,
-            rubric: dynItem.rubric
-        });
+    if (result.length < count) {
+        const pool = rotateArrayByOffset(bank.length > 0 ? bank : rawBank, grade * 3);
+        for (const item of pool) {
+            if (result.length >= count) break;
+            if (isDuplicateQuestion(intraSeen, item.question, item.stimulus)) continue;
+            pushUraian(item);
+        }
     }
 
     return result;
@@ -5795,21 +5862,10 @@ function createDynamicUraianVariant(subject: string, index: number, grade: numbe
     const filteredTopics = filterAndPrioritizeByGrade(extraTopicsByCat[cat] || extraTopicsByCat.indo, grade);
     const selectedTopics = filteredTopics.length > 0 ? filteredTopics : (extraTopicsByCat[cat] || extraTopicsByCat.indo);
     const picked = selectedTopics[(index - 1) % selectedTopics.length];
-    const cycle = Math.floor((index - 1) / selectedTopics.length);
     const isSu = cat === 'mulok' && isBahasaSundaSubject(subject);
-    const rephrased = rephraseQuestionNatural(
-        picked.q,
-        '',
-        picked.topic,
-        grade,
-        cycle,
-        cat === 'inggris',
-        isSu
-    );
 
     return {
-        stimulus: rephrased.stimulus || undefined,
-        question: rephrased.question,
+        question: picked.q,
         correctAnswer: picked.ans,
         cognitiveLevel: 'HOTS',
         topic: picked.topic,
@@ -5846,7 +5902,7 @@ export function isGradeMismatchedQuestion(question: string, stimulus: string | u
     }
     // Reject Class 3-6 topics when generating for Fase A (Class 1-2)
     if (grade <= 2) {
-        if (/\bmajas\b|personifikasi|hiperbola|metafora|teks\s+eksplanasi|luas\s+segitiga|keliling\s+persegi\s+panjang|\bkpk\b|\bfpb\b|pecahan\s+desimal|fotosintesis|siklus\s+air|rantai\s+makanan|\bpupuh\b|sasakala|si\s+kabayan|undak-usuk/.test(text)) {
+        if (/\bmajas\b|personifikasi|hiperbola|metafora|teks\s+eksplanasi|laporan\s+hasil\s+observasi|\bnotula\b|formulir|luas\s+segitiga|keliling\s+persegi\s+panjang|\bkpk\b|\bfpb\b|pecahan\s+desimal|fotosintesis|siklus\s+air|rantai\s+makanan|\bpupuh\b|sasakala|si\s+kabayan|undak-usuk|biantara|sisindiran|dwipurwa|aksara\s+sunda/.test(text)) {
             return true;
         }
     }
