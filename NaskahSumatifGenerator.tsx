@@ -1109,7 +1109,10 @@ ATURAN WAJIB PADA GAMBAR & BUTIR SOAL:
 3. PENTING: Jangan pernah menulis "Perhatikan gambar..." jika kedua kolom "visualQuery" dan "visualType" dikosongkan. Pada soal Uraian yang murni teks/hitungan tanpa gambar, isi "visualQuery": "" dan "visualType": "none".
 4. PERATURAN MUTLAK ANTI-DUPLIKASI (ZERO DUPLICATE POLICY):
    - Setiap nomor butir soal (PG 1..${pgCount}, Isian 1..${isianCount}, Uraian 1..${uraianCount}) WAJIB 100% UNIK, BERBEDA, dan tidak boleh ada soal kembar.
-   - Distribusikan butir soal secara merata ke seluruh TP yang tersedia.${crossClassExclusionNote}
+   - Distribusikan butir soal secara merata ke seluruh TP yang tersedia.
+5. DISTRIBUSI KUNCI JAWABAN PG (WAJIB SEIMBANG & ACAK):
+   - DILARANG menempatkan mayoritas kunci jawaban di huruf A terus-menerus!
+   - Sebarkan posisi "correctAnswer" secara merata ke seluruh opsi ${isFaseA ? 'A, B, dan C' : 'A, B, C, dan D'} secara bervariasi (tidak monoton).${crossClassExclusionNote}
 
 KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
 {
@@ -1123,7 +1126,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
         {"key": "B", "text": "Pilihan B"},
         {"key": "C", "text": "Pilihan C"}${!isFaseA ? ',\n        {"key": "D", "text": "Pilihan D"}' : ''}
       ],
-      "correctAnswer": "A",
+      "correctAnswer": "${isFaseA ? 'B' : 'C'}",
       "explanation": "Pembahasan singkat kunci jawaban",
       "cognitiveLevel": "LOTS",
       "tp": "Tujuan Pembelajaran terkait",

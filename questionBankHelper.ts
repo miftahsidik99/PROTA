@@ -5909,6 +5909,98 @@ export function isGradeMismatchedQuestion(question: string, stimulus: string | u
     return false;
 }
 
+function hasPositionDependentOption(options: { key: string; text: string }[]): boolean {
+    return options.some(o =>
+        /\b(semua\s+(?:jawaban|pilihan|pernyataan|di\s+atas)|[A-D]\s+dan\s+[A-D]\s+benar|pilihan\s+[A-D]|jawaban\s+di\s+atas)\b/i.test(
+            String(o?.text || '')
+        )
+    );
+}
+
+function distributePgAnswerKeys(
+    questions: QuestionPG[],
+    isFaseA: boolean,
+    subject: string,
+    grade: number
+): QuestionPG[] {
+    if (questions.length === 0) return questions;
+    const validKeys = isFaseA ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
+    const kCount = validKeys.length;
+
+    // Seeded hash from subject + grade + count so every subject/grade has varied balanced distribution
+    let seed = grade * 97 + questions.length * 31;
+    for (let i = 0; i < subject.length; i++) {
+        seed = (seed * 31 + subject.charCodeAt(i)) >>> 0;
+    }
+    const nextRand = () => {
+        seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
+        return seed / 4294967296;
+    };
+
+    // Build exact balanced target pool (e.g. 20 -> 5A/5B/5C/5D; 25 -> 6-7 each; 15 Fase A -> 5A/5B/5C)
+    const keyOffset = seed % kCount;
+    const targets: string[] = Array.from(
+        { length: questions.length },
+        (_, i) => validKeys[(i + keyOffset) % kCount]
+    );
+
+    // Deterministic Fisher-Yates shuffle
+    for (let i = targets.length - 1; i > 0; i--) {
+        const j = Math.floor(nextRand() * (i + 1));
+        [targets[i], targets[j]] = [targets[j], targets[i]];
+    }
+
+    // Break any streak of >= 3 identical consecutive keys (e.g. A, A, A)
+    for (let i = 2; i < targets.length; i++) {
+        if (targets[i] === targets[i - 1] && targets[i] === targets[i - 2]) {
+            const swapIdx = targets.findIndex((k, idx) => idx > i && k !== targets[i]);
+            if (swapIdx !== -1) {
+                [targets[i], targets[swapIdx]] = [targets[swapIdx], targets[i]];
+            } else {
+                const prevSwapIdx = targets.findIndex((k, idx) => idx < i - 2 && k !== targets[i]);
+                if (prevSwapIdx !== -1) {
+                    [targets[i], targets[prevSwapIdx]] = [targets[prevSwapIdx], targets[i]];
+                }
+            }
+        }
+    }
+
+    return questions.map((q, idx) => {
+        const rawOpts = Array.isArray(q.options) ? q.options.slice(0, kCount) : [];
+        if (rawOpts.length !== kCount || hasPositionDependentOption(rawOpts)) {
+            return q;
+        }
+        const currKey = String(q.correctAnswer || 'A').trim().toUpperCase();
+        const currIdx = rawOpts.findIndex(o => String(o.key || '').trim().toUpperCase() === currKey);
+        if (currIdx === -1) return q;
+
+        const targetKey = targets[idx];
+        const targetIdx = validKeys.indexOf(targetKey);
+        if (targetIdx === -1) return q;
+
+        const correctText = rawOpts[currIdx].text;
+        const distractors = rawOpts.filter((_, i) => i !== currIdx).map(o => o.text);
+        const rot = distractors.length > 1 ? (idx + grade + (seed % 5)) % distractors.length : 0;
+        const rotatedDistractors = [...distractors.slice(rot), ...distractors.slice(0, rot)];
+
+        const reorderedTexts: string[] = [];
+        let dPtr = 0;
+        for (let i = 0; i < kCount; i++) {
+            if (i === targetIdx) {
+                reorderedTexts.push(correctText);
+            } else {
+                reorderedTexts.push(rotatedDistractors[dPtr++]);
+            }
+        }
+
+        return {
+            ...q,
+            options: validKeys.map((key, i) => ({ key, text: reorderedTexts[i] })),
+            correctAnswer: targetKey
+        };
+    });
+}
+
 export function deduplicateAndEnsureCountPg(
     items: QuestionPG[],
     targetCount: number,
@@ -5957,8 +6049,8 @@ export function deduplicateAndEnsureCountPg(
         }
     }
 
-    // 3. Sequential 1..N re-numbering and SVG assignment (strictly gated by includeVisuals)
-    return uniqueResult.slice(0, targetCount).map((q, idx) => ({
+    // 3. Sequential 1..N re-numbering, balanced answer-key distribution, and SVG assignment (strictly gated by includeVisuals)
+    const numbered = uniqueResult.slice(0, targetCount).map((q, idx) => ({
         ...q,
         no: idx + 1,
         visualType: includeVisuals ? (q.visualType || 'none') : 'none',
@@ -5967,6 +6059,8 @@ export function deduplicateAndEnsureCountPg(
             ? renderVisualSvgFn(q.visualType, q.visualTitle)
             : undefined
     }));
+
+    return distributePgAnswerKeys(numbered, isFaseA, subject, grade);
 }
 
 export function deduplicateAndEnsureCountIsian(
