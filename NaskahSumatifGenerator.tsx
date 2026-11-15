@@ -1129,7 +1129,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     visualType: includeVisuals ? normVisualType : 'none',
                                     visualTitle: includeVisuals ? (q.visualTitle || '') : '',
                                     visualQuery: includeVisuals ? (q.visualQuery || '') : '',
-                                    visualSvg: undefined
+                                    visualSvg: includeVisuals && normVisualType !== 'none' ? renderVisualSvg(normVisualType, q.visualTitle) : undefined
                                 };
                             });
 
@@ -1148,7 +1148,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     visualType: includeVisuals ? normVisualType : 'none',
                                     visualTitle: includeVisuals ? (q.visualTitle || '') : '',
                                     visualQuery: includeVisuals ? (q.visualQuery || '') : '',
-                                    visualSvg: undefined
+                                    visualSvg: includeVisuals && normVisualType !== 'none' ? renderVisualSvg(normVisualType, q.visualTitle) : undefined
                                 };
                             });
                         }
@@ -1168,7 +1168,7 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                     visualType: includeVisuals ? normVisualType : 'none',
                                     visualTitle: includeVisuals ? (q.visualTitle || '') : '',
                                     visualQuery: includeVisuals ? (q.visualQuery || '') : '',
-                                    visualSvg: undefined,
+                                    visualSvg: includeVisuals && normVisualType !== 'none' ? renderVisualSvg(normVisualType, q.visualTitle) : undefined,
                                     rubric: q.rubric || {
                                         score3: 'Jawaban sangat lengkap, benar secara konsep dan runtut.',
                                         score2: 'Jawaban benar secara umum namun kurang mendalam.',
@@ -2162,7 +2162,15 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                                 src={q.visualImageUrl}
                                                                 alt={q.visualTitle || `Gambar soal ${q.no}`}
                                                                 className="max-h-44 w-auto mx-auto rounded-lg object-contain"
+                                                                referrerPolicy="no-referrer"
                                                                 loading="lazy"
+                                                                onError={(e) => {
+                                                                    const imgEl = e.currentTarget;
+                                                                    if (!imgEl.dataset.proxied && q.visualImageUrl) {
+                                                                        imgEl.dataset.proxied = '1';
+                                                                        imgEl.src = `/api/media/proxy?url=${encodeURIComponent(q.visualImageUrl)}`;
+                                                                    }
+                                                                }}
                                                             />
                                                         ) : q.visualSvg ? (
                                                             <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
@@ -2239,7 +2247,15 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                                         src={q.visualImageUrl}
                                                                         alt={q.visualTitle || `Gambar isian ${q.no}`}
                                                                         className="max-h-40 w-auto mx-auto rounded-lg object-contain"
+                                                                        referrerPolicy="no-referrer"
                                                                         loading="lazy"
+                                                                        onError={(e) => {
+                                                                            const imgEl = e.currentTarget;
+                                                                            if (!imgEl.dataset.proxied && q.visualImageUrl) {
+                                                                                imgEl.dataset.proxied = '1';
+                                                                                imgEl.src = `/api/media/proxy?url=${encodeURIComponent(q.visualImageUrl)}`;
+                                                                            }
+                                                                        }}
                                                                     />
                                                                 ) : q.visualSvg ? (
                                                                     <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />
@@ -2294,7 +2310,15 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                                                                         src={q.visualImageUrl}
                                                                         alt={q.visualTitle || `Gambar uraian ${q.no}`}
                                                                         className="max-h-40 w-auto mx-auto rounded-lg object-contain"
+                                                                        referrerPolicy="no-referrer"
                                                                         loading="lazy"
+                                                                        onError={(e) => {
+                                                                            const imgEl = e.currentTarget;
+                                                                            if (!imgEl.dataset.proxied && q.visualImageUrl) {
+                                                                                imgEl.dataset.proxied = '1';
+                                                                                imgEl.src = `/api/media/proxy?url=${encodeURIComponent(q.visualImageUrl)}`;
+                                                                            }
+                                                                        }}
                                                                     />
                                                                 ) : q.visualSvg ? (
                                                                     <div dangerouslySetInnerHTML={{ __html: q.visualSvg }} />

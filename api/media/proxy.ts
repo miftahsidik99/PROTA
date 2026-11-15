@@ -6,7 +6,12 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const targetUrl = String(req.query?.url || '').trim();
+  let targetUrl = String(req.query?.url || '').trim();
+  if (!targetUrl) {
+    try {
+      targetUrl = String(new URL(req.url || '/', 'https://localhost').searchParams.get('url') || '').trim();
+    } catch {}
+  }
   if (!targetUrl) {
     res.setHeader('Content-Type', 'application/json');
     return res.status(400).json({ error: 'Parameter url wajib diisi' });

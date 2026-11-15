@@ -8,8 +8,16 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const q = String(req.query?.q || '').trim();
-  const limit = Math.min(8, Math.max(1, Number(req.query?.limit || 4)));
+  let q = String(req.query?.q || '').trim();
+  let limitRaw = req.query?.limit;
+  if (!q || limitRaw === undefined) {
+    try {
+      const sp = new URL(req.url || '/', 'https://localhost').searchParams;
+      if (!q) q = String(sp.get('q') || '').trim();
+      if (limitRaw === undefined) limitRaw = sp.get('limit') ?? undefined;
+    } catch {}
+  }
+  const limit = Math.min(8, Math.max(1, Number(limitRaw || 4)));
 
   if (!q) {
     return res.status(400).json({ error: 'Parameter pencarian q wajib diisi', results: [] });

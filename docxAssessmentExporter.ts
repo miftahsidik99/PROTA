@@ -219,10 +219,12 @@ export const rasterizeRemoteImageToPng = async (imageUrl?: string): Promise<Rast
 
     if (typeof fetch !== 'function') return null;
 
-    const tryFetchBytes = async (urlToFetch: string): Promise<Blob | null> => {
+    const tryFetchBytes = async (urlToFetch: string, isDirect = false): Promise<Blob | null> => {
         try {
-            const res = await fetch(urlToFetch);
+            const res = await fetch(urlToFetch, isDirect ? { referrerPolicy: 'no-referrer' } : undefined);
             if (!res.ok) return null;
+            const cType = (res.headers.get('content-type') || '').toLowerCase();
+            if (cType && !cType.startsWith('image/')) return null;
             const blob = await res.blob();
             if (!blob || blob.size === 0) return null;
             return blob;
@@ -231,9 +233,9 @@ export const rasterizeRemoteImageToPng = async (imageUrl?: string): Promise<Rast
         }
     };
 
-    // Prefer same-origin proxy to bypass upstream CORS headers cleanly
+    // Prefer same-origin proxy to bypass upstream CORS headers cleanly, then fall back directly
     const proxiedUrl = `/api/media/proxy?url=${encodeURIComponent(cleanUrl)}`;
-    const imageBlob = (await tryFetchBytes(proxiedUrl)) || (await tryFetchBytes(cleanUrl));
+    const imageBlob = (await tryFetchBytes(proxiedUrl, false)) || (await tryFetchBytes(cleanUrl, true));
     if (!imageBlob) return null;
 
     // Browser environment: normalize any JPEG/WebP/PNG to clean resized PNG via Canvas
