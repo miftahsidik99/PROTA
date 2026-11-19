@@ -6,38 +6,67 @@ interface RendererProps {
     isPrintMode?: boolean;
 }
 
-const InfographicConceptSvg: React.FC<{ title: string; elementName: string }> = ({ title, elementName }) => {
-    const shortTitle = title.length > 32 ? title.slice(0, 30) + '…' : title;
-    const shortEl = elementName.length > 26 ? elementName.slice(0, 24) + '…' : elementName;
+export const PosterIllustrationFrame: React.FC<{ data: GeneratedMateriAjarData; accentHex?: string }> = ({
+    data,
+    accentHex = '#0f766e'
+}) => {
+    const [imgFailed, setImgFailed] = useState(false);
+    const hasProxiedImage = Boolean(data.visualImageDataUrl) && !imgFailed;
+    const svgMarkup = (data.visualSvg || '').trim();
+    const caption = data.visualCaption || `Ilustrasi Pendukung: ${data.title}`;
+
     return (
-        <svg viewBox="0 0 680 150" width="680" height="150" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto block">
-            <rect x="0" y="0" width="680" height="150" rx="14" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
-            {/* Connection Line */}
-            <line x1="120" y1="75" x2="560" y2="75" stroke="#99f6e4" strokeWidth="4" strokeDasharray="6,4" />
-            {/* Node 1: Elemen */}
-            <rect x="24" y="34" width="160" height="82" rx="12" fill="#ffffff" stroke="#0f766e" strokeWidth="1.5" />
-            <text x="104" y="56" fontSize="10" fontWeight="700" textAnchor="middle" fill="#0f766e">1. ELEMEN CP</text>
-            <text x="104" y="77" fontSize="11" fontWeight="700" textAnchor="middle" fill="#0f172a">{shortEl}</text>
-            <text x="104" y="96" fontSize="9.5" textAnchor="middle" fill="#64748b">Fondasi Kompetensi</text>
+        <div
+            className="rounded-2xl border-2 bg-white overflow-hidden"
+            style={{ borderColor: accentHex }}
+        >
+            <div className="px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] font-bold text-white" style={{ backgroundColor: accentHex }}>
+                <span>Ilustrasi Pendukung Konsep</span>
+                <span className="font-medium opacity-90">{data.subject} · {data.className}</span>
+            </div>
 
-            {/* Arrow 1 */}
-            <polygon points="196,75 186,69 186,81" fill="#0f766e" />
+            <div className="p-3 bg-slate-50/70 space-y-2.5">
+                {hasProxiedImage ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-white flex items-center justify-center max-h-48">
+                            <img
+                                src={data.visualImageDataUrl}
+                                alt={caption}
+                                onError={() => setImgFailed(true)}
+                                className="w-full h-44 object-contain bg-white"
+                            />
+                        </div>
+                        {svgMarkup ? (
+                            <div
+                                className="rounded-xl overflow-hidden border border-slate-200 bg-white p-1.5"
+                                dangerouslySetInnerHTML={{ __html: svgMarkup }}
+                            />
+                        ) : null}
+                    </div>
+                ) : svgMarkup ? (
+                    <div
+                        className="rounded-xl overflow-hidden border border-slate-200 bg-white p-2 max-w-[540px] mx-auto"
+                        dangerouslySetInnerHTML={{ __html: svgMarkup }}
+                    />
+                ) : (
+                    <svg viewBox="0 0 460 150" width="460" height="150" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto block rounded-xl border border-slate-200 bg-sky-50">
+                        <rect x="0" y="0" width="460" height="150" rx="12" fill="#f0f9ff" />
+                        <rect x="0" y="114" width="460" height="36" fill="#bae6fd" />
+                        <rect x="135" y="28" width="190" height="78" rx="10" fill="#ffffff" stroke={accentHex} strokeWidth="2" />
+                        <rect x="150" y="42" width="76" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5" />
+                        <rect x="234" y="42" width="76" height="50" rx="6" fill="#d1fae5" stroke="#10b981" strokeWidth="1.5" />
+                        <circle cx="90" cy="84" r="14" fill="#fed7aa" stroke="#9a3412" strokeWidth="1.5" />
+                        <path d="M 72 114 C 72 98, 108 98, 108 114 Z" fill="#2563eb" />
+                        <circle cx="370" cy="84" r="14" fill="#fde68a" stroke="#92400e" strokeWidth="1.5" />
+                        <path d="M 352 114 C 352 98, 388 98, 388 114 Z" fill="#059669" />
+                    </svg>
+                )}
 
-            {/* Node 2: Topik Inti */}
-            <rect x="230" y="24" width="220" height="102" rx="14" fill="#0f766e" />
-            <text x="340" y="50" fontSize="10" fontWeight="700" textAnchor="middle" fill="#99f6e4">2. FOKUS MATERI AJAR</text>
-            <text x="340" y="76" fontSize="12" fontWeight="800" textAnchor="middle" fill="#ffffff">{shortTitle}</text>
-            <text x="340" y="100" fontSize="9.5" textAnchor="middle" fill="#ccfbf1">Pemahaman · Aplikasi · Refleksi</text>
-
-            {/* Arrow 2 */}
-            <polygon points="494,75 484,69 484,81" fill="#0f766e" />
-
-            {/* Node 3: Dampak */}
-            <rect x="498" y="34" width="158" height="82" rx="12" fill="#ffffff" stroke="#0284c7" strokeWidth="1.5" />
-            <text x="577" y="56" fontSize="10" fontWeight="700" textAnchor="middle" fill="#0284c7">3. HASIL BELAJAR</text>
-            <text x="577" y="77" fontSize="11" fontWeight="700" textAnchor="middle" fill="#0f172a">Tuntas &amp; Bermakna</text>
-            <text x="577" y="96" fontSize="9.5" textAnchor="middle" fill="#64748b">Siap Asesmen PPA</text>
-        </svg>
+                <div className="text-[11px] font-semibold text-slate-700 text-center leading-snug px-2">
+                    {caption}
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -45,60 +74,48 @@ export const EducationalInfographicView: React.FC<RendererProps> = ({ data }) =>
     const info = data.infographicData;
     if (!info) return null;
 
+    const accents = ['#0f766e', '#0369a1', '#6d28d9', '#b45309'];
+
     return (
-        <div className="space-y-4">
-            <div data-pdf-block="true" className="rounded-2xl overflow-hidden border border-teal-200 bg-teal-900 text-white p-5">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                    <div className="md:col-span-2 space-y-1.5">
-                        <div className="text-[11px] font-semibold text-teal-200">
-                            Infografis Pembelajaran Terpadu · {data.subject} · {data.className}
-                        </div>
-                        <h3 className="text-xl font-bold leading-snug text-white">{data.title}</h3>
-                        <p className="text-xs text-teal-100 leading-relaxed">{info.heroNote}</p>
-                    </div>
-                    <div className="bg-teal-800/80 border border-teal-600/50 rounded-xl p-3.5 text-left md:text-right">
-                        <div className="text-[11px] text-teal-200 font-medium">{info.heroStatLabel}</div>
-                        <div className="text-lg font-extrabold text-white mt-0.5 tabular-nums">{info.heroStatValue}</div>
-                    </div>
-                </div>
-            </div>
-
-            <div data-pdf-block="true" className="bg-white border border-slate-200 rounded-2xl p-4">
-                <div className="text-xs font-bold text-slate-700 mb-2">Peta Alur Pemahaman Materi</div>
-                <InfographicConceptSvg title={data.title} elementName={data.elementName} />
-            </div>
-
-            <div data-pdf-block="true" className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        <div className="space-y-3">
+            <div data-pdf-block="true" className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {(info.pillars || []).map((pillar, idx) => {
-                    const accents = ['#0f766e', '#0369a1', '#6d28d9', '#b45309'];
                     const accent = accents[idx % accents.length];
                     return (
-                        <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between gap-2.5">
+                        <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-col justify-between gap-2">
                             <div>
-                                <div className="flex items-center gap-2.5 mb-2">
+                                <div className="flex items-center gap-2 mb-1.5">
                                     <span
-                                        className="w-7 h-7 rounded-lg text-white text-xs font-bold flex items-center justify-center shrink-0 tabular-nums"
+                                        className="w-6 h-6 rounded-lg text-white text-[11px] font-bold flex items-center justify-center shrink-0 tabular-nums"
                                         style={{ backgroundColor: accent }}
                                     >
                                         {pillar.number}
                                     </span>
-                                    <h4 className="font-bold text-sm text-slate-900 leading-snug">{pillar.title}</h4>
+                                    <h4 className="font-bold text-xs text-slate-900 leading-snug">{pillar.title}</h4>
                                 </div>
-                                <p className="text-xs text-slate-700 leading-relaxed">{pillar.summary}</p>
+                                <p className="text-[11.5px] text-slate-700 leading-relaxed">{pillar.summary}</p>
                             </div>
-                            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 space-y-1">
-                                <div className="text-[11px] font-bold text-slate-800">Fakta Kunci: <span className="font-normal text-slate-600">{pillar.keyFact}</span></div>
-                                <div className="text-[11px] font-bold text-teal-800">Contoh Nyata: <span className="font-normal text-slate-600">{pillar.example}</span></div>
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2 space-y-0.5">
+                                <div className="text-[10.5px] font-bold text-slate-800">Fakta Kunci: <span className="font-normal text-slate-600">{pillar.keyFact}</span></div>
+                                <div className="text-[10.5px] font-bold text-teal-800">Contoh: <span className="font-normal text-slate-600">{pillar.example}</span></div>
                             </div>
                         </div>
                     );
                 })}
             </div>
 
-            <div data-pdf-block="true" className="bg-teal-50 border border-teal-200 rounded-2xl p-4">
-                <div className="text-xs font-bold text-teal-900 mb-1">Kesimpulan Emas Infografis</div>
-                <p className="text-xs text-teal-900/90 leading-relaxed">{info.goldenTakeaway}</p>
-            </div>
+            {info.goldenTakeaway && (
+                <div data-pdf-block="true" className="bg-teal-50 border border-teal-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <div className="text-[11px] font-bold text-teal-900">Pesan Kunci Infografis</div>
+                        <p className="text-[11.5px] text-teal-900/90 leading-relaxed">{info.goldenTakeaway}</p>
+                    </div>
+                    <div className="bg-white border border-teal-200 rounded-xl px-3 py-1.5 text-left sm:text-right shrink-0">
+                        <div className="text-[10px] text-teal-700 font-semibold">{info.heroStatLabel}</div>
+                        <div className="text-xs font-extrabold text-teal-950 tabular-nums">{info.heroStatValue}</div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

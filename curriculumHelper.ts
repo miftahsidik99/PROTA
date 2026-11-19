@@ -119,7 +119,10 @@ export const getSubjectKey = (subjectName: string): string | null => {
     if (lower.includes('inggris') || lower.includes('english')) {
         return "Bahasa Inggris";
     }
-    if (lower.includes('koding') || lower.includes('kecerdasan artifisial') || lower.includes('ai') || lower.includes('informatika')) {
+    if (lower.includes('islam') || /\bpai(bp)?\b/.test(lower)) {
+        return "Pendidikan Agama Islam";
+    }
+    if (lower.includes('koding') || lower.includes('kecerdasan artifisial') || /\bai\b/.test(lower) || lower.includes('informatika')) {
         return "Koding & Kecerdasan Artifisial";
     }
     if (lower.includes('seni rupa') || (lower.includes('rupa') && !lower.includes('berupa'))) {
@@ -136,9 +139,6 @@ export const getSubjectKey = (subjectName: string): string | null => {
     }
     if (lower.includes('seni budaya') || lower.includes('budaya')) {
         return "Seni Budaya";
-    }
-    if (lower.includes('islam') || lower.includes('pai')) {
-        return "Pendidikan Agama Islam";
     }
     if (lower.includes('kristen')) {
         return "Pendidikan Agama Kristen";
@@ -1138,6 +1138,89 @@ export const synthesizeCurriculumProta = (
                     tps: [
                         "Mengidentifikasi aksara ngalagena dasar dan fungsi rarangkén Aksara Sunda (panghulu, panyuku, panéléng, panolong).",
                         "Membedakan bentuk dan makna kecap rajékan dwipurwa (sasapu, momobilan) dan dwilingga serta menerapkan undak-usuk basa hormat secara tepat."
+                    ]
+                }
+            ];
+        }
+    } else if (subKey === "Pendidikan Agama Islam" || subKey.toLowerCase().includes("islam") || /\bpai(bp)?\b/i.test(subKey)) {
+        if (isFaseA) {
+            elementsList = [
+                {
+                    name: "Al-Qur'an dan Hadis (PAIBP)",
+                    cp: "Peserta didik mengenal huruf hijaiah dan harakatnya, huruf hijaiah bersambung, serta mampu membaca surah-surah pendek Al-Qur'an dengan baik.",
+                    tps: [
+                        "Mengenal huruf hijaiah beserta harakat fathah, kasrah, dan dammah serta membaca Q.S. Al-Fatihah dan Q.S. Al-Ikhlas dengan tartil.",
+                        "Melafalkan surah-surah pendek Al-Qur'an (Q.S. An-Nas dan Al-'Asr) dengan lancar dan mempraktikkan adab membaca Al-Qur'an."
+                    ]
+                },
+                {
+                    name: "Akidah & Asmaulhusna",
+                    cp: "Peserta didik mengenal rukun iman kepada Allah melalui nama-nama-Nya yang agung (Asmaulhusna) serta mengenal para malaikat dan tugasnya.",
+                    tps: [
+                        "Menjelaskan rukun iman serta meneladani sifat kasih sayang Allah melalui Asmaulhusna Ar-Rahman, Ar-Rahim, dan Al-Hafiz.",
+                        "Mengenal nama-nama malaikat Allah beserta tugasnya dan membiasakan sikap jujur serta percaya diri."
+                    ]
+                },
+                {
+                    name: "Akhlak, Fikih Ibadah, & Keteladanan Nabi",
+                    cp: "Peserta didik membiasakan perilaku terpuji (kalimat tayyibah, bakti kepada orang tua), memahami tata cara bersuci (wudu) dan salat fardu, serta kisah keteladanan Nabi.",
+                    tps: [
+                        "Mempraktikkan tata cara bersuci (wudu) secara tertib dan mengenal gerakan serta bacaan salat fardu sehari-hari.",
+                        "Membiasakan mengucapkan basmalah dan hamdalah, berbakti kepada orang tua dan guru, serta meneladani kisah Nabi Muhammad saw."
+                    ]
+                }
+            ];
+        } else if (isFaseB) {
+            elementsList = [
+                {
+                    name: "Al-Qur'an dan Hadis (PAIBP)",
+                    cp: "Peserta didik mampu membaca surah-surah pendek dengan kaidah tajwid dasar serta memahami pesan pokok Al-Qur'an dan hadis tentang keragaman dan kewajiban salat.",
+                    tps: [
+                        "Membaca dan memahami pesan pokok Q.S. Al-Hujurat ayat 13 tentang saling mengenal dan menghargai dalam keragaman.",
+                        "Memahami pesan pokok Q.S. At-Tin dan hadis tentang silaturahmi serta menerapkannya dalam pergaulan di sekolah."
+                    ]
+                },
+                {
+                    name: "Akidah & Akhlak Mulia",
+                    cp: "Peserta didik memahami sifat-sifat bagi Allah, beberapa Asmaulhusna, iman kepada kitab-kitab dan rasul Allah, serta menghormati orang tua, guru, dan sesama.",
+                    tps: [
+                        "Menjelaskan makna Asmaulhusna Al-Malik, Al-Aziz, Al-Quddus, As-Salam, dan Al-Mu'min serta meneladaninya dalam perilaku sehari-hari.",
+                        "Menunjukkan sikap amanah, menghormati perbedaan suku dan agama, serta berbuat baik kepada sesama sebagai wujud akhlak mulia."
+                    ]
+                },
+                {
+                    name: "Fikih Ibadah & Sejarah Peradaban Islam",
+                    cp: "Peserta didik memahami konsep balig dan tanggung jawabnya, tata cara puasa, salat berjamaah, serta kisah keteladanan hijrah Nabi Muhammad saw.",
+                    tps: [
+                        "Menjelaskan tanda-tanda usia balig beserta kewajiban ibadahnya serta mempraktikkan ketentuan salat berjamaah dan puasa Ramadan.",
+                        "Menceritakan kembali kisah keteladanan hijrah Nabi Muhammad saw. ke Madinah dan nilai persaudaraan kaum Muhajirin serta Ansar."
+                    ]
+                }
+            ];
+        } else {
+            elementsList = [
+                {
+                    name: "Al-Qur'an dan Hadis (PAIBP)",
+                    cp: "Peserta didik mampu membaca, menghafal, menulis, dan memahami pesan pokok surah-surah pilihan Al-Qur'an serta hadis tentang peduli anak yatim dan amal saleh.",
+                    tps: [
+                        "Membaca dengan tartil dan menjelaskan pesan pokok Q.S. Al-Ma'un tentang kepedulian sosial terhadap fakir miskin dan anak yatim.",
+                        "Memahami pesan pokok Q.S. Ad-Duha dan hadis tentang keutamaan memberi serta menjauhi sifat kikir."
+                    ]
+                },
+                {
+                    name: "Akidah & Akhlak Karimah",
+                    cp: "Peserta didik memahami makna Asmaulhusna, iman kepada hari akhir dan qada serta qadar, serta membiasakan perilaku ikhlas, pemaaf, dan peduli lingkungan.",
+                    tps: [
+                        "Menjelaskan makna iman kepada hari akhir (kiamat) serta qada dan qadar Allah yang menumbuhkan sikap optimis, sabar, dan ikhtiar.",
+                        "Mempraktikkan perilaku saling memaafkan, menepati janji, dan menjaga kelestarian alam sebagai khalifah di bumi."
+                    ]
+                },
+                {
+                    name: "Fikih Zakat & Sejarah Khulafaurasyidin",
+                    cp: "Peserta didik memahami ketentuan zakat, infak, sedekah, halal dan haram, serta kisah perjuangan Khulafaurasyidin.",
+                    tps: [
+                        "Membedakan ketentuan zakat fitrah, infak, dan sedekah serta manfaat sosialnya bagi kesejahteraan masyarakat.",
+                        "Menceritakan keteladanan kepemimpinan Abu Bakar Ash-Shiddiq dan Umar bin Khattab dalam menegakkan keadilan."
                     ]
                 }
             ];

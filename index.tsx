@@ -13537,7 +13537,7 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                 userIdentity={userIdentity}
                 selectedClass={selectedClass}
                 selectedSubject={selectedSubject}
-                availableSubjects={[...SUBJECTS.filter(s => !isExcludedSubject(s)), 'Pendidikan Agama Islam', 'Muatan Lokal (Bahasa Sunda)']}
+                availableSubjects={[...SUBJECTS.filter(s => !isExcludedSubject(s)), 'PAIBP (Pendidikan Agama Islam dan Budi Pekerti)', 'Muatan Lokal (Bahasa Sunda)']}
                 activities={activities}
                 lockedProtas={lockedProtas}
                 currentProtaData={data}

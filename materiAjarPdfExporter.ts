@@ -3,39 +3,17 @@ import { jsPDF } from 'jspdf';
 
 export interface MateriPdfExportOptions {
     filename: string;
-    paperSize: 'A4' | 'F4';
+    paperSize?: 'A4' | 'F4';
     institutionName?: string;
     subject?: string;
     className?: string;
 }
 
-/**
- * Exports a structured Materi Ajar preview node (composed of [data-pdf-block] sections)
- * into a crisp, properly paginated A4 or F4 PDF file without slicing cards/diagrams mid-block.
- */
-export async function exportMateriAjarToPdf(
-    sourceContainer: HTMLElement,
-    options: MateriPdfExportOptions
-): Promise<void> {
-    const {
-        filename,
-        paperSize = 'A4',
-        institutionName = 'Satuan Pendidikan SD/MI',
-        subject = 'Materi Ajar PPA',
-        className = ''
-    } = options;
+export interface MateriPngExportOptions {
+    filename: string;
+}
 
-    // A4: 210 x 297 mm | F4 (Folio Indonesia): 215 x 330 mm
-    const pageWidthMm = paperSize === 'F4' ? 215 : 210;
-    const pageHeightMm = paperSize === 'F4' ? 330 : 297;
-    const marginXMm = 12;
-    const marginTopMm = 11;
-    const marginBottomMm = 13;
-    const contentWidthMm = pageWidthMm - marginXMm * 2;
-    const maxContentBottomMm = pageHeightMm - marginBottomMm;
-    const blockGapMm = 3.5;
-
-    // Clone into an offscreen fixed-width print stage (794px ~ 210mm @ 96dpi)
+function prepareCloneStage(sourceContainer: HTMLElement): { stage: HTMLDivElement; clone: HTMLElement } {
     const stage = document.createElement('div');
     stage.style.position = 'fixed';
     stage.style.left = '-10000px';
@@ -54,9 +32,8 @@ export async function exportMateriAjarToPdf(
     clone.style.padding = '16px';
     clone.style.backgroundColor = '#ffffff';
     clone.style.boxShadow = 'none';
-    clone.style.border = 'none';
+    clone.style.boxSizing = 'border-box';
 
-    // Ensure every inline SVG has explicit numeric pixel sizing for reliable html2canvas rasterization
     const svgs = clone.querySelectorAll('svg');
     svgs.forEach((svg) => {
         if (!svg.getAttribute('xmlns')) {
@@ -74,16 +51,99 @@ export async function exportMateriAjarToPdf(
 
     stage.appendChild(clone);
     document.body.appendChild(stage);
+    return { stage, clone };
+}
+
+/**
+ * Exports the A4 Portrait Educational Infographic Poster as a high-resolution PNG (~300 DPI / 2480px width).
+ */
+export async function exportMateriAjarPosterPng(
+    sourceContainer: HTMLElement,
+    options: MateriPngExportOptions
+): Promise<void> {
+    const { stage, clone } = prepareCloneStage(sourceContainer);
+    try {
+        if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 140));
+
+        // 794px @ 96dpi -> scale 3.1234 yields ~2480px width (300 DPI A4 Portrait)
+        const canvas = await html2canvas(clone, {
+            scale: 3.125,
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+            windowWidth: 794
+        });
+
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 1.0));
+        if (!blob) {
+            throw new Error('Gagal merender gambar PNG.');
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = options.filename.toLowerCase().endsWith('.png') ? options.filename : `${options.filename}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } finally {
+        if (stage.parentNode) {
+            stage.parentNode.removeChild(stage);
+        }
+    }
+}
+
+/**
+ * Exports the A4/F4 Portrait Educational Infographic Poster into a print-ready 300-DPI PDF
+ * without cutting text, cards, or illustrations across page boundaries.
+ */
+export async function exportMateriAjarToPdf(
+    sourceContainer: HTMLElement,
+    options: MateriPdfExportOptions
+): Promise<void> {
+    const {
+        filename,
+        paperSize = 'A4',
+        institutionName = 'Satuan Pendidikan SD/MI',
+        subject = 'Materi Ajar PPA',
+        className = ''
+    } = options;
+
+    // A4 Portrait: 210 x 297 mm | F4 Portrait: 215 x 330 mm
+    const pageWidthMm = paperSize === 'F4' ? 215 : 210;
+    const pageHeightMm = paperSize === 'F4' ? 330 : 297;
+    const marginXMm = 8;
+    const marginTopMm = 8;
+    const marginBottomMm = 11;
+    const contentWidthMm = pageWidthMm - marginXMm * 2;
+    const maxContentBottomMm = pageHeightMm - marginBottomMm;
+    const availablePageHeightMm = maxContentBottomMm - marginTopMm;
+    const blockGapMm = 2.5;
+
+    const { stage, clone } = prepareCloneStage(sourceContainer);
 
     try {
         if (document.fonts && document.fonts.ready) {
             await document.fonts.ready;
         }
-        await new Promise((resolve) => setTimeout(resolve, 120));
+        await new Promise((resolve) => setTimeout(resolve, 140));
 
-        const blocks = Array.from(clone.querySelectorAll<HTMLElement>('[data-pdf-block]'));
-        const captureTargets = blocks.length > 0 ? blocks : [clone];
+        // Try capturing entire single poster first: if it fits cleanly on 1 A4 Portrait page (or with tiny uniform fit), keep it as ONE intact poster!
+        const fullCanvas = await html2canvas(clone, {
+            scale: 3.125,
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+            windowWidth: 794
+        });
 
+        const fullHeightMm = (fullCanvas.height / fullCanvas.width) * contentWidthMm;
         const pdf = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
@@ -91,98 +151,110 @@ export async function exportMateriAjarToPdf(
             compress: true
         });
 
-        let cursorY = marginTopMm;
-        let isFirstBlockOnPage = true;
+        if (fullHeightMm <= availablePageHeightMm * 1.12) {
+            // Fits cleanly onto ONE cohesive A4 Portrait poster page!
+            const fitScale = Math.min(1, availablePageHeightMm / fullHeightMm);
+            const drawWidth = contentWidthMm * fitScale;
+            const drawHeight = fullHeightMm * fitScale;
+            const offsetX = marginXMm + (contentWidthMm - drawWidth) / 2;
 
-        for (let i = 0; i < captureTargets.length; i++) {
-            const target = captureTargets[i];
-            if (!target || target.offsetHeight < 4) continue;
+            const imgData = fullCanvas.toDataURL('image/png', 1.0);
+            pdf.addImage(imgData, 'PNG', offsetX, marginTopMm, drawWidth, drawHeight, undefined, 'FAST');
+        } else {
+            // Multi-page clean block pagination (never slices any card or illustration mid-frame)
+            const blocks = Array.from(clone.querySelectorAll<HTMLElement>('[data-pdf-block]'));
+            const captureTargets = blocks.length > 0 ? blocks : [clone];
 
-            const canvas = await html2canvas(target, {
-                scale: 2,
-                backgroundColor: '#ffffff',
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                windowWidth: 794
-            });
+            let cursorY = marginTopMm;
+            let isFirstBlockOnPage = true;
 
-            if (canvas.width === 0 || canvas.height === 0) continue;
+            for (let i = 0; i < captureTargets.length; i++) {
+                const target = captureTargets[i];
+                if (!target || target.offsetHeight < 4) continue;
 
-            const totalImgHeightMm = (canvas.height / canvas.width) * contentWidthMm;
-            const availableHeightMm = maxContentBottomMm - marginTopMm;
+                const canvas = await html2canvas(target, {
+                    scale: 2.8,
+                    backgroundColor: '#ffffff',
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false,
+                    windowWidth: 794
+                });
 
-            // If block fits on a fresh page but not on current remaining space, break page cleanly
-            if (totalImgHeightMm <= availableHeightMm && !isFirstBlockOnPage && cursorY + totalImgHeightMm > maxContentBottomMm) {
-                pdf.addPage();
-                cursorY = marginTopMm;
-                isFirstBlockOnPage = true;
-            }
+                if (canvas.width === 0 || canvas.height === 0) continue;
 
-            if (totalImgHeightMm <= availableHeightMm) {
-                const imgData = canvas.toDataURL('image/png', 0.95);
-                pdf.addImage(imgData, 'PNG', marginXMm, cursorY, contentWidthMm, totalImgHeightMm, undefined, 'FAST');
-                cursorY += totalImgHeightMm + blockGapMm;
-                isFirstBlockOnPage = false;
-            } else {
-                // Tall single block: slice vertically across pages cleanly
-                if (!isFirstBlockOnPage) {
+                const totalImgHeightMm = (canvas.height / canvas.width) * contentWidthMm;
+
+                if (totalImgHeightMm <= availablePageHeightMm && !isFirstBlockOnPage && cursorY + totalImgHeightMm > maxContentBottomMm) {
                     pdf.addPage();
                     cursorY = marginTopMm;
                     isFirstBlockOnPage = true;
                 }
-                const pxPerMm = canvas.width / contentWidthMm;
-                let renderedPxY = 0;
 
-                while (renderedPxY < canvas.height) {
-                    const remainingMm = maxContentBottomMm - cursorY;
-                    const sliceHeightPx = Math.min(canvas.height - renderedPxY, Math.floor(remainingMm * pxPerMm));
-                    if (sliceHeightPx <= 0) {
-                        pdf.addPage();
-                        cursorY = marginTopMm;
-                        continue;
-                    }
-
-                    const sliceCanvas = document.createElement('canvas');
-                    sliceCanvas.width = canvas.width;
-                    sliceCanvas.height = sliceHeightPx;
-                    const ctx = sliceCanvas.getContext('2d');
-                    if (ctx) {
-                        ctx.fillStyle = '#ffffff';
-                        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-                        ctx.drawImage(canvas, 0, renderedPxY, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
-                        const sliceImg = sliceCanvas.toDataURL('image/png', 0.95);
-                        const sliceHeightMm = sliceHeightPx / pxPerMm;
-                        pdf.addImage(sliceImg, 'PNG', marginXMm, cursorY, contentWidthMm, sliceHeightMm, undefined, 'FAST');
-                        cursorY += sliceHeightMm;
-                    }
-
-                    renderedPxY += sliceHeightPx;
-                    if (renderedPxY < canvas.height) {
+                if (totalImgHeightMm <= availablePageHeightMm) {
+                    const imgData = canvas.toDataURL('image/png', 0.98);
+                    pdf.addImage(imgData, 'PNG', marginXMm, cursorY, contentWidthMm, totalImgHeightMm, undefined, 'FAST');
+                    cursorY += totalImgHeightMm + blockGapMm;
+                    isFirstBlockOnPage = false;
+                } else {
+                    if (!isFirstBlockOnPage) {
                         pdf.addPage();
                         cursorY = marginTopMm;
                         isFirstBlockOnPage = true;
-                    } else {
-                        cursorY += blockGapMm;
-                        isFirstBlockOnPage = false;
+                    }
+                    const pxPerMm = canvas.width / contentWidthMm;
+                    let renderedPxY = 0;
+
+                    while (renderedPxY < canvas.height) {
+                        const remainingMm = maxContentBottomMm - cursorY;
+                        const sliceHeightPx = Math.min(canvas.height - renderedPxY, Math.floor(remainingMm * pxPerMm));
+                        if (sliceHeightPx <= 0) {
+                            pdf.addPage();
+                            cursorY = marginTopMm;
+                            continue;
+                        }
+
+                        const sliceCanvas = document.createElement('canvas');
+                        sliceCanvas.width = canvas.width;
+                        sliceCanvas.height = sliceHeightPx;
+                        const ctx = sliceCanvas.getContext('2d');
+                        if (ctx) {
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+                            ctx.drawImage(canvas, 0, renderedPxY, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+                            const sliceImg = sliceCanvas.toDataURL('image/png', 0.98);
+                            const sliceHeightMm = sliceHeightPx / pxPerMm;
+                            pdf.addImage(sliceImg, 'PNG', marginXMm, cursorY, contentWidthMm, sliceHeightMm, undefined, 'FAST');
+                            cursorY += sliceHeightMm;
+                        }
+
+                        renderedPxY += sliceHeightPx;
+                        if (renderedPxY < canvas.height) {
+                            pdf.addPage();
+                            cursorY = marginTopMm;
+                            isFirstBlockOnPage = true;
+                        } else {
+                            cursorY += blockGapMm;
+                            isFirstBlockOnPage = false;
+                        }
                     }
                 }
             }
         }
 
-        // Stamp clean PPA footer on every generated page
+        // Clean PPA page footer
         const totalPages = pdf.getNumberOfPages();
         for (let p = 1; p <= totalPages; p++) {
             pdf.setPage(p);
             pdf.setDrawColor(226, 232, 240);
             pdf.setLineWidth(0.25);
-            pdf.line(marginXMm, pageHeightMm - 9.5, pageWidthMm - marginXMm, pageHeightMm - 9.5);
+            pdf.line(marginXMm, pageHeightMm - 8.5, pageWidthMm - marginXMm, pageHeightMm - 8.5);
             pdf.setFont('helvetica', 'normal');
-            pdf.setFontSize(7.5);
+            pdf.setFontSize(7);
             pdf.setTextColor(100, 116, 139);
-            const leftFooter = `${institutionName} · ${subject}${className ? ` (${className})` : ''} · Materi Ajar PPA BSKAP 046`;
-            pdf.text(leftFooter.slice(0, 92), marginXMm, pageHeightMm - 5.5);
-            pdf.text(`Halaman ${p} dari ${totalPages}`, pageWidthMm - marginXMm, pageHeightMm - 5.5, { align: 'right' });
+            const leftFooter = `${institutionName} · ${subject}${className ? ` (${className})` : ''} · Infografis Materi Ajar PPA`;
+            pdf.text(leftFooter.slice(0, 96), marginXMm, pageHeightMm - 4.8);
+            pdf.text(`Hal ${p}/${totalPages}`, pageWidthMm - marginXMm, pageHeightMm - 4.8, { align: 'right' });
         }
 
         const safeName = filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;

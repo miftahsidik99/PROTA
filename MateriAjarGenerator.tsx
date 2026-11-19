@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    BookOpen, CheckCircle2, ChevronRight, Download, FileText, FolderOpen,
-    GitBranch, Layers, LayoutGrid, Loader2, Lock, Printer, RefreshCw,
+    BookOpen, CheckCircle2, ChevronRight, Download, FolderOpen,
+    GitBranch, Layers, LayoutGrid, Loader2, Lock, Printer,
     Sparkles, Trash2, Unlock, Compass, Box, Clock, MessageSquare,
-    StickyNote, Table2, ListChecks, Zap, GraduationCap
+    StickyNote, Table2, ListChecks, Zap, GraduationCap, Image as ImageIcon
 } from 'lucide-react';
 import { CurriculumData, isSameClass, isSameSubject } from './curriculumHelper';
 import {
@@ -16,8 +16,8 @@ import {
     generateMateriAjarContent,
     getMateriAjarArchiveKey
 } from './materiAjarHelper';
-import { MateriAjarTemplateRenderer } from './MateriAjarTemplateRenderers';
-import { exportMateriAjarToPdf } from './materiAjarPdfExporter';
+import { MateriAjarTemplateRenderer, PosterIllustrationFrame } from './MateriAjarTemplateRenderers';
+import { exportMateriAjarToPdf, exportMateriAjarPosterPng } from './materiAjarPdfExporter';
 
 export interface MateriAjarUserIdentity {
     authorName: string;
@@ -78,200 +78,289 @@ interface PpaDocumentSheetProps {
 
 const PpaDocumentSheet: React.FC<PpaDocumentSheetProps> = ({ data, identity, isPrintMode }) => {
     const tplMeta = MATERI_AJAR_TEMPLATES.find(t => t.id === data.templateId) || MATERI_AJAR_TEMPLATES[0];
+    const accentHex = tplMeta.accentHex || '#0f766e';
     const cityName = identity.location || identity.city || 'Sukatinggal';
     const todayStr = formatIndonesianDate();
 
+    const introText =
+        data.pengantarSingkat ||
+        data.pemahamanBermakna ||
+        data.ringkasanKonsepInti ||
+        `Mari kita pelajari materi ${data.title} dengan bahasa sederhana dan contoh nyata sehari-hari.`;
+
+    const conceptDefinition =
+        data.pengertianKonsep ||
+        data.ringkasanKonsepInti ||
+        `${data.title} merupakan kompetensi inti pada mata pelajaran ${data.subject} (${data.elementName}).`;
+
+    const mainExplanation =
+        data.penjelasanUtama ||
+        data.ringkasanKonsepInti ||
+        `Peserta didik memahami konsep utama secara runtut sesuai ${data.className} dan menerapkannya dengan tepat.`;
+
+    const keyPoints = (data.poinPenting && data.poinPenting.length > 0)
+        ? data.poinPenting
+        : (data.kataKunci || []).map(k => `${k.term}: ${k.meaning}`);
+
+    const concreteExample =
+        data.contohKonkret ||
+        (data.contohSehariHari && data.contohSehariHari[0]) ||
+        `Contoh konkret penerapan ${data.title} di kelas dan rumah.`;
+
+    const dailyExamples = (data.contohSehariHari && data.contohSehariHari.length > 0)
+        ? data.contohSehariHari
+        : [concreteExample];
+
+    const studentActivity = data.aktivitasSederhana || {
+        judul: `Praktik Sederhana: ${data.title}`,
+        langkah: (data.aktivitasPembelajaran || []).map(a => `${a.tahap}: ${a.kegiatan}`),
+        hasilDiharapkan: `Siswa mampu menunjukkan pemahaman ${data.title} secara mandiri.`
+    };
+
+    const summaryPoints = (data.rangkumanPoin && data.rangkumanPoin.length >= 3)
+        ? data.rangkumanPoin.slice(0, 5)
+        : [
+            ...(keyPoints.slice(0, 3)),
+            data.pemahamanBermakna || `Terapkan nilai dan konsep ${data.title} dalam kehidupan sehari-hari.`
+        ].slice(0, 5);
+
+    const practiceQuestions = (data.latihanFormatif || []).slice(0, 3);
+    const activeTpDisplay = data.focusLevel === 'atp' && data.atpText
+        ? `${data.tpText} (Fokus Alur: ${data.atpText})`
+        : data.tpText;
+
     return (
-        <div className="space-y-4 text-slate-900 bg-white">
-            {/* BLOK 1: KOP & IDENTITAS STANDAR PPA */}
-            <div data-pdf-block="true" className="border border-slate-300 rounded-2xl overflow-hidden bg-white">
-                <div className="bg-slate-900 text-white px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div
+            className="rounded-3xl border-2 bg-white p-4 sm:p-5 space-y-3.5 text-slate-900"
+            style={{ borderColor: accentHex }}
+        >
+            {/* A. HEADER POSTER INFOGRAFIS */}
+            <div
+                data-pdf-block="true"
+                className="rounded-2xl overflow-hidden border border-slate-200 bg-white"
+            >
+                <div
+                    className="px-5 py-4 text-white space-y-2.5"
+                    style={{ backgroundColor: accentHex }}
+                >
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-white/90">
+                        <span>{data.subject} · {data.className} ({data.fase})</span>
+                        <span>Infografis Materi Ajar · {tplMeta.name}</span>
+                    </div>
+
                     <div>
-                        <div className="text-[11px] font-semibold text-emerald-300">
-                            Bahan Ajar Kurikulum Merdeka · Standar PPA BSKAP 046/H/KR/2025
+                        <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-tight">
+                            {data.title}
+                        </h2>
+                        {data.subtitle && (
+                            <p className="text-xs text-white/90 mt-0.5 leading-snug">{data.subtitle}</p>
+                        )}
+                    </div>
+
+                    <div className="rounded-xl bg-white/15 border border-white/25 px-3.5 py-2.5 text-xs">
+                        <div className="text-[10.5px] font-bold uppercase tracking-wide text-white/85">
+                            Tujuan Pembelajaran (TP / ATP)
                         </div>
-                        <h2 className="text-lg sm:text-xl font-bold text-white mt-0.5 leading-snug">{data.title}</h2>
-                        <p className="text-xs text-slate-300 mt-0.5">{data.subtitle}</p>
-                    </div>
-                    <div className="text-left sm:text-right">
-                        <div className="text-[10px] font-semibold text-slate-400">Gaya Penyajian</div>
-                        <div className="text-xs font-bold text-white">{tplMeta.name} ({tplMeta.subtitle})</div>
+                        <p className="text-white font-medium leading-relaxed mt-0.5">
+                            {activeTpDisplay}
+                        </p>
                     </div>
                 </div>
 
-                <div className="p-4 bg-slate-50/70 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-xs border-t border-slate-200">
-                    <div className="flex justify-between gap-2 border-b border-slate-200/70 pb-1">
-                        <span className="text-slate-500">Satuan Pendidikan</span>
-                        <span className="font-bold text-slate-900 text-right">{identity.institutionName || 'SD Negeri'}</span>
-                    </div>
-                    <div className="flex justify-between gap-2 border-b border-slate-200/70 pb-1">
-                        <span className="text-slate-500">NPSN</span>
-                        <span className="font-bold text-slate-900 tabular-nums text-right">{identity.npsn || '-'}</span>
-                    </div>
-                    <div className="flex justify-between gap-2 border-b border-slate-200/70 pb-1">
-                        <span className="text-slate-500">Mata Pelajaran</span>
-                        <span className="font-bold text-slate-900 text-right">{data.subject}</span>
-                    </div>
-                    <div className="flex justify-between gap-2 border-b border-slate-200/70 pb-1">
-                        <span className="text-slate-500">Kelas / Fase</span>
-                        <span className="font-bold text-slate-900 text-right">{data.className} ({data.fase})</span>
-                    </div>
-                    <div className="flex justify-between gap-2 border-b border-slate-200/70 pb-1">
-                        <span className="text-slate-500">Tahun Ajaran / Smt</span>
-                        <span className="font-bold text-slate-900 tabular-nums text-right">{data.academicYear} · Smt {data.semester}</span>
-                    </div>
-                    <div className="flex justify-between gap-2 border-b border-slate-200/70 pb-1">
-                        <span className="text-slate-500">Alokasi Waktu</span>
-                        <span className="font-bold text-emerald-800 tabular-nums text-right">{data.alokasiWaktu || '3 JP'}</span>
-                    </div>
-                    <div className="flex justify-between gap-2 sm:col-span-2 lg:col-span-3 pt-0.5">
-                        <span className="text-slate-500">Penyusun / Guru Pengampu</span>
-                        <span className="font-bold text-slate-900 text-right">
-                            {identity.authorName || 'Guru Kelas'} {identity.nip ? `(NIP. ${identity.nip})` : ''}
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            {/* BLOK 2: SISTEMATIKA HIERARKI PPA (ELEMEN -> CP -> TP -> ATP) */}
-            <div data-pdf-block="true" className="border border-slate-200 rounded-2xl p-4 bg-white space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-900">A. Keselarasan Hierarki Kurikulum Merdeka (PPA)</h3>
-                    <span className="text-[11px] font-semibold text-slate-500">
-                        Fokus Pilihan: {data.focusLevel === 'elemen' ? 'Keseluruhan Elemen' : data.focusLevel === 'tp' ? 'Tujuan Pembelajaran (TP)' : 'Butir Alur Tujuan Pembelajaran (ATP)'}
+                <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-slate-600">
+                    <span>
+                        <strong className="text-slate-900">{identity.institutionName || 'SD Negeri'}</strong>
+                        {identity.npsn ? ` · NPSN ${identity.npsn}` : ''}
+                    </span>
+                    <span>
+                        Elemen: <strong className="text-slate-900">{data.elementName}</strong>
+                    </span>
+                    <span className="tabular-nums">
+                        {identity.authorName || 'Guru Kelas'} · TA {data.academicYear} (Smt {data.semester}) · {data.alokasiWaktu || '3 JP'}
                     </span>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
-                        <div className="text-[11px] font-bold text-slate-600">1. Elemen &amp; Capaian Pembelajaran (CP)</div>
-                        <div className="font-bold text-slate-900">{data.elementName}</div>
-                        <p className="text-slate-700 leading-relaxed">{data.capaianPembelajaran}</p>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
-                        <div>
-                            <div className="text-[11px] font-bold text-slate-600">2. Tujuan Pembelajaran (TP)</div>
-                            <p className="text-slate-900 font-medium leading-relaxed mt-0.5">{data.tpText}</p>
-                        </div>
-                        <div className="pt-1.5 border-t border-slate-200">
-                            <div className="text-[11px] font-bold text-emerald-800">3. Alur Tujuan Pembelajaran (ATP)</div>
-                            <p className="text-slate-800 leading-relaxed mt-0.5">{data.atpText}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 space-y-1">
-                        <div className="text-[11px] font-bold text-emerald-900">Pemahaman Bermakna</div>
-                        <p className="text-xs text-slate-800 leading-relaxed">{data.pemahamanBermakna}</p>
-                    </div>
-                    <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-1">
-                        <div className="text-[11px] font-bold text-amber-900">Pertanyaan Pemantik</div>
-                        <ul className="space-y-1">
-                            {(data.pertanyaanPemantik || []).map((q, i) => (
-                                <li key={i} className="text-xs text-slate-800 leading-relaxed flex items-start gap-1.5">
-                                    <span className="font-bold text-amber-700 shrink-0 tabular-nums">{i + 1}.</span>
-                                    <span>{q}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
             </div>
 
-            {/* BLOK 3: KONSEP INTI & KATA KUNCI */}
-            <div data-pdf-block="true" className="border border-slate-200 rounded-2xl p-4 bg-white space-y-3">
-                <div className="pb-2 border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-900">B. Pengantar Konsep &amp; Glosarium Kata Kunci</h3>
-                </div>
-                <p className="text-xs text-slate-700 leading-relaxed">{data.ringkasanKonsepInti}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {(data.kataKunci || []).map((kw, idx) => (
-                        <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                            <div className="text-xs font-bold text-slate-900">{kw.term}</div>
-                            <div className="text-[11.5px] text-slate-600 mt-0.5 leading-relaxed">{kw.meaning}</div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* BLOK 4+: KONTEN UTAMA SESUAI GAYA TEMPLATE */}
-            <div className="space-y-3">
-                <div data-pdf-block="true" className="flex items-center justify-between px-1">
-                    <h3 className="text-xs font-bold text-slate-900">
-                        C. Sajian Utama Materi Ajar ({tplMeta.name} — {tplMeta.subtitle})
-                    </h3>
-                    {data.selectionMode === 'rekomendasi' && (
-                        <span className="text-[11px] font-medium text-emerald-700">Dipilih via Rekomendasi PPA</span>
-                    )}
-                </div>
-                <MateriAjarTemplateRenderer data={data} isPrintMode={isPrintMode} />
-            </div>
-
-            {/* BLOK 5: AKTIVITAS PEMBELAJARAN MENDALAM & LATIHAN FORMATIF */}
-            <div data-pdf-block="true" className="border border-slate-200 rounded-2xl p-4 bg-white space-y-4">
-                <div className="pb-2 border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-900">D. Aktivitas Pembelajaran &amp; Asesmen Formatif PPA</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    {(data.aktivitasPembelajaran || []).map((act, idx) => (
-                        <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
-                            <div className="text-xs font-bold text-slate-900">{act.tahap}</div>
-                            <p className="text-[11.5px] text-slate-700 leading-relaxed">{act.kegiatan}</p>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="space-y-2">
-                    <div className="text-xs font-bold text-slate-900">Latihan Pemahaman Siswa</div>
-                    <div className="space-y-2">
-                        {(data.latihanFormatif || []).map((lat) => (
-                            <div key={lat.no} className="border border-slate-200 rounded-xl p-3 bg-white space-y-1">
-                                <div className="text-xs font-semibold text-slate-900 flex items-start gap-2">
-                                    <span className="font-bold text-slate-700 tabular-nums">{lat.no}.</span>
-                                    <span>{lat.pertanyaan}</span>
-                                </div>
-                                <div className="text-[11px] text-emerald-800 pl-4">
-                                    <span className="font-bold">Panduan Jawaban: </span>{lat.kunciSingkat}
-                                </div>
-                            </div>
-                        ))}
+            {/* B. PENGANTAR MATERI */}
+            <div data-pdf-block="true" className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-teal-200 bg-teal-50/70 p-3.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-teal-700 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0">B1</span>
+                        <h3 className="text-xs font-extrabold text-teal-950 uppercase tracking-wide">Pengantar Materi</h3>
                     </div>
+                    <p className="text-xs text-slate-800 leading-relaxed">{introText}</p>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
-                    <div className="text-xs font-bold text-slate-900">Refleksi Diri Peserta Didik</div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-amber-600 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0">B2</span>
+                        <h3 className="text-xs font-extrabold text-amber-950 uppercase tracking-wide">Pertanyaan Pemantik</h3>
+                    </div>
                     <ul className="space-y-1">
-                        {(data.refleksiSiswa || []).map((refItem, idx) => (
-                            <li key={idx} className="text-[11.5px] text-slate-700">• {refItem}</li>
+                        {(data.pertanyaanPemantik || []).slice(0, 3).map((q, idx) => (
+                            <li key={idx} className="text-xs text-slate-800 leading-snug flex items-start gap-1.5">
+                                <span className="font-extrabold text-amber-700 shrink-0 tabular-nums">{idx + 1}.</span>
+                                <span>{q}</span>
+                            </li>
                         ))}
                     </ul>
                 </div>
             </div>
 
-            {/* BLOK 6: LEMBAR PENGESAHAN RESMI PPA */}
-            <div data-pdf-block="true" className="border border-slate-200 rounded-2xl p-5 bg-white">
-                <div className="grid grid-cols-2 gap-6 text-xs text-center text-slate-800">
-                    <div className="space-y-12">
-                        <div>
-                            <div>Mengetahui,</div>
-                            <div className="font-semibold">Kepala {identity.institutionName || 'Sekolah Dasar'}</div>
+            {/* C. INTI MATERI (KONSEP, PENJELASAN, POIN PENTING, CONTOH KONKRET & ILUSTRASI PENDUKUNG) */}
+            <div data-pdf-block="true" className="rounded-2xl border border-sky-200 bg-sky-50/40 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-sky-200/80">
+                    <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-sky-700 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0">C</span>
+                        <h3 className="text-xs font-extrabold text-sky-950 uppercase tracking-wide">Inti Materi &amp; Visualisasi Konsep</h3>
+                    </div>
+                    <span className="text-[11px] font-semibold text-sky-800">
+                        CP: {data.capaianPembelajaran.length > 90 ? `${data.capaianPembelajaran.slice(0, 88)}…` : data.capaianPembelajaran}
+                    </span>
+                </div>
+
+                {/* Pengertian Konsep & Penjelasan Utama */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="bg-white border border-sky-200 rounded-xl p-3 space-y-1">
+                        <div className="text-[11px] font-extrabold text-sky-800 uppercase">Pengertian Konsep</div>
+                        <p className="text-xs text-slate-800 leading-relaxed">{conceptDefinition}</p>
+                    </div>
+                    <div className="bg-white border border-sky-200 rounded-xl p-3 space-y-1">
+                        <div className="text-[11px] font-extrabold text-sky-800 uppercase">Penjelasan Materi Utama</div>
+                        <p className="text-xs text-slate-800 leading-relaxed">{mainExplanation}</p>
+                    </div>
+                </div>
+
+                {/* Poin Penting & Contoh Konkret */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
+                        <div className="text-[11px] font-extrabold text-slate-800 uppercase">Poin-Poin Penting</div>
+                        <ul className="space-y-1">
+                            {keyPoints.slice(0, 4).map((pt, idx) => (
+                                <li key={idx} className="text-xs text-slate-700 leading-snug flex items-start gap-2">
+                                    <span className="w-4 h-4 rounded-full bg-sky-100 text-sky-800 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 tabular-nums">
+                                        {idx + 1}
+                                    </span>
+                                    <span>{pt}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 space-y-1.5">
+                        <div className="text-[11px] font-extrabold text-emerald-900 uppercase">Contoh Konkret</div>
+                        <p className="text-xs text-slate-800 leading-relaxed">{concreteExample}</p>
+                        {(data.kataKunci || []).length > 0 && (
+                            <div className="pt-1.5 border-t border-emerald-200/80 grid grid-cols-1 gap-1">
+                                {(data.kataKunci || []).slice(0, 2).map((kw, i) => (
+                                    <div key={i} className="text-[11px] text-emerald-950">
+                                        <span className="font-bold">{kw.term}:</span> {kw.meaning}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Ilustrasi Pendukung Konkret (2D Edukatif / Internet Terverifikasi) */}
+                <PosterIllustrationFrame data={data} accentHex={accentHex} />
+            </div>
+
+            {/* Sajian Visual Template Terpilih (Educational Infographic Pillars / Mind Map / Comic / Step-by-Step / dll) */}
+            <MateriAjarTemplateRenderer data={data} isPrintMode={isPrintMode} />
+
+            {/* D. CONTOH DALAM KEHIDUPAN SEHARI-HARI & E. AKTIVITAS SISWA */}
+            <div data-pdf-block="true" className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-emerald-700 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0">D</span>
+                        <h3 className="text-xs font-extrabold text-emerald-950 uppercase tracking-wide">Contoh dalam Kehidupan Sehari-hari</h3>
+                    </div>
+                    <ul className="space-y-1.5">
+                        {dailyExamples.slice(0, 4).map((ex, idx) => (
+                            <li key={idx} className="bg-white border border-emerald-200/80 rounded-xl px-3 py-2 text-xs text-slate-800 leading-snug flex items-start gap-2">
+                                <span className="font-extrabold text-emerald-700 shrink-0 tabular-nums">{idx + 1}.</span>
+                                <span>{ex}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3.5 space-y-2 flex flex-col justify-between">
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-violet-700 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0">E</span>
+                            <h3 className="text-xs font-extrabold text-violet-950 uppercase tracking-wide">Aktivitas Siswa</h3>
                         </div>
-                        <div>
-                            <div className="font-bold underline">{identity.kepalaSekolah || '..........................................'}</div>
-                            <div className="text-[11px] text-slate-600">NIP. {identity.nipKepalaSekolah || '....................................'}</div>
+                        <div className="bg-white border border-violet-200/80 rounded-xl p-3 space-y-1.5">
+                            <div className="text-xs font-bold text-violet-950">{studentActivity.judul}</div>
+                            <ol className="space-y-1">
+                                {(studentActivity.langkah || []).slice(0, 4).map((step, i) => (
+                                    <li key={i} className="text-[11.5px] text-slate-700 leading-snug flex items-start gap-1.5">
+                                        <span className="font-bold text-violet-700 shrink-0 tabular-nums">{i + 1}.</span>
+                                        <span>{step}</span>
+                                    </li>
+                                ))}
+                            </ol>
                         </div>
                     </div>
-                    <div className="space-y-12">
-                        <div>
-                            <div>{cityName}, {todayStr}</div>
-                            <div className="font-semibold">Guru Kelas / Pengampu</div>
-                        </div>
-                        <div>
-                            <div className="font-bold underline">{identity.authorName || '..........................................'}</div>
-                            <div className="text-[11px] text-slate-600">NIP. {identity.nip || '....................................'}</div>
-                        </div>
+                    <div className="bg-violet-100/70 border border-violet-200 rounded-xl px-3 py-1.5 text-[11px] text-violet-950">
+                        <span className="font-bold">Hasil Diharapkan: </span>{studentActivity.hasilDiharapkan}
+                    </div>
+                </div>
+            </div>
+
+            {/* F. RANGKUMAN (3-5 POIN) & G. LATIHAN PEMAHAMAN (3 SOAL) */}
+            <div data-pdf-block="true" className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-slate-300 bg-slate-50 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-slate-800 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0">F</span>
+                        <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">Rangkuman Penting</h3>
+                    </div>
+                    <ul className="space-y-1.5">
+                        {summaryPoints.map((pt, idx) => (
+                            <li key={idx} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 leading-snug flex items-start gap-2">
+                                <span className="w-5 h-5 rounded-md bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center shrink-0 tabular-nums">
+                                    {idx + 1}
+                                </span>
+                                <span>{pt}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-blue-700 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0">G</span>
+                        <h3 className="text-xs font-extrabold text-blue-950 uppercase tracking-wide">Latihan Pemahaman (3 Soal)</h3>
+                    </div>
+                    <div className="space-y-1.5">
+                        {practiceQuestions.map((lat) => (
+                            <div key={lat.no} className="bg-white border border-blue-200/80 rounded-xl p-2.5 space-y-0.5">
+                                <div className="text-xs font-semibold text-slate-900 flex items-start gap-1.5 leading-snug">
+                                    <span className="font-extrabold text-blue-700 shrink-0 tabular-nums">{lat.no}.</span>
+                                    <span>{lat.pertanyaan}</span>
+                                </div>
+                                <div className="text-[10.5px] text-emerald-800 pl-4">
+                                    <span className="font-bold">Kunci Singkat: </span>{lat.kunciSingkat}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* FOOTER PENGESAHAN PPA RINGKAS */}
+            <div data-pdf-block="true" className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                <div className="grid grid-cols-2 gap-4 text-[11px] text-center text-slate-700">
+                    <div>
+                        <div>Mengetahui, Kepala {identity.institutionName || 'Sekolah Dasar'}</div>
+                        <div className="font-bold text-slate-900 mt-5 underline">{identity.kepalaSekolah || '..........................................'}</div>
+                        <div className="text-[10px] text-slate-500">NIP. {identity.nipKepalaSekolah || '....................................'}</div>
+                    </div>
+                    <div>
+                        <div>{cityName}, {todayStr} · Guru Kelas / Pengampu</div>
+                        <div className="font-bold text-slate-900 mt-5 underline">{identity.authorName || '..........................................'}</div>
+                        <div className="text-[10px] text-slate-500">NIP. {identity.nip || '....................................'}</div>
                     </div>
                 </div>
             </div>
@@ -400,9 +489,10 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
     const effectiveTemplateId: MateriTemplateId =
         selectionMode === 'rekomendasi' ? smartRecommendation.recommendedId : manualTemplateId;
 
-    // Generation, Preview, Archive & PDF Export State
+    // Generation, Preview, Archive & PDF/PNG Export State
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+    const [isExportingPng, setIsExportingPng] = useState<boolean>(false);
     const [paperSize, setPaperSize] = useState<'A4' | 'F4'>('A4');
     const [generatedMateri, setGeneratedMateri] = useState<GeneratedMateriAjarData | null>(null);
     const [archiveList, setArchiveList] = useState<GeneratedMateriAjarData[]>([]);
@@ -515,7 +605,7 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
             const safeSubject = generatedMateri.subject.replace(/[^a-zA-Z0-9]+/g, '_');
             const safeClass = generatedMateri.className.replace(/[^a-zA-Z0-9]+/g, '_');
             const safeTpl = generatedMateri.templateId.replace(/[^a-zA-Z0-9]+/g, '_');
-            const filename = `Materi_Ajar_${safeSubject}_${safeClass}_${safeTpl}_${paperSize}.pdf`;
+            const filename = `Infografis_Materi_Ajar_${safeSubject}_${safeClass}_${safeTpl}_${paperSize}.pdf`;
 
             await exportMateriAjarToPdf(pdfCaptureRef.current, {
                 filename,
@@ -524,12 +614,31 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
                 subject: generatedMateri.subject,
                 className: generatedMateri.className
             });
-            notify(`File PDF (${paperSize}) berhasil diunduh!`, 'success');
+            notify(`File PDF (${paperSize} Portrait · 300 DPI) berhasil diunduh!`, 'success');
         } catch (err) {
             console.error('PDF export error:', err);
             notify('Gagal mengekspor PDF. Pastikan browser tidak memblokir unduhan.', 'error');
         } finally {
             setIsExportingPdf(false);
+        }
+    };
+
+    const handleDownloadPng = async () => {
+        if (!generatedMateri || !pdfCaptureRef.current) return;
+        setIsExportingPng(true);
+        try {
+            const safeSubject = generatedMateri.subject.replace(/[^a-zA-Z0-9]+/g, '_');
+            const safeClass = generatedMateri.className.replace(/[^a-zA-Z0-9]+/g, '_');
+            const safeTpl = generatedMateri.templateId.replace(/[^a-zA-Z0-9]+/g, '_');
+            const filename = `Poster_Infografis_${safeSubject}_${safeClass}_${safeTpl}_300DPI.png`;
+
+            await exportMateriAjarPosterPng(pdfCaptureRef.current, { filename });
+            notify('Gambar Poster A4 Portrait (300 DPI PNG) berhasil diunduh!', 'success');
+        } catch (err) {
+            console.error('PNG export error:', err);
+            notify('Gagal mengekspor gambar PNG poster.', 'error');
+        } finally {
+            setIsExportingPng(false);
         }
     };
 
@@ -947,7 +1056,68 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
                 </div>
             </section>
 
-            {/* STEP 3: PRATINJAU DOKUMEN PPA & EKSPOR PDF */}
+            {/* ARSIP MATERI AJAR TERSIMPAN PER PENGGUNA (LOCAL STORAGE) */}
+            <section className="no-print bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-2">
+                        <FolderOpen className="w-4 h-4 text-emerald-700" />
+                        <span>ARSIP MATERI AJAR TERSIMPAN ({archiveList.length})</span>
+                    </div>
+                    <span className="text-[11px] text-slate-500">
+                        Tersimpan lokal untuk akun aktif ({user?.email || registeredClass})
+                    </span>
+                </div>
+
+                {archiveList.length === 0 ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center text-xs text-slate-500">
+                        Belum ada materi ajar tersimpan. Pilih fokus TP/ATP di atas lalu tekan &ldquo;Buat Materi Ajar PPA&rdquo;.
+                    </div>
+                ) : (
+                    <div className="flex gap-3 overflow-x-auto pb-1">
+                        {archiveList.map(item => {
+                            const tplMeta = MATERI_AJAR_TEMPLATES.find(t => t.id === item.templateId);
+                            const isActive = generatedMateri?.id === item.id;
+                            return (
+                                <div
+                                    key={item.id}
+                                    onClick={() => setGeneratedMateri(item)}
+                                    className={`shrink-0 min-w-[230px] max-w-[280px] rounded-xl border px-3.5 py-2.5 flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                                        isActive
+                                            ? 'bg-emerald-50/80 border-emerald-500 shadow-2xs'
+                                            : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70'
+                                    }`}
+                                >
+                                    <div className="min-w-0">
+                                        <div className={`text-xs font-extrabold truncate ${isActive ? 'text-emerald-950' : 'text-slate-800'}`}>
+                                            {item.title}
+                                        </div>
+                                        <div className={`text-[11px] font-medium mt-0.5 truncate ${isActive ? 'text-emerald-800' : 'text-slate-600'}`}>
+                                            {item.subject} &bull; {item.className}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                                            {tplMeta?.name || item.templateId} &bull; {item.elementName}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteArchive(item.id);
+                                        }}
+                                        aria-label="Hapus arsip materi ajar"
+                                        title="Hapus arsip ini"
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
+
+            {/* STEP 3: PRATINJAU POSTER INFOGRAFIS A4 PORTRAIT & EKSPOR PDF / PNG */}
             {generatedMateri && (
                 <section className="space-y-4">
                     {/* Export Controls Bar */}
@@ -955,14 +1125,14 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
                         <div className="space-y-0.5">
                             <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
                                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                <span>Pratinjau Dokumen Materi Ajar Siap Ekspor PDF</span>
+                                <span>Pratinjau Poster Infografis Materi Ajar A4 Portrait (300 DPI)</span>
                             </div>
                             <p className="text-[11px] text-slate-500">
-                                Dokumen tersusun sesuai tata letak PPA dan terpaginasi otomatis agar kartu serta diagram tidak terpotong di PDF.
+                                Format poster edukasi modern lengkap (Header, Pengantar, Inti Berilustrasi, Contoh Harian, Aktivitas, Rangkuman, &amp; 3 Soal Latihan) siap cetak PDF maupun gambar PNG.
                             </p>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
                             <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
                                 {(['A4', 'F4'] as const).map(sz => (
                                     <button
@@ -973,7 +1143,7 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
                                             paperSize === sz ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
                                         }`}
                                     >
-                                        Kertas {sz}
+                                        {sz}
                                     </button>
                                 ))}
                             </div>
@@ -981,10 +1151,23 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
                             <button
                                 type="button"
                                 onClick={handlePrint}
-                                className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                                className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
                             >
                                 <Printer className="w-4 h-4" />
                                 <span>Cetak</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleDownloadPng}
+                                disabled={isExportingPng}
+                                className="px-3.5 py-2 rounded-xl border border-emerald-600 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-60 text-emerald-900 text-xs font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                            >
+                                {isExportingPng ? (
+                                    <><Loader2 className="w-4 h-4 animate-spin" /> <span>Menyiapkan PNG...</span></>
+                                ) : (
+                                    <><ImageIcon className="w-4 h-4" /> <span>Unduh PNG (300 DPI)</span></>
+                                )}
                             </button>
 
                             <button
@@ -996,18 +1179,20 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
                                 {isExportingPdf ? (
                                     <><Loader2 className="w-4 h-4 animate-spin" /> <span>Menyiapkan PDF...</span></>
                                 ) : (
-                                    <><Download className="w-4 h-4" /> <span>Unduh PDF ({paperSize})</span></>
+                                    <><Download className="w-4 h-4" /> <span>Unduh PDF ({paperSize} · 300 DPI)</span></>
                                 )}
                             </button>
                         </div>
                     </div>
 
                     {/* Interactive Screen Preview */}
-                    <div className="print-area bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-xs">
-                        <PpaDocumentSheet data={generatedMateri} identity={userIdentity} isPrintMode={false} />
+                    <div className="print-area bg-slate-100/70 border border-slate-200 rounded-3xl p-3 sm:p-5">
+                        <div className="max-w-[820px] mx-auto">
+                            <PpaDocumentSheet data={generatedMateri} identity={userIdentity} isPrintMode={false} />
+                        </div>
                     </div>
 
-                    {/* Offscreen Print-Safe Mirror (renders Flashcards front+back side by side for crisp PDF export) */}
+                    {/* Offscreen 794px A4 Portrait Stage (renders 2480px wide 300 DPI PNG / crisp PDF) */}
                     <div
                         aria-hidden="true"
                         style={{
@@ -1025,68 +1210,6 @@ export const MateriAjarGenerator: React.FC<MateriAjarGeneratorProps> = ({
                     </div>
                 </section>
             )}
-
-            {/* STEP 4: ARSIP MATERI AJAR LOKAL PER PENGGUNA */}
-            <section className="no-print bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                    <div>
-                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <FolderOpen className="w-4 h-4 text-slate-700" />
-                            <span>Arsip Materi Ajar Tersimpan ({archiveList.length})</span>
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                            Tersimpan otomatis di perangkat Anda khusus untuk akun aktif ({user?.email || registeredClass}).
-                        </p>
-                    </div>
-                </div>
-
-                {archiveList.length === 0 ? (
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-xs text-slate-500">
-                        Belum ada materi ajar yang dibuat. Pilih fokus Elemen/TP/ATP dan gaya template di atas, lalu tekan &ldquo;Buat Materi Ajar PPA&rdquo;.
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {archiveList.map(item => {
-                            const tplMeta = MATERI_AJAR_TEMPLATES.find(t => t.id === item.templateId);
-                            const isActive = generatedMateri?.id === item.id;
-                            return (
-                                <div
-                                    key={item.id}
-                                    className={`rounded-2xl border p-3.5 flex flex-col justify-between gap-3 ${
-                                        isActive ? 'border-emerald-500 bg-emerald-50/40' : 'border-slate-200 bg-white'
-                                    }`}
-                                >
-                                    <div className="space-y-1">
-                                        <div className="text-[11px] font-semibold text-slate-500">
-                                            {item.subject} · {item.className} · {tplMeta?.name || item.templateId}
-                                        </div>
-                                        <div className="text-xs font-bold text-slate-900 line-clamp-2">{item.title}</div>
-                                        <div className="text-[11px] text-slate-600 line-clamp-1">Elemen: {item.elementName}</div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                                        <button
-                                            type="button"
-                                            onClick={() => setGeneratedMateri(item)}
-                                            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer"
-                                        >
-                                            <FileText className="w-3.5 h-3.5" />
-                                            <span>Buka</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeleteArchive(item.id)}
-                                            aria-label="Hapus arsip materi ajar"
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
         </div>
     );
 };
