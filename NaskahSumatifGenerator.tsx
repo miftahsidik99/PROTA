@@ -655,10 +655,10 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
     onClassChange,
     notify
 }) => {
-    // 1. Identify User's Registered Class & Class Options (always prioritize user profile assignedClass over leaked global state)
+    // 1. Identify User's Registered Class (strictly synced to profile/registration without manual class switching)
     const userAssignedClass = userIdentity?.assignedClass || user?.assignedClass;
-    const registeredClass = userAssignedClass || initialClass || 'Kelas 1';
-    const [activeClass, setActiveClass] = useState<string>(registeredClass);
+    const activeClass = userAssignedClass || initialClass || 'Kelas 1';
+    const registeredClass = activeClass;
     const [activeSubject, setActiveSubject] = useState<string>(initialSubject || 'Pendidikan Pancasila');
 
     const getTargetFaseInfo = (cls: string): { name: string; classes: string[] } => {
@@ -674,15 +674,6 @@ export const NaskahSumatifGenerator: React.FC<NaskahSumatifGeneratorProps> = ({
     }, [activeClass]);
 
     const activeFaseInfo = useMemo(() => getTargetFaseInfo(activeClass), [activeClass]);
-
-    // Sync when user account or user's registered class changes (prevent stale class from other tabs)
-    useEffect(() => {
-        if (userAssignedClass) {
-            setActiveClass(userAssignedClass);
-        } else if (initialClass) {
-            setActiveClass(initialClass);
-        }
-    }, [userAssignedClass, user?.email, initialClass]);
 
     useEffect(() => {
         if (initialSubject) {
@@ -1575,25 +1566,11 @@ KEMBALIKAN OUTPUT HANYA DALAM FORMAT JSON VALID TANPA TEKS TAMBAHAN:
                         Hasilkan naskah soal yang valid, bermakna, dan relevan dengan stimulus visual kontekstual asli sesuai capaian pembelajaran jenjang SD. Siap cetak dan siap dibagikan ke siswa.
                     </p>
 
-                    {/* Class & Subject Selector Quick Bar */}
+                    {/* Profile Class & Subject Quick Bar */}
                     <div className="mt-5 flex flex-wrap items-center gap-3 pt-4 border-t border-white/10">
                         <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold">
-                            <span className="text-slate-300">Kelas Target:</span>
-                            <select
-                                value={activeClass}
-                                onChange={(e) => {
-                                    const nextCls = e.target.value;
-                                    setActiveClass(nextCls);
-                                    if (onClassChange) onClassChange(nextCls);
-                                }}
-                                className="bg-slate-900/70 text-amber-300 font-bold text-xs px-2 py-0.5 rounded-lg border border-white/20 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
-                            >
-                                {['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'].map(cls => (
-                                    <option key={cls} value={cls}>
-                                        {cls} {userAssignedClass && isSameClass(cls, userAssignedClass) ? '(Terdaftar)' : ''}
-                                    </option>
-                                ))}
-                            </select>
+                            <span className="text-slate-300">Kelas (Sesuai Profil):</span>
+                            <span className="font-bold text-amber-300">{activeClass} ({activeFaseInfo.name})</span>
                         </div>
                         <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold">
                             <span className="text-slate-300">Mata Pelajaran:</span>

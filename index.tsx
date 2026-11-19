@@ -29,6 +29,7 @@ export const db = initializeFirestore(app, {
 
 import { ModulAjarGenerator } from './ModulAjarGenerator';
 import { NaskahSumatifGenerator } from './NaskahSumatifGenerator';
+import { MateriAjarGenerator } from './MateriAjarGenerator';
 import { 
     isSameSubject, 
     getSubjectKey, 
@@ -2343,7 +2344,7 @@ const DashboardView: React.FC<{
                     <span>Akses Cepat Modul & Fitur Utama</span>
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div 
                         onClick={() => onNavigate('generator')}
                         className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
@@ -2370,6 +2371,20 @@ const DashboardView: React.FC<{
                             <p className="text-xs text-slate-500 mt-1">Rencana Pembelajaran Mendalam (Permendikdasmen No. 13/2025).</p>
                         </div>
                         <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-purple-600">Buka Modul <ChevronRight className="w-3.5 h-3.5" /></span>
+                    </div>
+
+                    <div 
+                        onClick={() => onNavigate('materi_ajar')}
+                        className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-teal-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                        <div>
+                            <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center mb-3 group-hover:bg-teal-700 group-hover:text-white transition-colors">
+                                <Layers className="w-5 h-5" />
+                            </div>
+                            <h4 className="font-bold text-slate-900 group-hover:text-teal-700 transition-colors text-sm">Materi Ajar PPA (PDF)</h4>
+                            <p className="text-xs text-slate-500 mt-1">Bahan ajar hierarkis Elemen-TP-ATP dengan 10 gaya visual modern &amp; ekspor PDF.</p>
+                        </div>
+                        <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-teal-700">Buat Materi Ajar <ChevronRight className="w-3.5 h-3.5" /></span>
                     </div>
 
                     <div 
@@ -9701,7 +9716,7 @@ const [apiKeyMessage, setApiKeyMessage] = useState<{ type: 'success' | 'error' |
 const [selectedAtps, setSelectedAtps] = useState<Record<string, Record<string, boolean>>>({});
 const [registerClass, setRegisterClass] = useState<string>('Kelas 1');
 
-  const [currentView, setCurrentView] = useState<'dashboard' | 'generator' | 'history' | 'modul_ajar' | 'calendar' | 'daftar_siswa' | 'jadwal_mengajar' | 'hari_efektif' | 'presensi' | 'kktp' | 'jurnal' | 'sumatif'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'generator' | 'history' | 'modul_ajar' | 'materi_ajar' | 'calendar' | 'daftar_siswa' | 'jadwal_mengajar' | 'hari_efektif' | 'presensi' | 'kktp' | 'jurnal' | 'sumatif'>('dashboard');
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [calendarPageTab, setCalendarPageTab] = useState<'all' | 'master' | 'analysis'>('all');
   const [selectedClass, setSelectedClass] = useState<string>(() => localStorage.getItem('prota_assigned_class') || FASES[0].classes[0]);
@@ -13337,6 +13352,18 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                                 <span>Naskah Sumatif</span>
                             </button>
 
+                            {/* Menu 12: Materi Ajar */}
+                            <button
+                                onClick={() => {
+                                    setCurrentView('materi_ajar');
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={`w-full px-3 py-2.5 rounded-2xl text-left flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${currentView === 'materi_ajar' ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs border border-emerald-200/80' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <Layers className={`w-4 h-4 ${currentView === 'materi_ajar' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>Materi Ajar PPA</span>
+                            </button>
+
 
                         </div>
 
@@ -13502,6 +13529,24 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                     setSelectedClass(cls);
                     setSelectedFase(getFaseForClass(cls));
                 }}
+                notify={notify}
+            />
+        ) : currentView === 'materi_ajar' ? (
+            <MateriAjarGenerator
+                user={user}
+                userIdentity={userIdentity}
+                selectedClass={selectedClass}
+                selectedSubject={selectedSubject}
+                availableSubjects={[...SUBJECTS.filter(s => !isExcludedSubject(s)), 'Pendidikan Agama Islam', 'Muatan Lokal (Bahasa Sunda)']}
+                activities={activities}
+                lockedProtas={lockedProtas}
+                currentProtaData={data}
+                onNavigate={setCurrentView}
+                onClassChange={(cls: string) => {
+                    setSelectedClass(cls);
+                    setSelectedFase(getFaseForClass(cls));
+                }}
+                onSubjectChange={(subj: string) => setSelectedSubject(subj)}
                 notify={notify}
             />
         ) : currentView === 'calendar' ? (
