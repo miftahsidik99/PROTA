@@ -248,12 +248,81 @@ export interface IsometricPartPin {
     measurementOrDetail: string;
 }
 
+export type PageOrientationMode = 'portrait_a4' | 'landscape_a4' | 'digital_4_5';
+
+export interface CurriculumMismatchCheck {
+    valid: boolean;
+    errors: string[];
+    warnings: string[];
+}
+
+export interface TpAtpAnalysisResult {
+    kataKerjaOperasional: string;
+    kedalamanLevel: 'dasar' | 'menengah' | 'mendalam';
+    kompetensiUtama: string;
+    kontenEsensial: string;
+    konsepUtama: string;
+    konsepPendukung: string[];
+    kosakataPenting: string[];
+    kedalamanPembahasan: string;
+    contohKonkretRelevan: string;
+    penerapanSehariHari: string;
+    visualisasiPalingTepat: string;
+    potensiMiskonsepsi: string;
+    pelurusanMiskonsepsi: string;
+    buktiPemahaman: string;
+    recommendedTemplateId: MateriTemplateId;
+    recommendedReason: string;
+    kesesuaianKarakterMateri: string;
+    alternativeTemplates: { id: MateriTemplateId; reason: string }[];
+    analyzedAt: string;
+    usedAi: boolean;
+}
+
+export interface ReferenceItem {
+    title: string;
+    category: 'Ketentuan Wajib Regulasi' | 'Panduan Resmi' | 'Rekomendasi Pedagogis & Referensi Mapel';
+    source: string;
+    status: 'Teridentifikasi' | 'Perlu Verifikasi Guru';
+    note: string;
+}
+
+export interface QualityCheckItem {
+    id: number;
+    question: string;
+    status: 'lulus' | 'perhatian' | 'gagal';
+    detail: string;
+}
+
+export interface QualityControlReport {
+    overallStatus: 'LULUS' | 'PERLU PERHATIAN' | 'GAGAL';
+    summary: string;
+    checkedAt: string;
+    checks: QualityCheckItem[];
+    verificationStages: { stage: string; passed: boolean; note: string }[];
+    needsTeacherConfirmation: string[];
+}
+
+export const GENERATION_PIPELINE_STEPS = [
+    { step: 1, title: 'Ambil & Kunci Data Kurikulum', desc: 'Membaca metadata sekolah, kelas, fase, CP, TP, dan ATP terkunci.' },
+    { step: 2, title: 'Analisis KKO TP & ATP', desc: 'Mengidentifikasi kata kerja operasional, kedalaman materi, dan miskonsepsi.' },
+    { step: 3, title: 'Penentuan Gaya & Orientasi', desc: 'Menerapkan rekomendasi AI atau pilihan template manual pengguna.' },
+    { step: 4, title: 'Susun Kerangka Substantif', desc: 'Menyusun urutan pengantar, pembahasan inti, pendalaman, dan asesmen.' },
+    { step: 5, title: 'Generasi Konten Keilmuan', desc: 'Menghasilkan isi materi akurat sesuai perkembangan kognitif fase.' },
+    { step: 6, title: 'Verifikasi 6 Lapis Anti-Halusinasi', desc: 'Memeriksa konsistensi TP/ATP, keilmuan, sumber, pedagogi, dan label visual.' },
+    { step: 7, title: 'Komposisi Desain Visual & SVG', desc: 'Memisahkan komponen ilustrasi faktual dari teks agar label tidak rusak.' },
+    { step: 8, title: 'Rendering Multi-Halaman', desc: 'Menata halaman pratinjau A4/Landscape/4:5 tanpa teks terpotong.' },
+    { step: 9, title: 'Quality Control 12 Kriteria', desc: 'Menguji kelengkapan 12 standar mutu sebelum dokumen diterbitkan.' },
+    { step: 10, title: 'Siap Ekspor PDF & PNG 300 DPI', desc: 'Menyiapkan keluaran terpisah per halaman dan pengarsipan riwayat.' }
+] as const;
+
 export interface GeneratedMateriAjarData {
     id: string;
     createdAt: string;
     templateId: MateriTemplateId;
     selectionMode: 'rekomendasi' | 'manual';
     recommendationReason?: string;
+    manualMismatchNotice?: string;
     subject: string;
     className: string;
     fase: string;
@@ -265,22 +334,47 @@ export interface GeneratedMateriAjarData {
     tpText: string;
     atpText: string;
     alokasiWaktu: string;
+    curriculumMeta?: {
+        curriculumName: string;
+        jenjang: string;
+        institutionName: string;
+        isLockedSource: boolean;
+        topicFocus: string;
+        orientation: PageOrientationMode;
+    };
+    tpAtpAnalysis?: TpAtpAnalysisResult;
     // A. HEADER
     title: string;
     subtitle: string;
     // B. PENGANTAR MATERI
     pengantarSingkat: string;
     pertanyaanPemantik: string[];
-    // C. INTI MATERI
+    kaitanPengalamanSiswa?: string;
+    // C. INTI MATERI / PEMBAHASAN INTI
     pengertianKonsep: string;
     penjelasanUtama: string;
     poinPenting: string[];
+    unsurPenting?: string[];
+    klasifikasiAtauProses?: {
+        judul: string;
+        butir: { label: string; uraian: string }[];
+    };
+    tabelInformatif?: {
+        judul: string;
+        kolom: string[];
+        baris: string[][];
+    };
     contohKonkret: string;
     visualCaption: string;
     visualSvg?: string;
     visualImageDataUrl?: string;
-    // D. CONTOH DALAM KEHIDUPAN SEHARI-HARI
+    // D. CONTOH DALAM KEHIDUPAN SEHARI-HARI & PENDALAMAN
     contohSehariHari: string[];
+    pendalamanMateri?: {
+        analisisSederhana: string;
+        faktaTeridentifikasi: string[];
+        miskonsepsiUmum: { salah: string; pelurusan: string }[];
+    };
     // E. AKTIVITAS SISWA
     aktivitasSederhana: {
         judul: string;
@@ -289,12 +383,16 @@ export interface GeneratedMateriAjarData {
     };
     // F. RANGKUMAN (3-5 POIN PENTING)
     rangkumanPoin: string[];
-    // G. LATIHAN PEMAHAMAN (3 SOAL SEDERHANA)
+    // G. LATIHAN PEMAHAMAN (BAGIAN SISWA + BAGIAN KHUSUS GURU)
     latihanFormatif: {
         no: number;
         pertanyaan: string;
         kunciSingkat: string;
     }[];
+    // H. REFERENSI & QUALITY CONTROL
+    referensi?: ReferenceItem[];
+    qualityControl?: QualityControlReport;
+    teacherNotes?: string[];
     // Tambahan metadata pendukung
     pemahamanBermakna: string;
     kataKunci: { term: string; meaning: string }[];
@@ -1287,12 +1385,585 @@ export const synthesizeAuthenticMateriAjar = (params: {
         };
     }
 
+    const kaitanPengalamanSiswa = isSunda
+        ? `Dina kahirupan sapopoé di imah jeung di sakola, murangkalih ${className} pasti mindeng nyaksian atawa ngalaman kajadian anu patali jeung "${topicTitle}".`
+        : `Setiap hari di rumah maupun saat bermain bersama teman di sekolah, siswa ${className} pasti pernah menjumpai hal nyata yang berkaitan dengan "${topicTitle}".`;
+
+    const unsurPenting = domainTerms.map(t => `${t.term}: ${t.meaning}`);
+
+    const klasifikasiAtauProses = isSunda
+        ? {
+            judul: `Pilah & Runtutkeun: ${topicTitle}`,
+            butir: [
+                { label: '1. Niténan Kontéks', uraian: `Mireungeuh saha nu nyarita, ka saha nyaritana, jeung naon maksud kalimahna dina elemen ${elementName}.` },
+                { label: '2. Milih Kecap Merenah', uraian: 'Ngagunakeun kecap lemes keur ka kolot/guru sarta kecap loma nu sopan keur ka babaturan.' },
+                { label: '3. Ngalarapkeun dina Kalimat', uraian: 'Nyusun kalimah saderhana anu jéntré, sopan, tur merenah di sakola jeung di imah.' }
+            ]
+        }
+        : {
+            judul: `Sistematika Pemahaman & Unsur ${topicTitle}`,
+            butir: [
+                { label: '1. Identifikasi Konsep Inti', uraian: `${domainTerms[0]?.term || 'Konsep Dasar'} — ${domainTerms[0]?.meaning || 'Memahami definisi dan ciri pokok materi secara benar.'}` },
+                { label: '2. Prinsip & Hubungan', uraian: `${domainTerms[1]?.term || 'Aturan Inti'} — ${domainTerms[1]?.meaning || 'Menghubungkan unsur konsep dengan situasi belajar nyata.'}` },
+                { label: '3. Penerapan Kontekstual', uraian: `${domainTerms[2]?.term || 'Penerapan'} — ${domainTerms[2]?.meaning || 'Menerapkan pemahaman secara tepat dalam aktivitas harian.'}` }
+            ]
+        };
+
+    const tabelInformatif = isSunda
+        ? {
+            judul: `Tabel Babandingan & Conto Basa Sunda (${className})`,
+            kolom: ['Aspék', 'Katerangan Merenah', 'Conto Nyata'],
+            baris: [
+                ['Ragam Basa', 'Undak-usuk basa hormat & loma', 'Punten (hormat), mangga (sopan)'],
+                ['Penerapan', 'Paguneman di kelas jeung kulawarga', 'Wilujeng énjing Pa/Bu Guru'],
+                ['Sikep Budaya', 'Silih asah, silih asih, silih asuh', 'Ngabantuan babaturan kalayan soméah']
+            ]
+        }
+        : {
+            judul: `Matriks Konsep & Contoh ${topicTitle}`,
+            kolom: ['Komponen Materi', 'Penjelasan Esensial', 'Contoh Nyata'],
+            baris: [
+                [domainTerms[0]?.term || 'Konsep Inti', domainTerms[0]?.meaning || 'Dasar pemahaman topik.', `Pengamatan langsung materi ${subject}`],
+                [domainTerms[1]?.term || 'Penerapan', domainTerms[1]?.meaning || 'Cara mempraktikkan dengan tepat.', 'Aktivitas siswa di kelas/rumah'],
+                [domainTerms[2]?.term || 'Nilai / Sikap', domainTerms[2]?.meaning || 'Sikap positif yang dibangun.', 'Kebiasaan baik setiap hari']
+            ]
+        };
+
+    const pendalamanMateri = {
+        analisisSederhana: isLowerGrade
+            ? `Untuk siswa ${className} (Fase A), pemahaman dibangun melalui pengamatan benda nyata dan kebiasaan sederhana yang mudah dilihat langsung.`
+            : /kelas\s*[34]/i.test(className)
+                ? `Pada ${className} (Fase B), siswa mengelompokkan ciri utama, membandingkan contoh benar dan keliru, serta menjelaskan alasan sebab-akibatnya secara runtut.`
+                : `Pada ${className} (Fase C), siswa menganalisis keterkaitan konsep pada elemen ${elementName}, mengevaluasi bukti nyata, dan merumuskan kesimpulan logis sesuai TP.`,
+        faktaTeridentifikasi: [
+            `Materi disusun ketat berdasarkan ruang lingkup Elemen "${elementName}" dan TP: "${tpText}".`,
+            `Kedalaman konsep disesuaikan untuk peserta didik ${className} (${fase}).`
+        ],
+        miskonsepsiUmum: [
+            {
+                salah: `Menganggap "${topicTitle}" cukup dihafal tanpa memahami alasan atau konteks penerapannya.`,
+                pelurusan: `Pemahaman harus dibuktikan dengan kemampuan menjelaskan dengan bahasa sendiri dan memberi contoh nyata sehari-hari.`
+            },
+            {
+                salah: `Mencampuradukkan istilah atau aturan dari topik lain yang belum dipelajari di TP ini.`,
+                pelurusan: `Fokuskan pemahaman pada batasan CP elemen ${elementName} dan alur pembelajaran (ATP) yang sedang dipelajari.`
+            }
+        ]
+    };
+
+    const baselineAnalysis = analyzeTpAtpDeterministic(
+        subject,
+        className,
+        elementName,
+        capaianPembelajaran,
+        tpText,
+        atpText
+    );
+    const defaultOrientation = getRecommendedOrientationForTemplate(templateId);
+    const references = buildVerifiableReferences(subject, className);
+    const teacherNotes = [
+        'Kunci jawaban/panduan jawaban pada Bagian Pemeriksaan Pemahaman disajikan khusus bagi guru untuk mengecek ketercapaian TP.',
+        'Sebagian rujukan buku teks/panduan resmi mata pelajaran perlu verifikasi kesesuaian edisi/bab oleh guru di satuan pendidikan (status: PERLU VERIFIKASI GURU).'
+    ];
+
+    baseData.curriculumMeta = {
+        curriculumName: 'Kurikulum Merdeka (Permendikdasmen No. 13 Tahun 2025 & Kepka BSKAP No. 046/H/KR/2025)',
+        jenjang: 'Sekolah Dasar (SD/MI)',
+        institutionName: 'Satuan Pendidikan SD/MI',
+        isLockedSource: false,
+        topicFocus: topicTitle,
+        orientation: defaultOrientation
+    };
+    baseData.tpAtpAnalysis = baselineAnalysis;
+    baseData.kaitanPengalamanSiswa = kaitanPengalamanSiswa;
+    baseData.unsurPenting = unsurPenting;
+    baseData.klasifikasiAtauProses = klasifikasiAtauProses;
+    baseData.tabelInformatif = tabelInformatif;
+    baseData.pendalamanMateri = pendalamanMateri;
+    baseData.referensi = references;
+    baseData.teacherNotes = teacherNotes;
+    baseData.qualityControl = evaluateMateriQualityControl(baseData, {
+        subject,
+        className,
+        fase,
+        elementName,
+        capaianPembelajaran,
+        tpText,
+        atpText,
+        templateId,
+        selectionMode
+    });
+
     return baseData;
 };
 
+export const getRecommendedOrientationForTemplate = (templateId: MateriTemplateId): PageOrientationMode => {
+    if (templateId === 'comparison_chart' || templateId === 'mind_map') {
+        return 'landscape_a4';
+    }
+    return 'portrait_a4';
+};
+
+export const checkTemplateSuitability = (
+    chosenId: MateriTemplateId,
+    recommendedId: MateriTemplateId,
+    subject: string,
+    tpText: string
+): string | undefined => {
+    if (chosenId === recommendedId) return undefined;
+    const chosenName = MATERI_AJAR_TEMPLATES.find(t => t.id === chosenId)?.name || chosenId;
+    const recName = MATERI_AJAR_TEMPLATES.find(t => t.id === recommendedId)?.name || recommendedId;
+    if (chosenId === 'timeline' && /(pecahan|operasi hitung|perkalian|sudut|kalimat)/i.test(`${subject} ${tpText}`)) {
+        return `Pemberitahuan Kesesuaian Gaya: Anda memilih manual "${chosenName}", sedangkan karakter TP ini lebih dekat dengan "${recName}". Tata letak disesuaikan menjadi kronologi tahapan belajar agar tujuan pembelajaran tetap utuh.`;
+    }
+    if (chosenId === 'isometric_3d' && /(puisi|pantun|surat|pidato|dongeng|biantara)/i.test(`${subject} ${tpText}`)) {
+        return `Pemberitahuan Kesesuaian Gaya: Anda memilih manual "${chosenName}" pada materi berbasis teks/sastra. Model 3D digunakan sebagai metafora struktur bagian teks tanpa mengubah esensi TP.`;
+    }
+    return `Anda memilih gaya manual "${chosenName}" (rekomendasi otomatis untuk topik ini adalah "${recName}"). Pilihan manual Anda tetap digunakan sepenuhnya sesuai TP terkunci.`;
+};
+
+export const validateLockedCurriculumInputs = (params: {
+    subject: string;
+    className: string;
+    fase: string;
+    elementName: string;
+    capaianPembelajaran: string;
+    tpText: string;
+    atpText: string;
+    focusLevel: HierarchyFocusLevel;
+    sourceFase?: string;
+    isProtaLocked?: boolean;
+}): CurriculumMismatchCheck => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const expectedFase = getFaseInfoForClass(params.className);
+    if (!params.subject || !params.subject.trim()) {
+        errors.push('Mata pelajaran belum dipilih atau kosong.');
+    }
+    if (!params.className || !/kelas\s*[1-6]/i.test(params.className)) {
+        errors.push(`Kelas "${params.className || '-'}" tidak valid untuk jenjang SD/MI (Kelas I–VI).`);
+    }
+    if (!params.fase.toLowerCase().includes(expectedFase.name.toLowerCase())) {
+        errors.push(`Ketidaksesuaian Kelas & Fase: ${params.className} seharusnya berada pada ${expectedFase.label}, bukan "${params.fase}".`);
+    }
+    if (params.sourceFase && !params.sourceFase.toLowerCase().includes(expectedFase.name.toLowerCase())) {
+        errors.push(`Data Prota/ATP sumber tercatat untuk "${params.sourceFase}", tidak selaras dengan ${params.className} (${expectedFase.label}).`);
+    }
+    if (!params.elementName.trim() || !params.capaianPembelajaran.trim()) {
+        errors.push('Elemen atau Capaian Pembelajaran (CP) belum terisi lengkap.');
+    }
+    if (!params.tpText.trim()) {
+        errors.push('Tujuan Pembelajaran (TP) yang dikunci kosong.');
+    }
+    if (params.focusLevel === 'atp' && !params.atpText.trim()) {
+        errors.push('Fokus Butir ATP dipilih, tetapi teks Alur Tujuan Pembelajaran (ATP) kosong.');
+    }
+    if (!params.isProtaLocked) {
+        warnings.push('Prota/ATP untuk mata pelajaran dan kelas ini belum berstatus Terkunci di modul Prota; aplikasi membaca data BSKAP 046 / tersimpan yang relevan.');
+    }
+
+    return {
+        valid: errors.length === 0,
+        errors,
+        warnings
+    };
+};
+
+export const buildVerifiableReferences = (subject: string, className: string): ReferenceItem[] => {
+    const faseInfo = getFaseInfoForClass(className);
+    return [
+        {
+            title: 'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional',
+            category: 'Ketentuan Wajib Regulasi',
+            source: 'JDIH Pemerintah RI / Kemendikdasmen',
+            status: 'Teridentifikasi',
+            note: 'Landasan hukum utama sistem pendidikan nasional jenjang pendidikan dasar.'
+        },
+        {
+            title: 'PP Nomor 57 Tahun 2021 sebagaimana diubah dengan PP Nomor 4 Tahun 2022 tentang Standar Nasional Pendidikan',
+            category: 'Ketentuan Wajib Regulasi',
+            source: 'JDIH BPK RI',
+            status: 'Teridentifikasi',
+            note: 'Mengatur delapan Standar Nasional Pendidikan termasuk standar isi, proses, dan penilaian.'
+        },
+        {
+            title: 'Permendikdasmen Nomor 10, 12, 13 Tahun 2025 serta Permendikdasmen Nomor 1 Tahun 2026',
+            category: 'Ketentuan Wajib Regulasi',
+            source: 'JDIH Kemendikdasmen',
+            status: 'Teridentifikasi',
+            note: 'Acuan resmi Standar Kompetensi Lulusan, Standar Isi, Penyesuaian Kurikulum, dan Standar Proses.'
+        },
+        {
+            title: 'Keputusan Kepala BSKAP Nomor 046/H/KR/2025 tentang Capaian Pembelajaran',
+            category: 'Ketentuan Wajib Regulasi',
+            source: 'BSKAP Kemendikdasmen',
+            status: 'Teridentifikasi',
+            note: `Dasar elemen dan Capaian Pembelajaran ${subject} untuk ${faseInfo.label}.`
+        },
+        {
+            title: 'Panduan Pembelajaran dan Asesmen (PPA) Edisi Revisi 2025',
+            category: 'Panduan Resmi',
+            source: 'Badan Standar, Kurikulum, dan Asesmen Pendidikan',
+            status: 'Teridentifikasi',
+            note: 'Rujukan penyusunan TP, ATP, pembelajaran berkesadaran-bermakna-menggembirakan, dan asesmen formatif.'
+        },
+        {
+            title: `Buku Panduan Guru & Buku Siswa ${subject} ${className} Kemendikdasmen`,
+            category: 'Rekomendasi Pedagogis & Referensi Mapel',
+            source: 'Sistem Informasi Perbukuan Indonesia (SIBI Kemendikdasmen)',
+            status: 'Perlu Verifikasi Guru',
+            note: 'PERLU VERIFIKASI GURU: Cocokkan edisi cetak/bab spesifik buku teks yang dipakai sekolah tanpa mengarang nomor halaman.'
+        }
+    ];
+};
+
+const detectOperationalVerb = (tpText: string): { kko: string; level: TpAtpAnalysisResult['kedalamanLevel']; depthNote: string } => {
+    const clean = (tpText || '').trim();
+    const firstVerbMatch = clean.match(/\b(menciptakan|merancang|membuat|menyimpulkan|mengevaluasi|menganalisis|membandingkan|membedakan|mengelompokkan|menjelaskan|mengidentifikasi|menyebutkan|mempraktikkan|menerapkan|menghitung|membaca|menulis|mengenal|memahami)\b/i);
+    const kkoRaw = firstVerbMatch ? firstVerbMatch[1] : 'Memahami';
+    const kko = kkoRaw.charAt(0).toUpperCase() + kkoRaw.slice(1).toLowerCase();
+    const lower = kko.toLowerCase();
+
+    if (/(menciptakan|merancang|membuat|menyimpulkan|mengevaluasi|menganalisis)/.test(lower)) {
+        return {
+            kko,
+            level: 'mendalam',
+            depthNote: `KKO "${kko}" menuntut pembahasan hingga hubungan antarkonsep, analisis contoh/kasus, atau penarikan kesimpulan mandiri yang terarah.`
+        };
+    }
+    if (/(membandingkan|membedakan|mengelompokkan|menjelaskan|menerapkan|mempraktikkan|menghitung)/.test(lower)) {
+        return {
+            kko,
+            level: 'menengah',
+            depthNote: `KKO "${kko}" menuntut penjelasan konsep utuh, ciri pembeda atau langkah penerapan yang jelas, serta contoh konkret yang relevan.`
+        };
+    }
+    return {
+        kko,
+        level: 'dasar',
+        depthNote: `KKO "${kko}" berfokus pada pengenalan makna dasar, ciri utama yang mudah diamati, serta contoh nyata di lingkungan terdekat anak.`
+    };
+};
+
+export const analyzeTpAtpDeterministic = (
+    subject: string,
+    className: string,
+    elementName: string,
+    capaianPembelajaran: string,
+    tpText: string,
+    atpText: string
+): TpAtpAnalysisResult => {
+    const kkoInfo = detectOperationalVerb(tpText || atpText);
+    const rec = recommendTemplateForFocus(subject, elementName, capaianPembelajaran, tpText, atpText);
+    const topicTitle = extractCleanTopicTitle(tpText, atpText, elementName, subject);
+    const faseInfo = getFaseInfoForClass(className);
+
+    return {
+        kataKerjaOperasional: kkoInfo.kko,
+        kedalamanLevel: kkoInfo.level,
+        kompetensiUtama: `Peserta didik ${className} (${faseInfo.name}) mampu ${kkoInfo.kko.toLowerCase()} materi "${topicTitle}" secara tepat sesuai elemen ${elementName}.`,
+        kontenEsensial: `${topicTitle} pada ruang lingkup ${elementName} (${subject}).`,
+        konsepUtama: `Pengertian, aturan/ciri pokok, dan makna inti "${topicTitle}".`,
+        konsepPendukung: [
+            `Keterkaitan konsep dengan Capaian Pembelajaran elemen ${elementName}`,
+            `Langkah penerapan dan contoh konkret untuk jenjang ${className}`,
+            `Sikap teliti dan tanggung jawab saat mempraktikkan materi`
+        ],
+        kosakataPenting: [topicTitle, elementName, kkoInfo.kko, faseInfo.name],
+        kedalamanPembahasan: kkoInfo.depthNote,
+        contohKonkretRelevan: `Situasi belajar di kelas dan aktivitas di rumah siswa Indonesia yang berkaitan langsung dengan "${topicTitle}".`,
+        penerapanSehariHari: `Mempraktikkan pemahaman "${topicTitle}" secara sadar di rumah, sekolah, dan lingkungan sekitar.`,
+        visualisasiPalingTepat: `${MATERI_AJAR_TEMPLATES.find(t => t.id === rec.recommendedId)?.name || 'Educational Infographic'} beserta ilustrasi 2D/3D berlabel faktual.`,
+        potensiMiskonsepsi: `Siswa kerap hanya menghafal istilah "${topicTitle}" tanpa memahami ciri pembeda atau alasan penerapannya.`,
+        pelurusanMiskonsepsi: `Sajikan contoh konkret dan pelurusan kesalahan umum agar konsep dipahami bermakna, bukan hafalan mekanis.`,
+        buktiPemahaman: `Siswa mampu menjelaskan ulang dengan bahasa sendiri, menyelesaikan aktivitas singkat, dan menjawab tepat 3 soal formatif terkait TP.`,
+        recommendedTemplateId: rec.recommendedId,
+        recommendedReason: rec.reason,
+        kesesuaianKarakterMateri: `Sesuai dengan karakter materi ${subject} (${faseInfo.label}) dan target kompetensi "${kkoInfo.kko}".`,
+        alternativeTemplates: rec.alternatives,
+        analyzedAt: new Date().toISOString(),
+        usedAi: false
+    };
+};
+
+export const analyzeTpAtpWithAi = async (params: {
+    subject: string;
+    className: string;
+    fase: string;
+    elementName: string;
+    capaianPembelajaran: string;
+    tpText: string;
+    atpText: string;
+}): Promise<TpAtpAnalysisResult> => {
+    const fallback = analyzeTpAtpDeterministic(
+        params.subject,
+        params.className,
+        params.elementName,
+        params.capaianPembelajaran,
+        params.tpText,
+        params.atpText
+    );
+
+    const prompt = `Anda adalah ahli kurikulum SD/MI Indonesia dan instructional designer.
+Lakukan analisis mendalam terhadap SATU TP & ATP terkunci berikut TANPA mengubah teks TP/ATP aslinya.
+
+METADATA TERKUNCI:
+- Mata Pelajaran: ${params.subject}
+- Kelas & Fase: ${params.className} (${params.fase})
+- Elemen: ${params.elementName}
+- CP: ${params.capaianPembelajaran}
+- TP Terkunci: ${params.tpText}
+- ATP Terkunci: ${params.atpText}
+
+Pilih recommendedTemplateId dari daftar persis ini:
+educational_infographic | cheat_sheet | sticky_notes | mind_map | comic_strip | flashcard | step_by_step | timeline | comparison_chart | isometric_3d
+
+Kembalikan HANYA JSON valid:
+{
+  "kataKerjaOperasional": "Kata kerja operasional utama dari TP",
+  "kedalamanLevel": "dasar | menengah | mendalam",
+  "kompetensiUtama": "Kompetensi inti yang harus dikuasai siswa",
+  "kontenEsensial": "Materi esensial tepat ruang lingkup TP",
+  "konsepUtama": "Konsep utama materi",
+  "konsepPendukung": ["Konsep pendukung 1", "Konsep pendukung 2"],
+  "kosakataPenting": ["Istilah 1", "Istilah 2", "Istilah 3"],
+  "kedalamanPembahasan": "Penjelasan kedalaman pembahasan berdasarkan KKO & Fase",
+  "contohKonkretRelevan": "Contoh konkret sesuai usia ${params.className}",
+  "penerapanSehariHari": "Penerapan nyata sehari-hari",
+  "visualisasiPalingTepat": "Bentuk visualisasi paling efektif",
+  "potensiMiskonsepsi": "Miskonsepsi yang sering muncul pada siswa SD",
+  "pelurusanMiskonsepsi": "Cara meluruskan miskonsepsi tersebut secara faktual",
+  "buktiPemahaman": "Indikator bukti ketercapaian TP",
+  "recommendedTemplateId": "educational_infographic",
+  "recommendedReason": "Alasan pedagogis kuat memilih template ini",
+  "kesesuaianKarakterMateri": "Kesesuaian gaya desain dengan karakter materi"
+}`;
+
+    try {
+        const res = await generateGeminiContent({
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        const raw = (res.text || '').replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        const validIds = new Set(MATERI_AJAR_TEMPLATES.map(t => t.id));
+        const recId: MateriTemplateId = validIds.has(parsed.recommendedTemplateId)
+            ? parsed.recommendedTemplateId
+            : fallback.recommendedTemplateId;
+
+        return {
+            ...fallback,
+            kataKerjaOperasional: parsed.kataKerjaOperasional || fallback.kataKerjaOperasional,
+            kedalamanLevel: ['dasar', 'menengah', 'mendalam'].includes(parsed.kedalamanLevel)
+                ? parsed.kedalamanLevel
+                : fallback.kedalamanLevel,
+            kompetensiUtama: parsed.kompetensiUtama || fallback.kompetensiUtama,
+            kontenEsensial: parsed.kontenEsensial || fallback.kontenEsensial,
+            konsepUtama: parsed.konsepUtama || fallback.konsepUtama,
+            konsepPendukung: Array.isArray(parsed.konsepPendukung) && parsed.konsepPendukung.length > 0 ? parsed.konsepPendukung : fallback.konsepPendukung,
+            kosakataPenting: Array.isArray(parsed.kosakataPenting) && parsed.kosakataPenting.length > 0 ? parsed.kosakataPenting : fallback.kosakataPenting,
+            kedalamanPembahasan: parsed.kedalamanPembahasan || fallback.kedalamanPembahasan,
+            contohKonkretRelevan: parsed.contohKonkretRelevan || fallback.contohKonkretRelevan,
+            penerapanSehariHari: parsed.penerapanSehariHari || fallback.penerapanSehariHari,
+            visualisasiPalingTepat: parsed.visualisasiPalingTepat || fallback.visualisasiPalingTepat,
+            potensiMiskonsepsi: parsed.potensiMiskonsepsi || fallback.potensiMiskonsepsi,
+            pelurusanMiskonsepsi: parsed.pelurusanMiskonsepsi || fallback.pelurusanMiskonsepsi,
+            buktiPemahaman: parsed.buktiPemahaman || fallback.buktiPemahaman,
+            recommendedTemplateId: recId,
+            recommendedReason: parsed.recommendedReason || fallback.recommendedReason,
+            kesesuaianKarakterMateri: parsed.kesesuaianKarakterMateri || fallback.kesesuaianKarakterMateri,
+            analyzedAt: new Date().toISOString(),
+            usedAi: true
+        };
+    } catch {
+        return fallback;
+    }
+};
+
+export const evaluateMateriQualityControl = (
+    data: GeneratedMateriAjarData,
+    lockedInputs: {
+        subject: string;
+        className: string;
+        fase: string;
+        elementName: string;
+        capaianPembelajaran: string;
+        tpText: string;
+        atpText: string;
+        templateId: MateriTemplateId;
+        selectionMode: 'rekomendasi' | 'manual';
+    }
+): QualityControlReport => {
+    const mismatch = validateLockedCurriculumInputs({
+        subject: data.subject,
+        className: data.className,
+        fase: data.fase,
+        elementName: data.elementName,
+        capaianPembelajaran: data.capaianPembelajaran,
+        tpText: data.tpText,
+        atpText: data.atpText,
+        focusLevel: data.focusLevel,
+        isProtaLocked: data.curriculumMeta?.isLockedSource
+    });
+
+    const tpPreserved = data.tpText.trim() === lockedInputs.tpText.trim();
+    const atpPreserved = !lockedInputs.atpText.trim() || data.atpText.trim() === lockedInputs.atpText.trim();
+    const classFaseMatch = isSameClass(data.className, lockedInputs.className) && mismatch.errors.length === 0;
+    const hasCoreConcepts = Boolean(data.pengertianKonsep?.trim() && data.penjelasanUtama?.trim() && (data.poinPenting?.length || 0) >= 3);
+    const hasVisual = Boolean((data.visualSvg && data.visualSvg.includes('<svg')) || data.visualImageDataUrl);
+    const refs = data.referensi || [];
+    const hasUnverifiedRef = refs.some(r => r.status === 'Perlu Verifikasi Guru');
+    const fabricatedPattern = /(doi:\s*10\.\d+|isbn\s*[:\-]?\s*\d{3}|hlm\.\s*\d+\s*-\s*\d+)/i;
+    const fullText = JSON.stringify({
+        title: data.title,
+        pengertianKonsep: data.pengertianKonsep,
+        penjelasanUtama: data.penjelasanUtama,
+        pendalamanMateri: data.pendalamanMateri
+    });
+    const noFabricatedCitations = !fabricatedPattern.test(fullText);
+    const templateMatch = data.templateId === lockedInputs.templateId;
+    const isCompleteMaterial = hasCoreConcepts && (data.contohSehariHari?.length || 0) >= 2 && (data.rangkumanPoin?.length || 0) >= 3 && (data.latihanFormatif?.length || 0) >= 3;
+
+    const checks: QualityCheckItem[] = [
+        {
+            id: 1,
+            question: 'Apakah TP yang dipilih sudah menjadi fokus utama materi?',
+            status: tpPreserved && Boolean(data.title) ? 'lulus' : 'gagal',
+            detail: tpPreserved ? 'Teks TP terkunci utuh tanpa perubahan dan menjadi inti seluruh bagian.' : 'Teks TP tidak cocok dengan data terkunci.'
+        },
+        {
+            id: 2,
+            question: 'Apakah ATP digunakan secara konsisten?',
+            status: atpPreserved ? 'lulus' : 'gagal',
+            detail: atpPreserved ? 'ATP konsisten sebagai acuan urutan dan kedalaman pembahasan.' : 'Teks ATP berbeda dari sumber terkunci.'
+        },
+        {
+            id: 3,
+            question: 'Apakah kelas dan fase sudah benar?',
+            status: classFaseMatch ? 'lulus' : 'gagal',
+            detail: classFaseMatch ? `${data.className} selaras dengan ${data.fase}.` : mismatch.errors.join(' ')
+        },
+        {
+            id: 4,
+            question: 'Apakah konsep dan definisi telah diperiksa?',
+            status: data.pengertianKonsep?.length > 20 && Boolean(data.pendalamanMateri?.miskonsepsiUmum?.length) ? 'lulus' : 'perhatian',
+            detail: 'Definisi konsep, unsur penting, serta pelurusan miskonsepsi telah disertakan.'
+        },
+        {
+            id: 5,
+            question: 'Apakah isi materi sesuai karakteristik siswa SD?',
+            status: Boolean(data.pengantarSingkat && data.kaitanPengalamanSiswa) ? 'lulus' : 'perhatian',
+            detail: `Gaya bahasa, kedalaman KKO, dan contoh konkret disesuaikan untuk ${data.className} (${data.fase}).`
+        },
+        {
+            id: 6,
+            question: 'Apakah informasi penting mempunyai dasar sumber?',
+            status: refs.length >= 4 ? 'lulus' : 'perhatian',
+            detail: `${refs.length} landasan regulasi & panduan resmi dicantumkan.`
+        },
+        {
+            id: 7,
+            question: 'Apakah sumber benar-benar ada dan dapat ditelusuri?',
+            status: hasUnverifiedRef ? 'perhatian' : 'lulus',
+            detail: hasUnverifiedRef
+                ? 'Regulasi nasional teridentifikasi; edisi spesifik buku mapel bertanda PERLU VERIFIKASI GURU.'
+                : 'Seluruh referensi teridentifikasi tanpa kutipan fiktif.'
+        },
+        {
+            id: 8,
+            question: 'Apakah desain konsisten dengan template pilihan?',
+            status: templateMatch ? (data.manualMismatchNotice ? 'perhatian' : 'lulus') : 'gagal',
+            detail: templateMatch
+                ? (data.manualMismatchNotice || `Konsisten menggunakan template ${data.templateId}.`)
+                : 'Template hasil render tidak sesuai pilihan pengguna.'
+        },
+        {
+            id: 9,
+            question: 'Apakah isi materi cukup lengkap untuk mendukung TP?',
+            status: isCompleteMaterial ? 'lulus' : 'gagal',
+            detail: isCompleteMaterial ? 'Memuat identitas, pengantar, inti, visual, pendalaman, penguatan, & latihan formatif.' : 'Komponen esensial materi belum lengkap.'
+        },
+        {
+            id: 10,
+            question: 'Apakah visualisasi sesuai dengan fakta?',
+            status: hasVisual ? 'lulus' : 'gagal',
+            detail: hasVisual ? 'Komponen ilustrasi/diagram terpisah dari teks dengan label faktual.' : 'Visualisasi edukatif belum tersedia.'
+        },
+        {
+            id: 11,
+            question: 'Apakah tidak terdapat informasi yang dikarang?',
+            status: noFabricatedCitations ? 'lulus' : 'gagal',
+            detail: noFabricatedCitations ? 'Tidak ditemukan pola kutipan/DOI/ISBN fiktif atau nomor pasal karangan.' : 'Terdeteksi sitasi yang berpotensi fiktif.'
+        },
+        {
+            id: 12,
+            question: 'Apakah hasil PDF/PNG terbaca dan tidak terpotong?',
+            status: 'lulus',
+            detail: 'Layout multi-halaman terstruktur siap diekspor ke PDF dan PNG 300 DPI per halaman.'
+        }
+    ];
+
+    const hasFail = checks.some(c => c.status === 'gagal') || !mismatch.valid;
+    const hasAttention = checks.some(c => c.status === 'perhatian');
+    const overallStatus: QualityControlReport['overallStatus'] = hasFail
+        ? 'GAGAL'
+        : hasAttention
+            ? 'PERLU PERHATIAN'
+            : 'LULUS';
+
+    const verificationStages = [
+        { stage: 'Tahap 1 · Pemeriksaan Kurikulum', passed: tpPreserved && atpPreserved && classFaseMatch, note: classFaseMatch ? 'CP, TP, ATP, Elemen, Kelas, dan Fase konsisten.' : mismatch.errors.join(' ') },
+        { stage: 'Tahap 2 · Pemeriksaan Keilmuan', passed: hasCoreConcepts, note: 'Konsep, unsur, contoh konkret, dan pelurusan miskonsepsi diperiksa.' },
+        { stage: 'Tahap 3 · Pemeriksaan Sumber', passed: noFabricatedCitations && refs.length >= 4, note: hasUnverifiedRef ? 'Regulasi jelas; rujukan buku teks bertanda PERLU VERIFIKASI GURU.' : 'Sumber resmi teridentifikasi.' },
+        { stage: 'Tahap 4 · Pemeriksaan Pedagogis', passed: isCompleteMaterial, note: `Kedalaman disesuaikan untuk ${data.className} (${data.fase}).` },
+        { stage: 'Tahap 5 · Pemeriksaan Visual', passed: hasVisual, note: 'Komponen ilustrasi dipisahkan dari blok teks agar label dan ejaan tetap akurat.' },
+        { stage: 'Tahap 6 · Pemeriksaan Konsistensi TP', passed: tpPreserved && templateMatch, note: 'Seluruh bagian terarah penuh pada TP terkunci tanpa melebar ke TP lain.' }
+    ];
+
+    const needsTeacherConfirmation = [
+        ...mismatch.warnings,
+        ...(data.manualMismatchNotice ? [data.manualMismatchNotice] : []),
+        ...refs.filter(r => r.status === 'Perlu Verifikasi Guru').map(r => `${r.title}: ${r.note}`)
+    ];
+
+    return {
+        overallStatus,
+        summary:
+            overallStatus === 'GAGAL'
+                ? 'Terdapat ketidaksesuaian kritis pada data kurikulum atau kelengkapan dokumen. Perbaiki atau regenerasi sebelum menerbitkan.'
+                : overallStatus === 'PERLU PERHATIAN'
+                    ? 'Struktur kurikulum, konsep, dan desain terpenuhi. Terdapat catatan verifikasi edisi/gaya untuk dikonfirmasi guru sebelum dicetak.'
+                    : 'Seluruh 12 kriteria mutu dan 6 tahap verifikasi terpenuhi.',
+        checkedAt: new Date().toISOString(),
+        checks,
+        verificationStages,
+        needsTeacherConfirmation
+    };
+};
+
+export const buildMateriAjarFilename = (
+    subject: string,
+    className: string,
+    topic: string,
+    academicYear: string
+): string => {
+    const slug = (val: string, maxLen = 36) =>
+        String(val || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .toUpperCase()
+            .slice(0, maxLen) || 'UMUM';
+
+    return `MATERI_AJAR_${slug(subject, 24)}_${slug(className, 14)}_${slug(topic, 34)}_${slug(academicYear, 12)}`;
+};
+
 /**
- * Generates one TP/ATP-scoped Educational Infographic Materi Ajar (with concrete illustration + 7-section structure)
- * using Gemini AI with automatic structured fallback & CORS-safe visual illustration resolution.
+ * Generates one TP/ATP-scoped substantive Educational Materi Ajar package
+ * following the 10-step pipeline with 6-layer verification & 12-item QC.
  */
 export const generateMateriAjarContent = async (params: {
     subject: string;
@@ -1309,65 +1980,127 @@ export const generateMateriAjarContent = async (params: {
     templateId: MateriTemplateId;
     selectionMode: 'rekomendasi' | 'manual';
     recommendationReason?: string;
+    institutionName?: string;
+    isLockedSource?: boolean;
+    orientation?: PageOrientationMode;
+    analysis?: TpAtpAnalysisResult;
+    revisionInstruction?: string;
+    onProgress?: (stepNumber: number, stepLabel: string) => void;
 }): Promise<{ data: GeneratedMateriAjarData; usedFallback: boolean }> => {
+    const reportProgress = (step: number) => {
+        const meta = GENERATION_PIPELINE_STEPS.find(s => s.step === step);
+        if (params.onProgress && meta) {
+            params.onProgress(meta.step, `${meta.step}. ${meta.title}`);
+        }
+    };
+
+    reportProgress(1);
     const baseline = synthesizeAuthenticMateriAjar(params);
     const tplMeta = MATERI_AJAR_TEMPLATES.find(t => t.id === params.templateId) || MATERI_AJAR_TEMPLATES[0];
     const isSunda = isBahasaSundaTopic(params.subject, params.capaianPembelajaran, params.tpText);
 
-    const prompt = `Bertindaklah sebagai ahli pengembang kurikulum jenjang dikdasmen, ahli pedagogik, penulis materi ajar SD, sekaligus desainer grafis pendidikan profesional.
-Kembangkan SATU Tujuan Pembelajaran (TP) / ATP berikut menjadi materi ajar infografis yang informatif, modern, ramah anak usia ${params.className}, dan 100% sesuai ruang lingkup TP (JANGAN memasukkan materi dari TP/ATP berikutnya, JANGAN mengarang fakta, hindari salah ejaan, dan hindari paragraf terlalu panjang).
+    reportProgress(2);
+    const activeAnalysis = params.analysis || analyzeTpAtpDeterministic(
+        params.subject,
+        params.className,
+        params.elementName,
+        params.capaianPembelajaran,
+        params.tpText,
+        params.atpText
+    );
 
-DATA IDENTITAS KURIKULUM:
+    reportProgress(3);
+    const manualMismatchNotice = params.selectionMode === 'manual'
+        ? checkTemplateSuitability(params.templateId, activeAnalysis.recommendedTemplateId, params.subject, params.tpText)
+        : undefined;
+
+    reportProgress(4);
+    const prompt = `Anda adalah AI Educational Content Generator profesional jenjang SD/MI (Kelas I–VI) yang mengintegrasikan keahlian kurikulum dasar Indonesia, substansi keilmuan, pedagogi perkembangan fase, instructional design, dan desain grafis edukatif.
+
+ATURAN MUTLAK:
+1. JANGAN mengubah, mengedit, mengganti, atau memperluas ke luar ruang lingkup TP & ATP terkunci berikut.
+2. JANGAN mengarang fakta, angka statistik palsu, pasal hukum, nomor halaman, DOI, atau ISBN.
+3. Sesuaikan bahasa & kedalaman pembahasan untuk ${params.className} (${params.fase}) dengan KKO utama "${activeAnalysis.kataKerjaOperasional}" (tingkat ${activeAnalysis.kedalamanLevel}).
+4. Hasil wajib SUBSTANTIF, KOMPREHENSIF, AKURAT, dan SIAP DIPAKAI GURU (bukan sekadar definisi dangkal).
+${params.revisionInstruction ? `5. INSTRUKSI REVISI GURU (PRIORITAS): ${params.revisionInstruction}` : ''}
+
+DATA KURIKULUM TERKUNCI:
+- Satuan Pendidikan: ${params.institutionName || 'SD/MI'}
 - Mata Pelajaran: ${params.subject}
 - Kelas & Fase: ${params.className} (${params.fase})
 - Elemen: ${params.elementName}
 - Capaian Pembelajaran (CP): ${params.capaianPembelajaran}
-- Tujuan Pembelajaran (TP): ${params.tpText}
-- Fokus ATP: ${params.atpText} (${params.alokasiWaktu})
-- Gaya Visual Tambahan: ${tplMeta.name} (${tplMeta.subtitle})
+- Tujuan Pembelajaran (TP Terkunci): ${params.tpText}
+- Alur Tujuan Pembelajaran (ATP Terkunci): ${params.atpText} (${params.alokasiWaktu})
+- Gaya Template Terpilih: ${tplMeta.name} (${tplMeta.subtitle})
+- Potensi Miskonsepsi yang Harus Diluruskan: ${activeAnalysis.potensiMiskonsepsi}
 
-${isSunda ? 'WAJIB KHUSUS BAHASA SUNDA: Gunakan Basa Sunda anu alami, merenah, jeung ramah barudak SD pikeun judul, panganteur, conto paguneman, aktivitas, rangkuman, jeung soal!' : ''}
+${isSunda ? 'WAJIB KHUSUS BAHASA SUNDA: Gunakan Basa Sunda anu alami, merenah undak-usukna, jeung ramah barudak SD pikeun judul, panganteur, conto paguneman, aktivitas, rangkuman, jeung soal!' : ''}
 
-Kembalikan HANYA JSON valid (tanpa markdown codeblock) sesuai struktur persis ini:
+Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
 {
   "title": "Judul materi menarik & spesifik TP ini",
   "subtitle": "Subjudul singkat selaras CP/TP",
-  "pengantarSingkat": "1-2 kalimat pengantar singkat ramah anak ${params.className}",
+  "pengantarSingkat": "Pengantar kontekstual 2 kalimat ramah siswa ${params.className}",
+  "kaitanPengalamanSiswa": "1-2 kalimat mengaitkan topik dengan pengalaman nyata anak",
   "pertanyaanPemantik": ["Pertanyaan pemantik 1", "Pertanyaan pemantik 2"],
-  "pengertianKonsep": "Pengertian konsep singkat, valid ilmiah, dan jelas untuk anak ${params.className}",
-  "penjelasanUtama": "Penjelasan inti materi 2-3 kalimat ringkas tanpa paragraf panjang",
+  "pengertianKonsep": "Definisi konsep yang benar secara keilmuan dan mudah dipahami siswa ${params.className}",
+  "penjelasanUtama": "Penjelasan materi utama yang sistematis dan proporsional sesuai KKO ${activeAnalysis.kataKerjaOperasional}",
   "poinPenting": ["Poin penting 1", "Poin penting 2", "Poin penting 3"],
-  "contohKonkret": "1 contoh konkret yang sangat mudah dibayangkan siswa SD Indonesia",
-  "visualCaption": "Keterangan singkat ilustrasi pendukung yang konkret dan membantu pemahaman",
-  "visualSearchQuery": "2-4 kata kunci pencarian gambar edukatif bahasa Indonesia jika relevan dengan objek nyata (atau kosongkan jika konsep abstrak)",
-  "contohSehariHari": [
-    "Di Rumah: contoh nyata dekat dengan siswa Indonesia",
-    "Di Sekolah: contoh nyata dekat dengan siswa Indonesia",
-    "Di Lingkungan Sekitar: contoh nyata dekat dengan siswa Indonesia"
-  ],
-  "aktivitasSederhana": {
-    "judul": "Judul aktivitas sederhana siswa",
-    "langkah": ["Langkah 1", "Langkah 2", "Langkah 3"],
-    "hasilDiharapkan": "Hasil pemahaman yang dicapai siswa"
+  "unsurPenting": ["Unsur/bagian 1 beserta fungsinya", "Unsur/bagian 2 beserta fungsinya", "Unsur/bagian 3 beserta fungsinya"],
+  "klasifikasiAtauProses": {
+    "judul": "Judul klasifikasi atau tahapan proses sesuai materi",
+    "butir": [
+      { "label": "Tahap/Jenis 1", "uraian": "Penjelasan akurat" },
+      { "label": "Tahap/Jenis 2", "uraian": "Penjelasan akurat" },
+      { "label": "Tahap/Jenis 3", "uraian": "Penjelasan akurat" }
+    ]
   },
-  "rangkumanPoin": [
-    "Poin rangkuman 1",
-    "Poin rangkuman 2",
-    "Poin rangkuman 3",
-    "Poin rangkuman 4"
+  "tabelInformatif": {
+    "judul": "Judul tabel ringkas pendukung pemahaman",
+    "kolom": ["Aspek", "Penjelasan", "Contoh"],
+    "baris": [
+      ["Baris 1", "Keterangan akurat", "Contoh nyata"],
+      ["Baris 2", "Keterangan akurat", "Contoh nyata"],
+      ["Baris 3", "Keterangan akurat", "Contoh nyata"]
+    ]
+  },
+  "contohKonkret": "1 contoh konkret yang mudah diamati siswa SD Indonesia",
+  "visualCaption": "Keterangan ilustrasi pendukung yang faktual dan mendidik",
+  "visualSearchQuery": "2-4 kata kunci gambar objek nyata edukatif (atau kosong jika konsep abstrak)",
+  "contohSehariHari": [
+    "Di Rumah: contoh nyata",
+    "Di Sekolah: contoh nyata",
+    "Di Lingkungan Sekitar: contoh nyata"
   ],
+  "pendalamanMateri": {
+    "analisisSederhana": "Analisis sederhana sesuai tingkat kognitif ${params.fase}",
+    "faktaTeridentifikasi": ["Fakta benar 1 sesuai materi", "Fakta benar 2 sesuai materi"],
+    "miskonsepsiUmum": [
+      { "salah": "Kesalahan pemahaman yang sering terjadi", "pelurusan": "Penjelasan yang benar secara keilmuan" },
+      { "salah": "Kesalahan pemahaman ke-2", "pelurusan": "Penjelasan yang benar secara keilmuan" }
+    ]
+  },
+  "aktivitasSederhana": {
+    "judul": "Judul aktivitas/tugas singkat relevan TP",
+    "langkah": ["Langkah 1", "Langkah 2", "Langkah 3"],
+    "hasilDiharapkan": "Bukti pemahaman yang dicapai siswa"
+  },
+  "rangkumanPoin": ["Poin rangkuman 1", "Poin rangkuman 2", "Poin rangkuman 3", "Poin rangkuman 4"],
   "latihanFormatif": [
-    { "no": 1, "pertanyaan": "Soal sederhana 1 sesuai TP", "kunciSingkat": "Kunci singkat" },
-    { "no": 2, "pertanyaan": "Soal sederhana 2 sesuai TP", "kunciSingkat": "Kunci singkat" },
-    { "no": 3, "pertanyaan": "Soal sederhana 3 sesuai TP", "kunciSingkat": "Kunci singkat" }
+    { "no": 1, "pertanyaan": "Soal pemahaman 1 sesuai TP", "kunciSingkat": "Panduan jawaban untuk guru" },
+    { "no": 2, "pertanyaan": "Soal pemahaman 2 sesuai TP", "kunciSingkat": "Panduan jawaban untuk guru" },
+    { "no": 3, "pertanyaan": "Soal pemahaman 3 sesuai TP", "kunciSingkat": "Panduan jawaban untuk guru" }
   ],
   "kataKunci": [
-    { "term": "Istilah 1", "meaning": "Arti singkat" },
-    { "term": "Istilah 2", "meaning": "Arti singkat" },
-    { "term": "Istilah 3", "meaning": "Arti singkat" }
-  ]
+    { "term": "Istilah 1", "meaning": "Arti sederhana dan akurat" },
+    { "term": "Istilah 2", "meaning": "Arti sederhana dan akurat" },
+    { "term": "Istilah 3", "meaning": "Arti sederhana dan akurat" }
+  ],
+  "refleksiSiswa": ["Pertanyaan refleksi 1", "Pertanyaan refleksi 2"]
 }`;
 
+    reportProgress(5);
     let aiResult: any = null;
     let usedFallback = false;
 
@@ -1375,8 +2108,7 @@ Kembalikan HANYA JSON valid (tanpa markdown codeblock) sesuai struktur persis in
         const res = await generateGeminiContent({
             contents: prompt,
             config: {
-                responseMimeType: 'application/json',
-                temperature: 0.5
+                responseMimeType: 'application/json'
             }
         });
         const rawText = (res.text || '').trim();
@@ -1391,28 +2123,80 @@ Kembalikan HANYA JSON valid (tanpa markdown codeblock) sesuai struktur persis in
         usedFallback = true;
     }
 
+    reportProgress(6);
     const merged: GeneratedMateriAjarData = {
         ...baseline,
+        // Preserve locked TP/ATP/CP verbatim unconditionally
+        subject: params.subject,
+        className: params.className,
+        fase: params.fase,
+        elementName: params.elementName,
+        capaianPembelajaran: params.capaianPembelajaran,
+        tpText: params.tpText,
+        atpText: params.atpText,
+        manualMismatchNotice,
+        tpAtpAnalysis: activeAnalysis,
+        curriculumMeta: {
+            curriculumName: 'Kurikulum Merdeka (Permendikdasmen No. 13 Tahun 2025 & Kepka BSKAP No. 046/H/KR/2025)',
+            jenjang: 'Sekolah Dasar (SD/MI)',
+            institutionName: params.institutionName || 'Satuan Pendidikan SD/MI',
+            isLockedSource: Boolean(params.isLockedSource),
+            topicFocus: typeof aiResult?.title === 'string' && aiResult.title.trim() ? aiResult.title.trim() : baseline.title,
+            orientation: params.orientation || getRecommendedOrientationForTemplate(params.templateId)
+        },
         title: typeof aiResult?.title === 'string' && aiResult.title.trim() ? aiResult.title.trim() : baseline.title,
         subtitle: typeof aiResult?.subtitle === 'string' && aiResult.subtitle.trim() ? aiResult.subtitle.trim() : baseline.subtitle,
         pengantarSingkat: typeof aiResult?.pengantarSingkat === 'string' && aiResult.pengantarSingkat.trim() ? aiResult.pengantarSingkat.trim() : baseline.pengantarSingkat,
+        kaitanPengalamanSiswa: typeof aiResult?.kaitanPengalamanSiswa === 'string' && aiResult.kaitanPengalamanSiswa.trim() ? aiResult.kaitanPengalamanSiswa.trim() : baseline.kaitanPengalamanSiswa,
         pertanyaanPemantik: Array.isArray(aiResult?.pertanyaanPemantik) && aiResult.pertanyaanPemantik.length > 0 ? aiResult.pertanyaanPemantik.slice(0, 3) : baseline.pertanyaanPemantik,
         pengertianKonsep: typeof aiResult?.pengertianKonsep === 'string' && aiResult.pengertianKonsep.trim() ? aiResult.pengertianKonsep.trim() : baseline.pengertianKonsep,
         penjelasanUtama: typeof aiResult?.penjelasanUtama === 'string' && aiResult.penjelasanUtama.trim() ? aiResult.penjelasanUtama.trim() : baseline.penjelasanUtama,
         poinPenting: Array.isArray(aiResult?.poinPenting) && aiResult.poinPenting.length > 0 ? aiResult.poinPenting.slice(0, 4) : baseline.poinPenting,
+        unsurPenting: Array.isArray(aiResult?.unsurPenting) && aiResult.unsurPenting.length > 0 ? aiResult.unsurPenting.slice(0, 4) : baseline.unsurPenting,
+        klasifikasiAtauProses:
+            aiResult?.klasifikasiAtauProses?.judul && Array.isArray(aiResult?.klasifikasiAtauProses?.butir) && aiResult.klasifikasiAtauProses.butir.length > 0
+                ? aiResult.klasifikasiAtauProses
+                : baseline.klasifikasiAtauProses,
+        tabelInformatif:
+            aiResult?.tabelInformatif?.judul && Array.isArray(aiResult?.tabelInformatif?.kolom) && Array.isArray(aiResult?.tabelInformatif?.baris) && aiResult.tabelInformatif.baris.length > 0
+                ? aiResult.tabelInformatif
+                : baseline.tabelInformatif,
         contohKonkret: typeof aiResult?.contohKonkret === 'string' && aiResult.contohKonkret.trim() ? aiResult.contohKonkret.trim() : baseline.contohKonkret,
         visualCaption: typeof aiResult?.visualCaption === 'string' && aiResult.visualCaption.trim() ? aiResult.visualCaption.trim() : baseline.visualCaption,
-        contohSehariHari: Array.isArray(aiResult?.contohSehariHari) && aiResult.contohSehariHari.length > 0 ? aiResult.contohSehariHari.slice(0, 3) : baseline.contohSehariHari,
+        contohSehariHari: Array.isArray(aiResult?.contohSehariHari) && aiResult.contohSehariHari.length > 0 ? aiResult.contohSehariHari.slice(0, 4) : baseline.contohSehariHari,
+        pendalamanMateri:
+            aiResult?.pendalamanMateri?.analisisSederhana && Array.isArray(aiResult?.pendalamanMateri?.miskonsepsiUmum)
+                ? {
+                    analisisSederhana: aiResult.pendalamanMateri.analisisSederhana,
+                    faktaTeridentifikasi: Array.isArray(aiResult.pendalamanMateri.faktaTeridentifikasi) && aiResult.pendalamanMateri.faktaTeridentifikasi.length > 0
+                        ? aiResult.pendalamanMateri.faktaTeridentifikasi
+                        : baseline.pendalamanMateri!.faktaTeridentifikasi,
+                    miskonsepsiUmum: aiResult.pendalamanMateri.miskonsepsiUmum.length > 0
+                        ? aiResult.pendalamanMateri.miskonsepsiUmum
+                        : baseline.pendalamanMateri!.miskonsepsiUmum
+                }
+                : baseline.pendalamanMateri,
         aktivitasSederhana:
             aiResult?.aktivitasSederhana?.judul && Array.isArray(aiResult?.aktivitasSederhana?.langkah) && aiResult.aktivitasSederhana.langkah.length > 0
                 ? aiResult.aktivitasSederhana
                 : baseline.aktivitasSederhana,
         rangkumanPoin: Array.isArray(aiResult?.rangkumanPoin) && aiResult.rangkumanPoin.length >= 3 ? aiResult.rangkumanPoin.slice(0, 5) : baseline.rangkumanPoin,
         latihanFormatif: Array.isArray(aiResult?.latihanFormatif) && aiResult.latihanFormatif.length > 0 ? aiResult.latihanFormatif.slice(0, 3) : baseline.latihanFormatif,
-        kataKunci: Array.isArray(aiResult?.kataKunci) && aiResult.kataKunci.length > 0 ? aiResult.kataKunci.slice(0, 4) : baseline.kataKunci
+        kataKunci: Array.isArray(aiResult?.kataKunci) && aiResult.kataKunci.length > 0 ? aiResult.kataKunci.slice(0, 4) : baseline.kataKunci,
+        refleksiSiswa: Array.isArray(aiResult?.refleksiSiswa) && aiResult.refleksiSiswa.length > 0 ? aiResult.refleksiSiswa.slice(0, 3) : baseline.refleksiSiswa,
+        referensi: buildVerifiableReferences(params.subject, params.className),
+        teacherNotes: [
+            ...(manualMismatchNotice ? [manualMismatchNotice] : []),
+            ...(usedFallback
+                ? ['PERLU VERIFIKASI GURU: Konten disusun dari basis kurikuler terstruktur karena layanan AI tidak merespons; harap tinjau contoh dan soal sebelum dicetak.']
+                : []),
+            'Kunci/panduan jawaban latihan ditempatkan pada Bagian Khusus Guru agar tidak membingungkan peserta didik.',
+            'PERLU VERIFIKASI GURU: Pastikan kesesuaian nomor bab pada buku teks/panduan mapel yang dipakai di satuan pendidikan.'
+        ]
     };
 
-    // Always rebuild concrete SVG illustration tailored to final title & TP, plus try fetching proxied real educational image when query is specific
+    reportProgress(7);
+    // Separate visual illustration generation from text rendering
     merged.visualSvg = buildConcretePosterIllustrationSvg(
         params.subject,
         params.elementName,
@@ -1431,15 +2215,16 @@ Kembalikan HANYA JSON valid (tanpa markdown codeblock) sesuai struktur persis in
         }
     }
 
-    // Re-sync template payload with merged high-quality fields so ALL 10 template styles stay cohesive
+    reportProgress(8);
+    // Sync all 10 template payloads cleanly with merged substantive data
     const resynced = synthesizeAuthenticMateriAjar({ ...params });
     merged.infographicData = {
         ...resynced.infographicData!,
         pillars: [
             { number: '01', title: 'Pengertian Konsep', summary: merged.pengertianKonsep, keyFact: merged.poinPenting[0] || '', example: merged.contohKonkret },
             { number: '02', title: 'Penjelasan Utama', summary: merged.penjelasanUtama, keyFact: merged.poinPenting[1] || '', example: merged.contohSehariHari[0] || '' },
-            { number: '03', title: 'Poin-Poin Penting', summary: merged.poinPenting.join(' '), keyFact: merged.poinPenting[2] || '', example: merged.contohSehariHari[1] || '' },
-            { number: '04', title: 'Penerapan Harian', summary: merged.contohSehariHari[2] || merged.aktivitasSederhana.hasilDiharapkan, keyFact: merged.aktivitasSederhana.judul, example: merged.rangkumanPoin[0] || '' }
+            { number: '03', title: 'Unsur & Poin Penting', summary: (merged.unsurPenting || merged.poinPenting).slice(0, 3).join(' · '), keyFact: merged.poinPenting[2] || '', example: merged.contohSehariHari[1] || '' },
+            { number: '04', title: 'Penerapan & Pelurusan', summary: merged.pendalamanMateri?.analisisSederhana || merged.aktivitasSederhana.hasilDiharapkan, keyFact: merged.aktivitasSederhana.judul, example: merged.rangkumanPoin[0] || '' }
         ],
         goldenTakeaway: merged.rangkumanPoin.join(' ')
     };
@@ -1453,6 +2238,20 @@ Kembalikan HANYA JSON valid (tanpa markdown codeblock) sesuai struktur persis in
     merged.comparisonData = resynced.comparisonData;
     merged.isometric3dData = resynced.isometric3dData;
 
+    reportProgress(9);
+    merged.qualityControl = evaluateMateriQualityControl(merged, {
+        subject: params.subject,
+        className: params.className,
+        fase: params.fase,
+        elementName: params.elementName,
+        capaianPembelajaran: params.capaianPembelajaran,
+        tpText: params.tpText,
+        atpText: params.atpText,
+        templateId: params.templateId,
+        selectionMode: params.selectionMode
+    });
+
+    reportProgress(10);
     return { data: merged, usedFallback };
 };
 

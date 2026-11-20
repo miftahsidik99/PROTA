@@ -32,6 +32,7 @@ export const PosterIllustrationFrame: React.FC<{ data: GeneratedMateriAjarData; 
                             <img
                                 src={data.visualImageDataUrl}
                                 alt={caption}
+                                referrerPolicy="no-referrer"
                                 onError={() => setImgFailed(true)}
                                 className="w-full h-44 object-contain bg-white"
                             />
@@ -467,8 +468,8 @@ export const FlashcardView: React.FC<RendererProps> = ({ data, isPrintMode = fal
                     const isFlipped = !!flippedMap[card.cardNo];
                     if (isPrintMode) {
                         return (
-                            <div key={card.cardNo} className="border border-slate-300 rounded-2xl overflow-hidden bg-white">
-                                <div className="grid grid-cols-2 divide-x divide-slate-200">
+                            <div key={card.cardNo} className="border-2 border-dashed border-slate-400 rounded-2xl overflow-hidden bg-white">
+                                <div className="grid grid-cols-2 divide-x divide-dashed divide-slate-400">
                                     <div className="p-3.5 bg-emerald-50/60 space-y-1.5">
                                         <div className="text-[10px] font-bold text-emerald-800">
                                             KARTU #{card.cardNo} DEPAN · {card.category}
@@ -477,7 +478,7 @@ export const FlashcardView: React.FC<RendererProps> = ({ data, isPrintMode = fal
                                         <div className="text-[10.5px] text-slate-600">Petunjuk: {card.hint}</div>
                                     </div>
                                     <div className="p-3.5 bg-white space-y-1.5">
-                                        <div className="text-[10px] font-bold text-slate-500">SISI BELAKANG (JAWABAN)</div>
+                                        <div className="text-[10px] font-bold text-slate-500">SISI BELAKANG (LIPAT &amp; GUNTING)</div>
                                         <p className="text-xs text-slate-800 leading-relaxed">{card.backAnswer}</p>
                                         <div className="text-[10.5px] text-emerald-700 font-medium">Contoh: {card.realExample}</div>
                                     </div>
