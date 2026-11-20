@@ -1,15 +1,49 @@
 import React, { useState } from 'react';
-import { GeneratedMateriAjarData } from './materiAjarHelper';
+import {
+    GeneratedMateriAjarData,
+    MateriVisualTheme,
+    MATERI_VISUAL_THEMES
+} from './materiAjarHelper';
+import {
+    VisualGlossaryView,
+    KnowledgePyramidView,
+    ConceptMapView,
+    TreeDiagramView,
+    VennDiagramView,
+    FishboneDiagramView,
+    FlowchartView,
+    CycleDiagramView,
+    TChartView,
+    FrayerModelView,
+    KwlChartView,
+    StoryboardView,
+    StoryMapView,
+    QuizCardsView,
+    CutawayDiagramView,
+    CrossSectionView,
+    ScientificDiagramView,
+    PaperCut3DView,
+    IllustratedPosterView
+} from './MateriAjarExtraRenderers';
 
 interface RendererProps {
     data: GeneratedMateriAjarData;
+    theme?: MateriVisualTheme;
     isPrintMode?: boolean;
 }
 
-export const PosterIllustrationFrame: React.FC<{ data: GeneratedMateriAjarData; accentHex?: string }> = ({
+const resolveTheme = (data: GeneratedMateriAjarData, theme?: MateriVisualTheme): MateriVisualTheme => {
+    if (theme) return theme;
+    return MATERI_VISUAL_THEMES.find(t => t.id === data.themeId) || MATERI_VISUAL_THEMES[0];
+};
+
+export const PosterIllustrationFrame: React.FC<{ data: GeneratedMateriAjarData; accentHex?: string; theme?: MateriVisualTheme }> = ({
     data,
-    accentHex = '#0f766e'
+    accentHex,
+    theme
 }) => {
+    const resolvedTheme = resolveTheme(data, theme);
+    const frameHex = accentHex || resolvedTheme.primaryHex;
     const [imgFailed, setImgFailed] = useState(false);
     const hasProxiedImage = Boolean(data.visualImageDataUrl) && !imgFailed;
     const svgMarkup = (data.visualSvg || '').trim();
@@ -18,9 +52,9 @@ export const PosterIllustrationFrame: React.FC<{ data: GeneratedMateriAjarData; 
     return (
         <div
             className="rounded-2xl border-2 bg-white overflow-hidden"
-            style={{ borderColor: accentHex }}
+            style={{ borderColor: frameHex }}
         >
-            <div className="px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] font-bold text-white" style={{ backgroundColor: accentHex }}>
+            <div className="px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] font-bold text-white" style={{ backgroundColor: frameHex }}>
                 <span>Ilustrasi Pendukung Konsep</span>
                 <span className="font-medium opacity-90">{data.subject} · {data.className}</span>
             </div>
@@ -53,7 +87,7 @@ export const PosterIllustrationFrame: React.FC<{ data: GeneratedMateriAjarData; 
                     <svg viewBox="0 0 460 150" width="460" height="150" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto block rounded-xl border border-slate-200 bg-sky-50">
                         <rect x="0" y="0" width="460" height="150" rx="12" fill="#f0f9ff" />
                         <rect x="0" y="114" width="460" height="36" fill="#bae6fd" />
-                        <rect x="135" y="28" width="190" height="78" rx="10" fill="#ffffff" stroke={accentHex} strokeWidth="2" />
+                        <rect x="135" y="28" width="190" height="78" rx="10" fill="#ffffff" stroke={frameHex} strokeWidth="2" />
                         <rect x="150" y="42" width="76" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5" />
                         <rect x="234" y="42" width="76" height="50" rx="6" fill="#d1fae5" stroke="#10b981" strokeWidth="1.5" />
                         <circle cx="90" cy="84" r="14" fill="#fed7aa" stroke="#9a3412" strokeWidth="1.5" />
@@ -71,11 +105,12 @@ export const PosterIllustrationFrame: React.FC<{ data: GeneratedMateriAjarData; 
     );
 };
 
-export const EducationalInfographicView: React.FC<RendererProps> = ({ data }) => {
+export const EducationalInfographicView: React.FC<RendererProps> = ({ data, theme }) => {
     const info = data.infographicData;
     if (!info) return null;
+    const t = resolveTheme(data, theme);
 
-    const accents = ['#0f766e', '#0369a1', '#6d28d9', '#b45309'];
+    const accents = [t.primaryHex, t.secondaryHex, '#6d28d9', '#b45309'];
 
     return (
         <div className="space-y-3">
@@ -98,7 +133,7 @@ export const EducationalInfographicView: React.FC<RendererProps> = ({ data }) =>
                             </div>
                             <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2 space-y-0.5">
                                 <div className="text-[10.5px] font-bold text-slate-800">Fakta Kunci: <span className="font-normal text-slate-600">{pillar.keyFact}</span></div>
-                                <div className="text-[10.5px] font-bold text-teal-800">Contoh: <span className="font-normal text-slate-600">{pillar.example}</span></div>
+                                <div className="text-[10.5px] font-bold" style={{ color: t.darkHex }}>Contoh: <span className="font-normal text-slate-600">{pillar.example}</span></div>
                             </div>
                         </div>
                     );
@@ -106,14 +141,18 @@ export const EducationalInfographicView: React.FC<RendererProps> = ({ data }) =>
             </div>
 
             {info.goldenTakeaway && (
-                <div data-pdf-block="true" className="bg-teal-50 border border-teal-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div
+                    data-pdf-block="true"
+                    className="rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border"
+                    style={{ backgroundColor: t.surfaceHex, borderColor: t.borderHex }}
+                >
                     <div>
-                        <div className="text-[11px] font-bold text-teal-900">Pesan Kunci Infografis</div>
-                        <p className="text-[11.5px] text-teal-900/90 leading-relaxed">{info.goldenTakeaway}</p>
+                        <div className="text-[11px] font-bold" style={{ color: t.darkHex }}>Pesan Kunci Infografis</div>
+                        <p className="text-[11.5px] leading-relaxed" style={{ color: t.darkHex }}>{info.goldenTakeaway}</p>
                     </div>
-                    <div className="bg-white border border-teal-200 rounded-xl px-3 py-1.5 text-left sm:text-right shrink-0">
-                        <div className="text-[10px] text-teal-700 font-semibold">{info.heroStatLabel}</div>
-                        <div className="text-xs font-extrabold text-teal-950 tabular-nums">{info.heroStatValue}</div>
+                    <div className="bg-white rounded-xl px-3 py-1.5 text-left sm:text-right shrink-0 border" style={{ borderColor: t.borderHex }}>
+                        <div className="text-[10px] font-semibold" style={{ color: t.primaryHex }}>{info.heroStatLabel}</div>
+                        <div className="text-xs font-extrabold tabular-nums" style={{ color: t.darkHex }}>{info.heroStatValue}</div>
                     </div>
                 </div>
             )}
@@ -121,18 +160,19 @@ export const EducationalInfographicView: React.FC<RendererProps> = ({ data }) =>
     );
 };
 
-export const CheatSheetView: React.FC<RendererProps> = ({ data }) => {
+export const CheatSheetView: React.FC<RendererProps> = ({ data, theme }) => {
     const cs = data.cheatSheetData;
     if (!cs) return null;
+    const t = resolveTheme(data, theme);
 
     return (
         <div className="space-y-4">
-            <div data-pdf-block="true" className="bg-blue-950 text-white rounded-2xl p-4 border border-blue-800">
-                <div className="text-[11px] font-semibold text-blue-200">
+            <div data-pdf-block="true" className="text-white rounded-2xl p-4" style={{ backgroundColor: t.darkHex }}>
+                <div className="text-[11px] font-semibold opacity-80">
                     Cheat Sheet · Lembar Referensi Cepat {data.subject}
                 </div>
                 <h3 className="text-lg font-bold text-white mt-0.5">{data.title}</h3>
-                <p className="text-xs text-blue-100 mt-1 leading-relaxed">{cs.quickOverview}</p>
+                <p className="text-xs opacity-90 mt-1 leading-relaxed">{cs.quickOverview}</p>
             </div>
 
             <div data-pdf-block="true" className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -393,14 +433,15 @@ const ComicCharacterSvg: React.FC<{ mood: string; leftName: string; rightName?: 
     );
 };
 
-export const ComicStripView: React.FC<RendererProps> = ({ data }) => {
+export const ComicStripView: React.FC<RendererProps> = ({ data, theme }) => {
     const cs = data.comicStripData;
     if (!cs) return null;
+    const t = resolveTheme(data, theme);
 
     return (
         <div className="space-y-4">
-            <div data-pdf-block="true" className="bg-rose-900 text-white rounded-2xl p-4">
-                <div className="text-[11px] font-semibold text-rose-200">Komik Edukasi · {cs.setting}</div>
+            <div data-pdf-block="true" className="text-white rounded-2xl p-4" style={{ backgroundColor: t.darkHex }}>
+                <div className="text-[11px] font-semibold opacity-80">Komik Edukasi · {cs.setting}</div>
                 <h3 className="text-lg font-bold text-white mt-0.5">{cs.storyTitle}</h3>
             </div>
 
@@ -444,10 +485,11 @@ export const ComicStripView: React.FC<RendererProps> = ({ data }) => {
     );
 };
 
-export const FlashcardView: React.FC<RendererProps> = ({ data, isPrintMode = false }) => {
+export const FlashcardView: React.FC<RendererProps> = ({ data, theme, isPrintMode = false }) => {
     const fc = data.flashcardData;
     const [flippedMap, setFlippedMap] = useState<Record<number, boolean>>({});
     if (!fc) return null;
+    const t = resolveTheme(data, theme);
 
     const toggleFlip = (no: number) => {
         setFlippedMap(prev => ({ ...prev, [no]: !prev[no] }));
@@ -455,12 +497,12 @@ export const FlashcardView: React.FC<RendererProps> = ({ data, isPrintMode = fal
 
     return (
         <div className="space-y-4">
-            <div data-pdf-block="true" className="bg-emerald-900 text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2">
+            <div data-pdf-block="true" className="text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2" style={{ backgroundColor: t.darkHex }}>
                 <div>
-                    <div className="text-[11px] font-semibold text-emerald-200">Dek Kartu Belajar · Flashcard PPA</div>
+                    <div className="text-[11px] font-semibold opacity-80">Dek Kartu Belajar · Flashcard PPA</div>
                     <h3 className="text-lg font-bold text-white mt-0.5">{fc.deckTitle}</h3>
                 </div>
-                <p className="text-xs text-emerald-100 max-w-md">{fc.studyTip}</p>
+                <p className="text-xs opacity-90 max-w-md">{fc.studyTip}</p>
             </div>
 
             <div data-pdf-block="true" className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -535,17 +577,18 @@ export const FlashcardView: React.FC<RendererProps> = ({ data, isPrintMode = fal
     );
 };
 
-export const StepByStepView: React.FC<RendererProps> = ({ data }) => {
+export const StepByStepView: React.FC<RendererProps> = ({ data, theme }) => {
     const sbs = data.stepByStepData;
     if (!sbs) return null;
+    const t = resolveTheme(data, theme);
 
     return (
         <div className="space-y-4">
-            <div data-pdf-block="true" className="bg-sky-900 text-white rounded-2xl p-4 space-y-2">
-                <div className="text-[11px] font-semibold text-sky-200">Panduan Prosedur Step-by-Step</div>
+            <div data-pdf-block="true" className="text-white rounded-2xl p-4 space-y-2" style={{ backgroundColor: t.darkHex }}>
+                <div className="text-[11px] font-semibold opacity-80">Panduan Prosedur Step-by-Step</div>
                 <h3 className="text-lg font-bold text-white">{data.title}</h3>
-                <p className="text-xs text-sky-100 leading-relaxed">Target Pencapaian: {sbs.goalStatement}</p>
-                <div className="pt-2 border-t border-sky-700/60 text-xs text-sky-100">
+                <p className="text-xs opacity-90 leading-relaxed">Target Pencapaian: {sbs.goalStatement}</p>
+                <div className="pt-2 border-t border-white/20 text-xs opacity-90">
                     <span className="font-bold text-white">Persiapan / Alat: </span>
                     {(sbs.toolsNeeded || []).join(' · ')}
                 </div>
@@ -586,14 +629,15 @@ export const StepByStepView: React.FC<RendererProps> = ({ data }) => {
     );
 };
 
-export const TimelineView: React.FC<RendererProps> = ({ data }) => {
+export const TimelineView: React.FC<RendererProps> = ({ data, theme }) => {
     const tl = data.timelineData;
     if (!tl) return null;
+    const t = resolveTheme(data, theme);
 
     return (
         <div className="space-y-4">
-            <div data-pdf-block="true" className="bg-amber-950 text-white rounded-2xl p-4">
-                <div className="text-[11px] font-semibold text-amber-200">Garis Waktu Kronologis · {tl.periodSpan}</div>
+            <div data-pdf-block="true" className="text-white rounded-2xl p-4" style={{ backgroundColor: t.darkHex }}>
+                <div className="text-[11px] font-semibold opacity-80">Garis Waktu Kronologis · {tl.periodSpan}</div>
                 <h3 className="text-lg font-bold text-white mt-0.5">{tl.timelineTitle}</h3>
             </div>
 
@@ -641,14 +685,15 @@ export const TimelineView: React.FC<RendererProps> = ({ data }) => {
     );
 };
 
-export const ComparisonChartView: React.FC<RendererProps> = ({ data }) => {
+export const ComparisonChartView: React.FC<RendererProps> = ({ data, theme }) => {
     const cc = data.comparisonData;
     if (!cc) return null;
+    const t = resolveTheme(data, theme);
 
     return (
         <div className="space-y-4">
-            <div data-pdf-block="true" className="bg-slate-900 text-white rounded-2xl p-4">
-                <div className="text-[11px] font-semibold text-slate-300">Matriks Perbandingan Konsep · Comparison Chart</div>
+            <div data-pdf-block="true" className="text-white rounded-2xl p-4" style={{ backgroundColor: t.darkHex }}>
+                <div className="text-[11px] font-semibold opacity-80">Matriks Perbandingan Konsep · Comparison Chart</div>
                 <h3 className="text-lg font-bold text-white mt-0.5">{cc.conceptAName} vs {cc.conceptBName}</h3>
             </div>
 
@@ -852,20 +897,21 @@ const IsometricSceneSvg: React.FC<{ sceneType: string; title: string }> = ({ sce
     );
 };
 
-export const Isometric3DView: React.FC<RendererProps> = ({ data }) => {
+export const Isometric3DView: React.FC<RendererProps> = ({ data, theme }) => {
     const iso = data.isometric3dData;
     if (!iso) return null;
+    const t = resolveTheme(data, theme);
 
-    const pinColors = ['#0f172a', '#0284c7', '#059669', '#d97706'];
+    const pinColors = [t.darkHex, t.secondaryHex, '#059669', '#d97706'];
 
     return (
         <div className="space-y-4">
-            <div data-pdf-block="true" className="bg-indigo-950 text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2">
+            <div data-pdf-block="true" className="text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2" style={{ backgroundColor: t.darkHex }}>
                 <div>
-                    <div className="text-[11px] font-semibold text-indigo-200">Visualisasi Objek Isometrik 3D · {iso.dimensionSummary}</div>
+                    <div className="text-[11px] font-semibold opacity-80">Visualisasi Objek Isometrik 3D · {iso.dimensionSummary}</div>
                     <h3 className="text-lg font-bold text-white mt-0.5">{iso.objectTitle}</h3>
                 </div>
-                <span className="text-xs font-medium text-indigo-200">{iso.parts.length} Bagian Teranotasi</span>
+                <span className="text-xs font-medium opacity-85">{iso.parts.length} Bagian Teranotasi</span>
             </div>
 
             <div data-pdf-block="true" className="bg-white border border-slate-200 rounded-2xl p-4">
@@ -900,29 +946,83 @@ export const Isometric3DView: React.FC<RendererProps> = ({ data }) => {
     );
 };
 
-export const MateriAjarTemplateRenderer: React.FC<RendererProps> = ({ data, isPrintMode = false }) => {
+export const MateriAjarTemplateRenderer: React.FC<RendererProps> = ({ data, theme, isPrintMode = false }) => {
+    const t = resolveTheme(data, theme);
+
     switch (data.templateId) {
+        // A. Ringkasan & Informasi
         case 'educational_infographic':
-            return <EducationalInfographicView data={data} isPrintMode={isPrintMode} />;
+            return <EducationalInfographicView data={data} theme={t} isPrintMode={isPrintMode} />;
         case 'cheat_sheet':
-            return <CheatSheetView data={data} isPrintMode={isPrintMode} />;
+            return <CheatSheetView data={data} theme={t} isPrintMode={isPrintMode} />;
         case 'sticky_notes':
-            return <StickyNotesView data={data} isPrintMode={isPrintMode} />;
+            return <StickyNotesView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'visual_glossary':
+            return <VisualGlossaryView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'knowledge_pyramid':
+            return <KnowledgePyramidView data={data} theme={t} isPrintMode={isPrintMode} />;
+
+        // B. Peta Konsep
         case 'mind_map':
-            return <MindMapView data={data} isPrintMode={isPrintMode} />;
-        case 'comic_strip':
-            return <ComicStripView data={data} isPrintMode={isPrintMode} />;
-        case 'flashcard':
-            return <FlashcardView data={data} isPrintMode={isPrintMode} />;
+            return <MindMapView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'concept_map':
+            return <ConceptMapView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'tree_diagram':
+            return <TreeDiagramView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'venn_diagram':
+            return <VennDiagramView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'fishbone_diagram':
+            return <FishboneDiagramView data={data} theme={t} isPrintMode={isPrintMode} />;
+
+        // C. Proses & Tahapan
         case 'step_by_step':
-            return <StepByStepView data={data} isPrintMode={isPrintMode} />;
+            return <StepByStepView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'flowchart':
+            return <FlowchartView data={data} theme={t} isPrintMode={isPrintMode} />;
         case 'timeline':
-            return <TimelineView data={data} isPrintMode={isPrintMode} />;
+            return <TimelineView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'cycle_diagram':
+            return <CycleDiagramView data={data} theme={t} isPrintMode={isPrintMode} />;
+
+        // D. Perbandingan & Analisis
         case 'comparison_chart':
-            return <ComparisonChartView data={data} isPrintMode={isPrintMode} />;
+            return <ComparisonChartView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 't_chart':
+            return <TChartView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'frayer_model':
+            return <FrayerModelView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'kwl_chart':
+            return <KwlChartView data={data} theme={t} isPrintMode={isPrintMode} />;
+
+        // E. Cerita & Narasi
+        case 'comic_strip':
+            return <ComicStripView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'storyboard':
+            return <StoryboardView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'story_map':
+            return <StoryMapView data={data} theme={t} isPrintMode={isPrintMode} />;
+
+        // F. Kartu Pembelajaran
+        case 'flashcard':
+            return <FlashcardView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'quiz_cards':
+            return <QuizCardsView data={data} theme={t} isPrintMode={isPrintMode} />;
+
+        // G. Ilustrasi & Sains
         case 'isometric_3d':
-            return <Isometric3DView data={data} isPrintMode={isPrintMode} />;
+            return <Isometric3DView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'cutaway_diagram':
+            return <CutawayDiagramView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'cross_section':
+            return <CrossSectionView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'scientific_diagram':
+            return <ScientificDiagramView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'paper_cut_3d':
+            return <PaperCut3DView data={data} theme={t} isPrintMode={isPrintMode} />;
+        case 'illustrated_poster':
+            return <IllustratedPosterView data={data} theme={t} isPrintMode={isPrintMode} />;
+
         default:
-            return <EducationalInfographicView data={data} isPrintMode={isPrintMode} />;
+            return <EducationalInfographicView data={data} theme={t} isPrintMode={isPrintMode} />;
     }
 };

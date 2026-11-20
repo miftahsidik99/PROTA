@@ -1,4 +1,4 @@
-import { getAiClient, generateContentWithFallback } from './_shared';
+import { getAiClient, generateContentWithFallback, extractGeminiErrorInfo } from './_shared';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Content-Type', 'application/json');
@@ -21,11 +21,15 @@ export default async function handler(req: any, res: any) {
       usageMetadata: response.usageMetadata,
     });
   } catch (error: any) {
-    console.error('Vercel Gemini generateContent error:', error);
-    const status = Number(error?.status) || 500;
-    return res.status(status >= 400 && status < 600 ? status : 500).json({
+    const info = extractGeminiErrorInfo(error);
+    const status = info.status >= 400 && info.status < 600 ? info.status : 500;
+    console.warn(`Gemini generateContent error [${status} ${info.statusText}]: ${error?.message || info.rawMessage}`);
+    return res.status(status).json({
       error: error?.message || 'Gagal memproses permintaan AI pada server',
-      details: error?.error || null,
+      code: status,
+      status: info.statusText,
+      isQuotaError: info.isRateLimit,
+      details: error?.error || info.details || null,
     });
   }
 }

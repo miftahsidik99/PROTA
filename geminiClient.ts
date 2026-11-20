@@ -38,15 +38,27 @@ export async function generateGeminiContent(options: GenerateGeminiOptions): Pro
     headers['x-gemini-api-key'] = customKey.trim();
   }
 
+  const payload: GenerateGeminiOptions = {
+    ...options,
+    model: options.model || 'gemini-4-hydrogen'
+  };
+
   const response = await fetch('/api/gemini/generate', {
     method: 'POST',
     headers,
-    body: JSON.stringify(options)
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Server AI error: ${response.status} ${response.statusText}`);
+    const err: any = new Error(
+      errorData.error || `Server AI error: ${response.status} ${response.statusText}`
+    );
+    err.status = response.status;
+    err.code = errorData.code || response.status;
+    err.isQuotaError = response.status === 429 || Boolean(errorData.isQuotaError);
+    err.details = errorData.details || null;
+    throw err;
   }
 
   const data = await response.json();

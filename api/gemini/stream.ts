@@ -1,4 +1,4 @@
-import { getAiClient, generateContentStreamWithFallback } from './_shared';
+import { getAiClient, generateContentStreamWithFallback, extractGeminiErrorInfo } from './_shared';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -26,14 +26,18 @@ export default async function handler(req: any, res: any) {
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (error: any) {
-    console.error('Vercel Gemini stream error:', error);
+    const info = extractGeminiErrorInfo(error);
+    const status = info.status >= 400 && info.status < 600 ? info.status : 500;
+    console.warn(`Gemini stream error [${status} ${info.statusText}]: ${error?.message || info.rawMessage}`);
     if (!res.headersSent) {
-      const status = Number(error?.status) || 500;
-      res.status(status >= 400 && status < 600 ? status : 500).json({
+      res.status(status).json({
         error: error?.message || 'Gagal streaming konten dari AI pada server',
+        code: status,
+        status: info.statusText,
+        isQuotaError: info.isRateLimit,
       });
     } else {
-      res.write(`data: ${JSON.stringify({ error: error?.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: error?.message, code: status, isQuotaError: info.isRateLimit })}\n\n`);
       res.end();
     }
   }

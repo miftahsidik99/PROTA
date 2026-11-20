@@ -290,7 +290,7 @@ ATURAN PENTING:
 `;
 
                 const response = await generateGeminiContent({
-                    model: 'gemini-3.8-flash',
+                    model: 'gemini-4-hydrogen',
                     contents: prompt,
                     config: { maxOutputTokens: 8192 }
                 });

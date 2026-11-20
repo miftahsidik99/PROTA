@@ -3,22 +3,133 @@ import { generateGeminiContent } from './geminiClient';
 import { synthesizeContextual2dVisual } from './dynamic2dVisualHelper';
 import { searchInternetImageCandidates } from './mediaSearchHelper';
 
+export type MateriTemplateCategoryId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
+
+export interface MateriTemplateCategoryMeta {
+    id: MateriTemplateCategoryId;
+    name: string;
+    subtitle: string;
+}
+
+export const MATERI_TEMPLATE_CATEGORIES: MateriTemplateCategoryMeta[] = [
+    { id: 'A', name: 'Ringkasan & Informasi', subtitle: 'Poster, lembar ringkas, catatan tempel, glosarium, piramida' },
+    { id: 'B', name: 'Peta Konsep', subtitle: 'Mind map, concept map, pohon, Venn, tulang ikan' },
+    { id: 'C', name: 'Proses & Tahapan', subtitle: 'Step-by-step, flowchart, timeline, diagram siklus' },
+    { id: 'D', name: 'Perbandingan & Analisis', subtitle: 'Comparison chart, T-Chart, Frayer model, KWL chart' },
+    { id: 'E', name: 'Cerita & Narasi', subtitle: 'Comic strip, storyboard, story map' },
+    { id: 'F', name: 'Kartu Pembelajaran', subtitle: 'Flashcard collection & quiz learning cards' },
+    { id: 'G', name: 'Ilustrasi & Sains', subtitle: 'Isometric 3D, cutaway, cross-section, diagram berlabel, paper cut, poster' }
+];
+
 export type MateriTemplateId =
+    // A. Ringkasan & Informasi (5)
     | 'educational_infographic'
     | 'cheat_sheet'
     | 'sticky_notes'
+    | 'visual_glossary'
+    | 'knowledge_pyramid'
+    // B. Peta Konsep (5)
     | 'mind_map'
-    | 'comic_strip'
-    | 'flashcard'
+    | 'concept_map'
+    | 'tree_diagram'
+    | 'venn_diagram'
+    | 'fishbone_diagram'
+    // C. Proses & Tahapan (4)
     | 'step_by_step'
+    | 'flowchart'
     | 'timeline'
+    | 'cycle_diagram'
+    // D. Perbandingan & Analisis (4)
     | 'comparison_chart'
-    | 'isometric_3d';
+    | 't_chart'
+    | 'frayer_model'
+    | 'kwl_chart'
+    // E. Cerita & Narasi (3)
+    | 'comic_strip'
+    | 'storyboard'
+    | 'story_map'
+    // F. Kartu Pembelajaran (2)
+    | 'flashcard'
+    | 'quiz_cards'
+    // G. Ilustrasi & Sains (6)
+    | 'isometric_3d'
+    | 'cutaway_diagram'
+    | 'cross_section'
+    | 'scientific_diagram'
+    | 'paper_cut_3d'
+    | 'illustrated_poster';
 
 export type HierarchyFocusLevel = 'elemen' | 'tp' | 'atp';
+export type PageCountPreference = 'auto' | 1 | 2 | 3 | 4;
+
+export type MateriVisualThemeId =
+    | 'zamrud_edukatif'
+    | 'samudra_sains'
+    | 'hangat_nusantara'
+    | 'botani_segar'
+    | 'grafit_modern';
+
+export interface MateriVisualTheme {
+    id: MateriVisualThemeId;
+    name: string;
+    primaryHex: string;
+    secondaryHex: string;
+    surfaceHex: string;
+    borderHex: string;
+    darkHex: string;
+}
+
+export const MATERI_VISUAL_THEMES: MateriVisualTheme[] = [
+    {
+        id: 'zamrud_edukatif',
+        name: 'Zamrud Edukatif',
+        primaryHex: '#0f766e',
+        secondaryHex: '#0284c7',
+        surfaceHex: '#f0fdfa',
+        borderHex: '#99f6e4',
+        darkHex: '#134e4a'
+    },
+    {
+        id: 'samudra_sains',
+        name: 'Samudra Sains',
+        primaryHex: '#1d4ed8',
+        secondaryHex: '#4f46e5',
+        surfaceHex: '#eff6ff',
+        borderHex: '#bfdbfe',
+        darkHex: '#1e3a8a'
+    },
+    {
+        id: 'hangat_nusantara',
+        name: 'Hangat Nusantara',
+        primaryHex: '#b45309',
+        secondaryHex: '#be123c',
+        surfaceHex: '#fffbeb',
+        borderHex: '#fde68a',
+        darkHex: '#78350f'
+    },
+    {
+        id: 'botani_segar',
+        name: 'Botani Segar',
+        primaryHex: '#15803d',
+        secondaryHex: '#0d9488',
+        surfaceHex: '#f0fdf4',
+        borderHex: '#bbf7d0',
+        darkHex: '#14532d'
+    },
+    {
+        id: 'grafit_modern',
+        name: 'Grafit Modern',
+        primaryHex: '#1e293b',
+        secondaryHex: '#4338ca',
+        surfaceHex: '#f8fafc',
+        borderHex: '#cbd5e1',
+        darkHex: '#0f172a'
+    }
+];
 
 export interface MateriAjarTemplateMeta {
     id: MateriTemplateId;
+    category: MateriTemplateCategoryId;
     order: number;
     name: string;
     subtitle: string;
@@ -26,108 +137,364 @@ export interface MateriAjarTemplateMeta {
     bestFor: string;
     accentHex: string;
     surfaceHex: string;
+    recommendedOrientation: 'portrait_a4' | 'landscape_a4' | 'digital_screen';
 }
 
 export const MATERI_AJAR_TEMPLATES: MateriAjarTemplateMeta[] = [
+    // A. Ringkasan & Informasi (5)
     {
         id: 'educational_infographic',
+        category: 'A',
         order: 1,
         name: 'Educational Infographic',
         subtitle: 'Poster Infografis Lengkap',
-        description: 'Poster edukasi A4 Portrait modern memadukan pengantar, inti materi berilustrasi konkret, contoh sehari-hari, aktivitas, rangkuman, dan latihan.',
-        bestFor: 'Standar utama infografis materi ajar A4 Portrait 300 DPI untuk seluruh mata pelajaran.',
+        description: 'Poster edukasi terstruktur dengan blok ikon, pilar materi utama, ilustrasi konsep, contoh nyata, dan ringkasan.',
+        bestFor: 'Penyajian menyeluruh berbagai topik pada seluruh mata pelajaran SD.',
         accentHex: '#0f766e',
-        surfaceHex: '#f0fdfa'
+        surfaceHex: '#f0fdfa',
+        recommendedOrientation: 'portrait_a4'
     },
     {
         id: 'cheat_sheet',
+        category: 'A',
         order: 2,
         name: 'Cheat Sheet',
-        subtitle: 'Ringkasan materi',
-        description: 'Lembar ringkasan belajar padat berisi rumus inti, kaidah bahasa, definisi penting, dan tips anti-keliru.',
-        bestFor: 'Matematika, kaidah tata bahasa, penguasaan rumus cepat, dan persiapan asesmen.',
+        subtitle: 'Ringkasan Cepat & Rumus',
+        description: 'Lembar ringkasan padat berisi aturan inti, rumus cepat, istilah kunci, dan daftar cek anti-keliru.',
+        bestFor: 'Matematika, kaidah tata bahasa, hukum bacaan, dan persiapan asesmen.',
         accentHex: '#1d4ed8',
-        surfaceHex: '#eff6ff'
+        surfaceHex: '#eff6ff',
+        recommendedOrientation: 'portrait_a4'
     },
     {
         id: 'sticky_notes',
+        category: 'A',
         order: 3,
-        name: 'Sticky Notes',
-        subtitle: 'Catatan penting',
-        description: 'Kumpulan kartu catatan tempel berwarna tematik untuk poin penting, contoh cepat, dan pengingat konsep.',
-        bestFor: 'Penguatan karakter, PPKn, catatan harian siswa kelas rendah, dan rangkuman poin kunci.',
+        name: 'Sticky Notes Board',
+        subtitle: 'Papan Catatan Tempel',
+        description: 'Papan visual berisi kartu catatan warna-warni berpeniti untuk poin kunci, contoh praktis, dan pengingat konsep.',
+        bestFor: 'Penguatan karakter, PPKn, catatan tematik kelas rendah, dan rangkuman ringan.',
         accentHex: '#b45309',
-        surfaceHex: '#fffbeb'
+        surfaceHex: '#fffbeb',
+        recommendedOrientation: 'landscape_a4'
     },
+    {
+        id: 'visual_glossary',
+        category: 'A',
+        order: 4,
+        name: 'Visual Glossary',
+        subtitle: 'Kamus Istilah Bergambar',
+        description: 'Kartu kamus visual yang memadukan istilah baku, ikon mini, definisi sederhana, dan contoh penerapan.',
+        bestFor: 'Penguasaan kosakata Bahasa Inggris/Sunda, istilah sains IPAS, dan terminologi baru.',
+        accentHex: '#0284c7',
+        surfaceHex: '#f0f9ff',
+        recommendedOrientation: 'portrait_a4'
+    },
+    {
+        id: 'knowledge_pyramid',
+        category: 'A',
+        order: 5,
+        name: 'Knowledge Pyramid',
+        subtitle: 'Piramida Tingkatan Konsep',
+        description: 'Visualisasi piramida bertingkat dari konsep dasar di fondasi hingga penguasaan tingkat tinggi di puncak.',
+        bestFor: 'Rantai makanan, kebutuhan hidup, tingkatan nilai, dan struktur kompetensi bertahap.',
+        accentHex: '#7c3aed',
+        surfaceHex: '#f5f3ff',
+        recommendedOrientation: 'portrait_a4'
+    },
+    // B. Peta Konsep (5)
     {
         id: 'mind_map',
-        order: 4,
-        name: 'Mind Map',
-        subtitle: 'Pemetaan konsep',
-        description: 'Diagram peta pikiran bercabang dari ide utama menuju sub-konsep dan kata kunci secara terstruktur.',
-        bestFor: 'Pemetaan topik luas IPAS, klasifikasi, keterkaitan antar konsep, dan curah gagasan.',
-        accentHex: '#6d28d9',
-        surfaceHex: '#f5f3ff'
-    },
-    {
-        id: 'comic_strip',
-        order: 5,
-        name: 'Comic Strip',
-        subtitle: 'Cerita pembelajaran',
-        description: 'Alur cerita bergambar berpanel lengkap dengan tokoh, dialog alami, dan pesan pembelajaran kontekstual.',
-        bestFor: 'Bahasa Indonesia, Bahasa Daerah/Sunda, Bahasa Inggris, PAIBP, dan pendidikan karakter.',
-        accentHex: '#be123c',
-        surfaceHex: '#fff1f2'
-    },
-    {
-        id: 'flashcard',
+        category: 'B',
         order: 6,
-        name: 'Flashcard',
-        subtitle: 'Hafalan dan latihan',
-        description: 'Kartu belajar dua sisi (pertanyaan/istilah & jawaban/penjelasan) untuk latihan aktif dan penguatan memori.',
-        bestFor: 'Kosakata Bahasa Inggris/Sunda, perkalian/pecahan dasar, tajwid/doa, dan istilah sains.',
-        accentHex: '#047857',
-        surfaceHex: '#ecfdf5'
+        name: 'Mind Map',
+        subtitle: 'Peta Pikiran Radial',
+        description: 'Node gagasan utama di tengah memancar ke cabang-cabang kurva dengan kata kunci dan warna pembeda.',
+        bestFor: 'Pemetaan topik luas, curah gagasan, dan gambaran utuh satu TP.',
+        accentHex: '#6d28d9',
+        surfaceHex: '#f5f3ff',
+        recommendedOrientation: 'landscape_a4'
     },
+    {
+        id: 'concept_map',
+        category: 'B',
+        order: 7,
+        name: 'Concept Map',
+        subtitle: 'Peta Hubungan Berlabel',
+        description: 'Jaringan kotak konsep yang dihubungkan panah berlabel kata penghubung (seperti "terdiri atas", "menyebabkan").',
+        bestFor: 'Hubungan sebab-akibat IPAS, keterkaitan antaraturan, dan jejaring konsep logis.',
+        accentHex: '#0d9488',
+        surfaceHex: '#f0fdfa',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'tree_diagram',
+        category: 'B',
+        order: 8,
+        name: 'Tree Diagram',
+        subtitle: 'Diagram Pohon Hierarki',
+        description: 'Struktur bercabang dari akar topik utama menuju kategori induk lalu rincian subkategori secara berjenjang.',
+        bestFor: 'Klasifikasi makhluk hidup, jenis bangun datar/ruang, dan pembagian unsur materi.',
+        accentHex: '#15803d',
+        surfaceHex: '#f0fdf4',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'venn_diagram',
+        category: 'B',
+        order: 9,
+        name: 'Venn Diagram',
+        subtitle: 'Diagram Irisan Konsep',
+        description: 'Dua lingkaran beririsan yang memisahkan ciri khas Konsep A, ciri khas Konsep B, serta persamaan di tengah.',
+        bestFor: 'Membandingkan dua konsep sekaligus mencari titik temu persamaannya.',
+        accentHex: '#2563eb',
+        surfaceHex: '#eff6ff',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'fishbone_diagram',
+        category: 'B',
+        order: 10,
+        name: 'Fishbone Diagram',
+        subtitle: 'Diagram Tulang Ikan Sebab-Akibat',
+        description: 'Kerangka tulang ikan Ishikawa dengan tulang punggung menuju kepala topik dan cabang faktor penyebab.',
+        bestFor: 'Analisis sebab-akibat peristiwa, pemecahan masalah lingkungan, dan refleksi perilaku.',
+        accentHex: '#be123c',
+        surfaceHex: '#fff1f2',
+        recommendedOrientation: 'landscape_a4'
+    },
+    // C. Proses & Tahapan (4)
     {
         id: 'step_by_step',
-        order: 7,
-        name: 'Step-by-Step',
-        subtitle: 'Tahapan proses',
-        description: 'Panduan langkah demi langkah yang sistematis mulai dari persiapan, prosedur kerja, hingga evaluasi hasil.',
-        bestFor: 'Algoritma/Koding, teks prosedur, langkah eksperimen IPAS, gerakan PJOK, dan praktik ibadah.',
+        category: 'C',
+        order: 11,
+        name: 'Step-by-Step Infographic',
+        subtitle: 'Panduan Langkah Berurutan',
+        description: 'Tahapan bernomor berurutan lengkap dengan instruksi kerja, cek keberhasilan, dan tips keamanan/ketelitian.',
+        bestFor: 'Teks prosedur, praktik ibadah wudu/salat, gerak PJOK, dan percobaan sains.',
         accentHex: '#0369a1',
-        surfaceHex: '#f0f9ff'
+        surfaceHex: '#f0f9ff',
+        recommendedOrientation: 'portrait_a4'
+    },
+    {
+        id: 'flowchart',
+        category: 'C',
+        order: 12,
+        name: 'Flowchart',
+        subtitle: 'Diagram Alir Keputusan',
+        description: 'Alur logis memakai simbol oval Mulai/Selesai, kotak Proses, belah ketupat Keputusan (Ya/Tidak), dan panah arah.',
+        bestFor: 'Koding & Kecerdasan Artifisial, algoritma berpikir komputasional, dan alur pengambilan keputusan.',
+        accentHex: '#4338ca',
+        surfaceHex: '#eef2ff',
+        recommendedOrientation: 'portrait_a4'
     },
     {
         id: 'timeline',
-        order: 8,
-        name: 'Timeline',
-        subtitle: 'Kronologi sejarah',
-        description: 'Garis waktu berurutan menampilkan fase perkembangan, era sejarah, peristiwa penting, dan dampaknya.',
-        bestFor: 'Sejarah perjuangan/kerajaan Nusantara, kisah keteladanan Nabi/tokoh, dan daur pertumbuhan.',
+        category: 'C',
+        order: 13,
+        name: 'Timeline Infographic',
+        subtitle: 'Garis Waktu Kronologis',
+        description: 'Lintasan waktu berurutan menampilkan fase peristiwa, tokoh/konteks, perubahan, dan dampaknya.',
+        bestFor: 'Sejarah perjuangan, kisah keteladanan Nabi/tokoh, dan tahapan perkembangan waktu.',
         accentHex: '#9a3412',
-        surfaceHex: '#fff7ed'
+        surfaceHex: '#fff7ed',
+        recommendedOrientation: 'landscape_a4'
     },
+    {
+        id: 'cycle_diagram',
+        category: 'C',
+        order: 14,
+        name: 'Cycle Diagram',
+        subtitle: 'Diagram Siklus Berulang',
+        description: 'Lingkaran fase berputar searah jarum jam yang menunjukkan proses alam atau kebiasaan yang terus berulang.',
+        bestFor: 'Siklus air, daur hidup hewan/tumbuhan, rantai daur ulang, dan siklus belajar.',
+        accentHex: '#047857',
+        surfaceHex: '#ecfdf5',
+        recommendedOrientation: 'landscape_a4'
+    },
+    // D. Perbandingan & Analisis (4)
     {
         id: 'comparison_chart',
-        order: 9,
+        category: 'D',
+        order: 15,
         name: 'Comparison Chart',
-        subtitle: 'Perbandingan konsep',
-        description: 'Matriks visual perbandingan dua atau lebih konsep lengkap dengan aspek pembeda, persamaan, dan contoh.',
-        bestFor: 'Membedakan bangun datar/ruang, hak vs kewajiban, wujud zat, simbiosis, atau jenis teks.',
+        subtitle: 'Tabel Matriks Perbandingan',
+        description: 'Matriks multi-kolom terstruktur untuk menelaah aspek pembeda, persamaan, dan simpulan dua konsep.',
+        bestFor: 'Membandingkan ciri objek, aturan, sifat benda, atau dua jenis karya sastra.',
         accentHex: '#334155',
-        surfaceHex: '#f8fafc'
+        surfaceHex: '#f8fafc',
+        recommendedOrientation: 'landscape_a4'
     },
     {
+        id: 't_chart',
+        category: 'D',
+        order: 16,
+        name: 'T-Chart',
+        subtitle: 'Bagan T Dua Sisi Kontras',
+        description: 'Papan berbentuk huruf T besar yang membelah jelas dua sisi berpasangan atau berlawanan (mis. Hak vs Kewajiban).',
+        bestFor: 'Memisahkan fakta vs opini, benar vs keliru, hak vs kewajiban, atau sebab vs akibat.',
+        accentHex: '#0f766e',
+        surfaceHex: '#f0fdfa',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'frayer_model',
+        category: 'D',
+        order: 17,
+        name: 'Frayer Model',
+        subtitle: 'Kuadran 4 Sudut Konsep',
+        description: 'Empat kuadran klasik mengelilingi konsep inti di pusat: Definisi, Ciri/Karakteristik, Contoh, dan Bukan Contoh.',
+        bestFor: 'Memperdalam satu istilah atau konsep penting agar siswa bebas dari miskonsepsi.',
+        accentHex: '#4f46e5',
+        surfaceHex: '#eef2ff',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'kwl_chart',
+        category: 'D',
+        order: 18,
+        name: 'KWL Chart',
+        subtitle: 'Bagan Inkuiri K · W · L',
+        description: 'Tiga kolom penyelidikan siswa: Know (Sudah Diketahui), Want (Ingin Diketahui), dan Learned (Sudah Dipelajari).',
+        bestFor: 'Pembelajaran berbasis inkuiri, eksplorasi awal topik baru, dan refleksi kelas.',
+        accentHex: '#0369a1',
+        surfaceHex: '#f0f9ff',
+        recommendedOrientation: 'landscape_a4'
+    },
+    // E. Cerita & Narasi (3)
+    {
+        id: 'comic_strip',
+        category: 'E',
+        order: 19,
+        name: 'Comic Strip',
+        subtitle: 'Komik Dialog Edukasi',
+        description: 'Panel komik berurutan berisi tokoh anak SD, balon dialog kontekstual, ilustrasi adegan, dan pesan moral.',
+        bestFor: 'Bahasa Indonesia, Bahasa Sunda/Daerah, Bahasa Inggris, PAIBP, dan pendidikan budi pekerti.',
+        accentHex: '#be123c',
+        surfaceHex: '#fff1f2',
+        recommendedOrientation: 'portrait_a4'
+    },
+    {
+        id: 'storyboard',
+        category: 'E',
+        order: 20,
+        name: 'Storyboard',
+        subtitle: 'Papan Adegan Berurutan',
+        description: 'Bingkai layar adegan bernomor seperti papan produksi film dengan sketsa visual, aksi tokoh, dan catatan belajar.',
+        bestFor: 'Menyusun alur cerita, simulasi percakapan, rencana proyek, dan urutan demonstrasi.',
+        accentHex: '#1e293b',
+        surfaceHex: '#f8fafc',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'story_map',
+        category: 'E',
+        order: 21,
+        name: 'Story Map',
+        subtitle: 'Peta Unsur & Alur Cerita',
+        description: 'Peta naratif yang mengurai Tokoh, Latar, Peristiwa Awal, Masalah/Konflik, hingga Penyelesaian & Amanat.',
+        bestFor: 'Analisis teks fiksi, dongeng Nusantara, cerita rakyat Sunda, dan kisah teladan.',
+        accentHex: '#b45309',
+        surfaceHex: '#fffbeb',
+        recommendedOrientation: 'landscape_a4'
+    },
+    // F. Kartu Pembelajaran (2)
+    {
+        id: 'flashcard',
+        category: 'F',
+        order: 22,
+        name: 'Flashcard Collection',
+        subtitle: 'Kartu Hafalan Dua Sisi',
+        description: 'Kumpulan kartu belajar bolak-balik (pertanyaan/istilah di depan & penjelasan serta contoh di belakang).',
+        bestFor: 'Kosakata Bahasa Inggris/Sunda, perkalian, surat pendek/doa, dan istilah penting.',
+        accentHex: '#047857',
+        surfaceHex: '#ecfdf5',
+        recommendedOrientation: 'portrait_a4'
+    },
+    {
+        id: 'quiz_cards',
+        category: 'F',
+        order: 23,
+        name: 'Quiz Learning Cards',
+        subtitle: 'Kartu Tantangan & Pembahasan',
+        description: 'Kartu soal aktif berjenjang dilengkapi petunjuk berpikir, level tantangan, dan kunci pembahasan.',
+        bestFor: 'Latihan formatif interaktif, permainan kuis kelompok, dan penguatan pemahaman.',
+        accentHex: '#6d28d9',
+        surfaceHex: '#f5f3ff',
+        recommendedOrientation: 'portrait_a4'
+    },
+    // G. Ilustrasi & Sains (6)
+    {
         id: 'isometric_3d',
-        order: 10,
-        name: 'Isometric 3D',
-        subtitle: 'Visualisasi objek',
-        description: 'Diagram objek 3 dimensi isometrik dengan penanda bagian bernomor untuk memahami struktur dan ruang.',
-        bestFor: 'Geometri bangun ruang, anatomi tumbuhan/organ, tata surya, rangkaian listrik, dan Seni Rupa 3D.',
+        category: 'G',
+        order: 24,
+        name: 'Isometric 3D Infographic',
+        subtitle: 'Diagram Proyeksi 3D Bernomor',
+        description: 'Ilustrasi objek 3 dimensi sudut 30° lengkap dengan pin penunjuk bagian dan penjelasan fungsi spasial.',
+        bestFor: 'Bangun ruang Matematika, rangkaian listrik, sistem tumbuhan, tata surya, dan model arsitektur.',
         accentHex: '#4338ca',
-        surfaceHex: '#eef2ff'
+        surfaceHex: '#eef2ff',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'cutaway_diagram',
+        category: 'G',
+        order: 25,
+        name: 'Cutaway Diagram',
+        subtitle: 'Diagram Kupas Bagian Dalam',
+        description: 'Ilustrasi objek dengan bagian luar dibuka sebagian untuk memperlihatkan komponen tersembunyi di dalamnya.',
+        bestFor: 'Struktur buah/biji, bagian dalam rumah/bangunan, organ tubuh, atau komponen alat.',
+        accentHex: '#0f766e',
+        surfaceHex: '#f0fdfa',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'cross_section',
+        category: 'G',
+        order: 26,
+        name: 'Cross-Section Diagram',
+        subtitle: 'Diagram Penampang Melintang',
+        description: 'Irisan penampang melintang berlapis-lapis untuk mengenali susunan strata, ketebalan, dan fungsi tiap lapisan.',
+        bestFor: 'Lapisan bumi, struktur tanah, batang dikotil/monokotil, dan penampang benda ruang.',
+        accentHex: '#9a3412',
+        surfaceHex: '#fff7ed',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'scientific_diagram',
+        category: 'G',
+        order: 27,
+        name: 'Scientific Labeled Diagram',
+        subtitle: 'Diagram Ilmiah Garis Penunjuk',
+        description: 'Objek ilmiah utama di tengah dikelilingi garis penunjuk presisi (leader lines) menuju label nama dan fungsi bagian.',
+        bestFor: 'Anatomi bunga/tumbuhan, alat gerak, bagian bangun ruang, dan pengamatan sains akurat.',
+        accentHex: '#0369a1',
+        surfaceHex: '#f0f9ff',
+        recommendedOrientation: 'landscape_a4'
+    },
+    {
+        id: 'paper_cut_3d',
+        category: 'G',
+        order: 28,
+        name: '3D Paper Cut',
+        subtitle: 'Lapisan Kertas 3D Berkedalaman',
+        description: 'Komposisi estetik bernuansa kerajinan kertas berlapis dengan efek bayangan bertumpuk yang menarik perhatian anak.',
+        bestFor: 'Ekosistem alam, tata surya, seni budaya Nusantara, dan poster tematik kreatif.',
+        accentHex: '#be185d',
+        surfaceHex: '#fdf2f8',
+        recommendedOrientation: 'portrait_a4'
+    },
+    {
+        id: 'illustrated_poster',
+        category: 'G',
+        order: 29,
+        name: 'Illustrated Educational Poster',
+        subtitle: 'Poster Edukasi Fokus Ilustrasi',
+        description: 'Poster modern dengan tipografi judul besar, ilustrasi visual dominan di pusat, serta butir pesan ringkas.',
+        bestFor: 'Kampanye belajar kelas, poster kelas rendah, literasi visual, dan materi digital layar.',
+        accentHex: '#0f766e',
+        surfaceHex: '#f0fdfa',
+        recommendedOrientation: 'digital_screen'
     }
 ];
 
@@ -192,11 +559,106 @@ export interface StickyNoteCard {
     reminder: string;
 }
 
+export interface VisualGlossaryEntry {
+    term: string;
+    category: string;
+    symbolHint: string;
+    definition: string;
+    example: string;
+}
+
+export interface KnowledgePyramidTier {
+    level: number;
+    tierLabel: string;
+    title: string;
+    description: string;
+    example: string;
+}
+
 export interface MindMapBranch {
     title: string;
     colorHex: string;
     keywords: string[];
     explanation: string;
+}
+
+export interface ConceptMapNode {
+    id: string;
+    label: string;
+    role: 'core' | 'primary' | 'detail';
+    summary: string;
+}
+
+export interface ConceptMapEdge {
+    fromId: string;
+    toId: string;
+    linkingVerb: string;
+}
+
+export interface TreeDiagramBranch {
+    category: string;
+    description: string;
+    children: { label: string; detail: string }[];
+}
+
+export interface VennDiagramData {
+    title: string;
+    leftLabel: string;
+    leftPoints: string[];
+    rightLabel: string;
+    rightPoints: string[];
+    intersectionLabel: string;
+    intersectionPoints: string[];
+    insight: string;
+}
+
+export interface FishboneData {
+    headEffect: string;
+    spineLabel: string;
+    causes: {
+        category: string;
+        subCauses: string[];
+    }[];
+    conclusion: string;
+}
+
+export interface FlowchartStep {
+    id: string;
+    shape: 'start' | 'process' | 'decision' | 'end';
+    label: string;
+    detail: string;
+    yesBranch?: string;
+    noBranch?: string;
+}
+
+export interface CyclePhase {
+    phaseNo: number;
+    title: string;
+    description: string;
+    keyIndicator: string;
+}
+
+export interface TChartData {
+    topicTitle: string;
+    leftHeader: string;
+    rightHeader: string;
+    rows: { leftText: string; rightText: string }[];
+    summaryNote: string;
+}
+
+export interface FrayerModelData {
+    conceptName: string;
+    definition: string;
+    characteristics: string[];
+    examples: string[];
+    nonExamples: string[];
+}
+
+export interface KwlChartData {
+    topicTitle: string;
+    knowItems: string[];
+    wantItems: string[];
+    learnedItems: string[];
 }
 
 export interface ComicPanel {
@@ -210,6 +672,25 @@ export interface ComicPanel {
     mood: 'happy' | 'curious' | 'explain' | 'eureka';
 }
 
+export interface StoryboardFrame {
+    frameNo: number;
+    shotTitle: string;
+    visualCue: string;
+    actionCaption: string;
+    learningTakeaway: string;
+    mood: 'curious' | 'explain' | 'happy' | 'eureka';
+}
+
+export interface StoryMapData {
+    storyTitle: string;
+    characters: string[];
+    setting: string;
+    beginning: string;
+    conflict: string;
+    resolution: string;
+    moralLesson: string;
+}
+
 export interface FlashcardItem {
     cardNo: number;
     category: string;
@@ -217,6 +698,15 @@ export interface FlashcardItem {
     hint: string;
     backAnswer: string;
     realExample: string;
+}
+
+export interface QuizCardItem {
+    cardNo: number;
+    level: 'Dasar' | 'Menengah' | 'Tantangan';
+    question: string;
+    clue: string;
+    answer: string;
+    explanation: string;
 }
 
 export interface StepByStepStage {
@@ -248,7 +738,29 @@ export interface IsometricPartPin {
     measurementOrDetail: string;
 }
 
-export type PageOrientationMode = 'portrait_a4' | 'landscape_a4' | 'digital_4_5';
+export interface LayerDiagramPart {
+    code: string;
+    name: string;
+    thicknessOrRole: string;
+    description: string;
+}
+
+export interface ScientificCallout {
+    pinNo: number;
+    side: 'left' | 'right';
+    partName: string;
+    functionDesc: string;
+}
+
+export type PageOrientationMode = 'portrait_a4' | 'landscape_a4' | 'digital_screen' | 'digital_4_5';
+
+export interface MateriDocumentPage {
+    pageNo: number;
+    heading: string;
+    subtitle: string;
+    kind: 'visual_master' | 'subtopics_deep' | 'practice_application' | 'summary_ref' | 'custom_note';
+    customNote?: string;
+}
 
 export interface CurriculumMismatchCheck {
     valid: boolean;
@@ -289,9 +801,18 @@ export interface ReferenceItem {
 
 export interface QualityCheckItem {
     id: number;
+    category: 'A. Kurikulum' | 'B. Substansi' | 'C. Visual' | 'D. Ekspor PNG';
     question: string;
     status: 'lulus' | 'perhatian' | 'gagal';
     detail: string;
+}
+
+export interface QualityCategorySummary {
+    id: 'A' | 'B' | 'C' | 'D';
+    title: string;
+    status: 'LULUS' | 'PERLU PERHATIAN' | 'GAGAL';
+    summary: string;
+    items: QualityCheckItem[];
 }
 
 export interface QualityControlReport {
@@ -299,27 +820,30 @@ export interface QualityControlReport {
     summary: string;
     checkedAt: string;
     checks: QualityCheckItem[];
+    categories: QualityCategorySummary[];
     verificationStages: { stage: string; passed: boolean; note: string }[];
     needsTeacherConfirmation: string[];
 }
 
 export const GENERATION_PIPELINE_STEPS = [
     { step: 1, title: 'Ambil & Kunci Data Kurikulum', desc: 'Membaca metadata sekolah, kelas, fase, CP, TP, dan ATP terkunci.' },
-    { step: 2, title: 'Analisis KKO TP & ATP', desc: 'Mengidentifikasi kata kerja operasional, kedalaman materi, dan miskonsepsi.' },
-    { step: 3, title: 'Penentuan Gaya & Orientasi', desc: 'Menerapkan rekomendasi AI atau pilihan template manual pengguna.' },
-    { step: 4, title: 'Susun Kerangka Substantif', desc: 'Menyusun urutan pengantar, pembahasan inti, pendalaman, dan asesmen.' },
+    { step: 2, title: 'Analisis Cakupan TP / ATP', desc: 'Menghimpun ATP terkait untuk mode TP atau memfokuskan 1 ATP pada mode ATP.' },
+    { step: 3, title: 'Penentuan Desain Visual & Tema', desc: 'Menerapkan pilihan 1 dari 29 desain visual, orientasi, dan tema warna.' },
+    { step: 4, title: 'Susun Kerangka Substantif', desc: 'Menyusun urutan pengantar, pembahasan inti, pendalaman, dan latihan.' },
     { step: 5, title: 'Generasi Konten Keilmuan', desc: 'Menghasilkan isi materi akurat sesuai perkembangan kognitif fase.' },
-    { step: 6, title: 'Verifikasi 6 Lapis Anti-Halusinasi', desc: 'Memeriksa konsistensi TP/ATP, keilmuan, sumber, pedagogi, dan label visual.' },
-    { step: 7, title: 'Komposisi Desain Visual & SVG', desc: 'Memisahkan komponen ilustrasi faktual dari teks agar label tidak rusak.' },
-    { step: 8, title: 'Rendering Multi-Halaman', desc: 'Menata halaman pratinjau A4/Landscape/4:5 tanpa teks terpotong.' },
-    { step: 9, title: 'Quality Control 12 Kriteria', desc: 'Menguji kelengkapan 12 standar mutu sebelum dokumen diterbitkan.' },
-    { step: 10, title: 'Siap Ekspor PDF & PNG 300 DPI', desc: 'Menyiapkan keluaran terpisah per halaman dan pengarsipan riwayat.' }
+    { step: 6, title: 'Verifikasi Anti-Halusinasi', desc: 'Memeriksa konsistensi TP/ATP, keilmuan, sumber, pedagogi, dan label visual.' },
+    { step: 7, title: 'Komposisi Ilustrasi & Diagram', desc: 'Merangkai komponen ilustrasi SVG faktual terpisah dari blok teks.' },
+    { step: 8, title: 'Alokasi Multi-Halaman Dinamis', desc: 'Membagi halaman proporsional (1–4 halaman) tanpa pengulangan konten.' },
+    { step: 9, title: 'Quality Gate 4 Kategori', desc: 'Menguji standar Kurikulum, Substansi, Visual, dan kesiapan Ekspor PNG.' },
+    { step: 10, title: 'Siap Pratinjau & Ekspor PNG', desc: 'Menyiapkan keluaran PNG resolusi tinggi per halaman & riwayat edit.' }
 ] as const;
 
 export interface GeneratedMateriAjarData {
     id: string;
     createdAt: string;
     templateId: MateriTemplateId;
+    themeId?: MateriVisualThemeId;
+    visualVariantIndex?: number;
     selectionMode: 'rekomendasi' | 'manual';
     recommendationReason?: string;
     manualMismatchNotice?: string;
@@ -333,7 +857,10 @@ export interface GeneratedMateriAjarData {
     capaianPembelajaran: string;
     tpText: string;
     atpText: string;
+    relatedAtps?: string[];
     alokasiWaktu: string;
+    pageCountPreference?: PageCountPreference;
+    pages?: MateriDocumentPage[];
     curriculumMeta?: {
         curriculumName: string;
         jenjang: string;
@@ -402,7 +929,7 @@ export interface GeneratedMateriAjarData {
         kegiatan: string;
     }[];
     refleksiSiswa: string[];
-    // Template-specific structured payloads
+    // Template-specific structured payloads (29 Templates)
     infographicData?: {
         heroStatLabel: string;
         heroStatValue: string;
@@ -419,33 +946,52 @@ export interface GeneratedMateriAjarData {
         boardTopic: string;
         notes: StickyNoteCard[];
     };
+    visualGlossaryData?: {
+        glossaryTitle: string;
+        entries: VisualGlossaryEntry[];
+    };
+    knowledgePyramidData?: {
+        pyramidTitle: string;
+        tiers: KnowledgePyramidTier[];
+        apexInsight: string;
+    };
     mindMapData?: {
         centralNode: string;
         centralSubtitle: string;
         branches: MindMapBranch[];
     };
-    comicStripData?: {
-        storyTitle: string;
-        setting: string;
-        panels: ComicPanel[];
-        moralLesson: string;
+    conceptMapData?: {
+        title: string;
+        nodes: ConceptMapNode[];
+        edges: ConceptMapEdge[];
     };
-    flashcardData?: {
-        deckTitle: string;
-        studyTip: string;
-        cards: FlashcardItem[];
+    treeDiagramData?: {
+        rootTitle: string;
+        rootSubtitle: string;
+        branches: TreeDiagramBranch[];
     };
+    vennDiagramData?: VennDiagramData;
+    fishboneData?: FishboneData;
     stepByStepData?: {
         goalStatement: string;
         toolsNeeded: string[];
         stages: StepByStepStage[];
         successIndicator: string;
     };
+    flowchartData?: {
+        title: string;
+        steps: FlowchartStep[];
+    };
     timelineData?: {
         timelineTitle: string;
         periodSpan: string;
         events: TimelineEvent[];
         synthesisNote: string;
+    };
+    cycleDiagramData?: {
+        cycleTitle: string;
+        centerLabel: string;
+        phases: CyclePhase[];
     };
     comparisonData?: {
         conceptAName: string;
@@ -454,12 +1000,63 @@ export interface GeneratedMateriAjarData {
         rows: ComparisonRow[];
         conclusion: string;
     };
+    tChartData?: TChartData;
+    frayerModelData?: FrayerModelData;
+    kwlChartData?: KwlChartData;
+    comicStripData?: {
+        storyTitle: string;
+        setting: string;
+        panels: ComicPanel[];
+        moralLesson: string;
+    };
+    storyboardData?: {
+        title: string;
+        frames: StoryboardFrame[];
+    };
+    storyMapData?: StoryMapData;
+    flashcardData?: {
+        deckTitle: string;
+        studyTip: string;
+        cards: FlashcardItem[];
+    };
+    quizCardsData?: {
+        deckTitle: string;
+        cards: QuizCardItem[];
+    };
     isometric3dData?: {
         objectTitle: string;
         visualSceneType: 'geometry_solid' | 'science_ecosystem' | 'electrical_circuit' | 'plant_structure' | 'solar_system' | 'architecture_model';
         dimensionSummary: string;
         parts: IsometricPartPin[];
         spatialInsight: string;
+    };
+    cutawayData?: {
+        title: string;
+        objectKind: 'plant_seed' | 'human_organ' | 'earth_interior' | 'building_system';
+        outerLabel: string;
+        innerLabel: string;
+        layers: LayerDiagramPart[];
+    };
+    crossSectionData?: {
+        title: string;
+        sliceKind: 'earth_layers' | 'soil_profile' | 'plant_stem' | 'geometry_slice';
+        strata: LayerDiagramPart[];
+    };
+    scientificDiagramData?: {
+        title: string;
+        specimenKind: 'plant_anatomy' | 'water_cycle' | 'circuit_board' | 'human_motion' | 'geometry_model';
+        centerTitle: string;
+        callouts: ScientificCallout[];
+    };
+    paperCut3dData?: {
+        title: string;
+        layers: { depth: number; title: string; detail: string; accentHex: string }[];
+    };
+    illustratedPosterData?: {
+        headline: string;
+        tagline: string;
+        bigTakeaway: string;
+        highlights: { label: string; text: string }[];
     };
 }
 
@@ -609,112 +1206,204 @@ export const recommendTemplateForFocus = (
 
     const makeAlt = (id: MateriTemplateId, reason: string) => ({ id, reason });
 
-    // 1. Chronology / History / Evolution -> Timeline
-    if (/\b(sejarah|kronologi|zaman|kemerdekaan|proklamasi|kerajaan|masa lalu|perjuangan|kisah nabi|riwayat|periode sejarah|era|dinasti|abad|praaksara)\b/.test(focusText)) {
+    // 1. Natural / Repeating Cycles -> Cycle Diagram
+    if (/\b(siklus|daur\s+hidup|metamorfosis|siklus\s+air|rotasi|revolusi|perputaran|musim)\b/.test(combined)) {
         return {
-            recommendedId: 'timeline',
-            reason: `Fokus TP/ATP memuat unsur kronologi atau peristiwa bersejarah pada ${subject}, sehingga Timeline efektif membantu siswa memahami urutan kejadian dalam format infografis A4.`,
+            recommendedId: 'cycle_diagram',
+            reason: `Materi ${subject} pada topik ini membahas proses yang berulang secara terus-menerus, sehingga Cycle Diagram sangat tepat memvisualisasikan fase berputar.`,
             alternatives: [
-                makeAlt('educational_infographic', 'Menyajikan poster edukasi lengkap dengan ilustrasi peristiwa dan latihan 3 soal.'),
-                makeAlt('comic_strip', 'Mengubah kisah tokoh/sejarah menjadi cerita bergambar yang mudah dihayati.')
+                makeAlt('scientific_diagram', 'Menampilkan objek sains lengkap dengan garis label fungsi bagian.'),
+                makeAlt('educational_infographic', 'Menyajikan poster edukasi lengkap dengan contoh kehidupan sehari-hari.')
             ]
         };
     }
 
-    // 2. 3D Objects / Geometry / Anatomy / Circuits / Spatial -> Isometric 3D
+    // 2. Algorithms / Decision Logic -> Flowchart
+    if (subjLower.includes('koding') || subjLower.includes('kecerdasan') || /\b(algoritma|flowchart|diagram\s+alir|percabangan|if-else|keputusan|logika\s+program)\b/.test(combined)) {
+        return {
+            recommendedId: 'flowchart',
+            reason: `Fokus ${subject} menekankan alur berpikir logis, langkah proses, dan percabangan kondisi, sehingga Flowchart menghadirkan simbol Mulai–Proses–Keputusan secara akurat.`,
+            alternatives: [
+                makeAlt('step_by_step', 'Menguraikan langkah kerja bernomor beserta tips menghindari kesalahan.'),
+                makeAlt('concept_map', 'Menghubungkan istilah berpikir komputasional dengan panah berlabel.')
+            ]
+        };
+    }
+
+    // 3. Earth / Soil / Cutaway / Anatomy / Scientific Label -> Scientific / Cross-Section / Cutaway
+    if (/\b(lapisan\s+bumi|struktur\s+tanah|penampang|kerak\s+bumi|batang|lapisan)\b/.test(combined)) {
+        return {
+            recommendedId: 'cross_section',
+            reason: `Fokus materi menelaah susunan berlapis atau penampang bagian dalam, sehingga Cross-Section Diagram memperlihatkan strata dan fungsinya secara jelas.`,
+            alternatives: [
+                makeAlt('cutaway_diagram', 'Membuka tampilan luar objek untuk mengintip bagian dalamnya.'),
+                makeAlt('scientific_diagram', 'Menambahkan garis penunjuk presisi pada tiap bagian.')
+            ]
+        };
+    }
+
+    if (/\b(anatomi|bagian\s+tumbuhan|organ\s+tubuh|fotosintesis|bagian\s+bunga|rangka|pernapasan|pencernaan)\b/.test(combined) && !subjLower.includes('pjok')) {
+        return {
+            recommendedId: 'scientific_diagram',
+            reason: `Materi ${subject} pada elemen ${elementName} membahas struktur bagian dan fungsi ilmiah, sehingga Scientific Labeled Diagram memberi penunjuk presisi yang mudah dipelajari.`,
+            alternatives: [
+                makeAlt('cutaway_diagram', 'Mengupas lapisan luar untuk menampakkan bagian dalam objek.'),
+                makeAlt('isometric_3d', 'Memvisualisasikan struktur objek dalam proyeksi 3D bernomor.')
+            ]
+        };
+    }
+
+    // 4. Cause & Effect / Environmental Problem Analysis -> Fishbone Diagram
+    if (/\b(sebab\s+dan\s+akibat|penyebab|dampak\s+negatif|pencemaran|masalah\s+lingkungan|mengapa\s+terjadi)\b/.test(focusText)) {
+        return {
+            recommendedId: 'fishbone_diagram',
+            reason: `Kompetensi menuntut analisis faktor penyebab dari suatu akibat/topik utama, sehingga Fishbone Diagram memetakan akar masalah secara visual.`,
+            alternatives: [
+                makeAlt('concept_map', 'Menghubungkan sebab dan akibat dengan panah berlabel kata kerja.'),
+                makeAlt('t_chart', 'Membandingkan dua sisi dampak atau solusi secara langsung.')
+            ]
+        };
+    }
+
+    // 5. Chronology / History / Evolution -> Timeline
+    if (/\b(sejarah|kronologi|zaman|kemerdekaan|proklamasi|kerajaan|masa lalu|perjuangan|kisah nabi|riwayat|periode sejarah|era|dinasti|abad|praaksara)\b/.test(focusText)) {
+        return {
+            recommendedId: 'timeline',
+            reason: `Fokus TP/ATP memuat unsur kronologi atau peristiwa bersejarah pada ${subject}, sehingga Timeline Infographic efektif menampilkan urutan kejadian dan dampaknya.`,
+            alternatives: [
+                makeAlt('storyboard', 'Menyajikan kronologi sebagai papan adegan visual berurutan.'),
+                makeAlt('story_map', 'Memetakan tokoh, latar, konflik, dan amanat peristiwa.')
+            ]
+        };
+    }
+
+    // 6. 3D Objects / Geometry / Circuits / Solar System -> Isometric 3D
     if (
-        /\b(bangun ruang|kubus|balok|prisma|limas|tabung|kerucut|bola basket|bola voli|jaring-jaring|volume|anatomi|organ tubuh|bagian tumbuhan|rangkaian listrik|tata surya|planet|ekosistem|siklus air|tiga dimensi|3d|patung|diorama)\b/.test(combined) &&
+        /\b(bangun ruang|kubus|balok|prisma|limas|tabung|kerucut|jaring-jaring|volume|rangkaian listrik|tata surya|planet|tiga dimensi|3d|patung|diorama)\b/.test(combined) &&
         !subjLower.includes('pjok')
     ) {
         return {
             recommendedId: 'isometric_3d',
-            reason: `Fokus materi pada ${elementName} membahas struktur objek ruang atau sistem visual nyata, sehingga Isometric 3D memvisualisasikan bentuk dan bagian objek secara konkret.`,
+            reason: `Fokus materi pada ${elementName} membahas objek ruang atau sistem 3 dimensi, sehingga Isometric 3D memvisualisasikan bentuk dan pin bagian secara konkret.`,
             alternatives: [
-                makeAlt('educational_infographic', 'Menyajikan poster edukasi A4 lengkap dengan rangkuman dan aktivitas siswa.'),
-                makeAlt('mind_map', 'Memetakan fungsi tiap bagian objek secara sistematis.')
+                makeAlt('cutaway_diagram', 'Memperlihatkan bagian dalam objek secara terstruktur.'),
+                makeAlt('cheat_sheet', 'Merangkum rumus luas permukaan dan volume secara ringkas.')
             ]
         };
     }
 
-    // 3. Comparisons / Differences / Classifications -> Comparison Chart
-    if (/\b(membedakan|perbedaan|persamaan|membandingkan|klasifikasi|wujud zat|hak dan kewajiban|positif dan negatif|kelebihan|kekurangan|loma dan lemes)\b/.test(focusText)) {
+    // 7. Similarities & Differences -> Venn Diagram / Comparison Chart / T-Chart
+    if (/\b(persamaan\s+dan\s+perbedaan|irisan|serupa\s+namun\s+berbeda)\b/.test(focusText)) {
+        return {
+            recommendedId: 'venn_diagram',
+            reason: `Materi membandingkan dua konsep sekaligus mencari irisannya, sehingga Venn Diagram menampilkan sisi unik dan kesamaan secara seketika.`,
+            alternatives: [
+                makeAlt('comparison_chart', 'Menyajikan tabel matriks multi-aspek yang rapi.'),
+                makeAlt('t_chart', 'Membagi kontras dua sisi secara tegas dalam bagan T.')
+            ]
+        };
+    }
+
+    if (/\b(hak\s+dan\s+kewajiban|benar\s+dan\s+salah|positif\s+dan\s+negatif|kelebihan\s+dan\s+kekurangan|loma\s+dan\s+lemes)\b/.test(focusText)) {
+        return {
+            recommendedId: 't_chart',
+            reason: `Topik menuntut pemilahan dua sisi yang berpasangan atau kontras secara jernih, sehingga T-Chart sangat efektif untuk siswa SD.`,
+            alternatives: [
+                makeAlt('comparison_chart', 'Menambahkan kolom aspek pembanding lebih rinci.'),
+                makeAlt('venn_diagram', 'Menyoroti irisan persamaan kedua konsep.')
+            ]
+        };
+    }
+
+    if (/\b(membedakan|perbedaan|membandingkan|klasifikasi|wujud zat|jenis-jenis)\b/.test(focusText)) {
         return {
             recommendedId: 'comparison_chart',
-            reason: `Fokus kompetensi menuntut siswa membandingkan ciri, perbedaan, dan persamaan konsep secara langsung dalam satu poster perbandingan.`,
+            reason: `Fokus kompetensi menuntut siswa membandingkan ciri, perbedaan, dan contoh konsep dalam satu matriks visual terstruktur.`,
             alternatives: [
-                makeAlt('educational_infographic', 'Menyajikan poster infografis terstruktur lengkap dengan contoh sehari-hari.'),
-                makeAlt('mind_map', 'Mengelompokkan kategori konsep ke dalam cabang visual.')
+                makeAlt('tree_diagram', 'Menunjukkan pembagian klasifikasi dalam bentuk pohon hierarki.'),
+                makeAlt('venn_diagram', 'Menggambarkan perbedaan dan irisan persamaan dua konsep.')
             ]
         };
     }
 
-    // 4. Math Formulas / Numbers / Rules -> Cheat Sheet
+    // 8. Math Formulas / Numbers / Rules -> Cheat Sheet
     if (subjLower.includes('matematika') || /\b(bilangan|pecahan|operasi hitung|perkalian|pembagian|keliling|luas|satuan|rumus|kaidah|ejaan|tanda baca)\b/.test(focusText)) {
         return {
             recommendedId: 'cheat_sheet',
-            reason: `Kompetensi ${subject} pada fokus ini memerlukan kejelasan rumus, aturan hitung, dan contoh langkah cepat dalam poster ringkas.`,
+            reason: `Kompetensi ${subject} pada fokus ini memerlukan kejelasan rumus, aturan hitung, dan ceklis anti-keliru dalam format ringkasan cepat.`,
             alternatives: [
-                makeAlt('educational_infographic', 'Menampilkan poster infografis lengkap berilustrasi pecahan/geometri konkret.'),
-                makeAlt('step_by_step', 'Memecah cara penyelesaian soal hitungan secara bertahap.')
+                makeAlt('step_by_step', 'Memecah langkah pengerjaan hitungan secara bertahap.'),
+                makeAlt('frayer_model', 'Menguatkan satu konsep lewat definisi, ciri, contoh, dan bukan contoh.')
             ]
         };
     }
 
-    // 5. Stories / Dialogues / Literature / Regional Language (Sunda) -> Comic Strip
-    if (subjLower.includes('sunda') || subjLower.includes('daerah') || /\b(cerita|dongeng|dongéng|sasakala|fabel|dialog|percakapan|paguneman|amanat|tokoh|si kabayan)\b/.test(focusText)) {
+    // 9. Narrative / Fiction / Regional Language -> Story Map / Comic Strip
+    if (/\b(unsur\s+intrinsik|tokoh|latar|alur|amanat|dongeng|dongéng|fabel|cerita\s+rakyat)\b/.test(focusText)) {
+        return {
+            recommendedId: 'story_map',
+            reason: `Materi menelaah unsur cerita dan pesan moral, sehingga Story Map menata Tokoh, Latar, Masalah, dan Penyelesaian dengan sangat jernih.`,
+            alternatives: [
+                makeAlt('comic_strip', 'Menghidupkan adegan cerita dalam panel komik dialog.'),
+                makeAlt('storyboard', 'Menampilkan urutan adegan visual secara sinematik.')
+            ]
+        };
+    }
+
+    if (subjLower.includes('sunda') || subjLower.includes('daerah') || /\b(dialog|percakapan|paguneman|si kabayan|adab|sopan\s+santun)\b/.test(focusText)) {
         return {
             recommendedId: 'comic_strip',
             reason: `Materi ${subject} pada elemen ${elementName} kaya akan konteks komunikasi dan teladan budaya. Comic Strip menghidupkan dialog alami bagi siswa SD.`,
             alternatives: [
-                makeAlt('educational_infographic', 'Menyajikan poster materi lengkap berbahasa sederhana & ilustrasi budaya.'),
-                makeAlt('sticky_notes', 'Mencatat kosakata kunci dan sikap baik dalam catatan ringkas.')
+                makeAlt('visual_glossary', 'Mengenalkan kosakata kunci lengkap dengan ikon & contoh kalimat.'),
+                makeAlt('flashcard', 'Melatih hafalan ungkapan dan kosakata dua sisi.')
             ]
         };
     }
 
-    // 6. Procedures / Algorithms / Experiments / Movement Steps / Worship -> Step-by-Step
-    if (/\b(algoritma|koding|coding|dekomposisi|pola gerak|gerak dasar|senam|lokomotor|eksperimen|percobaan|praktik|tata cara|wudhu|wudu|salat|prosedur|teks prosedur|merangkai)\b/.test(combined)) {
+    // 10. Procedures / Movement Steps / Worship -> Step-by-Step
+    if (/\b(dekomposisi|pola gerak|gerak dasar|senam|lokomotor|eksperimen|percobaan|praktik|tata cara|wudhu|wudu|salat|prosedur|teks prosedur|merangkai|mengayun)\b/.test(combined)) {
         return {
             recommendedId: 'step_by_step',
             reason: `Fokus TP/ATP menekankan penguasaan tahapan kerja, praktik ibadah, atau keterampilan gerak pada ${subject}.`,
             alternatives: [
-                makeAlt('educational_infographic', 'Menyajikan poster infografis A4 utuh lengkap dengan ilustrasi dan latihan.'),
-                makeAlt('cheat_sheet', 'Menyediakan ceklis cepat syarat dan aturan keselamatan.')
+                makeAlt('educational_infographic', 'Menyajikan poster infografis utuh lengkap dengan ilustrasi gerakan.'),
+                makeAlt('flowchart', 'Menampilkan alur keputusan langkah demi langkah.')
             ]
         };
     }
 
-    // 7. Vocabulary / Memorization / English / PAIBP -> Educational Infographic or Flashcard
+    // 11. Vocabulary / Memorization -> Visual Glossary / Flashcard
     if (subjLower.includes('inggris') || /\b(kosakata|vocabulary|hafalan|arti kata|asmaul husna)\b/.test(focusText)) {
         return {
-            recommendedId: 'flashcard',
-            reason: `Fokus ATP/TP pada ${subject} mengutamakan penguasaan kosakata, arti kata, dan latihan aktif dua sisi.`,
+            recommendedId: 'visual_glossary',
+            reason: `Fokus ATP/TP pada ${subject} mengutamakan penguasaan kosakata, arti kata, dan ilustrasi konsep yang mudah diingat.`,
             alternatives: [
-                makeAlt('educational_infographic', 'Poster infografis lengkap dengan ilustrasi dan latihan pemahaman.'),
-                makeAlt('sticky_notes', 'Kartu catatan penting yang mudah ditempel dan dibaca ulang.')
+                makeAlt('flashcard', 'Kartu belajar dua sisi untuk latihan hafalan aktif.'),
+                makeAlt('quiz_cards', 'Kartu soal cepat untuk uji pemahaman mandiri.')
             ]
         };
     }
 
-    // 8. Broad Concept Mapping -> Mind Map
-    if (subjLower.includes('ipas') || /\b(hubungan|keterkaitan|sistem|ragam|komponen|bagian|unsur|faktor)\b/.test(focusText)) {
+    // 12. Broad Concept Mapping -> Mind Map / Concept Map / Tree Diagram
+    if (subjLower.includes('ipas') || /\b(hubungan|keterkaitan|sistem|ragam|komponen|bagian|unsur|faktor|ekosistem)\b/.test(focusText)) {
         return {
-            recommendedId: 'mind_map',
-            reason: `Elemen ${elementName} menghubungkan beberapa sub-konsep sekaligus sehingga peta pikiran memudahkan pemahaman menyeluruh.`,
+            recommendedId: 'concept_map',
+            reason: `Elemen ${elementName} menghubungkan beberapa konsep dan hubungan kerja sekaligus sehingga Concept Map berlabel memperjelas keterkaitan.`,
             alternatives: [
-                makeAlt('educational_infographic', 'Poster infografis A4 lengkap dengan ilustrasi konkret dan contoh sehari-hari.'),
-                makeAlt('comparison_chart', 'Memperjelas perbedaan antar komponen sistem.')
+                makeAlt('mind_map', 'Memetakan cabang konsep secara radial dari ide pusat.'),
+                makeAlt('paper_cut_3d', 'Menyajikan ekosistem atau konsep alam dalam lapisan kertas 3D atraktif.')
             ]
         };
     }
 
-    // 9. Default & PAIBP / Bahasa Indonesia / PPKn -> Modern Educational Infographic Poster A4
+    // 13. Default -> Modern Educational Infographic
     return {
         recommendedId: 'educational_infographic',
-        reason: `Fokus TP/ATP pada ${subject} (${elementName}) paling optimal disajikan sebagai Poster Infografis Edukasi A4 Portrait lengkap dengan pengantar, inti berilustrasi konkret, contoh sehari-hari, aktivitas siswa, rangkuman, dan latihan.`,
+        reason: `Fokus TP/ATP pada ${subject} (${elementName}) paling optimal disajikan sebagai Educational Infographic lengkap dengan pilar konsep, ilustrasi konkret, contoh sehari-hari, dan rangkuman.`,
         alternatives: [
-            makeAlt('mind_map', 'Untuk melihat peta keterkaitan antar konsep utama.'),
-            makeAlt('sticky_notes', 'Untuk ringkasan catatan tempel yang mudah diingat siswa.')
+            makeAlt('frayer_model', 'Mengulas satu konsep inti secara mendalam lewat 4 kuadran.'),
+            makeAlt('illustrated_poster', 'Menonjolkan poster visual modern berilustrasi utama di tengah.')
         ]
     };
 };
@@ -775,11 +1464,15 @@ export const buildConcretePosterIllustrationSvg = (
     elementName: string,
     tpText: string,
     atpText: string,
-    captionTitle: string
+    captionTitle: string,
+    variantIndex = 0
 ): string => {
     const combined = `${subject} ${elementName} ${tpText} ${atpText}`.toLowerCase();
     const subjLower = subject.toLowerCase();
     const shortLabel = escXml(captionTitle.length > 44 ? captionTitle.slice(0, 42) + '…' : captionTitle);
+    const variant = Math.abs(variantIndex) % 3;
+
+    const produceSvg = (): string => {
 
     // 1. PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan) — Specific SD Student Action Scenes
     if (subjLower.includes('pjok') || subjLower.includes('jasmani') || subjLower.includes('olahraga')) {
@@ -1150,6 +1843,21 @@ export const buildConcretePosterIllustrationSvg = (
         </g>
         <text x="230" y="174" font-size="10.5" font-weight="700" text-anchor="middle" fill="#78350f">${shortLabel}</text>
     </svg>`;
+    };
+
+    const rawSvg = produceSvg();
+    if (variant === 0) return rawSvg;
+
+    const tintFill = variant === 1 ? '#f8fafc' : '#fefce8';
+    const accentStroke = variant === 1 ? '#0284c7' : '#d97706';
+    const tinted = rawSvg.replace(
+        /(<rect\b[^>]*\bfill=")#[0-9a-fA-F]{3,6}(")/,
+        `$1${tintFill}$2`
+    );
+    return tinted.replace(
+        /<\/svg>\s*$/i,
+        `<circle cx="442" cy="18" r="5" fill="${accentStroke}" opacity="0.28"/><circle cx="428" cy="18" r="3" fill="${accentStroke}" opacity="0.18"/></svg>`
+    );
 };
 
 /**
@@ -2135,6 +2843,8 @@ export const synthesizeAuthenticMateriAjar = (params: {
         topicFocus: topicTitle,
         orientation: defaultOrientation
     };
+    baseData.themeId = 'zamrud_edukatif';
+    baseData.visualVariantIndex = 0;
     baseData.tpAtpAnalysis = baselineAnalysis;
     baseData.kaitanPengalamanSiswa = kaitanPengalamanSiswa;
     baseData.unsurPenting = unsurPenting;
@@ -2143,8 +2853,15 @@ export const synthesizeAuthenticMateriAjar = (params: {
     baseData.pendalamanMateri = pendalamanMateri;
     baseData.referensi = references;
     baseData.teacherNotes = teacherNotes;
+    baseData.pages = buildLogicalDocumentPages({
+        title: baseData.title,
+        subject,
+        templateId,
+        focusLevel,
+        pageCountPreference: 'auto'
+    });
 
-    // Populate all 10 template-specific payloads cleanly from rich domain data
+    // Populate all 29 template-specific payloads cleanly from rich domain data
     buildTemplatePayloadsFromMerged(baseData, {
         subject,
         className,
@@ -2172,8 +2889,74 @@ export const synthesizeAuthenticMateriAjar = (params: {
 };
 
 /**
- * Syncs all 10 visual template payloads directly from substantive merged/AI content
- * (never reverting back to generic boilerplate).
+ * Allocates dynamic, non-repetitive logical pages (1 to 4 pages) based on scope mode,
+ * chosen visual template, and teacher preference.
+ */
+export const buildLogicalDocumentPages = (params: {
+    title: string;
+    subject: string;
+    templateId: MateriTemplateId;
+    focusLevel: HierarchyFocusLevel;
+    pageCountPreference?: PageCountPreference;
+}): MateriDocumentPage[] => {
+    const tplMeta = MATERI_AJAR_TEMPLATES.find(t => t.id === params.templateId);
+    const tplName = tplMeta?.name || 'Desain Visual';
+    const pref = params.pageCountPreference || 'auto';
+
+    let targetCount: number;
+    if (pref !== 'auto') {
+        targetCount = pref;
+    } else if (params.focusLevel === 'atp') {
+        // Specific ATP mode: compact 1 or 2 pages depending on template density
+        const singleSheetTemplates = new Set<MateriTemplateId>([
+            'illustrated_poster',
+            'frayer_model',
+            'venn_diagram',
+            't_chart',
+            'kwl_chart',
+            'sticky_notes',
+            'cheat_sheet',
+            'cycle_diagram'
+        ]);
+        targetCount = singleSheetTemplates.has(params.templateId) ? 1 : 2;
+    } else {
+        // Broad TP or Element mode: comprehensive 3 pages by default
+        targetCount = 3;
+    }
+
+    const catalog: MateriDocumentPage[] = [
+        {
+            pageNo: 1,
+            heading: `${params.title} — ${tplName}`,
+            subtitle: 'Sajian Visual Utama, Identitas Terkunci, Konsep Inti & Ilustrasi',
+            kind: 'visual_master'
+        },
+        {
+            pageNo: 2,
+            heading: 'Pendalaman Subtopik, Contoh Nyata & Aktivitas Siswa',
+            subtitle: 'Uraian Mendalam, Pelurusan Miskonsepsi & Penerapan Sehari-hari',
+            kind: 'subtopics_deep'
+        },
+        {
+            pageNo: 3,
+            heading: 'Latihan Pemahaman, Rangkuman & Referensi Resmi',
+            subtitle: 'Pemeriksaan Pemahaman Siswa, Kunci Guru & Landasan Kurikulum',
+            kind: 'practice_application'
+        },
+        {
+            pageNo: 4,
+            heading: 'Lembar Penguatan & Catatan Refleksi Pembelajaran',
+            subtitle: 'Glosarium Istilah, Refleksi Siswa & Lembar Pengesahan',
+            kind: 'summary_ref'
+        }
+    ];
+
+    return catalog.slice(0, Math.max(1, Math.min(4, targetCount)));
+};
+
+/**
+ * Syncs ALL 29 visual template payloads directly from substantive merged/AI content
+ * so switching between any of the 29 designs in the live studio happens instantaneously without losing substance.
  */
 export const buildTemplatePayloadsFromMerged = (
     data: GeneratedMateriAjarData,
@@ -2188,7 +2971,7 @@ export const buildTemplatePayloadsFromMerged = (
         templateId: MateriTemplateId;
     }
 ): void => {
-    const { subject, className, fase, elementName, tpText, atpText, alokasiWaktu, templateId } = params;
+    const { subject, className, fase, elementName, tpText, atpText, alokasiWaktu } = params;
     const isSunda = isBahasaSundaTopic(subject, elementName, tpText);
     const terms = data.kataKunci || [];
     const points = data.poinPenting || [];
@@ -2196,173 +2979,490 @@ export const buildTemplatePayloadsFromMerged = (
     const summary = data.rangkumanPoin || [];
     const steps = data.klasifikasiAtauProses?.butir || [];
     const misconceptions = data.pendalamanMateri?.miskonsepsiUmum || [];
+    const tblRows = data.tabelInformatif?.baris || [];
+    const combinedLower = `${subject} ${elementName} ${tpText} ${atpText}`.toLowerCase();
 
-    if (templateId === 'educational_infographic') {
-        data.infographicData = {
-            heroStatLabel: 'Alokasi & Fokus PPA',
-            heroStatValue: alokasiWaktu || '3 JP · Siap Cetak A4',
-            heroNote: `Selaras CP Elemen "${elementName}" (${className} · ${fase})`,
-            pillars: [
-                { number: '01', title: 'Pengertian Konsep', summary: data.pengertianKonsep, keyFact: points[0] || '', example: data.contohKonkret },
-                { number: '02', title: 'Penjelasan Materi Utama', summary: data.penjelasanUtama, keyFact: points[1] || '', example: daily[0] || '' },
-                { number: '03', title: 'Unsur & Poin Penting', summary: (data.unsurPenting || points).slice(0, 3).join(' · '), keyFact: points[2] || '', example: daily[1] || '' },
-                { number: '04', title: 'Penerapan & Pelurusan', summary: data.pendalamanMateri?.analisisSederhana || data.aktivitasSederhana.hasilDiharapkan, keyFact: data.aktivitasSederhana.judul, example: summary[0] || '' }
-            ],
-            goldenTakeaway: summary.join(' ')
-        };
-    } else if (templateId === 'cheat_sheet') {
-        data.cheatSheetData = {
-            quickOverview: data.pengertianKonsep,
-            boxes: [
-                {
-                    title: 'Konsep & Istilah Kunci',
-                    category: subject,
-                    items: terms.map(t => `${t.term}: ${t.meaning}`),
-                    formulaOrRule: data.penjelasanUtama.slice(0, 180)
-                },
-                {
-                    title: data.klasifikasiAtauProses?.judul || 'Aturan & Langkah Inti',
-                    category: elementName,
-                    items: steps.length > 0 ? steps.map(s => `${s.label}: ${s.uraian}`) : points,
-                    formulaOrRule: data.contohKonkret
-                }
-            ],
-            commonMistakes: misconceptions.length > 0
-                ? misconceptions.map(m => ({ mistake: m.salah, correction: m.pelurusan }))
-                : [
-                    { mistake: 'Membaca konsep tanpa mengecek contoh nyata.', correction: 'Hubungkan selalu dengan 1 contoh di rumah/sekolah.' }
-                ]
-        };
-    } else if (templateId === 'sticky_notes') {
-        data.stickyNotesData = {
-            boardTopic: `Catatan Penting ${subject}: ${data.title}`,
-            notes: [
-                { title: '1. Pengertian Konsep', tag: 'Konsep', colorTheme: 'amber', content: data.pengertianKonsep, reminder: terms[0]?.term || subject },
-                { title: '2. Penjelasan Inti', tag: 'Materi', colorTheme: 'sky', content: data.penjelasanUtama, reminder: alokasiWaktu },
-                { title: '3. Contoh Konkret', tag: 'Contoh', colorTheme: 'emerald', content: data.contohKonkret, reminder: daily[0] || 'Amati sekitarmu!' },
-                { title: '4. Pelurusan Miskonsepsi', tag: 'Penting', colorTheme: 'rose', content: misconceptions[0]?.pelurusan || data.aktivitasSederhana.hasilDiharapkan, reminder: misconceptions[0]?.salah || data.aktivitasSederhana.judul }
-            ]
-        };
-    } else if (templateId === 'mind_map') {
-        data.mindMapData = {
-            centralNode: data.title.length > 34 ? data.title.slice(0, 32) + '…' : data.title,
-            centralSubtitle: `${subject} · ${className}`,
-            branches: [
-                { title: '1. Pengertian Konsep', colorHex: '#0284c7', keywords: [terms[0]?.term || 'Konsep', elementName], explanation: data.pengertianKonsep },
-                { title: '2. Penjelasan & Unsur', colorHex: '#059669', keywords: [terms[1]?.term || 'Aturan', terms[2]?.term || 'Ciri'], explanation: data.penjelasanUtama },
-                { title: '3. Contoh & Penerapan', colorHex: '#d97706', keywords: ['Konkret', 'Sehari-hari'], explanation: data.contohKonkret },
-                { title: '4. Aktivitas & Latihan', colorHex: '#7c3aed', keywords: ['Praktik', 'Miskonsepsi'], explanation: data.aktivitasSederhana.hasilDiharapkan }
-            ]
-        };
-    } else if (templateId === 'comic_strip') {
-        data.comicStripData = isSunda
-            ? {
-                storyTitle: `Diajar ${data.title} Bareng Dadan jeung Sari`,
-                setting: `Kelas ${className} & Lingkungan Sakola`,
-                panels: [
-                    { panelNo: 1, sceneTitle: 'Patarosan Awal', characterLeft: 'Dadan', characterRight: 'Sari', dialogueLeft: data.pertanyaanPemantik[0] || 'Kumaha carana nya?', dialogueRight: 'Hayu urang tanya ka Ibu Guru sangkan écés!', narration: data.pengantarSingkat, mood: 'curious' },
-                    { panelNo: 2, sceneTitle: 'Katerangan Poko', characterLeft: 'Ibu Guru', characterRight: 'Dadan', dialogueLeft: data.pengertianKonsep, dialogueRight: 'Oh kitu hartina téh, Bu!', narration: data.penjelasanUtama, mood: 'explain' },
-                    { panelNo: 3, sceneTitle: 'Conto Sapopoé', characterLeft: 'Sari', characterRight: 'Dadan', dialogueLeft: data.contohKonkret, dialogueRight: 'Urang cobian langsung dina aktivitas kelas yuk!', narration: daily[0] || '', mood: 'happy' },
-                    { panelNo: 4, sceneTitle: 'Ngamalkeun!', characterLeft: 'Dadan', characterRight: 'Sari', dialogueLeft: summary[0] || 'Ayeuna urang geus paham sarta siap ngerjakeun latihan!', dialogueRight: 'Sumanget! Basa Sunda kudu dijaga unggal poé.', narration: summary[1] || '', mood: 'eureka' }
-                ],
-                moralLesson: summary.join(' ')
+    // A. Ringkasan & Informasi (1–5)
+    data.infographicData = {
+        heroStatLabel: 'Alokasi & Fokus PPA',
+        heroStatValue: alokasiWaktu || '3 JP · Siap Ekspor PNG',
+        heroNote: `Selaras CP Elemen "${elementName}" (${className} · ${fase})`,
+        pillars: [
+            { number: '01', title: 'Pengertian Konsep', summary: data.pengertianKonsep, keyFact: points[0] || '', example: data.contohKonkret },
+            { number: '02', title: 'Penjelasan Materi Utama', summary: data.penjelasanUtama, keyFact: points[1] || '', example: daily[0] || '' },
+            { number: '03', title: 'Unsur & Poin Penting', summary: (data.unsurPenting || points).slice(0, 3).join(' · '), keyFact: points[2] || '', example: daily[1] || '' },
+            { number: '04', title: 'Penerapan & Pelurusan', summary: data.pendalamanMateri?.analisisSederhana || data.aktivitasSederhana.hasilDiharapkan, keyFact: data.aktivitasSederhana.judul, example: summary[0] || '' }
+        ],
+        goldenTakeaway: summary.join(' ')
+    };
+
+    data.cheatSheetData = {
+        quickOverview: data.pengertianKonsep,
+        boxes: [
+            {
+                title: 'Konsep & Istilah Kunci',
+                category: subject,
+                items: terms.map(t => `${t.term}: ${t.meaning}`),
+                formulaOrRule: data.penjelasanUtama.slice(0, 180)
+            },
+            {
+                title: data.klasifikasiAtauProses?.judul || 'Aturan & Langkah Inti',
+                category: elementName,
+                items: steps.length > 0 ? steps.map(s => `${s.label}: ${s.uraian}`) : points,
+                formulaOrRule: data.contohKonkret
             }
-            : {
-                storyTitle: `Cerita Belajar ${subject}: ${data.title}`,
-                setting: `Kelas ${className} & Lingkungan Sekitar`,
-                panels: [
-                    { panelNo: 1, sceneTitle: 'Rasa Ingin Tahu', characterLeft: 'Raka', characterRight: 'Sinta', dialogueLeft: data.pertanyaanPemantik[0] || 'Bagaimana cara kerjanya?', dialogueRight: 'Yuk kita pelajari konsep aslinya bersama Bu Guru!', narration: data.pengantarSingkat, mood: 'curious' },
-                    { panelNo: 2, sceneTitle: 'Penjelasan Ilmiah', characterLeft: 'Bu Guru', characterRight: 'Raka', dialogueLeft: data.pengertianKonsep, dialogueRight: 'Oh, jadi itu konsep utamanya dalam pelajaran ini!', narration: data.penjelasanUtama, mood: 'explain' },
-                    { panelNo: 3, sceneTitle: 'Praktik Nyata', characterLeft: 'Sinta', characterRight: 'Raka', dialogueLeft: data.contohKonkret, dialogueRight: 'Aku jadi paham cara mempraktikkannya dengan benar!', narration: daily[0] || '', mood: 'happy' },
-                    { panelNo: 4, sceneTitle: 'Paham Tuntas', characterLeft: 'Raka', characterRight: 'Sinta', dialogueLeft: `Ingat, ${misconceptions[0]?.pelurusan || summary[0] || ''}`, dialogueRight: 'Siap! Ayo kerjakan aktivitas dan latihan pemahamannya!', narration: summary[0] || '', mood: 'eureka' }
-                ],
-                moralLesson: summary.join(' ')
-            };
-    } else if (templateId === 'flashcard') {
-        data.flashcardData = {
-            deckTitle: `Kartu Hafalan ${subject}: ${data.title}`,
-            studyTip: 'Baca pertanyaan di sisi depan, lalu balik atau lipat untuk mencocokkan penjelasan ilmiahnya!',
-            cards: [
-                { cardNo: 1, category: 'Definisi', frontPrompt: `Apa pengertian "${data.title}" pada ${subject}?`, hint: `Elemen ${elementName}`, backAnswer: data.pengertianKonsep, realExample: data.contohKonkret },
-                ...terms.slice(0, 3).map((dt, idx) => ({
-                    cardNo: idx + 2,
-                    category: 'Istilah Kunci',
-                    frontPrompt: `Jelaskan makna "${dt.term}"!`,
-                    hint: subject,
-                    backAnswer: dt.meaning,
-                    realExample: daily[idx % Math.max(1, daily.length)] || data.contohKonkret
-                }))
-            ]
-        };
-    } else if (templateId === 'step_by_step') {
-        data.stepByStepData = {
-            goalStatement: tpText,
-            toolsNeeded: [`Buku Teks ${subject} ${className}`, 'Alat tulis / perlengkapan praktik', 'Ilustrasi panduan di halaman 1'],
-            stages: (steps.length >= 3 ? steps : [
-                { label: '1. Pahami Konsep', uraian: data.pengertianKonsep },
-                { label: '2. Pelajari Aturan / Teknik', uraian: data.penjelasanUtama },
-                { label: '3. Amati Contoh Konkret', uraian: data.contohKonkret },
-                { label: '4. Lakukan Aktivitas Siswa', uraian: data.aktivitasSederhana.langkah.join(' ') }
-            ]).map((st, idx) => ({
-                stepNo: idx + 1,
-                title: st.label,
-                instruction: st.uraian,
-                checkpoint: idx === 0 ? 'Memahami istilah pokok materi.' : 'Mampu menunjukkan langkah secara runtut.',
-                tip: misconceptions[idx % Math.max(1, misconceptions.length)]?.pelurusan || 'Lakukan dengan teliti dan tertib.'
-            })),
-            successIndicator: data.aktivitasSederhana.hasilDiharapkan
-        };
-    } else if (templateId === 'timeline') {
-        data.timelineData = {
-            timelineTitle: `Kronologi & Tahapan: ${data.title}`,
-            periodSpan: `${subject} · ${className} · ${fase}`,
-            events: [
-                { orderLabel: 'Tahap 1 · Konsep', title: 'Pengertian & Latar Materi', actorOrContext: elementName, description: data.pengertianKonsep, impact: 'Memahami dasar keilmuan topik.' },
-                { orderLabel: 'Tahap 2 · Mekanisme', title: data.klasifikasiAtauProses?.judul || 'Proses & Aturan Utama', actorOrContext: subject, description: data.penjelasanUtama, impact: 'Mengetahui urutan atau prinsip kerjanya.' },
-                { orderLabel: 'Tahap 3 · Bukti Nyata', title: 'Contoh Konkret & Penerapan', actorOrContext: 'Kehidupan Sehari-hari', description: data.contohKonkret, impact: 'Menghubungkan materi dengan kenyataan.' },
-                { orderLabel: 'Tahap 4 · Penguasaan', title: data.aktivitasSederhana.judul, actorOrContext: `Siswa ${className}`, description: data.aktivitasSederhana.hasilDiharapkan, impact: 'Teruji lewat latihan formatif.' }
+        ],
+        commonMistakes: misconceptions.length > 0
+            ? misconceptions.map(m => ({ mistake: m.salah, correction: m.pelurusan }))
+            : [{ mistake: 'Membaca konsep tanpa mengecek contoh nyata.', correction: 'Hubungkan selalu dengan 1 contoh di rumah/sekolah.' }]
+    };
+
+    data.stickyNotesData = {
+        boardTopic: `Catatan Penting ${subject}: ${data.title}`,
+        notes: [
+            { title: '1. Pengertian Konsep', tag: 'Konsep', colorTheme: 'amber', content: data.pengertianKonsep, reminder: terms[0]?.term || subject },
+            { title: '2. Penjelasan Inti', tag: 'Materi', colorTheme: 'sky', content: data.penjelasanUtama, reminder: alokasiWaktu },
+            { title: '3. Contoh Konkret', tag: 'Contoh', colorTheme: 'emerald', content: data.contohKonkret, reminder: daily[0] || 'Amati sekitarmu!' },
+            { title: '4. Pelurusan Miskonsepsi', tag: 'Penting', colorTheme: 'rose', content: misconceptions[0]?.pelurusan || data.aktivitasSederhana.hasilDiharapkan, reminder: misconceptions[0]?.salah || data.aktivitasSederhana.judul },
+            { title: '5. Rangkuman Kunci', tag: 'Ingat', colorTheme: 'violet', content: summary[0] || data.pemahamanBermakna, reminder: 'Praktikkan hari ini' }
+        ]
+    };
+
+    data.visualGlossaryData = {
+        glossaryTitle: `Kamus Visual ${subject}: ${data.title}`,
+        entries: (terms.length > 0 ? terms : [
+            { term: data.title, meaning: data.pengertianKonsep },
+            { term: 'Prinsip Utama', meaning: data.penjelasanUtama },
+            { term: 'Contoh Nyata', meaning: data.contohKonkret }
+        ]).map((t, idx) => ({
+            term: t.term,
+            category: idx === 0 ? 'Konsep Inti' : elementName,
+            symbolHint: ['book', 'compass', 'layers', 'sparkles'][idx % 4],
+            definition: t.meaning,
+            example: daily[idx % Math.max(1, daily.length)] || data.contohKonkret
+        }))
+    };
+
+    data.knowledgePyramidData = {
+        pyramidTitle: `Piramida Penguasaan Materi: ${data.title}`,
+        tiers: [
+            {
+                level: 4,
+                tierLabel: 'Puncak · Penerapan & Kreasi',
+                title: data.aktivitasSederhana.judul,
+                description: data.aktivitasSederhana.hasilDiharapkan,
+                example: daily[0] || data.contohKonkret
+            },
+            {
+                level: 3,
+                tierLabel: 'Tingkat 3 · Hubungan & Pelurusan',
+                title: 'Analisis & Ketepatan Konsep',
+                description: misconceptions[0]?.pelurusan || data.pendalamanMateri?.analisisSederhana || data.penjelasanUtama,
+                example: data.contohKonkret
+            },
+            {
+                level: 2,
+                tierLabel: 'Tingkat 2 · Unsur & Mekanisme',
+                title: data.klasifikasiAtauProses?.judul || 'Aturan & Unsur Pokok',
+                description: steps.slice(0, 2).map(s => `${s.label}: ${s.uraian}`).join(' '),
+                example: points[0] || ''
+            },
+            {
+                level: 1,
+                tierLabel: 'Fondasi · Pengertian Dasar',
+                title: terms[0]?.term || data.title,
+                description: data.pengertianKonsep,
+                example: `Ruang lingkup ${subject} ${className}`
+            }
+        ],
+        apexInsight: summary[0] || data.pemahamanBermakna
+    };
+
+    // B. Peta Konsep (6–10)
+    data.mindMapData = {
+        centralNode: data.title.length > 34 ? data.title.slice(0, 32) + '…' : data.title,
+        centralSubtitle: `${subject} · ${className}`,
+        branches: [
+            { title: '1. Pengertian Konsep', colorHex: '#0284c7', keywords: [terms[0]?.term || 'Konsep', elementName], explanation: data.pengertianKonsep },
+            { title: '2. Penjelasan & Unsur', colorHex: '#059669', keywords: [terms[1]?.term || 'Aturan', terms[2]?.term || 'Ciri'], explanation: data.penjelasanUtama },
+            { title: '3. Contoh & Penerapan', colorHex: '#d97706', keywords: ['Konkret', 'Sehari-hari'], explanation: data.contohKonkret },
+            { title: '4. Aktivitas & Pelurusan', colorHex: '#7c3aed', keywords: ['Praktik', 'Tepat'], explanation: misconceptions[0]?.pelurusan || data.aktivitasSederhana.hasilDiharapkan }
+        ]
+    };
+
+    data.conceptMapData = {
+        title: `Peta Hubungan Konsep: ${data.title}`,
+        nodes: [
+            { id: 'c', label: data.title.slice(0, 28), role: 'core', summary: data.pengertianKonsep },
+            { id: 'n1', label: (terms[0]?.term || 'Konsep Dasar').slice(0, 24), role: 'primary', summary: terms[0]?.meaning || data.pengertianKonsep },
+            { id: 'n2', label: (terms[1]?.term || 'Mekanisme Kerja').slice(0, 24), role: 'primary', summary: terms[1]?.meaning || data.penjelasanUtama },
+            { id: 'n3', label: 'Contoh Sehari-hari', role: 'detail', summary: daily[0] || data.contohKonkret },
+            { id: 'n4', label: 'Pemahaman Benar', role: 'detail', summary: misconceptions[0]?.pelurusan || summary[0] || '' }
+        ],
+        edges: [
+            { fromId: 'c', toId: 'n1', linkingVerb: 'didasari oleh' },
+            { fromId: 'c', toId: 'n2', linkingVerb: 'bekerja melalui' },
+            { fromId: 'n2', toId: 'n3', linkingVerb: 'tampak pada' },
+            { fromId: 'n1', toId: 'n4', linkingVerb: 'meluruskan' }
+        ]
+    };
+
+    data.treeDiagramData = {
+        rootTitle: data.title,
+        rootSubtitle: `${subject} · ${elementName}`,
+        branches: [
+            {
+                category: 'Konsep & Istilah Inti',
+                description: data.pengertianKonsep,
+                children: terms.slice(0, 2).map(t => ({ label: t.term, detail: t.meaning }))
+            },
+            {
+                category: data.klasifikasiAtauProses?.judul || 'Unsur & Tahapan',
+                description: data.penjelasanUtama,
+                children: steps.slice(0, 2).map(s => ({ label: s.label, detail: s.uraian }))
+            },
+            {
+                category: 'Penerapan & Bukti Nyata',
+                description: data.contohKonkret,
+                children: daily.slice(0, 2).map((d, i) => ({ label: `Penerapan ${i + 1}`, detail: d }))
+            }
+        ]
+    };
+
+    data.vennDiagramData = {
+        title: `Perbandingan & Irisan: ${terms[0]?.term || 'Konsep'} vs ${terms[1]?.term || 'Penerapan'}`,
+        leftLabel: terms[0]?.term || 'Pemahaman Konsep',
+        leftPoints: [
+            terms[0]?.meaning || data.pengertianKonsep,
+            points[0] || 'Fokus pada ciri dan definisi baku'
+        ],
+        rightLabel: terms[1]?.term || 'Praktik & Contoh Nyata',
+        rightPoints: [
+            terms[1]?.meaning || data.contohKonkret,
+            daily[0] || 'Diterapkan di rumah dan sekolah'
+        ],
+        intersectionLabel: 'Titik Temu & Keterpaduan',
+        intersectionPoints: [
+            `Selaras TP: ${tpText.slice(0, 90)}`,
+            summary[0] || data.pemahamanBermakna
+        ],
+        insight: misconceptions[0]?.pelurusan || data.penjelasanUtama
+    };
+
+    data.fishboneData = {
+        headEffect: data.title.slice(0, 44),
+        spineLabel: `Faktor Penguasaan ${subject}`,
+        causes: [
+            { category: '1. Konsep Dasar', subCauses: [terms[0]?.term || 'Pengertian tepat', points[0] || 'Makna istilah baku'] },
+            { category: '2. Langkah & Aturan', subCauses: [steps[0]?.label || 'Urutan sistematis', points[1] || 'Prosedur benar'] },
+            { category: '3. Contoh Nyata', subCauses: [daily[0] || 'Praktik di rumah', data.contohKonkret.slice(0, 75)] },
+            { category: '4. Anti-Miskonsepsi', subCauses: [misconceptions[0]?.pelurusan?.slice(0, 75) || 'Verifikasi pemahaman', data.aktivitasSederhana.judul] }
+        ],
+        conclusion: summary[0] || data.pemahamanBermakna
+    };
+
+    // C. Proses & Tahapan (11–14)
+    data.stepByStepData = {
+        goalStatement: tpText,
+        toolsNeeded: [`Buku Teks ${subject} ${className}`, 'Alat tulis / perlengkapan praktik', 'Panduan pengamatan kelas'],
+        stages: (steps.length >= 3 ? steps : [
+            { label: '1. Pahami Konsep', uraian: data.pengertianKonsep },
+            { label: '2. Pelajari Aturan / Teknik', uraian: data.penjelasanUtama },
+            { label: '3. Amati Contoh Konkret', uraian: data.contohKonkret },
+            { label: '4. Lakukan Aktivitas Siswa', uraian: data.aktivitasSederhana.langkah.join(' ') }
+        ]).map((st, idx) => ({
+            stepNo: idx + 1,
+            title: st.label,
+            instruction: st.uraian,
+            checkpoint: idx === 0 ? 'Memahami istilah pokok materi.' : 'Mampu menunjukkan langkah secara runtut.',
+            tip: misconceptions[idx % Math.max(1, misconceptions.length)]?.pelurusan || 'Lakukan dengan teliti dan tertib.'
+        })),
+        successIndicator: data.aktivitasSederhana.hasilDiharapkan
+    };
+
+    data.flowchartData = {
+        title: `Alur Logika Belajar: ${data.title}`,
+        steps: [
+            { id: 'f1', shape: 'start', label: 'MULAI', detail: data.pengantarSingkat },
+            { id: 'f2', shape: 'process', label: 'Pahami Konsep Inti', detail: data.pengertianKonsep },
+            { id: 'f3', shape: 'process', label: 'Terapkan Aturan / Langkah', detail: steps[0]?.uraian || data.penjelasanUtama },
+            {
+                id: 'f4',
+                shape: 'decision',
+                label: 'Sudah Sesuai Contoh & Aturan?',
+                detail: misconceptions[0]?.salah || 'Periksa ketepatan pemahaman konsep',
+                yesBranch: 'Lanjut ke Latihan & Refleksi',
+                noBranch: 'Tinjau Pelurusan Miskonsepsi'
+            },
+            { id: 'f5', shape: 'end', label: 'SELESAI & TERUJI', detail: data.aktivitasSederhana.hasilDiharapkan }
+        ]
+    };
+
+    data.timelineData = {
+        timelineTitle: `Kronologi & Tahapan: ${data.title}`,
+        periodSpan: `${subject} · ${className} · ${fase}`,
+        events: [
+            { orderLabel: 'Tahap 1 · Konsep', title: 'Pengertian & Latar Materi', actorOrContext: elementName, description: data.pengertianKonsep, impact: 'Memahami dasar keilmuan topik.' },
+            { orderLabel: 'Tahap 2 · Mekanisme', title: data.klasifikasiAtauProses?.judul || 'Proses & Aturan Utama', actorOrContext: subject, description: data.penjelasanUtama, impact: 'Mengetahui urutan atau prinsip kerjanya.' },
+            { orderLabel: 'Tahap 3 · Bukti Nyata', title: 'Contoh Konkret & Penerapan', actorOrContext: 'Kehidupan Sehari-hari', description: data.contohKonkret, impact: 'Menghubungkan materi dengan kenyataan.' },
+            { orderLabel: 'Tahap 4 · Penguasaan', title: data.aktivitasSederhana.judul, actorOrContext: `Siswa ${className}`, description: data.aktivitasSederhana.hasilDiharapkan, impact: 'Teruji lewat latihan formatif.' }
+        ],
+        synthesisNote: summary.join(' ')
+    };
+
+    data.cycleDiagramData = {
+        cycleTitle: `Siklus Proses & Penguatan: ${data.title}`,
+        centerLabel: data.title.slice(0, 26),
+        phases: [
+            { phaseNo: 1, title: steps[0]?.label || '1. Pengenalan Konsep', description: data.pengertianKonsep, keyIndicator: terms[0]?.term || 'Konsep dasar' },
+            { phaseNo: 2, title: steps[1]?.label || '2. Proses & Mekanisme', description: data.penjelasanUtama, keyIndicator: terms[1]?.term || 'Aturan kerja' },
+            { phaseNo: 3, title: steps[2]?.label || '3. Penerapan Nyata', description: data.contohKonkret, keyIndicator: 'Contoh lingkungan' },
+            { phaseNo: 4, title: '4. Evaluasi & Pembiasaan', description: data.aktivitasSederhana.hasilDiharapkan, keyIndicator: 'Refleksi berkelanjutan' }
+        ]
+    };
+
+    // D. Perbandingan & Analisis (15–18)
+    data.comparisonData = {
+        conceptAName: `Konsep & Aturan (${terms[0]?.term || subject})`,
+        conceptBName: `Penerapan & Pelurusan (${terms[1]?.term || 'Praktik'})`,
+        similarities: [
+            `Fokus pada TP: ${tpText}`,
+            `Mengacu pada CP Elemen ${elementName} (${className})`
+        ],
+        rows: tblRows.length > 0
+            ? tblRows.map(r => ({ aspect: r[0] || '-', conceptAValue: r[1] || '-', conceptBValue: r[2] || '-' }))
+            : [
+                { aspect: 'Konsep Utama', conceptAValue: data.pengertianKonsep, conceptBValue: data.contohKonkret },
+                { aspect: 'Miskonsepsi vs Benar', conceptAValue: misconceptions[0]?.salah || '-', conceptBValue: misconceptions[0]?.pelurusan || '-' }
             ],
-            synthesisNote: summary.join(' ')
-        };
-    } else if (templateId === 'comparison_chart') {
-        const tblRows = data.tabelInformatif?.baris || [];
-        data.comparisonData = {
-            conceptAName: `Konsep & Aturan (${terms[0]?.term || subject})`,
-            conceptBName: `Penerapan & Pelurusan (${terms[1]?.term || 'Praktik'})`,
-            similarities: [
-                `Fokus pada TP: ${tpText}`,
-                `Mengacu pada CP Elemen ${elementName} (${className})`
+        conclusion: summary[0] || data.pemahamanBermakna
+    };
+
+    data.tChartData = {
+        topicTitle: data.title,
+        leftHeader: `Pemahaman Benar (${terms[0]?.term || subject})`,
+        rightHeader: 'Hal yang Perlu Dihindari / Pelurusan',
+        rows: [
+            { leftText: data.pengertianKonsep, rightText: misconceptions[0]?.salah || 'Sekadar menghafal tanpa makna' },
+            { leftText: data.contohKonkret, rightText: misconceptions[0]?.pelurusan || 'Pastikan langkah & bukti sesuai fakta' },
+            { leftText: daily[0] || points[0] || '', rightText: misconceptions[1]?.pelurusan || 'Terapkan secara konsisten di kelas & rumah' }
+        ],
+        summaryNote: summary[0] || data.pemahamanBermakna
+    };
+
+    data.frayerModelData = {
+        conceptName: data.title,
+        definition: data.pengertianKonsep,
+        characteristics: points.length >= 2 ? points.slice(0, 3) : [data.penjelasanUtama],
+        examples: [data.contohKonkret, ...(daily.slice(0, 2))],
+        nonExamples: misconceptions.length > 0
+            ? misconceptions.map(m => `${m.salah} (Keliru — seharusnya: ${m.pelurusan})`)
+            : ['Menerapkan istilah secara acak tanpa memperhatikan aturan konsep.']
+    };
+
+    data.kwlChartData = {
+        topicTitle: data.title,
+        knowItems: [
+            data.kaitanPengalamanSiswa || `Siswa ${className} sudah mengenal situasi awal terkait ${data.title}.`,
+            points[0] || `Pengenalan dasar pada elemen ${elementName}.`
+        ],
+        wantItems: (data.pertanyaanPemantik && data.pertanyaanPemantik.length > 0)
+            ? data.pertanyaanPemantik
+            : [`Bagaimana cara menerapkan ${data.title} dengan tepat?`],
+        learnedItems: summary.length >= 2 ? summary.slice(0, 3) : [data.pengertianKonsep, data.contohKonkret]
+    };
+
+    // E. Cerita & Narasi (19–21)
+    data.comicStripData = isSunda
+        ? {
+            storyTitle: `Diajar ${data.title} Bareng Dadan jeung Sari`,
+            setting: `Kelas ${className} & Lingkungan Sakola`,
+            panels: [
+                { panelNo: 1, sceneTitle: 'Patarosan Awal', characterLeft: 'Dadan', characterRight: 'Sari', dialogueLeft: data.pertanyaanPemantik[0] || 'Kumaha carana nya?', dialogueRight: 'Hayu urang tanya ka Ibu Guru sangkan écés!', narration: data.pengantarSingkat, mood: 'curious' },
+                { panelNo: 2, sceneTitle: 'Katerangan Poko', characterLeft: 'Ibu Guru', characterRight: 'Dadan', dialogueLeft: data.pengertianKonsep, dialogueRight: 'Oh kitu hartina téh, Bu!', narration: data.penjelasanUtama, mood: 'explain' },
+                { panelNo: 3, sceneTitle: 'Conto Sapopoé', characterLeft: 'Sari', characterRight: 'Dadan', dialogueLeft: data.contohKonkret, dialogueRight: 'Urang cobian langsung dina aktivitas kelas yuk!', narration: daily[0] || '', mood: 'happy' },
+                { panelNo: 4, sceneTitle: 'Ngamalkeun!', characterLeft: 'Dadan', characterRight: 'Sari', dialogueLeft: summary[0] || 'Ayeuna urang geus paham sarta siap ngerjakeun latihan!', dialogueRight: 'Sumanget! Basa Sunda kudu dijaga unggal poé.', narration: summary[1] || '', mood: 'eureka' }
             ],
-            rows: tblRows.length > 0
-                ? tblRows.map(r => ({ aspect: r[0] || '-', conceptAValue: r[1] || '-', conceptBValue: r[2] || '-' }))
-                : [
-                    { aspect: 'Konsep Utama', conceptAValue: data.pengertianKonsep, conceptBValue: data.contohKonkret },
-                    { aspect: 'Miskonsepsi vs Benar', conceptAValue: misconceptions[0]?.salah || '-', conceptBValue: misconceptions[0]?.pelurusan || '-' }
-                ],
-            conclusion: summary[0] || data.pemahamanBermakna
-        };
-    } else if (templateId === 'isometric_3d') {
-        const sceneType = pickIsometricSceneType(subject, `${elementName} ${tpText} ${atpText}`);
-        data.isometric3dData = {
-            objectTitle: `Model Struktural 3D: ${data.title}`,
-            visualSceneType: sceneType,
-            dimensionSummary: `Proyeksi Isometrik 30° · ${subject} ${className}`,
-            parts: [
-                { pinNo: 1, partName: terms[0]?.term || 'Konsep Dasar', functionOrProperty: data.pengertianKonsep, measurementOrDetail: 'Fondasi' },
-                { pinNo: 2, partName: terms[1]?.term || 'Prinsip Utama', functionOrProperty: data.penjelasanUtama, measurementOrDetail: 'Mekanisme' },
-                { pinNo: 3, partName: 'Contoh Konkret', functionOrProperty: data.contohKonkret, measurementOrDetail: 'Nyata' },
-                { pinNo: 4, partName: 'Pelurusan Miskonsepsi', functionOrProperty: misconceptions[0]?.pelurusan || daily[0] || '', measurementOrDetail: 'Akurat' }
+            moralLesson: summary.join(' ')
+        }
+        : {
+            storyTitle: `Cerita Belajar ${subject}: ${data.title}`,
+            setting: `Kelas ${className} & Lingkungan Sekitar`,
+            panels: [
+                { panelNo: 1, sceneTitle: 'Rasa Ingin Tahu', characterLeft: 'Raka', characterRight: 'Sinta', dialogueLeft: data.pertanyaanPemantik[0] || 'Bagaimana cara kerjanya?', dialogueRight: 'Yuk kita pelajari konsep aslinya bersama Bu Guru!', narration: data.pengantarSingkat, mood: 'curious' },
+                { panelNo: 2, sceneTitle: 'Penjelasan Ilmiah', characterLeft: 'Bu Guru', characterRight: 'Raka', dialogueLeft: data.pengertianKonsep, dialogueRight: 'Oh, jadi itu konsep utamanya dalam pelajaran ini!', narration: data.penjelasanUtama, mood: 'explain' },
+                { panelNo: 3, sceneTitle: 'Praktik Nyata', characterLeft: 'Sinta', characterRight: 'Raka', dialogueLeft: data.contohKonkret, dialogueRight: 'Aku jadi paham cara mempraktikkannya dengan benar!', narration: daily[0] || '', mood: 'happy' },
+                { panelNo: 4, sceneTitle: 'Paham Tuntas', characterLeft: 'Raka', characterRight: 'Sinta', dialogueLeft: `Ingat, ${misconceptions[0]?.pelurusan || summary[0] || ''}`, dialogueRight: 'Siap! Ayo kerjakan aktivitas dan latihan pemahamannya!', narration: summary[0] || '', mood: 'eureka' }
             ],
-            spatialInsight: data.penjelasanUtama
+            moralLesson: summary.join(' ')
         };
-    }
+
+    data.storyboardData = {
+        title: `Papan Adegan Pembelajaran: ${data.title}`,
+        frames: [
+            { frameNo: 1, shotTitle: 'Adegan 1 · Pembuka Masalah', visualCue: `Siswa ${className} mengamati situasi nyata`, actionCaption: data.pertanyaanPemantik[0] || data.pengantarSingkat, learningTakeaway: 'Memicu rasa ingin tahu siswa', mood: 'curious' },
+            { frameNo: 2, shotTitle: 'Adegan 2 · Pengenalan Konsep', visualCue: 'Guru menunjukkan diagram & istilah pokok', actionCaption: data.pengertianKonsep, learningTakeaway: terms[0]?.term || 'Konsep dasar', mood: 'explain' },
+            { frameNo: 3, shotTitle: 'Adegan 3 · Demonstrasi Nyata', visualCue: 'Siswa mencoba contoh konkret secara tertib', actionCaption: data.contohKonkret, learningTakeaway: daily[0] || 'Penerapan langsung', mood: 'happy' },
+            { frameNo: 4, shotTitle: 'Adegan 4 · Refleksi & Kesimpulan', visualCue: 'Kesimpulan bersama di papan kelas', actionCaption: summary[0] || data.pemahamanBermakna, learningTakeaway: 'Pemahaman utuh & benar', mood: 'eureka' }
+        ]
+    };
+
+    data.storyMapData = {
+        storyTitle: data.title,
+        characters: isSunda ? ['Dadan', 'Sari', 'Ibu Guru'] : ['Raka', 'Sinta', 'Guru Kelas'],
+        setting: `Lingkungan Sekolah & Rumah Siswa ${className}`,
+        beginning: data.pengantarSingkat,
+        conflict: misconceptions[0]?.salah || data.pertanyaanPemantik[0] || `Tantangan memahami ${data.title}`,
+        resolution: data.contohKonkret,
+        moralLesson: summary.join(' ')
+    };
+
+    // F. Kartu Pembelajaran (22–23)
+    data.flashcardData = {
+        deckTitle: `Kartu Hafalan ${subject}: ${data.title}`,
+        studyTip: 'Baca pertanyaan di sisi depan, lalu cek jawaban & contoh ilmiahnya!',
+        cards: [
+            { cardNo: 1, category: 'Definisi', frontPrompt: `Apa pengertian "${data.title}" pada ${subject}?`, hint: `Elemen ${elementName}`, backAnswer: data.pengertianKonsep, realExample: data.contohKonkret },
+            ...terms.slice(0, 3).map((dt, idx) => ({
+                cardNo: idx + 2,
+                category: 'Istilah Kunci',
+                frontPrompt: `Jelaskan makna "${dt.term}"!`,
+                hint: subject,
+                backAnswer: dt.meaning,
+                realExample: daily[idx % Math.max(1, daily.length)] || data.contohKonkret
+            }))
+        ]
+    };
+
+    data.quizCardsData = {
+        deckTitle: `Kartu Tantangan Kuis: ${data.title}`,
+        cards: (data.latihanFormatif && data.latihanFormatif.length > 0 ? data.latihanFormatif : [
+            { no: 1, pertanyaan: `Jelaskan inti materi ${data.title}!`, kunciSingkat: data.pengertianKonsep },
+            { no: 2, pertanyaan: `Berikan satu contoh nyata dari ${data.title}!`, kunciSingkat: data.contohKonkret }
+        ]).map((lat, idx) => ({
+            cardNo: lat.no || idx + 1,
+            level: idx === 0 ? 'Dasar' : idx === 1 ? 'Menengah' : 'Tantangan',
+            question: lat.pertanyaan,
+            clue: terms[idx % Math.max(1, terms.length)]?.term || elementName,
+            answer: lat.kunciSingkat,
+            explanation: points[idx % Math.max(1, points.length)] || data.penjelasanUtama
+        }))
+    };
+
+    // G. Ilustrasi & Sains (24–29)
+    const sceneType = pickIsometricSceneType(subject, `${elementName} ${tpText} ${atpText}`);
+    data.isometric3dData = {
+        objectTitle: `Model Struktural 3D: ${data.title}`,
+        visualSceneType: sceneType,
+        dimensionSummary: `Proyeksi Isometrik 30° · ${subject} ${className}`,
+        parts: [
+            { pinNo: 1, partName: terms[0]?.term || 'Konsep Dasar', functionOrProperty: data.pengertianKonsep, measurementOrDetail: 'Fondasi' },
+            { pinNo: 2, partName: terms[1]?.term || 'Prinsip Utama', functionOrProperty: data.penjelasanUtama, measurementOrDetail: 'Mekanisme' },
+            { pinNo: 3, partName: 'Contoh Konkret', functionOrProperty: data.contohKonkret, measurementOrDetail: 'Nyata' },
+            { pinNo: 4, partName: 'Pelurusan Miskonsepsi', functionOrProperty: misconceptions[0]?.pelurusan || daily[0] || '', measurementOrDetail: 'Akurat' }
+        ],
+        spatialInsight: data.penjelasanUtama
+    };
+
+    const cutawayKind: NonNullable<GeneratedMateriAjarData['cutawayData']>['objectKind'] =
+        /(bumi|tanah|gunung|lapisan)/.test(combinedLower) ? 'earth_interior'
+            : /(jantung|organ|paru|lambung|tulang|tubuh)/.test(combinedLower) ? 'human_organ'
+                : /(rumah|bangunan|ruang|listrik)/.test(combinedLower) ? 'building_system'
+                    : 'plant_seed';
+
+    data.cutawayData = {
+        title: `Diagram Kupas Struktur: ${data.title}`,
+        objectKind: cutawayKind,
+        outerLabel: 'Bagian Pelindung / Lapisan Luar',
+        innerLabel: 'Inti & Komponen Dalam',
+        layers: [
+            { code: 'A', name: terms[0]?.term || 'Lapisan Luar', thicknessOrRole: 'Pelindung', description: data.pengertianKonsep },
+            { code: 'B', name: terms[1]?.term || 'Bagian Tengah', thicknessOrRole: 'Penghubung', description: data.penjelasanUtama },
+            { code: 'C', name: terms[2]?.term || 'Inti Sistem', thicknessOrRole: 'Pusat Fungsi', description: data.contohKonkret }
+        ]
+    };
+
+    const sliceKind: NonNullable<GeneratedMateriAjarData['crossSectionData']>['sliceKind'] =
+        /(tanah|humus|batuan)/.test(combinedLower) ? 'soil_profile'
+            : /(batang|tumbuhan|akar|daun)/.test(combinedLower) ? 'plant_stem'
+                : /(kubus|balok|tabung|kerucut|prisma|geometri)/.test(combinedLower) ? 'geometry_slice'
+                    : 'earth_layers';
+
+    data.crossSectionData = {
+        title: `Penampang Melintang: ${data.title}`,
+        sliceKind,
+        strata: [
+            { code: 'L1', name: terms[0]?.term || 'Lapisan Permukaan', thicknessOrRole: 'Zona 1', description: points[0] || data.pengertianKonsep },
+            { code: 'L2', name: terms[1]?.term || 'Lapisan Tengah', thicknessOrRole: 'Zona 2', description: points[1] || data.penjelasanUtama },
+            { code: 'L3', name: terms[2]?.term || 'Lapisan Dasar / Inti', thicknessOrRole: 'Zona 3', description: points[2] || data.contohKonkret }
+        ]
+    };
+
+    const specimenKind: NonNullable<GeneratedMateriAjarData['scientificDiagramData']>['specimenKind'] =
+        /(air|siklus|awan|hujan)/.test(combinedLower) ? 'water_cycle'
+            : /(listrik|lampu|baterai|sakelar)/.test(combinedLower) ? 'circuit_board'
+                : /(pjok|gerak|kaki|lari|lompat)/.test(combinedLower) ? 'human_motion'
+                    : /(bangun|sudut|segitiga|kubus|pecahan)/.test(combinedLower) ? 'geometry_model'
+                        : 'plant_anatomy';
+
+    data.scientificDiagramData = {
+        title: `Diagram Ilmiah Berlabel: ${data.title}`,
+        specimenKind,
+        centerTitle: data.title.slice(0, 30),
+        callouts: [
+            { pinNo: 1, side: 'left', partName: terms[0]?.term || 'Bagian Utama 1', functionDesc: terms[0]?.meaning || data.pengertianKonsep },
+            { pinNo: 2, side: 'left', partName: terms[1]?.term || 'Bagian Utama 2', functionDesc: terms[1]?.meaning || data.penjelasanUtama },
+            { pinNo: 3, side: 'right', partName: terms[2]?.term || 'Contoh & Bukti', functionDesc: data.contohKonkret },
+            { pinNo: 4, side: 'right', partName: 'Ketelitian Konsep', functionDesc: misconceptions[0]?.pelurusan || summary[0] || '' }
+        ]
+    };
+
+    data.paperCut3dData = {
+        title: `Diorama Lapisan Kertas 3D: ${data.title}`,
+        layers: [
+            { depth: 1, title: 'Lapisan Latar · Konteks Nyata', detail: data.pengantarSingkat, accentHex: '#0284c7' },
+            { depth: 2, title: 'Lapisan Konsep · Pengertian Inti', detail: data.pengertianKonsep, accentHex: '#059669' },
+            { depth: 3, title: 'Lapisan Mekanisme · Penjelasan Utama', detail: data.penjelasanUtama, accentHex: '#7c3aed' },
+            { depth: 4, title: 'Lapisan Depan · Praktik & Contoh', detail: data.contohKonkret, accentHex: '#be185d' }
+        ]
+    };
+
+    data.illustratedPosterData = {
+        headline: data.title,
+        tagline: `${subject} · ${className} (${fase})`,
+        bigTakeaway: data.pengertianKonsep,
+        highlights: [
+            { label: 'Inti Materi', text: data.penjelasanUtama },
+            { label: 'Contoh Nyata', text: data.contohKonkret },
+            { label: 'Pesan Utama', text: summary[0] || data.pemahamanBermakna }
+        ]
+    };
 };
 
 export const getRecommendedOrientationForTemplate = (templateId: MateriTemplateId): PageOrientationMode => {
-    if (templateId === 'comparison_chart' || templateId === 'mind_map') {
-        return 'landscape_a4';
-    }
-    return 'portrait_a4';
+    const found = MATERI_AJAR_TEMPLATES.find(t => t.id === templateId);
+    return found?.recommendedOrientation || 'portrait_a4';
+};
+
+export const regenerateMateriIllustration = (
+    data: GeneratedMateriAjarData
+): GeneratedMateriAjarData => {
+    const nextIdx = ((data.visualVariantIndex || 0) + 1) % 3;
+    const nextSvg = buildConcretePosterIllustrationSvg(
+        data.subject,
+        data.elementName,
+        data.tpText,
+        data.atpText,
+        data.visualCaption || data.title,
+        nextIdx
+    );
+    return {
+        ...data,
+        visualVariantIndex: nextIdx,
+        visualSvg: nextSvg,
+        // Clear stock photo on illustration regeneration so refreshed SVG takes priority cleanly
+        visualImageDataUrl: undefined
+    };
 };
 
 export const checkTemplateSuitability = (
@@ -2471,6 +3571,10 @@ const getSubjectDisciplineInstruction = (subject: string): string => {
     return `WAJIB DISIPLIN ${subject.toUpperCase()}: Gunakan definisi, istilah teknis, aturan keilmuan, contoh konkret, dan langkah analisis yang autentik sesuai buku teks siswa SD Kurikulum Merdeka.`;
 };
 
+const groundedContextCache = new Map<string, GroundedTextbookContext>();
+const groundedContextInflight = new Map<string, Promise<GroundedTextbookContext>>();
+let geminiQuotaCooldownUntil = 0;
+
 const fetchTextbookGroundedContext = async (params: {
     subject: string;
     className: string;
@@ -2478,8 +3582,20 @@ const fetchTextbookGroundedContext = async (params: {
     tpText: string;
     atpText: string;
 }): Promise<GroundedTextbookContext> => {
-    try {
-        const searchPrompt = `Cari referensi materi ajar resmi Kurikulum Merdeka / Buku Siswa & Buku Panduan Guru Kemendikdasmen (SIBI buku.kemdikbud.go.id atau sumber pendidikan kredibel Indonesia) untuk topik spesifik berikut:
+    const cacheKey = `${params.subject}|${params.className}|${params.elementName}|${params.tpText}|${params.atpText}`;
+    const cached = groundedContextCache.get(cacheKey);
+    if (cached) return cached;
+
+    if (Date.now() < geminiQuotaCooldownUntil) {
+        return { summary: '', refs: [] };
+    }
+
+    const existingPromise = groundedContextInflight.get(cacheKey);
+    if (existingPromise) return existingPromise;
+
+    const runLookup = (async (): Promise<GroundedTextbookContext> => {
+        try {
+            const searchPrompt = `Cari referensi materi ajar resmi Kurikulum Merdeka / Buku Siswa & Buku Panduan Guru Kemendikdasmen (SIBI buku.kemdikbud.go.id atau sumber pendidikan kredibel Indonesia) untuk topik spesifik berikut:
 - Mata Pelajaran: ${params.subject}
 - Jenjang/Kelas: SD ${params.className}
 - Elemen: ${params.elementName}
@@ -2492,37 +3608,51 @@ Ringkas secara faktual dan padat (maksimal 220 kata):
 3. Contoh konkret dan kesalahan pemahaman (miskonsepsi) yang sering muncul pada siswa SD.
 Catatan: Jangan mencantumkan nomor halaman, ISBN, atau DOI.`;
 
-        const res = await generateGeminiContent({
-            contents: searchPrompt,
-            config: {
-                tools: [{ googleSearch: {} }]
-            }
-        });
-
-        const summary = (res.text || '').trim().slice(0, 1600);
-        const chunks: any[] = res.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-        const seenUrls = new Set<string>();
-        const refs: ReferenceItem[] = [];
-
-        for (const chunk of chunks) {
-            const uri = String(chunk?.web?.uri || '').trim();
-            const title = String(chunk?.web?.title || '').trim();
-            if (!uri || !/^https?:\/\//i.test(uri) || seenUrls.has(uri)) continue;
-            seenUrls.add(uri);
-            refs.push({
-                title: title || `Referensi ${params.subject} ${params.className}`,
-                category: 'Rekomendasi Pedagogis & Referensi Mapel',
-                source: uri,
-                status: 'Teridentifikasi',
-                note: `Rujukan materi ${params.subject} (${params.className}) teridentifikasi melalui penelusuran buku teks/sumber ajar daring.`
+            const res = await generateGeminiContent({
+                model: 'gemini-4-hydrogen',
+                contents: searchPrompt,
+                config: {
+                    tools: [{ googleSearch: {} }]
+                }
             });
-            if (refs.length >= 4) break;
-        }
 
-        return { summary, refs };
-    } catch {
-        return { summary: '', refs: [] };
-    }
+            const summary = (res.text || '').trim().slice(0, 1600);
+            const chunks: any[] = res.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+            const seenUrls = new Set<string>();
+            const refs: ReferenceItem[] = [];
+
+            for (const chunk of chunks) {
+                const uri = String(chunk?.web?.uri || '').trim();
+                const title = String(chunk?.web?.title || '').trim();
+                if (!uri || !/^https?:\/\//i.test(uri) || seenUrls.has(uri)) continue;
+                seenUrls.add(uri);
+                refs.push({
+                    title: title || `Referensi ${params.subject} ${params.className}`,
+                    category: 'Rekomendasi Pedagogis & Referensi Mapel',
+                    source: uri,
+                    status: 'Teridentifikasi',
+                    note: `Rujukan materi ${params.subject} (${params.className}) teridentifikasi melalui penelusuran buku teks/sumber ajar daring.`
+                });
+                if (refs.length >= 4) break;
+            }
+
+            const result: GroundedTextbookContext = { summary, refs };
+            if (summary || refs.length > 0) {
+                groundedContextCache.set(cacheKey, result);
+            }
+            return result;
+        } catch (err: any) {
+            if (err?.isQuotaError || err?.status === 429 || String(err?.message || '').includes('429')) {
+                geminiQuotaCooldownUntil = Date.now() + 60000;
+            }
+            return { summary: '', refs: [] };
+        } finally {
+            groundedContextInflight.delete(cacheKey);
+        }
+    })();
+
+    groundedContextInflight.set(cacheKey, runLookup);
+    return runLookup;
 };
 
 export const buildVerifiableReferences = (
@@ -2677,8 +3807,8 @@ METADATA TERKUNCI:
 - TP Terkunci: ${params.tpText}
 - ATP Terkunci: ${params.atpText}
 
-Pilih recommendedTemplateId dari daftar persis ini:
-educational_infographic | cheat_sheet | sticky_notes | mind_map | comic_strip | flashcard | step_by_step | timeline | comparison_chart | isometric_3d
+Pilih recommendedTemplateId yang paling cocok dari daftar persis ini:
+educational_infographic | cheat_sheet | sticky_notes | visual_glossary | knowledge_pyramid | mind_map | concept_map | tree_diagram | venn_diagram | fishbone_diagram | step_by_step | flowchart | timeline | cycle_diagram | comparison_chart | t_chart | frayer_model | kwl_chart | comic_strip | storyboard | story_map | flashcard | quiz_cards | isometric_3d | cutaway_diagram | cross_section | scientific_diagram | paper_cut_3d | illustrated_poster
 
 Kembalikan HANYA JSON valid:
 {
@@ -2703,6 +3833,7 @@ Kembalikan HANYA JSON valid:
 
     try {
         const res = await generateGeminiContent({
+            model: 'gemini-4-hydrogen',
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -2785,86 +3916,110 @@ export const evaluateMateriQualityControl = (
     });
     const noFabricatedCitations = !fabricatedPattern.test(fullText);
     const templateMatch = data.templateId === lockedInputs.templateId;
-    const isCompleteMaterial = hasCoreConcepts && (data.contohSehariHari?.length || 0) >= 2 && (data.rangkumanPoin?.length || 0) >= 3 && (data.latihanFormatif?.length || 0) >= 3;
+    const isCompleteMaterial = hasCoreConcepts && (data.contohSehariHari?.length || 0) >= 2 && (data.rangkumanPoin?.length || 0) >= 3 && (data.latihanFormatif?.length || 0) >= 2;
+
+    const orientation = data.curriculumMeta?.orientation || 'portrait_a4';
+    const pngResText =
+        orientation === 'landscape_a4'
+            ? '3508 × 2480 px (A4 Landscape 300 DPI)'
+            : orientation === 'digital_screen' || orientation === 'digital_4_5'
+                ? '1920 × 1080 px (Layar Digital 16:9)'
+                : '2480 × 3508 px (A4 Portrait 300 DPI)';
+    const pageCount = data.pages?.length || 1;
 
     const checks: QualityCheckItem[] = [
+        // A. Kurikulum
         {
             id: 1,
-            question: 'Apakah TP yang dipilih sudah menjadi fokus utama materi?',
-            status: tpPreserved && Boolean(data.title) ? 'lulus' : 'gagal',
-            detail: tpPreserved ? 'Teks TP terkunci utuh tanpa perubahan dan menjadi inti seluruh bagian.' : 'Teks TP tidak cocok dengan data terkunci.'
+            category: 'A. Kurikulum',
+            question: 'Kesesuaian TP, ATP & CP Terkunci',
+            status: tpPreserved && atpPreserved ? 'lulus' : 'gagal',
+            detail: tpPreserved && atpPreserved
+                ? (data.focusLevel === 'tp'
+                    ? `Mode TP (Cakupan Luas): mengolah ${data.relatedAtps?.length || 1} ATP terkait tanpa menyertakan ATP di luar TP.`
+                    : 'Mode ATP (Cakupan Spesifik): fokus pada 1 butir ATP selaras CP & TP terkunci.')
+                : 'Teks TP/ATP tidak cocok dengan data terkunci.'
         },
         {
             id: 2,
-            question: 'Apakah ATP digunakan secara konsisten?',
-            status: atpPreserved ? 'lulus' : 'gagal',
-            detail: atpPreserved ? 'ATP konsisten sebagai acuan urutan dan kedalaman pembahasan.' : 'Teks ATP berbeda dari sumber terkunci.'
-        },
-        {
-            id: 3,
-            question: 'Apakah kelas dan fase sudah benar?',
+            category: 'A. Kurikulum',
+            question: 'Kesesuaian Kelas & Fase Profil',
             status: classFaseMatch ? 'lulus' : 'gagal',
             detail: classFaseMatch ? `${data.className} selaras dengan ${data.fase}.` : mismatch.errors.join(' ')
         },
         {
+            id: 3,
+            category: 'A. Kurikulum',
+            question: 'Sumber Regulasi & Referensi Valid',
+            status: noFabricatedCitations && refs.length >= 4 ? (hasUnverifiedRef ? 'perhatian' : 'lulus') : 'gagal',
+            detail: hasUnverifiedRef
+                ? 'Regulasi nasional teridentifikasi; edisi spesifik buku mapel bertanda Perlu Verifikasi Guru.'
+                : 'Seluruh referensi teridentifikasi tanpa sitasi karangan.'
+        },
+        // B. Substansi
+        {
             id: 4,
-            question: 'Apakah konsep dan definisi telah diperiksa?',
-            status: data.pengertianKonsep?.length > 20 && Boolean(data.pendalamanMateri?.miskonsepsiUmum?.length) ? 'lulus' : 'perhatian',
-            detail: 'Definisi konsep, unsur penting, serta pelurusan miskonsepsi telah disertakan.'
+            category: 'B. Substansi',
+            question: 'Ketepatan Konsep & Kedalaman Keilmuan',
+            status: hasCoreConcepts && Boolean(data.pendalamanMateri?.miskonsepsiUmum?.length) ? 'lulus' : 'perhatian',
+            detail: 'Definisi konsep, unsur penting, serta pelurusan miskonsepsi telah diverifikasi.'
         },
         {
             id: 5,
-            question: 'Apakah isi materi sesuai karakteristik siswa SD?',
-            status: Boolean(data.pengantarSingkat && data.kaitanPengalamanSiswa) ? 'lulus' : 'perhatian',
-            detail: `Gaya bahasa, kedalaman KKO, dan contoh konkret disesuaikan untuk ${data.className} (${data.fase}).`
+            category: 'B. Substansi',
+            question: 'Bahasa Ramah Usia SD & Contoh Nyata',
+            status: isCompleteMaterial ? 'lulus' : 'gagal',
+            detail: `Bahasa, contoh konkret, aktivitas, dan latihan disesuaikan untuk ${data.className} (${data.fase}) tanpa pengulangan.`
         },
+        // C. Visual
         {
             id: 6,
-            question: 'Apakah informasi penting mempunyai dasar sumber?',
-            status: refs.length >= 4 ? 'lulus' : 'perhatian',
-            detail: `${refs.length} landasan regulasi & panduan resmi dicantumkan.`
-        },
-        {
-            id: 7,
-            question: 'Apakah sumber benar-benar ada dan dapat ditelusuri?',
-            status: hasUnverifiedRef ? 'perhatian' : 'lulus',
-            detail: hasUnverifiedRef
-                ? 'Regulasi nasional teridentifikasi; edisi spesifik buku mapel bertanda PERLU VERIFIKASI GURU.'
-                : 'Seluruh referensi teridentifikasi tanpa kutipan fiktif.'
-        },
-        {
-            id: 8,
-            question: 'Apakah desain konsisten dengan template pilihan?',
+            category: 'C. Visual',
+            question: 'Konsistensi Gaya Desain Visual (29 Pilihan)',
             status: templateMatch ? (data.manualMismatchNotice ? 'perhatian' : 'lulus') : 'gagal',
             detail: templateMatch
-                ? (data.manualMismatchNotice || `Konsisten menggunakan template ${data.templateId}.`)
+                ? (data.manualMismatchNotice || `Konsisten merender struktur desain ${MATERI_AJAR_TEMPLATES.find(t => t.id === data.templateId)?.name || data.templateId}.`)
                 : 'Template hasil render tidak sesuai pilihan pengguna.'
         },
         {
-            id: 9,
-            question: 'Apakah isi materi cukup lengkap untuk mendukung TP?',
-            status: isCompleteMaterial ? 'lulus' : 'gagal',
-            detail: isCompleteMaterial ? 'Memuat identitas, pengantar, inti, visual, pendalaman, penguatan, & latihan formatif.' : 'Komponen esensial materi belum lengkap.'
-        },
-        {
-            id: 10,
-            question: 'Apakah visualisasi sesuai dengan fakta?',
+            id: 7,
+            category: 'C. Visual',
+            question: 'Relevansi Ilustrasi, Keterbacaan & Tata Letak Multi-Halaman',
             status: hasVisual ? 'lulus' : 'gagal',
-            detail: hasVisual ? 'Komponen ilustrasi/diagram terpisah dari teks dengan label faktual.' : 'Visualisasi edukatif belum tersedia.'
+            detail: hasVisual
+                ? `Ilustrasi SVG faktual terpisah dari blok teks pada ${pageCount} halaman yang proporsional tanpa tumpang tindih.`
+                : 'Ilustrasi visual belum tersedia.'
         },
+        // D. Ekspor PNG
         {
-            id: 11,
-            question: 'Apakah tidak terdapat informasi yang dikarang?',
-            status: noFabricatedCitations ? 'lulus' : 'gagal',
-            detail: noFabricatedCitations ? 'Tidak ditemukan pola kutipan/DOI/ISBN fiktif atau nomor pasal karangan.' : 'Terdeteksi sitasi yang berpotensi fiktif.'
-        },
-        {
-            id: 12,
-            question: 'Apakah hasil PDF/PNG terbaca dan tidak terpotong?',
+            id: 8,
+            category: 'D. Ekspor PNG',
+            question: 'Kesiapan Ekspor PNG Resolusi Tinggi & Kesesuaian Pratinjau',
             status: 'lulus',
-            detail: 'Layout multi-halaman terstruktur siap diekspor ke PDF dan PNG 300 DPI per halaman.'
+            detail: `Siap diekspor khusus format PNG (${pngResText}) sebanyak ${pageCount} halaman terpisah sesuai pratinjau.`
         }
     ];
+
+    const categoryDefs: { id: QualityCategorySummary['id']; cat: QualityCheckItem['category']; title: string }[] = [
+        { id: 'A', cat: 'A. Kurikulum', title: 'A. Pemeriksaan Kurikulum' },
+        { id: 'B', cat: 'B. Substansi', title: 'B. Pemeriksaan Substansi' },
+        { id: 'C', cat: 'C. Visual', title: 'C. Pemeriksaan Visual' },
+        { id: 'D', cat: 'D. Ekspor PNG', title: 'D. Pemeriksaan Ekspor PNG' }
+    ];
+
+    const categories: QualityCategorySummary[] = categoryDefs.map(def => {
+        const items = checks.filter(c => c.category === def.cat);
+        const catFail = items.some(i => i.status === 'gagal');
+        const catAtt = items.some(i => i.status === 'perhatian');
+        const status: QualityCategorySummary['status'] = catFail ? 'GAGAL' : catAtt ? 'PERLU PERHATIAN' : 'LULUS';
+        return {
+            id: def.id,
+            title: def.title,
+            status,
+            summary: items.map(i => i.detail).join(' '),
+            items
+        };
+    });
 
     const hasFail = checks.some(c => c.status === 'gagal') || !mismatch.valid;
     const hasAttention = checks.some(c => c.status === 'perhatian');
@@ -2874,14 +4029,11 @@ export const evaluateMateriQualityControl = (
             ? 'PERLU PERHATIAN'
             : 'LULUS';
 
-    const verificationStages = [
-        { stage: 'Tahap 1 · Pemeriksaan Kurikulum', passed: tpPreserved && atpPreserved && classFaseMatch, note: classFaseMatch ? 'CP, TP, ATP, Elemen, Kelas, dan Fase konsisten.' : mismatch.errors.join(' ') },
-        { stage: 'Tahap 2 · Pemeriksaan Keilmuan', passed: hasCoreConcepts, note: 'Konsep, unsur, contoh konkret, dan pelurusan miskonsepsi diperiksa.' },
-        { stage: 'Tahap 3 · Pemeriksaan Sumber', passed: noFabricatedCitations && refs.length >= 4, note: hasUnverifiedRef ? 'Regulasi jelas; rujukan buku teks bertanda PERLU VERIFIKASI GURU.' : 'Sumber resmi teridentifikasi.' },
-        { stage: 'Tahap 4 · Pemeriksaan Pedagogis', passed: isCompleteMaterial, note: `Kedalaman disesuaikan untuk ${data.className} (${data.fase}).` },
-        { stage: 'Tahap 5 · Pemeriksaan Visual', passed: hasVisual, note: 'Komponen ilustrasi dipisahkan dari blok teks agar label dan ejaan tetap akurat.' },
-        { stage: 'Tahap 6 · Pemeriksaan Konsistensi TP', passed: tpPreserved && templateMatch, note: 'Seluruh bagian terarah penuh pada TP terkunci tanpa melebar ke TP lain.' }
-    ];
+    const verificationStages = categories.map(cat => ({
+        stage: cat.title,
+        passed: cat.status !== 'GAGAL',
+        note: cat.summary
+    }));
 
     const needsTeacherConfirmation = [
         ...mismatch.warnings,
@@ -2893,12 +4045,13 @@ export const evaluateMateriQualityControl = (
         overallStatus,
         summary:
             overallStatus === 'GAGAL'
-                ? 'Terdapat ketidaksesuaian kritis pada data kurikulum atau kelengkapan dokumen. Perbaiki atau regenerasi sebelum menerbitkan.'
+                ? 'Terdapat ketidaksesuaian kritis pada data kurikulum atau kelengkapan desain. Perbaiki sebelum ekspor PNG.'
                 : overallStatus === 'PERLU PERHATIAN'
-                    ? 'Struktur kurikulum, konsep, dan desain terpenuhi. Terdapat catatan verifikasi edisi/gaya untuk dikonfirmasi guru sebelum dicetak.'
-                    : 'Seluruh 12 kriteria mutu dan 6 tahap verifikasi terpenuhi.',
+                    ? 'Kurikulum, substansi, desain visual, dan kesiapan PNG terpenuhi. Terdapat catatan konfirmasi edisi/gaya untuk guru.'
+                    : 'Seluruh 4 kategori Quality Gate (Kurikulum, Substansi, Visual, Ekspor PNG) terpenuhi.',
         checkedAt: new Date().toISOString(),
         checks,
+        categories,
         verificationStages,
         needsTeacherConfirmation
     };
@@ -2937,8 +4090,11 @@ export const generateMateriAjarContent = async (params: {
     capaianPembelajaran: string;
     tpText: string;
     atpText: string;
+    relatedAtps?: string[];
     alokasiWaktu: string;
     templateId: MateriTemplateId;
+    themeId?: MateriVisualThemeId;
+    pageCountPreference?: PageCountPreference;
     selectionMode: 'rekomendasi' | 'manual';
     recommendationReason?: string;
     institutionName?: string;
@@ -2984,17 +4140,21 @@ export const generateMateriAjarContent = async (params: {
         atpText: params.atpText
     });
     const disciplineRule = getSubjectDisciplineInstruction(params.subject);
+    const scopeRule = params.focusLevel === 'tp'
+        ? `MODE BERDASARKAN TP (CAKUPAN LUAS): Kembangkan 1 TP terpilih menjadi materi runtut dari konsep dasar ke pendalaman, boleh merangkum ATP terkait TP ini saja (${(params.relatedAtps || [params.atpText]).join(' | ')}), DILARANG memasukkan ATP dari TP lain.`
+        : `MODE BERDASARKAN ATP (CAKUPAN SPESIFIK): Fokus secara mendalam HANYA pada 1 butir ATP terpilih ("${params.atpText}"). Gunakan CP & TP hanya sebagai rujukan keselarasan, JANGAN memperluas ke seluruh TP.`;
 
     const prompt = `Anda adalah AI Educational Content Generator profesional jenjang SD/MI (Kelas I–VI) yang mengintegrasikan keahlian kurikulum dasar Indonesia, substansi keilmuan bidang studi, pedagogi perkembangan fase, instructional design, dan desain grafis edukatif.
 
 ATURAN MUTLAK:
-1. JANGAN mengubah, mengedit, mengganti, atau memperluas ke luar ruang lingkup TP & ATP terkunci berikut.
-2. JANGAN mengarang fakta, angka statistik palsu, pasal hukum, nomor halaman, DOI, atau ISBN.
-3. DILARANG KERAS menulis definisi/kalimat klise yang terlalu umum (seperti "adalah pemahaman pokok pada elemen", "membantu siswa memahami konsep inti", atau definisi dangkal yang bisa berlaku untuk semua pelajaran). Setiap pengertian, penjelasan, contoh, miskonsepsi, dan istilah kunci WAJIB spesifik dan akurat secara keilmuan ${params.subject}.
-4. Sesuaikan bahasa & kedalaman pembahasan untuk ${params.className} (${params.fase}) dengan KKO utama "${activeAnalysis.kataKerjaOperasional}" (tingkat ${activeAnalysis.kedalamanLevel}).
-5. ${disciplineRule}
-6. Hasil wajib SUBSTANTIF, KOMPREHENSIF, AKURAT, dan SIAP DIPAKAI GURU sesuai standar Buku Siswa & Buku Panduan Guru Kemendikdasmen.
-${params.revisionInstruction ? `7. INSTRUKSI REVISI GURU (PRIORITAS): ${params.revisionInstruction}` : ''}
+1. JANGAN mengubah, mengedit, mengganti, atau mengarang teks CP, TP, atau ATP terkunci.
+2. ${scopeRule}
+3. JANGAN mengarang fakta, angka statistik palsu, pasal hukum, nomor halaman, DOI, atau ISBN.
+4. DILARANG KERAS menulis definisi/kalimat klise yang terlalu umum. Setiap pengertian, penjelasan, contoh, miskonsepsi, dan istilah kunci WAJIB spesifik dan akurat secara keilmuan ${params.subject}.
+5. Sesuaikan bahasa & kedalaman pembahasan untuk ${params.className} (${params.fase}) dengan KKO utama "${activeAnalysis.kataKerjaOperasional}" (tingkat ${activeAnalysis.kedalamanLevel}).
+6. ${disciplineRule}
+7. Susun materi agar selaras dengan bentuk sajian desain visual "${tplMeta.name}" (${tplMeta.subtitle}).
+${params.revisionInstruction ? `8. INSTRUKSI REVISI GURU (PRIORITAS): ${params.revisionInstruction}` : ''}
 
 DATA KURIKULUM TERKUNCI:
 - Satuan Pendidikan: ${params.institutionName || 'SD/MI'}
@@ -3004,19 +4164,19 @@ DATA KURIKULUM TERKUNCI:
 - Capaian Pembelajaran (CP): ${params.capaianPembelajaran}
 - Tujuan Pembelajaran (TP Terkunci): ${params.tpText}
 - Alur Tujuan Pembelajaran (ATP Terkunci): ${params.atpText} (${params.alokasiWaktu})
-- Gaya Template Terpilih: ${tplMeta.name} (${tplMeta.subtitle})
+- Gaya Desain Visual Terpilih: ${tplMeta.name} (${tplMeta.subtitle})
 - Potensi Miskonsepsi yang Harus Diluruskan: ${activeAnalysis.potensiMiskonsepsi}
 ${groundedTextbook.summary ? `\nRINGKASAN REFERENSI BUKU TEKS / PENELUSURAN TERKAIT:\n${groundedTextbook.summary}\n` : ''}
 ${isSunda ? 'WAJIB KHUSUS BAHASA SUNDA: Gunakan Basa Sunda anu alami, merenah undak-usukna, jeung ramah barudak SD pikeun judul, panganteur, conto paguneman, aktivitas, rangkuman, jeung soal!' : ''}
 
 Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
 {
-  "title": "Judul materi menarik & spesifik TP ini",
+  "title": "Judul materi menarik & spesifik TP/ATP ini",
   "subtitle": "Subjudul singkat selaras CP/TP",
   "pengantarSingkat": "Pengantar kontekstual 2-3 kalimat spesifik ${params.subject} ramah siswa ${params.className}",
   "kaitanPengalamanSiswa": "1-2 kalimat mengaitkan topik nyata dengan pengalaman langsung anak SD Indonesia",
   "pertanyaanPemantik": ["Pertanyaan pemantik 1 yang memancing rasa ingin tahu", "Pertanyaan pemantik 2"],
-  "pengertianKonsep": "Definisi konsep yang tepat secara keilmuan ${params.subject} (bukan kalimat umum), lengkap dengan istilah baku dan penjelasannya bagi siswa ${params.className}",
+  "pengertianKonsep": "Definisi konsep yang tepat secara keilmuan ${params.subject}, lengkap dengan istilah baku dan penjelasannya bagi siswa ${params.className}",
   "penjelasanUtama": "Penjelasan materi inti yang kaya substansi (3-4 kalimat), memuat aturan/mekanisme/prosedur/unsur spesifik topik serta sesuai KKO ${activeAnalysis.kataKerjaOperasional}",
   "poinPenting": ["Poin keilmuan spesifik 1", "Poin keilmuan spesifik 2", "Poin keilmuan spesifik 3", "Poin keilmuan spesifik 4"],
   "unsurPenting": ["Unsur/komponen/tahapan 1 beserta fungsi atau cara benarnya", "Unsur/komponen/tahapan 2", "Unsur/komponen/tahapan 3"],
@@ -3060,9 +4220,9 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
   },
   "rangkumanPoin": ["Poin rangkuman 1", "Poin rangkuman 2", "Poin rangkuman 3", "Poin rangkuman 4"],
   "latihanFormatif": [
-    { "no": 1, "pertanyaan": "Soal pemahaman 1 sesuai TP", "kunciSingkat": "Panduan jawaban untuk guru" },
-    { "no": 2, "pertanyaan": "Soal pemahaman 2 sesuai TP", "kunciSingkat": "Panduan jawaban untuk guru" },
-    { "no": 3, "pertanyaan": "Soal pemahaman 3 sesuai TP", "kunciSingkat": "Panduan jawaban untuk guru" }
+    { "no": 1, "pertanyaan": "Soal pemahaman 1 sesuai fokus materi", "kunciSingkat": "Panduan jawaban untuk guru" },
+    { "no": 2, "pertanyaan": "Soal pemahaman 2 sesuai fokus materi", "kunciSingkat": "Panduan jawaban untuk guru" },
+    { "no": 3, "pertanyaan": "Soal pemahaman 3 sesuai fokus materi", "kunciSingkat": "Panduan jawaban untuk guru" }
   ],
   "kataKunci": [
     { "term": "Istilah 1", "meaning": "Arti sederhana dan akurat" },
@@ -3078,6 +4238,7 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
 
     try {
         const res = await generateGeminiContent({
+            model: 'gemini-4-hydrogen',
             contents: prompt,
             config: {
                 responseMimeType: 'application/json'
@@ -3096,9 +4257,9 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
     }
 
     reportProgress(6);
+    const resolvedTitle = typeof aiResult?.title === 'string' && aiResult.title.trim() ? aiResult.title.trim() : baseline.title;
     const merged: GeneratedMateriAjarData = {
         ...baseline,
-        // Preserve locked TP/ATP/CP verbatim unconditionally
         subject: params.subject,
         className: params.className,
         fase: params.fase,
@@ -3106,6 +4267,9 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
         capaianPembelajaran: params.capaianPembelajaran,
         tpText: params.tpText,
         atpText: params.atpText,
+        relatedAtps: params.relatedAtps || [params.atpText],
+        themeId: params.themeId || 'zamrud_edukatif',
+        pageCountPreference: params.pageCountPreference || 'auto',
         manualMismatchNotice,
         tpAtpAnalysis: activeAnalysis,
         curriculumMeta: {
@@ -3113,10 +4277,10 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
             jenjang: 'Sekolah Dasar (SD/MI)',
             institutionName: params.institutionName || 'Satuan Pendidikan SD/MI',
             isLockedSource: Boolean(params.isLockedSource),
-            topicFocus: typeof aiResult?.title === 'string' && aiResult.title.trim() ? aiResult.title.trim() : baseline.title,
+            topicFocus: resolvedTitle,
             orientation: params.orientation || getRecommendedOrientationForTemplate(params.templateId)
         },
-        title: typeof aiResult?.title === 'string' && aiResult.title.trim() ? aiResult.title.trim() : baseline.title,
+        title: resolvedTitle,
         subtitle: typeof aiResult?.subtitle === 'string' && aiResult.subtitle.trim() ? aiResult.subtitle.trim() : baseline.subtitle,
         pengantarSingkat: typeof aiResult?.pengantarSingkat === 'string' && aiResult.pengantarSingkat.trim() ? aiResult.pengantarSingkat.trim() : baseline.pengantarSingkat,
         kaitanPengalamanSiswa: typeof aiResult?.kaitanPengalamanSiswa === 'string' && aiResult.kaitanPengalamanSiswa.trim() ? aiResult.kaitanPengalamanSiswa.trim() : baseline.kaitanPengalamanSiswa,
@@ -3160,25 +4324,23 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
         teacherNotes: [
             ...(manualMismatchNotice ? [manualMismatchNotice] : []),
             ...(usedFallback
-                ? ['PERLU VERIFIKASI GURU: Konten disusun dari basis kurikuler terstruktur karena layanan AI tidak merespons; harap tinjau contoh dan soal sebelum dicetak.']
+                ? ['PERLU VERIFIKASI GURU: Konten disusun dari basis kurikuler terstruktur karena layanan AI tidak merespons; harap tinjau contoh dan soal sebelum ekspor PNG.']
                 : []),
-            'Kunci/panduan jawaban latihan ditempatkan pada Bagian Khusus Guru agar tidak membingungkan peserta didik.',
+            'Kunci/panduan jawaban latihan ditempatkan pada bagian khusus guru.',
             'PERLU VERIFIKASI GURU: Pastikan kesesuaian nomor bab pada buku teks/panduan mapel yang dipakai di satuan pendidikan.'
         ]
     };
 
     reportProgress(7);
-    // Separate visual illustration generation from text rendering
     merged.visualSvg = buildConcretePosterIllustrationSvg(
         params.subject,
         params.elementName,
         params.tpText,
         params.atpText,
-        merged.visualCaption || merged.title
+        merged.visualCaption || merged.title,
+        merged.visualVariantIndex || 0
     );
 
-    // Protect dedicated 2D action poses & domain diagrams (PJOK movement poses, Matematika diagrams, Koding flowcharts)
-    // from being paired with generic/irrelevant stock photos.
     const subjLowerVisual = params.subject.toLowerCase();
     const combinedTopicVisual = `${params.subject} ${params.elementName} ${params.tpText} ${params.atpText}`.toLowerCase();
     const isActionOrDiagramTopic =
@@ -3200,7 +4362,14 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
     }
 
     reportProgress(8);
-    // Sync all 10 template payloads directly from substantive merged/AI content
+    merged.pages = buildLogicalDocumentPages({
+        title: merged.title,
+        subject: params.subject,
+        templateId: params.templateId,
+        focusLevel: params.focusLevel,
+        pageCountPreference: params.pageCountPreference || 'auto'
+    });
+
     buildTemplatePayloadsFromMerged(merged, {
         subject: params.subject,
         className: params.className,

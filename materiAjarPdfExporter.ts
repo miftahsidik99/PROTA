@@ -1,15 +1,5 @@
 import html2canvas from 'html2canvas-pro';
-import { jsPDF } from 'jspdf';
 import { PageOrientationMode } from './materiAjarHelper';
-
-export interface MateriPdfExportOptions {
-    filename: string;
-    paperSize?: 'A4' | 'F4';
-    orientation?: PageOrientationMode;
-    institutionName?: string;
-    subject?: string;
-    className?: string;
-}
 
 export interface MateriPngExportOptions {
     filename: string;
@@ -27,49 +17,37 @@ export interface DomVerificationResult {
     issues: string[];
 }
 
-interface OrientationMetrics {
+export interface PngTargetSpec {
+    width: number;
+    height: number;
     stageWidthPx: number;
-    pageWidthMm: number;
-    pageHeightMm: number;
-    pdfOrientation: 'portrait' | 'landscape';
-    pngScale: number;
+    label: string;
 }
 
-function getOrientationMetrics(
-    orientation: PageOrientationMode = 'portrait_a4',
-    paperSize: 'A4' | 'F4' = 'A4'
-): OrientationMetrics {
+export function getPngTargetSpec(orientation: PageOrientationMode = 'portrait_a4'): PngTargetSpec {
     if (orientation === 'landscape_a4') {
-        const pageWidthMm = paperSize === 'F4' ? 330 : 297;
-        const pageHeightMm = paperSize === 'F4' ? 215 : 210;
         return {
+            width: 3508,
+            height: 2480,
             stageWidthPx: 1123,
-            pageWidthMm,
-            pageHeightMm,
-            pdfOrientation: 'landscape',
-            pngScale: 3.125 // ~3509px wide @ 300 DPI A4 Landscape
+            label: '3508 × 2480 px (A4 Landscape 300 DPI)'
         };
     }
 
-    if (orientation === 'digital_4_5') {
+    if (orientation === 'digital_screen' || orientation === 'digital_4_5') {
         return {
-            stageWidthPx: 794,
-            pageWidthMm: 210,
-            pageHeightMm: 262.5, // Exact 4:5 ratio
-            pdfOrientation: 'portrait',
-            pngScale: 3.025 // ~2402px wide
+            width: 1920,
+            height: 1080,
+            stageWidthPx: 960,
+            label: '1920 × 1080 px (Layar Digital 16:9)'
         };
     }
 
-    // Default: portrait_a4
-    const pageWidthMm = paperSize === 'F4' ? 215 : 210;
-    const pageHeightMm = paperSize === 'F4' ? 330 : 297;
     return {
+        width: 2480,
+        height: 3508,
         stageWidthPx: 794,
-        pageWidthMm,
-        pageHeightMm,
-        pdfOrientation: 'portrait',
-        pngScale: 3.125 // ~2481px wide @ 300 DPI A4 Portrait
+        label: '2480 × 3508 px (A4 Portrait 300 DPI)'
     };
 }
 
@@ -92,7 +70,7 @@ function prepareCloneStage(
     clone.style.width = `${stageWidthPx}px`;
     clone.style.maxWidth = `${stageWidthPx}px`;
     clone.style.margin = '0';
-    clone.style.padding = '10px';
+    clone.style.padding = '12px';
     clone.style.backgroundColor = '#ffffff';
     clone.style.boxShadow = 'none';
     clone.style.boxSizing = 'border-box';
@@ -118,8 +96,8 @@ function prepareCloneStage(
 }
 
 /**
- * Verifies rendered DOM container before export (Stage 6 & QC #12):
- * confirms multi-page structure, non-empty page content, valid SVG dimensions, and no broken images.
+ * Verifies rendered DOM container before PNG export:
+ * confirms multi-page structure, non-empty content, zero horizontal overflow, valid SVGs, and no broken images.
  */
 export function verifyRenderedMateriDom(sourceContainer: HTMLElement | null): DomVerificationResult {
     if (!sourceContainer) {
@@ -142,6 +120,9 @@ export function verifyRenderedMateriDom(sourceContainer: HTMLElement | null): Do
         const textLen = (pageEl.textContent || '').trim().length;
         if (textLen < 40) {
             issues.push(`Halaman ${idx + 1} tampak kosong atau terpotong.`);
+        }
+        if (pageEl.clientWidth > 0 && pageEl.scrollWidth > pageEl.clientWidth + 6) {
+            issues.push(`Halaman ${idx + 1} mengalami luapan horizontal (${pageEl.scrollWidth}px > ${pageEl.clientWidth}px).`);
         }
     });
 
@@ -181,20 +162,116 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
 }
 
 /**
- * Exports each `[data-materi-page]` sheet as its own separate 300-DPI PNG file
- * (never merges multiple pages into one oversized vertical strip).
+ * Renders a single DOM element cleanly onto an exact target resolution PNG Blob
+ * (`2480×3508`, `3508×2480`, or `1920×1080`) with white fill and zero clipping.
+ */
+async function renderElementToExactPngBlob(
+    pageEl: HTMLElement,
+    spec: PngTargetSpec
+): Promise<Blob> {
+    pageEl.style.backgroundColor = '#ffffff';
+    const captureScale = Math.max(2, Math.min(3.5, spec.width / spec.stageWidthPx));
+
+    const srcCanvas = await html2canvas(pageEl, {
+        scale: captureScale,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        windowWidth: spec.stageWidthPx
+    });
+
+    if (srcCanvas.width === 0 || srcCanvas.height === 0) {
+        throw new Error('Kanvas halaman kosong saat merender PNG.');
+    }
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = spec.width;
+    outCanvas.height = spec.height;
+
+    const ctx = outCanvas.getContext('2d');
+    if (!ctx) {
+        throw new Error('Context 2D tidak tersedia untuk menghasilkan PNG.');
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, spec.width, spec.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    const safePad = Math.round(Math.min(spec.width, spec.height) * 0.018);
+    const availW = spec.width - safePad * 2;
+    const availH = spec.height - safePad * 2;
+    const fitRatio = Math.min(availW / srcCanvas.width, availH / srcCanvas.height);
+
+    const drawW = Math.round(srcCanvas.width * fitRatio);
+    const drawH = Math.round(srcCanvas.height * fitRatio);
+    const offsetX = Math.round((spec.width - drawW) / 2);
+    const offsetY = Math.round((spec.height - drawH) / 2);
+
+    ctx.drawImage(srcCanvas, 0, 0, srcCanvas.width, srcCanvas.height, offsetX, offsetY, drawW, drawH);
+
+    const blob = await new Promise<Blob | null>((resolve) => outCanvas.toBlob(resolve, 'image/png', 1.0));
+    if (!blob) {
+        throw new Error('Gagal mengonversi kanvas ke format PNG.');
+    }
+    return blob;
+}
+
+/**
+ * Exports a single selected page (1-based index) as an exact-resolution PNG file.
+ */
+export async function exportSingleMateriPagePng(
+    sourceContainer: HTMLElement,
+    pageNumber: number,
+    options: MateriMultiPngExportOptions
+): Promise<{ filename: string; width: number; height: number }> {
+    const spec = getPngTargetSpec(options.orientation || 'portrait_a4');
+    const cleanBase = options.baseFilename.replace(/\.png$/i, '');
+    const { stage, clone } = prepareCloneStage(sourceContainer, spec.stageWidthPx);
+
+    try {
+        if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 160));
+
+        const pageNodes = Array.from(clone.querySelectorAll<HTMLElement>('[data-materi-page]'));
+        const targets = pageNodes.length > 0 ? pageNodes : [clone];
+        const idx = Math.max(0, Math.min(targets.length - 1, pageNumber - 1));
+        const targetEl = targets[idx];
+
+        const blob = await renderElementToExactPngBlob(targetEl, spec);
+        const outName = targets.length === 1 ? `${cleanBase}.png` : `${cleanBase}_Hal_${idx + 1}.png`;
+        triggerBlobDownload(blob, outName);
+
+        return {
+            filename: outName,
+            width: spec.width,
+            height: spec.height
+        };
+    } finally {
+        if (stage.parentNode) {
+            stage.parentNode.removeChild(stage);
+        }
+    }
+}
+
+/**
+ * Exports each `[data-materi-page]` sheet as its own separate exact-resolution PNG file
+ * (never merges multiple pages into one oversized strip; strictly PNG format).
  */
 export async function exportMateriAjarPagesPng(
     sourceContainer: HTMLElement,
     options: MateriMultiPngExportOptions
-): Promise<{ pageCount: number; downloadedFiles: string[] }> {
-    const metrics = getOrientationMetrics(options.orientation || 'portrait_a4', 'A4');
+): Promise<{ pageCount: number; downloadedFiles: string[]; spec: PngTargetSpec }> {
+    const spec = getPngTargetSpec(options.orientation || 'portrait_a4');
     const cleanBase = options.baseFilename.replace(/\.png$/i, '');
-    const { stage, clone } = prepareCloneStage(sourceContainer, metrics.stageWidthPx);
+    const { stage, clone } = prepareCloneStage(sourceContainer, spec.stageWidthPx);
 
     try {
         if (document.fonts && document.fonts.ready) {
@@ -207,22 +284,7 @@ export async function exportMateriAjarPagesPng(
         const downloadedFiles: string[] = [];
 
         for (let i = 0; i < targets.length; i++) {
-            const pageEl = targets[i];
-            pageEl.style.backgroundColor = '#ffffff';
-            const canvas = await html2canvas(pageEl, {
-                scale: metrics.pngScale,
-                backgroundColor: '#ffffff',
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                windowWidth: metrics.stageWidthPx
-            });
-
-            const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 1.0));
-            if (!blob) {
-                throw new Error(`Gagal merender gambar PNG untuk Halaman ${i + 1}.`);
-            }
-
+            const blob = await renderElementToExactPngBlob(targets[i], spec);
             const outName = targets.length === 1
                 ? `${cleanBase}.png`
                 : `${cleanBase}_Hal_${i + 1}.png`;
@@ -230,13 +292,14 @@ export async function exportMateriAjarPagesPng(
             downloadedFiles.push(outName);
 
             if (i < targets.length - 1) {
-                await new Promise((resolve) => setTimeout(resolve, 280));
+                await new Promise((resolve) => setTimeout(resolve, 260));
             }
         }
 
         return {
             pageCount: targets.length,
-            downloadedFiles
+            downloadedFiles,
+            spec
         };
     } finally {
         if (stage.parentNode) {
@@ -245,9 +308,6 @@ export async function exportMateriAjarPagesPng(
     }
 }
 
-/**
- * Legacy single-container PNG helper preserved for compatibility.
- */
 export async function exportMateriAjarPosterPng(
     sourceContainer: HTMLElement,
     options: MateriPngExportOptions
@@ -256,212 +316,4 @@ export async function exportMateriAjarPosterPng(
         baseFilename: options.filename.replace(/\.png$/i, ''),
         orientation: options.orientation || 'portrait_a4'
     });
-}
-
-async function appendCanvasWithBlockFallback(
-    pdf: jsPDF,
-    pageNode: HTMLElement,
-    metrics: OrientationMetrics,
-    marginXMm: number,
-    marginTopMm: number,
-    maxContentBottomMm: number,
-    availablePageHeightMm: number,
-    contentWidthMm: number,
-    isFirstPdfPage: boolean
-): Promise<boolean> {
-    const pageCanvas = await html2canvas(pageNode, {
-        scale: 2.75,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        windowWidth: metrics.stageWidthPx
-    });
-
-    if (pageCanvas.width === 0 || pageCanvas.height === 0) return isFirstPdfPage;
-
-    const fullHeightMm = (pageCanvas.height / pageCanvas.width) * contentWidthMm;
-
-    // Fit cleanly onto 1 logical page if within reasonable 18% tolerance so Page 1/2/3 map cleanly 1:1
-    if (fullHeightMm <= availablePageHeightMm * 1.18) {
-        if (!isFirstPdfPage) {
-            pdf.addPage([metrics.pageWidthMm, metrics.pageHeightMm], metrics.pdfOrientation);
-        }
-        const fitScale = Math.min(1, availablePageHeightMm / fullHeightMm);
-        const drawWidth = contentWidthMm * fitScale;
-        const drawHeight = fullHeightMm * fitScale;
-        const offsetX = marginXMm + (contentWidthMm - drawWidth) / 2;
-
-        const imgData = pageCanvas.toDataURL('image/png', 0.98);
-        pdf.addImage(imgData, 'PNG', offsetX, marginTopMm, drawWidth, drawHeight, undefined, 'FAST');
-        return false;
-    }
-
-    // Otherwise paginate cleanly using [data-pdf-block] so no card or illustration is sliced in half
-    const blocks = Array.from(pageNode.querySelectorAll<HTMLElement>('[data-pdf-block]'));
-    const captureTargets = blocks.length > 0 ? blocks : [pageNode];
-    const blockGapMm = 2.4;
-
-    if (!isFirstPdfPage) {
-        pdf.addPage([metrics.pageWidthMm, metrics.pageHeightMm], metrics.pdfOrientation);
-    }
-
-    let cursorY = marginTopMm;
-    let isFirstBlockOnSheet = true;
-
-    for (let i = 0; i < captureTargets.length; i++) {
-        const target = captureTargets[i];
-        if (!target || target.offsetHeight < 4) continue;
-
-        const canvas = await html2canvas(target, {
-            scale: 2.6,
-            backgroundColor: '#ffffff',
-            useCORS: true,
-            allowTaint: true,
-            logging: false,
-            windowWidth: metrics.stageWidthPx
-        });
-
-        if (canvas.width === 0 || canvas.height === 0) continue;
-        const totalImgHeightMm = (canvas.height / canvas.width) * contentWidthMm;
-
-        if (totalImgHeightMm <= availablePageHeightMm && !isFirstBlockOnSheet && cursorY + totalImgHeightMm > maxContentBottomMm) {
-            pdf.addPage([metrics.pageWidthMm, metrics.pageHeightMm], metrics.pdfOrientation);
-            cursorY = marginTopMm;
-            isFirstBlockOnSheet = true;
-        }
-
-        if (totalImgHeightMm <= availablePageHeightMm) {
-            const imgData = canvas.toDataURL('image/png', 0.98);
-            pdf.addImage(imgData, 'PNG', marginXMm, cursorY, contentWidthMm, totalImgHeightMm, undefined, 'FAST');
-            cursorY += totalImgHeightMm + blockGapMm;
-            isFirstBlockOnSheet = false;
-        } else {
-            if (!isFirstBlockOnSheet) {
-                pdf.addPage([metrics.pageWidthMm, metrics.pageHeightMm], metrics.pdfOrientation);
-                cursorY = marginTopMm;
-                isFirstBlockOnSheet = true;
-            }
-            const pxPerMm = canvas.width / contentWidthMm;
-            let renderedPxY = 0;
-
-            while (renderedPxY < canvas.height) {
-                const remainingMm = maxContentBottomMm - cursorY;
-                const sliceHeightPx = Math.min(canvas.height - renderedPxY, Math.floor(remainingMm * pxPerMm));
-                if (sliceHeightPx <= 0) {
-                    pdf.addPage([metrics.pageWidthMm, metrics.pageHeightMm], metrics.pdfOrientation);
-                    cursorY = marginTopMm;
-                    continue;
-                }
-
-                const sliceCanvas = document.createElement('canvas');
-                sliceCanvas.width = canvas.width;
-                sliceCanvas.height = sliceHeightPx;
-                const ctx = sliceCanvas.getContext('2d');
-                if (ctx) {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-                    ctx.drawImage(canvas, 0, renderedPxY, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
-                    const sliceImg = sliceCanvas.toDataURL('image/png', 0.98);
-                    const sliceHeightMm = sliceHeightPx / pxPerMm;
-                    pdf.addImage(sliceImg, 'PNG', marginXMm, cursorY, contentWidthMm, sliceHeightMm, undefined, 'FAST');
-                    cursorY += sliceHeightMm;
-                }
-
-                renderedPxY += sliceHeightPx;
-                if (renderedPxY < canvas.height) {
-                    pdf.addPage([metrics.pageWidthMm, metrics.pageHeightMm], metrics.pdfOrientation);
-                    cursorY = marginTopMm;
-                    isFirstBlockOnSheet = true;
-                } else {
-                    cursorY += blockGapMm;
-                    isFirstBlockOnSheet = false;
-                }
-            }
-        }
-    }
-
-    return false;
-}
-
-/**
- * Exports multi-page Materi Ajar (`[data-materi-page]`) into a print-ready 300-DPI PDF
- * supporting Portrait A4, Landscape A4, and 4:5 Digital ratios.
- */
-export async function exportMateriAjarToPdf(
-    sourceContainer: HTMLElement,
-    options: MateriPdfExportOptions
-): Promise<void> {
-    const {
-        filename,
-        paperSize = 'A4',
-        orientation = 'portrait_a4',
-        institutionName = 'Satuan Pendidikan SD/MI',
-        subject = 'Materi Ajar PPA',
-        className = ''
-    } = options;
-
-    const metrics = getOrientationMetrics(orientation, paperSize);
-    const marginXMm = 8;
-    const marginTopMm = 8;
-    const marginBottomMm = 11;
-    const contentWidthMm = metrics.pageWidthMm - marginXMm * 2;
-    const maxContentBottomMm = metrics.pageHeightMm - marginBottomMm;
-    const availablePageHeightMm = maxContentBottomMm - marginTopMm;
-
-    const { stage, clone } = prepareCloneStage(sourceContainer, metrics.stageWidthPx);
-
-    try {
-        if (document.fonts && document.fonts.ready) {
-            await document.fonts.ready;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 160));
-
-        const pdf = new jsPDF({
-            orientation: metrics.pdfOrientation,
-            unit: 'mm',
-            format: [metrics.pageWidthMm, metrics.pageHeightMm],
-            compress: true
-        });
-
-        const pageNodes = Array.from(clone.querySelectorAll<HTMLElement>('[data-materi-page]'));
-        const targets = pageNodes.length > 0 ? pageNodes : [clone];
-
-        let isFirstPdfPage = true;
-        for (let i = 0; i < targets.length; i++) {
-            isFirstPdfPage = await appendCanvasWithBlockFallback(
-                pdf,
-                targets[i],
-                metrics,
-                marginXMm,
-                marginTopMm,
-                maxContentBottomMm,
-                availablePageHeightMm,
-                contentWidthMm,
-                isFirstPdfPage
-            );
-        }
-
-        // Clean PPA page footer on every page
-        const totalPages = pdf.getNumberOfPages();
-        for (let p = 1; p <= totalPages; p++) {
-            pdf.setPage(p);
-            pdf.setDrawColor(226, 232, 240);
-            pdf.setLineWidth(0.25);
-            pdf.line(marginXMm, metrics.pageHeightMm - 8.5, metrics.pageWidthMm - marginXMm, metrics.pageHeightMm - 8.5);
-            pdf.setFont('helvetica', 'normal');
-            pdf.setFontSize(7);
-            pdf.setTextColor(100, 116, 139);
-            const leftFooter = `${institutionName} · ${subject}${className ? ` (${className})` : ''} · Materi Ajar Kurikulum Merdeka PPA`;
-            pdf.text(leftFooter.slice(0, 110), marginXMm, metrics.pageHeightMm - 4.8);
-            pdf.text(`Hal ${p}/${totalPages}`, metrics.pageWidthMm - marginXMm, metrics.pageHeightMm - 4.8, { align: 'right' });
-        }
-
-        const safeName = filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
-        pdf.save(safeName);
-    } finally {
-        if (stage.parentNode) {
-            stage.parentNode.removeChild(stage);
-        }
-    }
 }

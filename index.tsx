@@ -10754,7 +10754,7 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
       let resultData: CurriculumData | null = null;
       try {
         const response = await generateGeminiContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-4-hydrogen',
           contents: prompt,
           config: { 
             responseMimeType: "application/json", 
@@ -10929,7 +10929,7 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
 
         console.log("Memanggil AI untuk generate ATP...");
         const response = await generateGeminiContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-4-hydrogen',
             contents: prompt,
             config: { 
                 responseMimeType: "application/json", 
@@ -11207,7 +11207,7 @@ const extractFlatTPs = (currData: CurriculumData | null, targetClassName: string
           let modelResponseText = "Tidak ditentukan";
           try {
             const modelRec = await generateGeminiContent({
-                model: 'gemini-3.8-flash',
+                model: 'gemini-4-hydrogen',
                 contents: modelPrompt,
             });
              modelResponseText = modelRec.text || "Tidak ditentukan";
@@ -11375,14 +11375,14 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
 `;
 
           let response;
-          let retries = 6;
+          let retries = 3;
           let success = false;
-          let delayMs = 20000;
+          let delayMs = 15000;
           
           while (retries > 0 && !success) {
               try {
                   response = await generateGeminiContent({
-                      model: 'gemini-3.8-flash',
+                      model: 'gemini-4-hydrogen',
                       contents: prompt,
                       config: {
                           maxOutputTokens: 8192,
@@ -11391,9 +11391,9 @@ Hasilkan output HTML murni (div kontainer utama, tanpa tag <html>/<body>) dengan
                   success = true;
               } catch (e: any) {
                   const errorString = JSON.stringify(e) + (e?.message || String(e)) + (e?.error?.status || '');
-                  const isRateLimit = errorString.includes('429') || errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('rate limit') || errorString.includes('RESOURCE_EXHAUSTED');
+                  const isRateLimit = Boolean(e?.isQuotaError) || e?.status === 429 || errorString.includes('429') || errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('rate limit') || errorString.includes('RESOURCE_EXHAUSTED');
                   if (isRateLimit && retries > 1) {
-                      let waitTime = Math.max(delayMs, 60000);
+                      let waitTime = Math.max(delayMs, 15000);
                       console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s... (${retries - 1} retries left)`);
                       setBulkGenerationStatus(prev => ({
                           ...prev,

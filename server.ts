@@ -5,7 +5,8 @@ import {
   getResolvedApiKey,
   getAiClient,
   generateContentWithFallback,
-  generateContentStreamWithFallback
+  generateContentStreamWithFallback,
+  extractGeminiErrorInfo
 } from './api/gemini/_shared';
 import { searchEducationalMedia, fetchSafeRemoteImage } from './api/media/_shared';
 
@@ -41,11 +42,15 @@ app.post('/api/gemini/generate', async (req: Request, res: Response) => {
       usageMetadata: response.usageMetadata
     });
   } catch (error: any) {
-    console.error('Server Gemini generateContent error:', error);
-    const status = Number(error?.status) || 500;
-    res.status(status >= 400 && status < 600 ? status : 500).json({
+    const info = extractGeminiErrorInfo(error);
+    const status = info.status >= 400 && info.status < 600 ? info.status : 500;
+    console.warn(`Server Gemini generateContent error [${status} ${info.statusText}]: ${error?.message || info.rawMessage}`);
+    res.status(status).json({
       error: error?.message || 'Gagal memproses permintaan AI pada server',
-      details: error?.error || null
+      code: status,
+      status: info.statusText,
+      isQuotaError: info.isRateLimit,
+      details: error?.error || info.details || null
     });
   }
 });
@@ -71,14 +76,18 @@ app.post('/api/gemini/stream', async (req: Request, res: Response) => {
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (error: any) {
-    console.error('Server Gemini stream error:', error);
+    const info = extractGeminiErrorInfo(error);
+    const status = info.status >= 400 && info.status < 600 ? info.status : 500;
+    console.warn(`Server Gemini stream error [${status} ${info.statusText}]: ${error?.message || info.rawMessage}`);
     if (!res.headersSent) {
-      const status = Number(error?.status) || 500;
-      res.status(status >= 400 && status < 600 ? status : 500).json({
-        error: error?.message || 'Gagal streaming konten dari AI pada server'
+      res.status(status).json({
+        error: error?.message || 'Gagal streaming konten dari AI pada server',
+        code: status,
+        status: info.statusText,
+        isQuotaError: info.isRateLimit
       });
     } else {
-      res.write(`data: ${JSON.stringify({ error: error?.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: error?.message, code: status, isQuotaError: info.isRateLimit })}\n\n`);
       res.end();
     }
   }
