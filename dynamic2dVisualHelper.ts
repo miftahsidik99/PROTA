@@ -952,9 +952,78 @@ function buildScience2dSvg(
 // ---------------------------------------------------------------------------
 
 function buildPjok2dSvg(
-  kind: 'soccer' | 'volleyball' | 'basketball' | 'running' | 'stretch' | 'firstaid' | 'badminton' | 'mat' | 'pool' | 'silat' | 'gerak',
+  kind: 'soccer' | 'volleyball' | 'basketball' | 'running' | 'stretch' | 'firstaid' | 'badminton' | 'mat' | 'pool' | 'silat' | 'gerak' | 'swing_leg' | 'locomotor' | 'manipulative',
   avoidSpoiler = false
 ): { svg: string; sig: string; label: string } {
+  if (kind === 'swing_leg') {
+    const svg = `
+    <svg viewBox="0 0 220 120" width="190" height="104" xmlns="http://www.w3.org/2000/svg" style="display:block; margin:6px auto;">
+      <rect x="10" y="92" width="200" height="10" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.2"/>
+      <!-- Anak SD berseragam olahraga mengayunkan kaki -->
+      <circle cx="96" cy="24" r="9.5" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+      <path d="M87 21 C89 12, 103 12, 105 21 Z" fill="#1e293b"/>
+      <circle cx="99" cy="23" r="1.4" fill="#0f172a"/>
+      <!-- Kaos olahraga merah-putih -->
+      <path d="M87 34 L105 34 L107 60 L85 60 Z" fill="#dc2626" stroke="#991b1b" stroke-width="1.2"/>
+      <!-- Lengan direntangkan menjaga keseimbangan -->
+      <line x1="86" y1="39" x2="60" y2="46" stroke="#fed7aa" stroke-width="4.5" stroke-linecap="round"/>
+      <line x1="106" y1="39" x2="134" y2="44" stroke="#fed7aa" stroke-width="4.5" stroke-linecap="round"/>
+      <!-- Kaki tumpu tegak -->
+      <line x1="92" y1="60" x2="90" y2="91" stroke="#1e293b" stroke-width="5.5" stroke-linecap="round"/>
+      <ellipse cx="94" cy="92" rx="7" ry="3.2" fill="#0f172a"/>
+      <!-- Kaki diayunkan ke depan (posisi aktif) -->
+      <line x1="101" y1="60" x2="132" y2="75" stroke="#2563eb" stroke-width="5.5" stroke-linecap="round"/>
+      <ellipse cx="136" cy="76" rx="7" ry="3.2" fill="#1d4ed8" transform="rotate(20 136 76)"/>
+      <!-- Bayangan posisi ayunan ke belakang -->
+      <line x1="99" y1="60" x2="72" y2="79" stroke="#93c5fd" stroke-width="4" stroke-dasharray="3,2" stroke-linecap="round"/>
+      <!-- Busur arah ayunan kaki -->
+      <path d="M72 84 Q104 94 134 81" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-dasharray="4,2"/>
+      <polygon points="138,79 129,77 132,85" fill="#ea580c"/>
+      <polygon points="68,82 76,78 74,86" fill="#ea580c"/>
+      <text x="110" y="114" font-size="8.6" font-weight="bold" text-anchor="middle" fill="#1e293b">${avoidSpoiler ? 'Gerak Nonlokomotor: Ayunan Tungkai' : 'Anak SD Mengayunkan Kaki ke Depan &amp; Belakang'}</text>
+    </svg>`;
+    return { svg, sig: 'pjok_swing_leg', label: 'Ilustrasi Anak SD Mengayunkan Kaki' };
+  }
+  if (kind === 'locomotor') {
+    const svg = `
+    <svg viewBox="0 0 220 118" width="190" height="102" xmlns="http://www.w3.org/2000/svg" style="display:block; margin:6px auto;">
+      <rect x="10" y="90" width="200" height="10" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.2"/>
+      <!-- Anak SD melompat/berlari melewati cone -->
+      <circle cx="88" cy="24" r="9" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+      <path d="M80 21 C82 13, 94 13, 96 21 Z" fill="#1e293b"/>
+      <path d="M80 34 L96 34 L98 56 L78 56 Z" fill="#2563eb" stroke="#1e40af" stroke-width="1.2"/>
+      <line x1="80" y1="39" x2="64" y2="32" stroke="#fed7aa" stroke-width="4" stroke-linecap="round"/>
+      <line x1="96" y1="39" x2="114" y2="30" stroke="#fed7aa" stroke-width="4" stroke-linecap="round"/>
+      <line x1="83" y1="56" x2="68" y2="76" stroke="#1e293b" stroke-width="5" stroke-linecap="round"/>
+      <line x1="93" y1="56" x2="112" y2="72" stroke="#1e293b" stroke-width="5" stroke-linecap="round"/>
+      <!-- Cone rintangan & lintasan gerak berpindah -->
+      <polygon points="148,90 158,64 168,90" fill="#f97316" stroke="#c2410c" stroke-width="1.4"/>
+      <path d="M116,44 Q152,22 182,56" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-dasharray="4,2"/>
+      <polygon points="186,60 177,56 184,50" fill="#16a34a"/>
+      <text x="110" y="112" font-size="8.6" font-weight="bold" text-anchor="middle" fill="#1e293b">${avoidSpoiler ? 'Gerak Berpindah Tempat' : 'Anak SD Berlari &amp; Melompat (Lokomotor)'}</text>
+    </svg>`;
+    return { svg, sig: 'pjok_locomotor', label: 'Ilustrasi Gerak Lokomotor Anak SD' };
+  }
+  if (kind === 'manipulative') {
+    const svg = `
+    <svg viewBox="0 0 220 118" width="190" height="102" xmlns="http://www.w3.org/2000/svg" style="display:block; margin:6px auto;">
+      <rect x="10" y="90" width="200" height="10" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.2"/>
+      <!-- Anak SD menendang/melempar bola -->
+      <circle cx="72" cy="24" r="9" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+      <path d="M64 21 C66 13, 78 13, 80 21 Z" fill="#1e293b"/>
+      <path d="M64 34 L80 34 L82 58 L62 58 Z" fill="#dc2626" stroke="#991b1b" stroke-width="1.2"/>
+      <line x1="64" y1="39" x2="48" y2="50" stroke="#fed7aa" stroke-width="4" stroke-linecap="round"/>
+      <line x1="80" y1="39" x2="98" y2="44" stroke="#fed7aa" stroke-width="4" stroke-linecap="round"/>
+      <line x1="68" y1="58" x2="64" y2="90" stroke="#1e293b" stroke-width="5" stroke-linecap="round"/>
+      <line x1="77" y1="58" x2="98" y2="82" stroke="#2563eb" stroke-width="5" stroke-linecap="round"/>
+      <!-- Bola & lintasan -->
+      <circle cx="116" cy="78" r="10" fill="#ffffff" stroke="#0f172a" stroke-width="2"/>
+      <path d="M128,72 Q156,42 184,54" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-dasharray="4,2"/>
+      <polygon points="188,56 179,57 183,49" fill="#ea580c"/>
+      <text x="110" y="112" font-size="8.6" font-weight="bold" text-anchor="middle" fill="#1e293b">${avoidSpoiler ? 'Gerak Menggunakan Alat Bola' : 'Anak SD Mengontrol &amp; Menendang Bola'}</text>
+    </svg>`;
+    return { svg, sig: 'pjok_manipulative', label: 'Ilustrasi Gerak Manipulatif Anak SD' };
+  }
   if (kind === 'stretch') {
     const svg = `
     <svg viewBox="0 0 200 110" width="172" height="94" xmlns="http://www.w3.org/2000/svg" style="display:block; margin:6px auto;">
@@ -2030,8 +2099,23 @@ export function synthesizeContextual2dVisual(
       const res = buildPjok2dSvg('basketball', avoidSpoiler);
       return { svg: res.svg, visualType: 'dynamic_court', title: res.label, signature: res.sig };
     }
-    if (normType === 'dynamic_pjok_gerak' || /\b(lokomotor|nonlokomotor|non-lokomotor|manipulatif|gerak\s+dasar|berjalan|melompat|melempar|menangkap)\b/.test(lower)) {
-      const res = buildPjok2dSvg('gerak', avoidSpoiler);
+    if (
+      normType === 'dynamic_pjok_swing' ||
+      /\b(mengayun(?:kan)?\s+(?:kaki|lengan|tangan)|ayunan\s+(?:kaki|tungkai|lengan)|non-?lokomotor|menekuk|meliuk|memutar\s+badan|keseimbangan\s+statis)\b/.test(lower)
+    ) {
+      const res = buildPjok2dSvg('swing_leg', avoidSpoiler);
+      return { svg: res.svg, visualType: 'dynamic_pjok_gerak', title: avoidSpoiler ? 'Gambar Konteks Soal' : res.label, signature: res.sig };
+    }
+    if (/\b(manipulatif|menendang\s+bola|melempar\s+bola|menangkap\s+bola|memantulkan|menggiring)\b/.test(lower)) {
+      const res = buildPjok2dSvg('manipulative', avoidSpoiler);
+      return { svg: res.svg, visualType: 'dynamic_pjok_gerak', title: avoidSpoiler ? 'Gambar Konteks Soal' : res.label, signature: res.sig };
+    }
+    if (/\b(lokomotor|berjalan|berlari|melompat|meloncat|berjingkat)\b/.test(lower)) {
+      const res = buildPjok2dSvg('locomotor', avoidSpoiler);
+      return { svg: res.svg, visualType: 'dynamic_pjok_gerak', title: avoidSpoiler ? 'Gambar Konteks Soal' : res.label, signature: res.sig };
+    }
+    if (normType === 'dynamic_pjok_gerak' || /\b(gerak\s+dasar|aktivitas\s+gerak)\b/.test(lower)) {
+      const res = buildPjok2dSvg('swing_leg', avoidSpoiler);
       return { svg: res.svg, visualType: 'dynamic_pjok_gerak', title: avoidSpoiler ? 'Gambar Konteks Soal' : res.label, signature: res.sig };
     }
     if (/\b(lari|atletik|estafet|lompat\s+jauh|start)\b/.test(lower)) {
@@ -2090,7 +2174,7 @@ export function synthesizeContextual2dVisual(
     normType === 'dynamic_mosque' ||
     normType === 'dynamic_quran'
   ) {
-    if (normType === 'dynamic_pai_wudu' || /\b(wud[hu]u?|bersuci|tayamum|thaharah|hadas|najis)\b/.test(lower)) {
+    if (normType === 'dynamic_pai_wudu' || /(berwud[hu]?u|\bwud[hu]?u|\bbersuci|\btayamum|\bthaharah|\bhadas|\bnajis)/.test(lower)) {
       const res = buildPai2dSvg('wudu', avoidSpoiler);
       return { svg: res.svg, visualType: 'dynamic_pai_wudu', title: avoidSpoiler ? 'Gambar Konteks Soal' : res.label, signature: res.sig };
     }

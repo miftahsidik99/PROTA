@@ -768,7 +768,7 @@ const escXml = (s: string): string =>
 
 /**
  * Generates a concrete, colorful, Indonesia-elementary-school friendly 2D educational illustration SVG
- * tailored to the exact subject & TP/ATP topic (never generic text-only boxes).
+ * tailored to the exact subject & TP/ATP topic (e.g., SD student swinging leg for PJOK, fractions/geometry for Math, etc.).
  */
 export const buildConcretePosterIllustrationSvg = (
     subject: string,
@@ -779,8 +779,270 @@ export const buildConcretePosterIllustrationSvg = (
 ): string => {
     const combined = `${subject} ${elementName} ${tpText} ${atpText}`.toLowerCase();
     const subjLower = subject.toLowerCase();
+    const shortLabel = escXml(captionTitle.length > 44 ? captionTitle.slice(0, 42) + '…' : captionTitle);
 
-    // 1. Try specialized rich diagram from dynamic2dVisualHelper first for Math/Science/PAIBP/Sunda/PPKn/PJOK
+    // 1. PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan) — Specific SD Student Action Scenes
+    if (subjLower.includes('pjok') || subjLower.includes('jasmani') || subjLower.includes('olahraga')) {
+        // 1A. Mengayun Kaki / Gerak Nonlokomotor / Keseimbangan / Menekuk / Meliuk
+        if (/\b(mengayun|ayunan|ayun\s+kaki|non-?lokomotor|keseimbangan|menekuk|meliuk|memutar)\b/.test(combined)) {
+            return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+                <rect x="0" y="0" width="460" height="190" rx="14" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+                <rect x="0" y="144" width="460" height="46" fill="#bbf7d0"/>
+                <line x1="20" y1="144" x2="215" y2="144" stroke="#16a34a" stroke-width="2"/>
+                <!-- Anak SD Berseragam Olahraga Merah-Putih Sedang Mengayunkan Kaki -->
+                <g transform="translate(106, 22)">
+                    <!-- Kepala & Rambut -->
+                    <circle cx="0" cy="18" r="15" fill="#fed7aa" stroke="#9a3412" stroke-width="1.6"/>
+                    <path d="M-14 14 C-11 -2, 13 -2, 14 14 C6 8, -6 8, -14 14 Z" fill="#1e293b"/>
+                    <circle cx="4" cy="17" r="1.7" fill="#0f172a"/>
+                    <path d="M1 24 Q5 27 8 24" fill="none" stroke="#9a3412" stroke-width="1.5"/>
+                    <!-- Badan Kaos Olahraga SD -->
+                    <path d="M-13 34 L13 34 L15 74 L-15 74 Z" fill="#dc2626" stroke="#991b1b" stroke-width="1.5"/>
+                    <rect x="-13" y="34" width="26" height="8" fill="#ffffff" opacity="0.9"/>
+                    <!-- Lengan Terentang Menjaga Keseimbangan -->
+                    <line x1="-14" y1="42" x2="-46" y2="52" stroke="#fed7aa" stroke-width="7" stroke-linecap="round"/>
+                    <line x1="14" y1="42" x2="46" y2="48" stroke="#fed7aa" stroke-width="7" stroke-linecap="round"/>
+                    <!-- Kaki Tumpu Tegak Kokoh -->
+                    <line x1="-6" y1="74" x2="-8" y2="120" stroke="#1e3a8a" stroke-width="9" stroke-linecap="round"/>
+                    <ellipse cx="-3" cy="122" rx="10" ry="4.5" fill="#0f172a"/>
+                    <!-- Posisi Ayunan ke Belakang (Garis Putus-putus) -->
+                    <line x1="5" y1="74" x2="-34" y2="104" stroke="#93c5fd" stroke-width="6" stroke-dasharray="5,3" stroke-linecap="round"/>
+                    <!-- Kaki Kanan Mengayun ke Depan -->
+                    <line x1="6" y1="74" x2="48" y2="96" stroke="#2563eb" stroke-width="9" stroke-linecap="round"/>
+                    <ellipse cx="53" cy="98" rx="10" ry="4.5" fill="#1d4ed8" transform="rotate(22 53 98)"/>
+                    <!-- Busur Panah Gerakan Mengayun Kaki -->
+                    <path d="M-36 112 Q10 128 52 106" fill="none" stroke="#ea580c" stroke-width="3" stroke-dasharray="5,3"/>
+                    <polygon points="58,103 46,100 50,111" fill="#ea580c"/>
+                    <polygon points="-42,109 -31,106 -34,116" fill="#ea580c"/>
+                    <text x="10" y="136" font-size="9.5" font-weight="700" text-anchor="middle" fill="#c2410c">Ayun Depan &amp; Belakang</text>
+                </g>
+                <!-- Panel Panduan Teknik Gerak Anak SD -->
+                <g transform="translate(216, 22)">
+                    <rect x="0" y="0" width="224" height="132" rx="12" fill="#ffffff" stroke="#86efac" stroke-width="1.4"/>
+                    <text x="112" y="22" font-size="11" font-weight="800" text-anchor="middle" fill="#14532d">Teknik Mengayun Kaki yang Benar</text>
+                    <circle cx="24" cy="48" r="11" fill="#dcfce7"/><text x="24" y="52" font-size="10" font-weight="700" text-anchor="middle" fill="#166534">1</text>
+                    <text x="42" y="51" font-size="9.8" font-weight="600" fill="#1e293b">Berdiri tegak, rentangkan kedua lengan</text>
+                    <circle cx="24" cy="78" r="11" fill="#dbeafe"/><text x="24" y="82" font-size="10" font-weight="700" text-anchor="middle" fill="#1d4ed8">2</text>
+                    <text x="42" y="81" font-size="9.8" font-weight="600" fill="#1e293b">Ayunkan 1 kaki lurus ke depan-belakang</text>
+                    <circle cx="24" cy="108" r="11" fill="#ffedd5"/><text x="24" y="112" font-size="10" font-weight="700" text-anchor="middle" fill="#c2410c">3</text>
+                    <text x="42" y="111" font-size="9.8" font-weight="600" fill="#1e293b">Kaki tumpu kuat &amp; pandangan ke depan</text>
+                </g>
+                <text x="230" y="174" font-size="10.5" font-weight="700" text-anchor="middle" fill="#14532d">${shortLabel}</text>
+            </svg>`;
+        }
+
+        // 1B. Gerak Lokomotor / Berlari / Melompat / Atletik
+        if (/\b(lokomotor|berlari|lari|berjalan|melompat|meloncat|atletik|lompat\s+jauh)\b/.test(combined)) {
+            return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+                <rect x="0" y="0" width="460" height="190" rx="14" fill="#ecfeff" stroke="#67e8f9" stroke-width="1.5"/>
+                <rect x="0" y="142" width="460" height="48" fill="#fed7aa"/>
+                <line x1="20" y1="142" x2="440" y2="142" stroke="#ea580c" stroke-width="2"/>
+                <!-- Anak SD Melangkah & Melompat -->
+                <g transform="translate(96, 26)">
+                    <circle cx="0" cy="16" r="14" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+                    <path d="M-13 12 C-10 -2, 12 -2, 13 12 Z" fill="#1e293b"/>
+                    <path d="M-12 31 L12 31 L14 68 L-14 68 Z" fill="#2563eb"/>
+                    <line x1="-12" y1="38" x2="-34" y2="28" stroke="#fed7aa" stroke-width="6.5" stroke-linecap="round"/>
+                    <line x1="12" y1="38" x2="36" y2="26" stroke="#fed7aa" stroke-width="6.5" stroke-linecap="round"/>
+                    <line x1="-6" y1="68" x2="-28" y2="104" stroke="#1e293b" stroke-width="8" stroke-linecap="round"/>
+                    <line x1="8" y1="68" x2="32" y2="96" stroke="#1e293b" stroke-width="8" stroke-linecap="round"/>
+                </g>
+                <!-- Cone Rintangan & Lintasan Berpindah Tempat -->
+                <polygon points="186,142 198,108 210,142" fill="#f97316" stroke="#c2410c" stroke-width="1.5"/>
+                <path d="M138 66 Q198 24 256 76" fill="none" stroke="#0284c7" stroke-width="3" stroke-dasharray="5,3"/>
+                <polygon points="262,80 250,78 256,68" fill="#0284c7"/>
+                <g transform="translate(278, 28)">
+                    <rect x="0" y="0" width="164" height="106" rx="12" fill="#ffffff" stroke="#bae6fd" stroke-width="1.4"/>
+                    <text x="82" y="24" font-size="10.5" font-weight="800" text-anchor="middle" fill="#0369a1">Ciri Gerak Lokomotor</text>
+                    <text x="14" y="48" font-size="9.5" font-weight="600" fill="#1e293b">• Tubuh berpindah titik A → B</text>
+                    <text x="14" y="68" font-size="9.5" font-weight="600" fill="#1e293b">• Ayunan lengan seirama kaki</text>
+                    <text x="14" y="88" font-size="9.5" font-weight="600" fill="#1e293b">• Mendarat lutut sedikit lentur</text>
+                </g>
+                <text x="230" y="172" font-size="10.5" font-weight="700" text-anchor="middle" fill="#9a3412">${shortLabel}</text>
+            </svg>`;
+        }
+
+        // 1C. Gerak Manipulatif / Permainan Bola (Sepak Bola, Voli, Basket, Kasti)
+        if (/\b(manipulatif|bola|menendang|melempar|menangkap|memantulkan|bulu\s+tangkis|kasti)\b/.test(combined)) {
+            return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+                <rect x="0" y="0" width="460" height="190" rx="14" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+                <rect x="0" y="142" width="460" height="48" fill="#86efac"/>
+                <!-- Anak SD Mengontrol & Mengoper Bola -->
+                <g transform="translate(92, 26)">
+                    <circle cx="0" cy="16" r="14" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+                    <path d="M-13 12 C-10 -2, 12 -2, 13 12 Z" fill="#1e293b"/>
+                    <path d="M-12 31 L12 31 L14 68 L-14 68 Z" fill="#dc2626"/>
+                    <line x1="-12" y1="39" x2="-34" y2="54" stroke="#fed7aa" stroke-width="6.5" stroke-linecap="round"/>
+                    <line x1="12" y1="39" x2="36" y2="48" stroke="#fed7aa" stroke-width="6.5" stroke-linecap="round"/>
+                    <line x1="-6" y1="68" x2="-8" y2="115" stroke="#1e293b" stroke-width="8" stroke-linecap="round"/>
+                    <line x1="7" y1="68" x2="34" y2="102" stroke="#2563eb" stroke-width="8" stroke-linecap="round"/>
+                </g>
+                <circle cx="154" cy="126" r="13" fill="#ffffff" stroke="#0f172a" stroke-width="2.2"/>
+                <path d="M170 116 Q216 64 260 88" fill="none" stroke="#ea580c" stroke-width="3" stroke-dasharray="5,3"/>
+                <polygon points="266,91 254,92 259,82" fill="#ea580c"/>
+                <g transform="translate(278, 28)">
+                    <rect x="0" y="0" width="164" height="106" rx="12" fill="#ffffff" stroke="#86efac" stroke-width="1.4"/>
+                    <text x="82" y="24" font-size="10.5" font-weight="800" text-anchor="middle" fill="#166534">Gerak Manipulatif</text>
+                    <text x="14" y="48" font-size="9.5" font-weight="600" fill="#1e293b">• Fokus mata tertuju pada bola</text>
+                    <text x="14" y="68" font-size="9.5" font-weight="600" fill="#1e293b">• Perkenaan kaki/tangan tepat</text>
+                    <text x="14" y="88" font-size="9.5" font-weight="600" fill="#1e293b">• Gerak lanjutan tetap seimbang</text>
+                </g>
+                <text x="230" y="172" font-size="10.5" font-weight="700" text-anchor="middle" fill="#14532d">${shortLabel}</text>
+            </svg>`;
+        }
+
+        // 1D. Default PJOK (Pemanasan, Senam Lantai, Kebugaran, Kesehatan SD)
+        return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+            <rect x="0" y="0" width="460" height="190" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+            <rect x="0" y="142" width="460" height="48" fill="#bfdbfe"/>
+            <!-- Matras Biru & Anak SD Peregangan/Senam -->
+            <polygon points="36,142 216,142 198,122 54,122" fill="#3b82f6" stroke="#1d4ed8" stroke-width="2"/>
+            <g transform="translate(126, 26)">
+                <circle cx="0" cy="16" r="14" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+                <path d="M-13 12 C-10 -2, 12 -2, 13 12 Z" fill="#1e293b"/>
+                <path d="M-12 31 L12 31 L14 68 L-14 68 Z" fill="#dc2626"/>
+                <line x1="-12" y1="38" x2="-40" y2="16" stroke="#fed7aa" stroke-width="6.5" stroke-linecap="round"/>
+                <line x1="12" y1="38" x2="40" y2="16" stroke="#fed7aa" stroke-width="6.5" stroke-linecap="round"/>
+                <line x1="-7" y1="68" x2="-22" y2="104" stroke="#1e293b" stroke-width="8" stroke-linecap="round"/>
+                <line x1="7" y1="68" x2="22" y2="104" stroke="#1e293b" stroke-width="8" stroke-linecap="round"/>
+            </g>
+            <g transform="translate(246, 28)">
+                <rect x="0" y="0" width="194" height="106" rx="12" fill="#ffffff" stroke="#93c5fd" stroke-width="1.4"/>
+                <text x="97" y="24" font-size="10.5" font-weight="800" text-anchor="middle" fill="#1e40af">Prinsip Aktivitas PJOK Aman</text>
+                <text x="14" y="48" font-size="9.5" font-weight="600" fill="#1e293b">1. Pemanasan sebelum gerak inti</text>
+                <text x="14" y="68" font-size="9.5" font-weight="600" fill="#1e293b">2. Postur benar &amp; area aman</text>
+                <text x="14" y="88" font-size="9.5" font-weight="600" fill="#1e293b">3. Pendinginan &amp; minum cukup air</text>
+            </g>
+            <text x="230" y="172" font-size="10.5" font-weight="700" text-anchor="middle" fill="#1e3a8a">${shortLabel}</text>
+        </svg>`;
+    }
+
+    // 2. Pendidikan Pancasila (PPKn) — Musyawarah, Gotong Royong, Hak & Kewajiban, Garuda
+    if (subjLower.includes('pancasila') || subjLower.includes('ppkn')) {
+        if (/\b(hak\s+dan\s+kewajiban|kewajiban|hak\s+anak|aturan|tata\s+tertib)\b/.test(combined)) {
+            return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+                <rect x="0" y="0" width="460" height="190" rx="14" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+                <!-- Neraca Seimbang Hak dan Kewajiban -->
+                <polygon points="184,148 276,148 230,96" fill="#334155"/>
+                <line x1="92" y1="62" x2="368" y2="62" stroke="#0f172a" stroke-width="5" stroke-linecap="round"/>
+                <circle cx="230" cy="62" r="8" fill="#dc2626"/>
+                <rect x="52" y="76" width="112" height="52" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+                <text x="108" y="99" font-size="12" font-weight="800" text-anchor="middle" fill="#1e3a8a">HAK SISWA</text>
+                <text x="108" y="116" font-size="9.5" text-anchor="middle" fill="#1e40af">Belajar &amp; Dihargai</text>
+                <rect x="296" y="76" width="112" height="52" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+                <text x="352" y="99" font-size="12" font-weight="800" text-anchor="middle" fill="#14532d">KEWAJIBAN</text>
+                <text x="352" y="116" font-size="9.5" text-anchor="middle" fill="#166534">Taat Aturan &amp; Tugas</text>
+                <text x="230" y="174" font-size="10.5" font-weight="700" text-anchor="middle" fill="#7f1d1d">${shortLabel}</text>
+            </svg>`;
+        }
+        return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+            <rect x="0" y="0" width="460" height="190" rx="14" fill="#fff1f2" stroke="#fda4af" stroke-width="1.5"/>
+            <rect x="0" y="142" width="460" height="48" fill="#ffe4e6"/>
+            <!-- Musyawarah Siswa SD & Bendera Merah Putih -->
+            <rect x="42" y="28" width="10" height="114" fill="#64748b"/>
+            <rect x="52" y="28" width="64" height="22" fill="#dc2626"/>
+            <rect x="52" y="50" width="64" height="22" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+            <!-- Meja Diskusi Kelompok SD -->
+            <ellipse cx="265" cy="116" rx="108" ry="26" fill="#fef3c7" stroke="#b45309" stroke-width="2.5"/>
+            <circle cx="196" cy="76" r="16" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+            <circle cx="265" cy="68" r="16" fill="#fde68a" stroke="#92400e" stroke-width="1.5"/>
+            <circle cx="334" cy="76" r="16" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+            <text x="265" y="120" font-size="11" font-weight="800" text-anchor="middle" fill="#78350f">Musyawarah &amp; Gotong Royong Pancasila</text>
+            <text x="230" y="172" font-size="10.5" font-weight="700" text-anchor="middle" fill="#881337">${shortLabel}</text>
+        </svg>`;
+    }
+
+    // 3. Seni Budaya (Musik, Tari, Rupa, Teater)
+    if (subjLower.includes('seni')) {
+        if (/\b(musik|nada|lagu|irama|birama|alat\s+musik|angklung|pianika)\b/.test(combined)) {
+            return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+                <rect x="0" y="0" width="460" height="190" rx="14" fill="#fdf4ff" stroke="#e879f9" stroke-width="1.5"/>
+                <g transform="translate(36, 36)">
+                    <line x1="0" y1="16" x2="230" y2="16" stroke="#64748b" stroke-width="1.5"/>
+                    <line x1="0" y1="30" x2="230" y2="30" stroke="#64748b" stroke-width="1.5"/>
+                    <line x1="0" y1="44" x2="230" y2="44" stroke="#64748b" stroke-width="1.5"/>
+                    <line x1="0" y1="58" x2="230" y2="58" stroke="#64748b" stroke-width="1.5"/>
+                    <line x1="0" y1="72" x2="230" y2="72" stroke="#64748b" stroke-width="1.5"/>
+                    <ellipse cx="44" cy="65" rx="9" ry="6.5" fill="#7c3aed"/><line x1="52" y1="65" x2="52" y2="24" stroke="#7c3aed" stroke-width="2.5"/>
+                    <ellipse cx="104" cy="51" rx="9" ry="6.5" fill="#db2777"/><line x1="112" y1="51" x2="112" y2="14" stroke="#db2777" stroke-width="2.5"/>
+                    <ellipse cx="164" cy="37" rx="9" ry="6.5" fill="#2563eb"/><line x1="172" y1="37" x2="172" y2="4" stroke="#2563eb" stroke-width="2.5"/>
+                </g>
+                <g transform="translate(292, 32)">
+                    <rect x="0" y="0" width="144" height="106" rx="12" fill="#ffffff" stroke="#f0abfc" stroke-width="1.5"/>
+                    <text x="72" y="24" font-size="10.5" font-weight="800" text-anchor="middle" fill="#86198f">Unsur Seni Musik</text>
+                    <text x="14" y="48" font-size="9.5" fill="#1e293b">• Nada (Tinggi-Rendah)</text>
+                    <text x="14" y="68" font-size="9.5" fill="#1e293b">• Irama &amp; Birama</text>
+                    <text x="14" y="88" font-size="9.5" fill="#1e293b">• Tempo &amp; Dinamika</text>
+                </g>
+                <text x="230" y="172" font-size="10.5" font-weight="700" text-anchor="middle" fill="#701a75">${shortLabel}</text>
+            </svg>`;
+        }
+        return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+            <rect x="0" y="0" width="460" height="190" rx="14" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+            <!-- Lingkaran Warna Primer & Pola Ragam Hias -->
+            <circle cx="96" cy="76" r="34" fill="#ef4444" fill-opacity="0.75"/>
+            <circle cx="144" cy="76" r="34" fill="#3b82f6" fill-opacity="0.75"/>
+            <circle cx="120" cy="106" r="34" fill="#facc15" fill-opacity="0.75"/>
+            <g transform="translate(226, 26)">
+                <rect x="0" y="0" width="206" height="122" rx="12" fill="#ffffff" stroke="#fed7aa" stroke-width="1.5"/>
+                <text x="103" y="24" font-size="10.5" font-weight="800" text-anchor="middle" fill="#9a3412">Unsur &amp; Prinsip Karya Seni</text>
+                <text x="14" y="48" font-size="9.5" fill="#1e293b">• Titik, Garis, Bidang &amp; Bentuk</text>
+                <text x="14" y="68" font-size="9.5" fill="#1e293b">• Warna Primer &amp; Sekunder</text>
+                <text x="14" y="88" font-size="9.5" fill="#1e293b">• Tekstur, Pola &amp; Keseimbangan</text>
+                <text x="14" y="108" font-size="9.5" fill="#1e293b">• Ekspresi Budaya Nusantara</text>
+            </g>
+            <text x="230" y="172" font-size="10.5" font-weight="700" text-anchor="middle" fill="#7c2d12">${shortLabel}</text>
+        </svg>`;
+    }
+
+    // 4. Koding & Kecerdasan Artifisial (AI)
+    if (subjLower.includes('koding') || subjLower.includes('kecerdasan')) {
+        return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+            <rect x="0" y="0" width="460" height="190" rx="14" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1.5"/>
+            <rect x="26" y="60" width="76" height="44" rx="22" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+            <text x="64" y="86" font-size="10.5" font-weight="800" text-anchor="middle" fill="#14532d">MULAI</text>
+            <line x1="102" y1="82" x2="128" y2="82" stroke="#475569" stroke-width="2.5"/>
+            <rect x="128" y="56" width="92" height="52" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+            <text x="174" y="79" font-size="10" font-weight="800" text-anchor="middle" fill="#1e3a8a">INPUT DATA</text>
+            <text x="174" y="95" font-size="9" text-anchor="middle" fill="#1d4ed8">Langkah Logis</text>
+            <line x1="220" y1="82" x2="246" y2="82" stroke="#475569" stroke-width="2.5"/>
+            <polygon points="294,42 342,82 294,122 246,82" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+            <text x="294" y="80" font-size="9.5" font-weight="800" text-anchor="middle" fill="#92400e">JIKA</text>
+            <text x="294" y="93" font-size="8.5" text-anchor="middle" fill="#78350f">Kondisi?</text>
+            <line x1="342" y1="82" x2="366" y2="82" stroke="#475569" stroke-width="2.5"/>
+            <rect x="366" y="60" width="72" height="44" rx="10" fill="#ede9fe" stroke="#6d28d9" stroke-width="2"/>
+            <text x="402" y="86" font-size="10" font-weight="800" text-anchor="middle" fill="#4c1d95">HASIL</text>
+            <text x="230" y="172" font-size="10.5" font-weight="700" text-anchor="middle" fill="#4c1d95">${shortLabel}</text>
+        </svg>`;
+    }
+
+    // 5. PAIBP Wudu rich 460x190 poster scene (takes precedence over compact icon)
+    if ((subjLower.includes('islam') || subjLower.includes('pai')) && /(berwud[hu]?u|wud[hu]?u|bersuci|tayamum|thaharah)/.test(combined)) {
+        return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
+            <rect x="0" y="0" width="460" height="190" rx="14" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
+            <rect x="0" y="148" width="460" height="42" rx="0" fill="#d1fae5"/>
+            <rect x="42" y="42" width="12" height="90" rx="4" fill="#64748b"/>
+            <path d="M54 54 H96 Q106 54 106 66 V72" fill="none" stroke="#475569" stroke-width="8" stroke-linecap="round"/>
+            <path d="M106 76 Q102 96 106 116 Q110 132 106 146" fill="none" stroke="#0ea5e9" stroke-width="4" stroke-dasharray="5,3"/>
+            <circle cx="170" cy="68" r="20" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
+            <rect x="152" y="44" width="36" height="12" rx="5" fill="#065f46"/>
+            <path d="M148 148 C148 102, 192 102, 192 148 Z" fill="#059669"/>
+            <path d="M150 112 L114 98" stroke="#fed7aa" stroke-width="9" stroke-linecap="round"/>
+            <g transform="translate(230, 26)">
+                <rect x="0" y="0" width="206" height="130" rx="12" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.2"/>
+                <text x="103" y="22" font-size="11" font-weight="700" text-anchor="middle" fill="#065f46">Urutan Rukun Berwudu</text>
+                <circle cx="32" cy="52" r="14" fill="#d1fae5"/><text x="32" y="56" font-size="10" font-weight="700" text-anchor="middle" fill="#065f46">1</text>
+                <text x="54" y="55" font-size="10" font-weight="600" fill="#1e293b">Niat &amp; Membasuh Wajah</text>
+                <circle cx="32" cy="84" r="14" fill="#bae6fd"/><text x="32" y="88" font-size="10" font-weight="700" text-anchor="middle" fill="#0369a1">2</text>
+                <text x="54" y="87" font-size="10" font-weight="600" fill="#1e293b">Tangan s.d. Siku &amp; Usap Kepala</text>
+                <circle cx="32" cy="114" r="14" fill="#fef3c7"/><text x="32" y="118" font-size="10" font-weight="700" text-anchor="middle" fill="#92400e">3</text>
+                <text x="54" y="117" font-size="10" font-weight="600" fill="#1e293b">Basuh Kaki &amp; Tertib Berurutan</text>
+            </g>
+            <text x="230" y="175" font-size="10.5" font-weight="700" text-anchor="middle" fill="#064e3b">${shortLabel}</text>
+        </svg>`;
+    }
+
+    // 6. Try specialized rich diagram from dynamic2dVisualHelper (Math exact numbers, IPAS diagrams, Sunda, English, Bahasa, PAIBP)
     const dyn = synthesizeContextual2dVisual(
         {
             question: `${tpText} ${atpText}`,
@@ -788,164 +1050,105 @@ export const buildConcretePosterIllustrationSvg = (
             visualTitle: captionTitle
         },
         subject,
-        { allowGeneralScene: false }
+        { allowGeneralScene: true }
     );
     if (dyn?.svg) {
         return dyn.svg;
     }
 
-    const shortLabel = escXml(captionTitle.length > 42 ? captionTitle.slice(0, 40) + '…' : captionTitle);
-
-    // 2. PAIBP (Pendidikan Agama Islam & Budi Pekerti) concrete scene
+    // 7. PAIBP (Pendidikan Agama Islam & Budi Pekerti) default scene
     if (subjLower.includes('islam') || subjLower.includes('pai')) {
-        if (/(wudu|wudhu|bersuci|tayamum)/.test(combined)) {
-            return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
-                <rect x="0" y="0" width="460" height="190" rx="14" fill="#ecfdf5" stroke="#6ee7b7" strokeWidth="1.5"/>
-                <rect x="0" y="148" width="460" height="42" rx="0" fill="#d1fae5"/>
-                <!-- Keran Air & Wudu Station -->
-                <rect x="42" y="42" width="12" height="90" rx="4" fill="#64748b"/>
-                <path d="M54 54 H96 Q106 54 106 66 V72" fill="none" stroke="#475569" strokeWidth="8" strokeLinecap="round"/>
-                <path d="M106 76 Q102 96 106 116 Q110 132 106 146" fill="none" stroke="#0ea5e9" strokeWidth="4" strokeDasharray="5,3"/>
-                <circle cx="100" cy="136" r="4" fill="#38bdf8"/>
-                <circle cx="114" cy="140" r="3" fill="#38bdf8"/>
-                <!-- Anak SD Mempraktikkan Wudu -->
-                <circle cx="170" cy="68" r="20" fill="#fed7aa" stroke="#9a3412" strokeWidth="1.5"/>
-                <rect x="152" y="44" width="36" height="12" rx="5" fill="#065f46"/>
-                <path d="M148 148 C148 102, 192 102, 192 148 Z" fill="#059669"/>
-                <path d="M150 112 L114 98" stroke="#fed7aa" strokeWidth="9" strokeLinecap="round"/>
-                <!-- Langkah Urut Berwudu Icons -->
-                <g transform="translate(230, 26)">
-                    <rect x="0" y="0" width="206" height="130" rx="12" fill="#ffffff" stroke="#a7f3d0" strokeWidth="1.2"/>
-                    <text x="103" y="22" fontSize="11" fontWeight="700" textAnchor="middle" fill="#065f46">Urutan Bersuci Sebelum Ibadah</text>
-                    <circle cx="32" cy="52" r="14" fill="#d1fae5"/><text x="32" y="56" fontSize="10" fontWeight="700" textAnchor="middle" fill="#065f46">1</text>
-                    <text x="54" y="55" fontSize="10" fontWeight="600" fill="#1e293b">Niat, Cuci Tangan &amp; Wajah</text>
-                    <circle cx="32" cy="84" r="14" fill="#bae6fd"/><text x="32" y="88" fontSize="10" fontWeight="700" textAnchor="middle" fill="#0369a1">2</text>
-                    <text x="54" y="87" fontSize="10" fontWeight="600" fill="#1e293b">Basuh Tangan s.d. Siku &amp; Kepala</text>
-                    <circle cx="32" cy="114" r="14" fill="#fef3c7"/><text x="32" y="118" fontSize="10" fontWeight="700" textAnchor="middle" fill="#92400e">3</text>
-                    <text x="54" y="117" fontSize="10" fontWeight="600" fill="#1e293b">Basuh Kaki Tertib &amp; Berdoa</text>
-                </g>
-                <text x="230" y="175" fontSize="10.5" fontWeight="700" textAnchor="middle" fill="#064e3b">${shortLabel}</text>
-            </svg>`;
-        }
-
-        // Default PAIBP concrete Mosque + Quran + Anak Muslim Indonesia scene
         return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
-            <rect x="0" y="0" width="460" height="190" rx="14" fill="#f0fdf4" stroke="#86efac" strokeWidth="1.5"/>
+            <rect x="0" y="0" width="460" height="190" rx="14" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
             <rect x="0" y="148" width="460" height="42" fill="#dcfce7"/>
-            <!-- Masjid Nusantara -->
-            <path d="M52 94 C52 54, 138 54, 138 94 Z" fill="#059669" stroke="#065f46" strokeWidth="1.5"/>
+            <path d="M52 94 C52 54, 138 54, 138 94 Z" fill="#059669" stroke="#065f46" stroke-width="1.5"/>
             <circle cx="95" cy="46" r="7" fill="#eab308"/>
-            <rect x="44" y="94" width="102" height="54" rx="4" fill="#ffffff" stroke="#059669" strokeWidth="1.5"/>
+            <rect x="44" y="94" width="102" height="54" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1.5"/>
             <path d="M82 148 V116 A13 13 0 0 1 108 116 V148 Z" fill="#047857"/>
-            <rect x="150" y="54" width="16" height="94" fill="#ecfdf5" stroke="#059669" strokeWidth="1.2"/>
-            <polygon points="147,54 158,36 169,54" fill="#059669"/>
-            <!-- Rehal & Mushaf Al-Qur'an -->
             <g transform="translate(210, 44)">
-                <path d="M18 96 L56 68 L94 96" fill="none" stroke="#92400e" strokeWidth="6" strokeLinecap="round"/>
-                <path d="M12 62 Q36 52 56 66 Q76 52 100 62 L100 90 Q76 80 56 92 Q36 80 12 90 Z" fill="#ffffff" stroke="#0f766e" strokeWidth="2"/>
-                <line x1="22" y1="70" x2="48" y2="70" stroke="#94a3b8" strokeWidth="2"/>
-                <line x1="22" y1="78" x2="48" y2="78" stroke="#94a3b8" strokeWidth="2"/>
-                <line x1="64" y1="70" x2="90" y2="70" stroke="#94a3b8" strokeWidth="2"/>
-                <line x1="64" y1="78" x2="90" y2="78" stroke="#94a3b8" strokeWidth="2"/>
+                <path d="M18 96 L56 68 L94 96" fill="none" stroke="#92400e" stroke-width="6" stroke-linecap="round"/>
+                <path d="M12 62 Q36 52 56 66 Q76 52 100 62 L100 90 Q76 80 56 92 Q36 80 12 90 Z" fill="#ffffff" stroke="#0f766e" stroke-width="2"/>
+                <line x1="22" y1="70" x2="48" y2="70" stroke="#94a3b8" stroke-width="2"/>
+                <line x1="64" y1="70" x2="90" y2="70" stroke="#94a3b8" stroke-width="2"/>
             </g>
-            <!-- Siswa Berakhlak Mulia -->
             <g transform="translate(368, 76)">
-                <circle cx="0" cy="-12" r="18" fill="#fed7aa" stroke="#9a3412" strokeWidth="1.5"/>
+                <circle cx="0" cy="-12" r="18" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
                 <rect x="-15" y="-32" width="30" height="10" rx="4" fill="#0f172a"/>
-                <circle cx="-5" cy="-13" r="2" fill="#0f172a"/><circle cx="5" cy="-13" r="2" fill="#0f172a"/>
-                <path d="M-5 -6 Q0 -1 5 -6" fill="none" stroke="#9a3412" strokeWidth="1.6"/>
                 <path d="M-22 72 C-22 24, 22 24, 22 72 Z" fill="#0d9488"/>
             </g>
-            <text x="230" y="174" fontSize="10.5" fontWeight="700" textAnchor="middle" fill="#064e3b">${shortLabel}</text>
+            <text x="230" y="174" font-size="10.5" font-weight="700" text-anchor="middle" fill="#064e3b">${shortLabel}</text>
         </svg>`;
     }
 
-    // 3. Matematika concrete visual (Fraction + Geometry + Measurement scene)
+    // 7. Matematika concrete visual (Fraction + Geometry + Measurement scene)
     if (subjLower.includes('matematika') || /\b(pecahan|bangun|luas|keliling|volume|bilangan|satuan|sudut)\b/.test(combined)) {
         return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
-            <rect x="0" y="0" width="460" height="190" rx="14" fill="#eff6ff" stroke="#93c5fd" strokeWidth="1.5"/>
-            <!-- Lingkaran Pecahan Kue -->
-            <circle cx="96" cy="88" r="48" fill="#ffffff" stroke="#1d4ed8" strokeWidth="2.5"/>
-            <path d="M96 88 L96 40 A48 48 0 0 1 144 88 Z" fill="#3b82f6" stroke="#1e3a8a" strokeWidth="1.5"/>
-            <path d="M96 88 L144 88 A48 48 0 0 1 96 136 Z" fill="#60a5fa" stroke="#1e3a8a" strokeWidth="1.5"/>
-            <line x1="48" y1="88" x2="144" y2="88" stroke="#1e3a8a" strokeWidth="1.5"/>
-            <line x1="96" y1="40" x2="96" y2="136" stroke="#1e3a8a" strokeWidth="1.5"/>
-            <!-- Balok / Penggaris -->
+            <rect x="0" y="0" width="460" height="190" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+            <circle cx="96" cy="88" r="48" fill="#ffffff" stroke="#1d4ed8" stroke-width="2.5"/>
+            <path d="M96 88 L96 40 A48 48 0 0 1 144 88 Z" fill="#3b82f6" stroke="#1e3a8a" stroke-width="1.5"/>
+            <path d="M96 88 L144 88 A48 48 0 0 1 96 136 Z" fill="#60a5fa" stroke="#1e3a8a" stroke-width="1.5"/>
+            <line x1="48" y1="88" x2="144" y2="88" stroke="#1e3a8a" stroke-width="1.5"/>
+            <line x1="96" y1="40" x2="96" y2="136" stroke="#1e3a8a" stroke-width="1.5"/>
             <g transform="translate(188, 38)">
-                <polygon points="36,16 116,16 96,36 16,36" fill="#93c5fd" stroke="#1e40af" strokeWidth="1.5"/>
-                <rect x="16" y="36" width="80" height="62" fill="#3b82f6" stroke="#1e40af" strokeWidth="1.5"/>
-                <polygon points="96,36 116,16 116,78 96,98" fill="#2563eb" stroke="#1e40af" strokeWidth="1.5"/>
+                <polygon points="36,16 116,16 96,36 16,36" fill="#93c5fd" stroke="#1e40af" stroke-width="1.5"/>
+                <rect x="16" y="36" width="80" height="62" fill="#3b82f6" stroke="#1e40af" stroke-width="1.5"/>
+                <polygon points="96,36 116,16 116,78 96,98" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
             </g>
-            <!-- Garis Bilangan -->
             <g transform="translate(328, 56)">
-                <rect x="0" y="0" width="110" height="66" rx="10" fill="#ffffff" stroke="#bfdbfe" strokeWidth="1.5"/>
-                <line x1="12" y1="36" x2="98" y2="36" stroke="#1e293b" strokeWidth="2"/>
-                <circle cx="24" cy="36" r="4" fill="#2563eb"/><text x="24" y="52" fontSize="9" textAnchor="middle" fill="#334155">1</text>
-                <circle cx="55" cy="36" r="4" fill="#2563eb"/><text x="55" y="52" fontSize="9" textAnchor="middle" fill="#334155">2</text>
-                <circle cx="86" cy="36" r="4" fill="#059669"/><text x="86" y="52" fontSize="9" textAnchor="middle" fill="#059669">3</text>
-                <text x="55" y="18" fontSize="9.5" fontWeight="700" textAnchor="middle" fill="#1e40af">Pola &amp; Ukuran</text>
+                <rect x="0" y="0" width="110" height="66" rx="10" fill="#ffffff" stroke="#bfdbfe" stroke-width="1.5"/>
+                <line x1="12" y1="36" x2="98" y2="36" stroke="#1e293b" stroke-width="2"/>
+                <circle cx="24" cy="36" r="4" fill="#2563eb"/><text x="24" y="52" font-size="9" text-anchor="middle" fill="#334155">1</text>
+                <circle cx="55" cy="36" r="4" fill="#2563eb"/><text x="55" y="52" font-size="9" text-anchor="middle" fill="#334155">2</text>
+                <circle cx="86" cy="36" r="4" fill="#059669"/><text x="86" y="52" font-size="9" text-anchor="middle" fill="#059669">3</text>
+                <text x="55" y="18" font-size="9.5" font-weight="700" text-anchor="middle" fill="#1e40af">Pola &amp; Ukuran</text>
             </g>
-            <text x="230" y="173" fontSize="10.5" fontWeight="700" textAnchor="middle" fill="#1e3a8a">${shortLabel}</text>
+            <text x="230" y="173" font-size="10.5" font-weight="700" text-anchor="middle" fill="#1e3a8a">${shortLabel}</text>
         </svg>`;
     }
 
-    // 4. IPAS / Science concrete nature + experiment + solar system scene
+    // 8. IPAS concrete nature + experiment scene
     if (subjLower.includes('ipas') || /\b(alam|tumbuhan|hewan|energi|listrik|air|bumi|lingkungan|ekosistem|gaya)\b/.test(combined)) {
         return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
-            <rect x="0" y="0" width="460" height="190" rx="14" fill="#f0f9ff" stroke="#7dd3fc" strokeWidth="1.5"/>
+            <rect x="0" y="0" width="460" height="190" rx="14" fill="#f0f9ff" stroke="#7dd3fc" stroke-width="1.5"/>
             <rect x="0" y="140" width="460" height="50" fill="#bbf7d0"/>
-            <!-- Matahari & Awan -->
-            <circle cx="64" cy="46" r="22" fill="#facc15" stroke="#eab308" strokeWidth="2"/>
-            <path d="M134 52 Q146 32 168 38 Q186 28 202 44 Q216 48 210 62 H136 Z" fill="#ffffff" stroke="#bae6fd" strokeWidth="1.8"/>
-            <line x1="156" y1="70" x2="152" y2="86" stroke="#0284c7" strokeWidth="2" strokeLinecap="round"/>
-            <line x1="176" y1="70" x2="172" y2="86" stroke="#0284c7" strokeWidth="2" strokeLinecap="round"/>
-            <line x1="194" y1="70" x2="190" y2="86" stroke="#0284c7" strokeWidth="2" strokeLinecap="round"/>
-            <!-- Tumbuhan & Akar -->
+            <circle cx="64" cy="46" r="22" fill="#facc15" stroke="#eab308" stroke-width="2"/>
+            <path d="M134 52 Q146 32 168 38 Q186 28 202 44 Q216 48 210 62 H136 Z" fill="#ffffff" stroke="#bae6fd" stroke-width="1.8"/>
             <rect x="276" y="76" width="12" height="68" rx="4" fill="#15803d"/>
-            <ellipse cx="254" cy="94" rx="22" ry="10" transform="rotate(-20 254 94)" fill="#22c55e" stroke="#15803d" strokeWidth="1.2"/>
-            <ellipse cx="308" cy="86" rx="22" ry="10" transform="rotate(20 308 86)" fill="#22c55e" stroke="#15803d" strokeWidth="1.2"/>
-            <circle cx="282" cy="64" r="14" fill="#fb923c" stroke="#ea580c" strokeWidth="1.5"/>
-            <!-- Kaca Pembesar Pengamatan -->
-            <circle cx="382" cy="88" r="26" fill="#e0f2fe" stroke="#0369a1" strokeWidth="3.5"/>
-            <line x1="400" y1="108" x2="424" y2="132" stroke="#334155" strokeWidth="6" strokeLinecap="round"/>
-            <text x="382" y="92" fontSize="9.5" fontWeight="700" textAnchor="middle" fill="#0369a1">Amati!</text>
-            <text x="230" y="172" fontSize="10.5" fontWeight="700" textAnchor="middle" fill="#0c4a6e">${shortLabel}</text>
+            <ellipse cx="254" cy="94" rx="22" ry="10" transform="rotate(-20 254 94)" fill="#22c55e" stroke="#15803d" stroke-width="1.2"/>
+            <ellipse cx="308" cy="86" rx="22" ry="10" transform="rotate(20 308 86)" fill="#22c55e" stroke="#15803d" stroke-width="1.2"/>
+            <circle cx="282" cy="64" r="14" fill="#fb923c" stroke="#ea580c" stroke-width="1.5"/>
+            <circle cx="382" cy="88" r="26" fill="#e0f2fe" stroke="#0369a1" stroke-width="3.5"/>
+            <line x1="400" y1="108" x2="424" y2="132" stroke="#334155" stroke-width="6" stroke-linecap="round"/>
+            <text x="382" y="92" font-size="9.5" font-weight="700" text-anchor="middle" fill="#0369a1">Amati!</text>
+            <text x="230" y="172" font-size="10.5" font-weight="700" text-anchor="middle" fill="#0c4a6e">${shortLabel}</text>
         </svg>`;
     }
 
-    // 5. Default Indonesian SD Classroom / Literacy / Culture / Sunda / PPKn concrete illustration
+    // 9. Bahasa Indonesia / Bahasa Sunda / Bahasa Inggris / Literacy default concrete scene
     return `<svg viewBox="0 0 460 190" width="460" height="190" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto block">
-        <rect x="0" y="0" width="460" height="190" rx="14" fill="#fffbeb" stroke="#fcd34d" strokeWidth="1.5"/>
+        <rect x="0" y="0" width="460" height="190" rx="14" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.5"/>
         <rect x="0" y="144" width="460" height="46" fill="#fef3c7"/>
-        <!-- Papan Tulis Kelas SD -->
-        <rect x="130" y="22" width="200" height="86" rx="8" fill="#065f46" stroke="#b45309" strokeWidth="4"/>
-        <line x1="154" y1="48" x2="306" y2="48" stroke="#a7f3d0" strokeWidth="3" strokeLinecap="round"/>
-        <line x1="154" y1="68" x2="274" y2="68" stroke="#fde68a" strokeWidth="2.5" strokeLinecap="round"/>
-        <line x1="154" y1="86" x2="238" y2="86" stroke="#ffffff" strokeWidth="2" strokeLinecap="round"/>
-        <!-- Siswa 1 (Seragam SD Merah Putih) -->
+        <rect x="130" y="22" width="200" height="86" rx="8" fill="#065f46" stroke="#b45309" stroke-width="4"/>
+        <line x1="154" y1="48" x2="306" y2="48" stroke="#a7f3d0" stroke-width="3" stroke-linecap="round"/>
+        <line x1="154" y1="68" x2="274" y2="68" stroke="#fde68a" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="154" y1="86" x2="238" y2="86" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
         <g transform="translate(76, 86)">
-            <circle cx="0" cy="-16" r="17" fill="#fed7aa" stroke="#9a3412" strokeWidth="1.5"/>
+            <circle cx="0" cy="-16" r="17" fill="#fed7aa" stroke="#9a3412" stroke-width="1.5"/>
             <path d="M-16 -20 C-12 -36, 14 -36, 16 -20 Z" fill="#1e293b"/>
-            <circle cx="-5" cy="-17" r="1.8" fill="#0f172a"/><circle cx="5" cy="-17" r="1.8" fill="#0f172a"/>
-            <path d="M-4 -10 Q0 -6 4 -10" fill="none" stroke="#9a3412" strokeWidth="1.5"/>
             <path d="M-18 58 L-14 6 H14 L18 58 Z" fill="#dc2626"/>
             <rect x="-14" y="4" width="28" height="22" rx="4" fill="#ffffff"/>
         </g>
-        <!-- Siswa 2 + Buku Terbuka -->
         <g transform="translate(384, 86)">
-            <circle cx="0" cy="-16" r="17" fill="#fde68a" stroke="#92400e" strokeWidth="1.5"/>
+            <circle cx="0" cy="-16" r="17" fill="#fde68a" stroke="#92400e" stroke-width="1.5"/>
             <path d="M-16 -20 C-12 -36, 14 -36, 16 -20 Z" fill="#334155"/>
-            <circle cx="-5" cy="-17" r="1.8" fill="#0f172a"/><circle cx="5" cy="-17" r="1.8" fill="#0f172a"/>
-            <path d="M-4 -10 Q0 -6 4 -10" fill="none" stroke="#92400e" strokeWidth="1.5"/>
             <path d="M-18 58 L-14 6 H14 L18 58 Z" fill="#dc2626"/>
             <rect x="-14" y="4" width="28" height="22" rx="4" fill="#ffffff"/>
         </g>
-        <!-- Buku Terbuka di Tengah -->
         <g transform="translate(194, 114)">
-            <path d="M0 10 Q18 2 36 10 Q54 2 72 10 V36 Q54 28 36 36 Q18 28 0 36 Z" fill="#ffffff" stroke="#0284c7" strokeWidth="2"/>
-            <line x1="36" y1="10" x2="36" y2="36" stroke="#0284c7" strokeWidth="1.5"/>
+            <path d="M0 10 Q18 2 36 10 Q54 2 72 10 V36 Q54 28 36 36 Q18 28 0 36 Z" fill="#ffffff" stroke="#0284c7" stroke-width="2"/>
+            <line x1="36" y1="10" x2="36" y2="36" stroke="#0284c7" stroke-width="1.5"/>
         </g>
-        <text x="230" y="174" fontSize="10.5" fontWeight="700" textAnchor="middle" fill="#78350f">${shortLabel}</text>
+        <text x="230" y="174" font-size="10.5" font-weight="700" text-anchor="middle" fill="#78350f">${shortLabel}</text>
     </svg>`;
 };
 
@@ -974,6 +1177,811 @@ async function tryFetchProxiedIllustrationDataUrl(query: string, fallbackQuery?:
     } catch {
         return undefined;
     }
+}
+
+interface DisciplineKnowledgePack {
+    pengertianKonsep: string;
+    penjelasanUtama: string;
+    domainTerms: { term: string; meaning: string }[];
+    poinPenting: string[];
+    contohKonkret: string;
+    contohSehariHari: string[];
+    klasifikasiAtauProses: { judul: string; butir: { label: string; uraian: string }[] };
+    tabelInformatif: { judul: string; kolom: string[]; baris: string[][] };
+    miskonsepsiUmum: { salah: string; pelurusan: string }[];
+    aktivitasSederhana: { judul: string; langkah: string[]; hasilDiharapkan: string };
+    rangkumanPoin: string[];
+    latihanFormatif: { no: number; pertanyaan: string; kunciSingkat: string }[];
+    visualCaption: string;
+}
+
+/**
+ * Builds rich, textbook-aligned, subject-science specific content per subject & topic
+ * so every domain (PJOK, Matematika, IPAS, PAIBP, Bahasa Indonesia, Pancasila, Seni, Inggris, Sunda, Koding)
+ * contains substantive disciplinary concepts rather than generic curriculum boilerplate.
+ */
+function buildSubjectDomainKnowledge(params: {
+    subject: string;
+    className: string;
+    fase: string;
+    elementName: string;
+    tpText: string;
+    atpText: string;
+    topicTitle: string;
+}): DisciplineKnowledgePack {
+    const { subject, className, elementName, tpText, atpText, topicTitle } = params;
+    const combined = `${subject} ${elementName} ${tpText} ${atpText}`.toLowerCase();
+    const subjLower = subject.toLowerCase();
+    const isSunda = isBahasaSundaTopic(subject, elementName, tpText);
+
+    // 1. PJOK (Pendidikan Jasmani, Olahraga, dan Kesehatan)
+    if (subjLower.includes('pjok') || subjLower.includes('jasmani') || subjLower.includes('olahraga')) {
+        if (/\b(mengayun|ayunan|ayun\s+kaki|non-?lokomotor|menekuk|meliuk|memutar|keseimbangan)\b/.test(combined)) {
+            return {
+                pengertianKonsep: `Gerak mengayun kaki dan lengan termasuk pola gerak dasar nonlokomotor (gerakan di tempat tanpa berpindah posisi), yaitu menggerakkan anggota tubuh secara ritmis bertumpu pada poros sendi pinggul atau bahu sembari menjaga pusat keseimbangan tubuh tetap stabil.`,
+                penjelasanUtama: `Berdasarkan Buku Siswa PJOK SD Kurikulum Merdeka, saat melakukan gerak mengayun kaki, salah satu kaki berfungsi sebagai kaki tumpu yang menahan berat badan dengan lutut sedikit lentur, sedangkan kaki ayun digerakkan lurus ke depan, ke belakang, atau ke samping. Kedua lengan direntangkan atau diayunkan berlawanan arah untuk menjaga kesetimbangan statis dan melatih kelenturan (fleksibilitas) sendi panggul.`,
+                domainTerms: [
+                    { term: 'Gerak Nonlokomotor', meaning: 'Aktivitas gerak tubuh di tempat tanpa berpindah tempat, seperti mengayun, menekuk, meliuk, dan memutar.' },
+                    { term: 'Kaki Tumpu & Kaki Ayun', meaning: 'Kaki tumpu menahan berat badan dengan kuat, sementara kaki ayun bergerak bebas mengikuti arah ayunan.' },
+                    { term: 'Keseimbangan Statis', meaning: 'Kemampuan mempertahankan posisi tubuh agar tidak goyah atau jatuh saat bertumpu pada satu kaki.' },
+                    { term: 'Sendi Peluru Panggul', meaning: 'Persendian pada pangkal paha yang memungkinkan kaki diayunkan ke depan, belakang, dan samping secara luwes.' }
+                ],
+                poinPenting: [
+                    'Sikap awal: berdiri tegak menghadap ke depan, pandangan lurus, dan kedua kaki rapat sejajar.',
+                    'Rentangkan kedua lengan ke samping bahu atau letakkan di pinggang untuk membantu keseimbangan.',
+                    'Ayunkan satu kaki secara teratur (ke depan-belakang atau ke samping) tanpa membungkukkan punggung.',
+                    'Lakukan pemanasan otot tungkai dan pinggul terlebih dahulu agar tidak terjadi cedera atau kram otot.'
+                ],
+                contohKonkret: `Contoh gerakan mengayun kaki di lapangan sekolah: siswa berdiri bertumpu pada kaki kiri, kedua tangan direntangkan ke samping, lalu mengayunkan kaki kanan lurus ke depan dan ke belakang sebanyak 8 hitungan secara bergantian.`,
+                contohSehariHari: [
+                    'Di Sekolah: Mengayunkan kaki dan lengan saat pemanasan senam pagi atau latihan senam irama bersama teman.',
+                    'Di Halaman Rumah: Berdiri satu kaki sambil mengayunkan kaki lainnya saat bermain engklek atau melatih keseimbangan.',
+                    'Saat Berjalan & Berlari: Ayunan tungkai yang luwes membuat langkah kaki menjadi ringan dan teratur.'
+                ],
+                klasifikasiAtauProses: {
+                    judul: 'Tahapan Pelaksanaan Gerak Mengayun Kaki (Buku Siswa PJOK SD)',
+                    butir: [
+                        { label: '1. Sikap Awal (Persiapan)', uraian: 'Berdiri tegak, kedua kaki rapat, pandangan lurus ke depan, serta kedua lengan direntangkan ke samping.' },
+                        { label: '2. Pelaksanaan Ayunan', uraian: 'Pindahkan tumpuan ke kaki kiri, lalu ayunkan kaki kanan lurus ke depan hingga setinggi lutut dan ayun kembali ke belakang secara terkontrol.' },
+                        { label: '3. Sikap Akhir & Pergantian', uraian: 'Kembali ke posisi berdiri tegak dua kaki rapat, atur napas, lalu ulangi menggunakan kaki kiri sebagai kaki ayun.' }
+                    ]
+                },
+                tabelInformatif: {
+                    judul: 'Variasi Gerak Mengayun Kaki & Manfaat Kebugarannya',
+                    kolom: ['Variasi Gerakan', 'Arah & Posisi Tubuh', 'Manfaat Utama'],
+                    baris: [
+                        ['Mengayun Kaki ke Depan-Belakang', 'Tumpuan 1 kaki kokoh, punggung tegak', 'Melatih kelenturan sendi panggul & keseimbangan'],
+                        ['Mengayun Kaki ke Samping', 'Kaki ayun digerakkan membuka ke kanan/kiri', 'Menguatkan otot paha luar & kestabilan pinggul'],
+                        ['Mengayun Lengan & Kaki Berirama', 'Gerak searah hitungan 1–8', 'Meningkatkan koordinasi gerak & kelincahan']
+                    ]
+                },
+                miskonsepsiUmum: [
+                    {
+                        salah: 'Mengira gerak mengayun kaki sama dengan gerak berjalan/melompat (lokomotor).',
+                        pelurusan: 'Mengayun kaki adalah gerak nonlokomotor karena kaki tumpu tetap berada di tempat dan tubuh tidak berpindah lokasi.'
+                    },
+                    {
+                        salah: 'Membungkukkan badan ke depan terlalu rendah saat mengayunkan kaki ke belakang.',
+                        pelurusan: 'Punggung harus tetap tegak dan pandangan lurus ke depan agar pusat keseimbangan tidak goyah.'
+                    }
+                ],
+                aktivitasSederhana: {
+                    judul: 'Praktik Terpandu: Tantangan Mengayun Kaki 8 Hitungan',
+                    langkah: [
+                        'Lakukan peregangan ringan pada pergelangan kaki dan lutut selama 1 menit.',
+                        'Berdiri tegak di ruang aman, rentangkan kedua tangan ke samping.',
+                        'Ayunkan kaki kanan ke depan dan belakang sebanyak 8 hitungan tanpa menyentuh lantai, lalu ganti kaki kiri.'
+                    ],
+                    hasilDiharapkan: 'Siswa mampu mengayunkan kaki dengan seimbang, postur punggung tegak, dan kaki tumpu tetap stabil.'
+                },
+                rangkumanPoin: [
+                    'Mengayun kaki adalah gerak dasar nonlokomotor karena dilakukan di tempat tanpa berpindah posisi.',
+                    'Saat mengayunkan satu kaki, kaki lainnya menjadi tumpuan kuat dengan posisi punggung tetap tegak.',
+                    'Rentangan lengan membantu menjaga keseimbangan statis tubuh selama melakukan ayunan.',
+                    'Latihan mengayun kaki secara rutin melatih kelenturan sendi panggul, kekuatan otot kaki, dan koordinasi.'
+                ],
+                latihanFormatif: [
+                    { no: 1, pertanyaan: 'Mengapa gerakan mengayunkan satu kaki di tempat termasuk gerak dasar nonlokomotor?', kunciSingkat: 'Karena dilakukan di tempat tanpa menyebabkan tubuh berpindah posisi atau tempat.' },
+                    { no: 2, pertanyaan: 'Apa fungsi merentangkan kedua lengan ke samping saat melakukan gerakan mengayun kaki?', kunciSingkat: 'Untuk menjaga keseimbangan tubuh agar tidak mudah terjatuh.' },
+                    { no: 3, pertanyaan: 'Tuliskan 3 urutan sikap yang benar saat mempraktikkan gerak mengayun kaki ke depan dan belakang!', kunciSingkat: '1) Berdiri tegak dan rentangkan tangan; 2) Bertumpu kuat pada satu kaki; 3) Ayunkan kaki lainnya lurus ke depan-belakang dengan pandangan tetap ke depan.' }
+                ],
+                visualCaption: `Ilustrasi Anak SD Mempraktikkan Gerak Nonlokomotor Mengayun Kaki`
+            };
+        }
+
+        const isLokomotor = /\b(lokomotor|berjalan|berlari|melompat|meloncat|atletik)\b/.test(combined);
+        const isManipulatif = /\b(manipulatif|bola|menendang|melempar|menangkap|kasti)\b/.test(combined);
+        return {
+            pengertianKonsep: isLokomotor
+                ? `Gerak lokomotor adalah keterampilan gerak dasar yang ditandai dengan berpindahnya seluruh tubuh dari satu titik ke titik lain melalui aktivitas berjalan, berlari, melompat, atau meloncat secara terkoordinasi.`
+                : isManipulatif
+                    ? `Gerak manipulatif adalah keterampilan menggerakkan tubuh untuk mengontrol, mendorong, atau menerima suatu objek/alat olahraga (seperti melempar, menangkap, menendang, atau memukul bola) dengan koordinasi mata dan anggota tubuh.`
+                    : `Aktivitas pembelajaran PJOK (${topicTitle}) berfokus pada penguasaan keterampilan gerak dasar, kebugaran jasmani, sportivitas, serta kebiasaan hidup sehat dan aman bagi peserta didik ${className}.`,
+            penjelasanUtama: isLokomotor
+                ? `Sesuai Buku Panduan Guru PJOK SD Kemendikdasmen, kualitas gerak lokomotor ditentukan oleh koordinasi ayunan lengan yang berlawanan dengan langkah kaki, dorongan telapak kaki saat menolak tanah, serta pendaratan dengan lutut sedikit mengeper (fleksi) untuk meredam benturan sendi.`
+                : isManipulatif
+                    ? `Dalam gerak manipulatif, siswa memadukan ketepatan pandangan mata terhadap arah datangnya bola, posisi tubuh siap, perkenaan bagian tangan/kaki yang tepat pada objek, serta gerak lanjutan (follow-through) agar arah bola terukur.`
+                    : `Pelaksanaan materi "${topicTitle}" memadukan pemanasan otot dan sendi, latihan teknik gerak inti secara bertahap dari mudah ke menantang, kerja sama jujur dengan teman, serta pendinginan setelah beraktivitas.`,
+            domainTerms: [
+                { term: isLokomotor ? 'Gerak Lokomotor' : isManipulatif ? 'Gerak Manipulatif' : 'Keterampilan Gerak', meaning: isLokomotor ? 'Gerak berpindah tempat seperti jalan, lari, dan lompat.' : isManipulatif ? 'Gerak mengolah alat/bola seperti melempar, menangkap, dan menendang.' : 'Kemampuan mengoordinasikan tubuh secara efektif dan aman.' },
+                { term: 'Koordinasi Tubuh', meaning: 'Keselarasan kerja mata, lengan, dan tungkai dalam menghasilkan gerakan yang lancar.' },
+                { term: 'Pemanasan & Pendinginan', meaning: 'Tahap awal menyiapkan otot dan tahap akhir mengembalikan denyut jantung normal.' },
+                { term: 'Sportivitas', meaning: 'Sikap jujur, mematuhi aturan main, dan menghargai teman saat berolahraga.' }
+            ],
+            poinPenting: [
+                'Lakukan pemanasan statis dan dinamis sebelum memulai praktik inti untuk mencegah cedera.',
+                'Perhatikan posisi tubuh, arah pandangan mata, dan teknik pendaratan atau perkenaan gerak yang tepat.',
+                'Utamakan keselamatan ruang gerak dan patuhi instruksi guru selama praktik di lapangan.'
+            ],
+            contohKonkret: isLokomotor
+                ? 'Siswa berlari zig-zag melewati 4 kerucut pembatas lalu melompati garis dengan kedua kaki dan mendarat mengeper.'
+                : isManipulatif
+                    ? 'Siswa berpasangan pada jarak 3 meter melakukan lempar-tangkap bola menggunakan dua tangan dari depan dada secara bergantian.'
+                    : `Siswa mempraktikkan variasi ${topicTitle} dalam kelompok kecil dengan mengutamakan teknik benar dan kerja sama.`,
+            contohSehariHari: [
+                'Di Sekolah: Praktik gerak bersama di halaman sekolah dengan seragam olahraga yang nyaman.',
+                'Di Rumah: Bermain aktif di halaman bersama keluarga atau melakukan peregangan pagi setelah bangun tidur.',
+                'Kebiasaan Sehat: Minum air putih setelah berkeringat dan menjaga kebersihan tubuh usai olahraga.'
+            ],
+            klasifikasiAtauProses: {
+                judul: `Prosedur Praktik PJOK: ${topicTitle}`,
+                butir: [
+                    { label: '1. Pemanasan (Warming Up)', uraian: 'Peregangan leher, bahu, pinggang, dan pergelangan kaki selama 5 menit.' },
+                    { label: '2. Gerak Inti Terarah', uraian: `Mempraktikkan teknik ${topicTitle} secara berurutan dengan kontrol postur dan keseimbangan.` },
+                    { label: '3. Pendinginan (Cooling Down)', uraian: 'Berjalan santai, mengayunkan lengan ringan, dan mengatur pernapasan.' }
+                ]
+            },
+            tabelInformatif: {
+                judul: `Panduan Teknik & Keselamatan ${topicTitle}`,
+                kolom: ['Tahap Latihan', 'Teknik yang Diamati', 'Tujuan Keselamatan'],
+                baris: [
+                    ['Persiapan', 'Pakaian olahraga rapi & sepatu bertali kuat', 'Mencegah tersandung saat bergerak'],
+                    ['Pelaksanaan', 'Fokus pandangan, postur tegak, lutut lentur', 'Menghindari cedera sendi & otot'],
+                    ['Penutup', 'Pendinginan & mengembalikan alat ke tempatnya', 'Memulihkan kebugaran & tertib alat']
+                ]
+            },
+            miskonsepsiUmum: [
+                { salah: 'Menganggap olahraga hanya soal menang atau bergerak secepat mungkin tanpa memperhatikan teknik.', pelurusan: 'Teknik gerak yang benar dan aman lebih utama daripada kecepatan agar terhindar dari cedera sendi.' },
+                { salah: 'Langsung melakukan gerakan berat tanpa pemanasan terlebih dahulu.', pelurusan: 'Pemanasan melancarkan aliran darah ke otot dan menyiapkan kelenturan sendi sebelum latihan inti.' }
+            ],
+            aktivitasSederhana: {
+                judul: `Latihan Teknik Dasar: ${topicTitle}`,
+                langkah: [
+                    'Pastikan ruang gerak bebas dari batu atau benda licin.',
+                    `Praktikkan langkah dasar ${topicTitle} sebanyak 2 set (masing-masing 8 hitungan).`,
+                    'Lakukan bersama teman sebangku sambil saling memberi masukan postur yang benar.'
+                ],
+                hasilDiharapkan: `Siswa menguasai teknik dasar ${topicTitle} dengan koordinasi baik dan sikap sportif.`
+            },
+            rangkumanPoin: [
+                `${topicTitle} melatih koordinasi gerak, kebugaran, dan kesadaran menjaga keselamatan diri.`,
+                'Setiap aktivitas PJOK wajib diawali pemanasan dan diakhiri pendinginan.',
+                'Postur tubuh seimbang dan pendaratan lutut yang lentur mencegah terjadinya cedera.',
+                'Sikap jujur dan saling menghargai membuat permainan olahraga berjalan menyenangkan.'
+            ],
+            latihanFormatif: [
+                { no: 1, pertanyaan: `Mengapa pemanasan wajib dilakukan sebelum mempraktikkan "${topicTitle}"?`, kunciSingkat: 'Untuk menyiapkan kelenturan otot dan sendi serta mencegah risiko cedera.' },
+                { no: 2, pertanyaan: `Bagaimana posisi lutut dan pandangan mata yang tepat saat menjaga keseimbangan dalam "${topicTitle}"?`, kunciSingkat: 'Pandangan lurus ke depan dan lutut sedikit lentur (tidak kaku) untuk menjaga kestabilan.' },
+                { no: 3, pertanyaan: 'Sebutkan 2 contoh sikap sportivitas saat berolahraga bersama teman di sekolah!', kunciSingkat: 'Mematuhi aturan permainan dan tidak mengejek teman yang belum mahir.' }
+            ],
+            visualCaption: `Ilustrasi Siswa SD Mempraktikkan ${topicTitle}`
+        };
+    }
+
+    // 2. MATEMATIKA
+    if (subjLower.includes('matematika')) {
+        const isFraction = /\b(pecahan|pembilang|penyebut|senilai|desimal|persen)\b/.test(combined);
+        const isGeometry = /\b(bangun|persegi|segitiga|lingkaran|kubus|balok|volume|luas|keliling|sudut|rusuk|sisi)\b/.test(combined);
+        return {
+            pengertianKonsep: isFraction
+                ? `Pecahan adalah bilangan yang menyatakan bagian dari suatu keseluruhan atau kumpulan benda yang dibagi sama besar, ditulis dalam bentuk a/b dengan a sebagai pembilang (jumlah bagian yang dipilih) dan b sebagai penyebut (jumlah seluruh bagian yang sama besar, b ≠ 0).`
+                : isGeometry
+                    ? `Geometri bangun pada topik "${topicTitle}" mempelajari sifat bentuk bangun (sisi, sudut, rusuk, dan titik sudut) serta cara menentukan ukuran keliling, luas, atau volumenya menggunakan satuan baku secara logis dan presisi.`
+                    : `Konsep "${topicTitle}" dalam Matematika SD merupakan aturan bilangan dan hubungan kuantitatif yang digunakan untuk menghitung, membandingkan ukuran, mengenali pola, serta menyelesaikan masalah hitung sehari-hari secara sistematis.`,
+            penjelasanUtama: isFraction
+                ? `Berdasarkan Buku Siswa Matematika SD Kurikulum Merdeka, besar sebuah pecahan selalu bergantung pada pembagian bagian yang SAMA BESAR. Untuk membandingkan atau menjumlahkan pecahan berpenyebut berbeda, penyebut harus disamakan terlebih dahulu menggunakan kelipatan persekutuan terkecil (KPK) atau visualisasi pita pecahan.`
+                : isGeometry
+                    ? `Untuk menganalisis bangun datar maupun bangun ruang secara akurat, identifikasi terlebih dahulu panjang sisi (p, l, s, alas, tinggi), perhatikan sudut siku-siku (90°) atau rusuk sejajarnya, lalu terapkan rumus keliling (jumlah seluruh panjang sisi tepi), luas (bidang permukaan), atau volume (isi ruang = luas alas × tinggi).`
+                    : `Penyelesaian masalah "${topicTitle}" mengikuti alur tiga langkah: (1) memahami besaran dan satuan yang diketahui, (2) menyusun model kalimat matematika atau gambar konkret, dan (3) menghitung bertahap serta memeriksa kembali kewajaran hasilnya.`,
+            domainTerms: isFraction
+                ? [
+                    { term: 'Pembilang (Angka Atas)', meaning: 'Menunjukkan banyaknya bagian yang diarsir, diambil, atau diperhatikan.' },
+                    { term: 'Penyebut (Angka Bawah)', meaning: 'Menunjukkan total banyaknya bagian sama besar dari satu benda utuh.' },
+                    { term: 'Pecahan Senilai', meaning: 'Dua pecahan berbeda angka tetapi bernilai sama besar (misal 1/2 = 2/4 = 3/6).' },
+                    { term: 'Pita Pecahan', meaning: 'Model visual batang persegi panjang untuk membandingkan ukuran pecahan.' }
+                ]
+                : isGeometry
+                    ? [
+                        { term: 'Sisi / Rusuk', meaning: 'Ruas garis pembatas bangun datar atau garis pertemuan dua bidang pada bangun ruang.' },
+                        { term: 'Titik Sudut', meaning: 'Titik pertemuan ujung-ujung dua sisi atau tiga rusuk pada bangun ruang.' },
+                        { term: 'Keliling vs Luas', meaning: 'Keliling mengukur panjang tepian luar (cm/m), sedangkan luas mengukur daerah isi bidang (cm²/m²).' },
+                        { term: 'Volume Bangun Ruang', meaning: 'Besar kapasitas ruang tiga dimensi yang dinyatakan dalam satuan kubik (cm³/dm³/liter).' }
+                    ]
+                    : [
+                        { term: 'Nilai Tempat', meaning: 'Nilai suatu angka berdasarkan posisinya (satuan, puluhan, ratusan, ribuan).' },
+                        { term: 'Operasi Hitung', meaning: 'Pengerjaan penjumlahan, pengurangan, perkalian, atau pembagian sesuai aturan prioritas.' },
+                        { term: 'Satuan Baku', meaning: 'Satuan ukur yang hasilnya selalu sama di mana pun, seperti cm, m, kg, gram, dan liter.' },
+                        { term: 'Model Soal Cerita', meaning: 'Mengubah kalimat soal sehari-hari menjadi operasi hitung matematika yang tepat.' }
+                    ],
+            poinPenting: isFraction
+                ? [
+                    'Syarat mutlak pecahan: seluruh potongan benda harus memiliki ukuran yang sama besar.',
+                    'Untuk mencari pecahan senilai, kalikan atau bagilah pembilang dan penyebut dengan bilangan yang sama (bukan nol).',
+                    'Semakin besar penyebut pada pembilang 1, semakin kecil ukuran tiap potongannya (1/4 lebih kecil daripada 1/2).'
+                ]
+                : isGeometry
+                    ? [
+                        'Periksa selalu kesamaan satuan panjang (cm, m, dm) sebelum memasukkan angka ke rumus.',
+                        'Kubus memiliki 6 sisi persegi sama besar, 12 rusuk sama panjang, dan 8 titik sudut; balok memiliki 3 pasang sisi berhadapan sama besar.',
+                        'Tulis satuan akhir secara tepat: satuan panjang (cm), luas (cm²), dan volume (cm³).'
+                    ]
+                    : [
+                        'Pahami arti soal terlebih dahulu: tuliskan apa yang diketahui dan apa yang ditanyakan.',
+                        'Gunakan garis bilangan, gambar balok satuan, atau tabel agar hubungan antarbilangan terlihat jelas.',
+                        'Periksa kembali hasil hitungan dengan operasi kebalikannya untuk memastikan ketepatan.'
+                    ],
+            contohKonkret: isFraction
+                ? 'Sebuah kue bolu dipotong menjadi 8 bagian sama besar. Jika Rani memakan 3 potong, bagian kue yang dimakan Rani adalah 3/8 (pembilang 3, penyebut 8), dan sisanya adalah 5/8.'
+                : isGeometry
+                    ? 'Sebuah kotak pensil berbentuk balok berukuran panjang 20 cm, lebar 8 cm, dan tinggi 5 cm memiliki volume = 20 × 8 × 5 = 800 cm³.'
+                    : `Di koperasi sekolah terdapat 4 kotak pensil, masing-masing berisi 12 batang pensil. Jumlah seluruh pensil = 4 × 12 = 48 batang.`,
+            contohSehariHari: [
+                'Di Dapur Rumah: Membagi pizza, martabak, atau buah semangka menjadi bagian sama besar (pecahan).',
+                'Di Toko / Pasar: Menghitung berat belanjaan dalam kilogram/gram dan kembalian uang belanja.',
+                'Di Kelas: Mengukur panjang meja belajar dengan penggaris berskala sentimeter (cm).'
+            ],
+            klasifikasiAtauProses: {
+                judul: `Langkah Sistematis Pemecahan Soal ${topicTitle}`,
+                butir: [
+                    { label: '1. Identifikasi Data & Satuan', uraian: 'Catat seluruh bilangan dan satuan ukur yang tertera pada masalah.' },
+                    { label: '2. Pilih Strategi & Visualisasi', uraian: isFraction ? 'Gambarkan lingkaran/pita berarsir atau samakan penyebutnya.' : isGeometry ? 'Gambar sketsa bangun lengkap dengan ukuran rusuk/sisinya.' : 'Susun kalimat matematika atau tabel perbandingan nilai.' },
+                    { label: '3. Hitung & Cek Ulang', uraian: 'Selesaikan perhitungan bertahap dan cantumkan satuan akhir yang benar.' }
+                ]
+            },
+            tabelInformatif: isFraction
+                ? {
+                    judul: 'Tabel Perbandingan Unsur & Contoh Pecahan Senilai',
+                    kolom: ['Bentuk Pecahan', 'Pembilang / Penyebut', 'Pecahan Senilai'],
+                    baris: [
+                        ['1/2', '1 bagian dari 2 bagian sama besar', '2/4, 3/6, 4/8'],
+                        ['1/3', '1 bagian dari 3 bagian sama besar', '2/6, 3/9, 4/12'],
+                        ['3/4', '3 bagian dari 4 bagian sama besar', '6/8, 9/12, 12/16']
+                    ]
+                }
+                : {
+                    judul: `Ringkasan Konsep & Rumus Dasar ${topicTitle}`,
+                    kolom: ['Konsep', 'Aturan / Rumus Pokok', 'Satuan Hasil'],
+                    baris: [
+                        ['Persegi / Kubus', 'Keliling = 4×s | Luas = s×s | Vol = s×s×s', 'cm / cm² / cm³'],
+                        ['Persegi Panjang / Balok', 'Keliling = 2×(p+l) | Luas = p×l | Vol = p×l×t', 'cm / cm² / cm³'],
+                        ['Segitiga', 'Keliling = s1+s2+s3 | Luas = ½ × alas × tinggi', 'cm / cm²']
+                    ]
+                },
+            miskonsepsiUmum: isFraction
+                ? [
+                    { salah: 'Mengira 1/4 lebih besar daripada 1/2 karena angka 4 lebih besar dari 2.', pelurusan: 'Jika satu kue dibagi 4, tiap potongannya justru lebih kecil dibanding jika kue yang sama dibagi 2. Jadi 1/4 < 1/2.' },
+                    { salah: 'Menjumlahkan pembilang dan penyebut sekaligus: 1/4 + 2/4 = 3/8.', pelurusan: 'Penyebut menunjukkan ukuran potongan sehingga tidak ikut dijumlahkan: 1/4 + 2/4 = 3/4.' }
+                ]
+                : [
+                    { salah: 'Menyamakan rumus keliling (menjumlahkan tepian) dengan rumus luas (mengalikan alas dan tinggi).', pelurusan: 'Keliling hanya mengukur panjang garis tepi luar, sedangkan luas mengukur seluruh daerah permukaan di dalam bangun.' },
+                    { salah: 'Mengalikan angka yang satuannya berbeda (misalnya cm dengan m) tanpa menyamakan satuan terlebih dahulu.', pelurusan: 'Semua ukuran panjang harus diubah ke satuan yang sama (misal 1 m = 100 cm) sebelum dihitung.' }
+                ],
+            aktivitasSederhana: {
+                judul: `Eksplorasi Matematika Konkret: ${topicTitle}`,
+                langkah: [
+                    'Siapkan selembar kertas lipat atau penggaris 30 cm.',
+                    isFraction ? 'Lipat kertas menjadi 4 bagian sama besar, lalu arsir 1 bagian (1/4) dan bandingkan dengan 2/4.' : 'Ukur panjang dan lebar buku tulismu dalam satuan cm lalu hitung kelilingnya.',
+                    'Tuliskan langkah penyelesaianmu secara rapi dan tukarkan dengan teman untuk diperiksa.'
+                ],
+                hasilDiharapkan: `Siswa memahami konsep ${topicTitle} secara visual dan mampu menghitung tepat tanpa sekadar menghafal rumus.`
+            },
+            rangkumanPoin: [
+                isFraction ? 'Pecahan a/b terdiri dari pembilang (a) dan penyebut (b), dengan seluruh potongan sama besar.' : `Penguasaan ${topicTitle} dimulai dari ketepatan membaca data, gambar bangun, dan kesamaan satuan.`,
+                'Visualisasi konkret (pita pecahan, sketsa bangun, atau garis bilangan) mencegah kesalahan logika hitung.',
+                'Selalu cantumkan satuan hasil yang tepat dan periksa kembali langkah perhitungan.'
+            ],
+            latihanFormatif: isFraction
+                ? [
+                    { no: 1, pertanyaan: 'Pada pecahan 3/5, angka manakah yang disebut pembilang dan penyebut? Jelaskan artinya!', kunciSingkat: '3 adalah pembilang (bagian yang dipilih) dan 5 adalah penyebut (total bagian sama besar).' },
+                    { no: 2, pertanyaan: 'Manakah yang lebih besar: 1/2 bagian semangka atau 1/4 bagian semangka yang sama ukurannya? Mengapa?', kunciSingkat: '1/2 lebih besar karena satu semangka hanya dibagi 2 bagian, sedangkan 1/4 dibagi menjadi 4 bagian yang lebih kecil.' },
+                    { no: 3, pertanyaan: 'Tuliskan 2 pecahan yang senilai dengan 2/3!', kunciSingkat: '4/6 dan 6/9 (pembilang dan penyebut dikalikan bilangan yang sama, misal ×2 dan ×3).' }
+                ]
+                : [
+                    { no: 1, pertanyaan: 'Apa perbedaan utama antara keliling dan luas pada bangun datar?', kunciSingkat: 'Keliling adalah jumlah panjang seluruh sisi tepi luar, sedangkan luas adalah besar daerah permukaan di dalam bangun.' },
+                    { no: 2, pertanyaan: 'Sebuah taman berbentuk persegi panjang berukuran panjang 12 m dan lebar 5 m. Hitunglah keliling dan luasnya!', kunciSingkat: 'Keliling = 2 × (12 + 5) = 34 m; Luas = 12 × 5 = 60 m².' },
+                    { no: 3, pertanyaan: 'Mengapa satuan panjang harus disamakan terlebih dahulu sebelum menghitung luas atau volume?', kunciSingkat: 'Agar hasil perkalian konsisten dalam satu satuan ukur yang baku dan benar.' }
+                ],
+            visualCaption: `Visualisasi Konsep Matematika: ${topicTitle}`
+        };
+    }
+
+    // 3. IPAS (Ilmu Pengetahuan Alam dan Sosial)
+    if (subjLower.includes('ipas') || subjLower.includes('ipa')) {
+        const isPlant = /\b(tumbuhan|fotosintesis|akar|batang|daun|bunga|klorofil)\b/.test(combined);
+        const isEnergyForce = /\b(gaya|energi|listrik|magnet|cahaya|bunyi|wujud\s+zat|mencair|menguap)\b/.test(combined);
+        return {
+            pengertianKonsep: isPlant
+                ? `Tumbuhan hijau merupakan makhluk hidup autotrof (mampu membuat makanannya sendiri) melalui proses fotosintesis di daun berklorofil dengan bantuan energi cahaya matahari, air dari akar, dan gas karbon dioksida dari udara.`
+                : isEnergyForce
+                    ? `Dalam kajian fisika dasar IPAS SD, gaya adalah tarikan atau dorongan yang dapat memengaruhi gerak serta bentuk benda, sedangkan energi adalah kemampuan untuk melakukan usaha/kerja yang dapat berubah bentuk (seperti energi listrik menjadi cahaya atau gerak).`
+                    : `Konsep "${topicTitle}" dalam Ilmu Pengetahuan Alam dan Sosial (IPAS) mengkaji keterkaitan ilmiah antara makhluk hidup, benda dan energinya, serta dinamika kehidupan sosial masyarakat di lingkungan sekitar secara faktual dan dapat diamati.`,
+            penjelasanUtama: isPlant
+                ? `Berdasarkan Buku Siswa IPAS SD Kurikulum Merdeka, setiap organ tumbuhan memiliki fungsi khusus: akar menyerap air dan mineral dari tanah serta memperkokoh berdirinya tumbuhan; batang menyalurkan air ke daun dan menopang tubuh tumbuhan; daun menangkap cahaya matahari menggunakan zat hijau daun (klorofil) untuk menghasilkan karbohidrat (glukosa) dan oksigen (O₂).`
+                : isEnergyForce
+                    ? `Hukum kekekalan energi menjelaskan bahwa energi tidak dapat diciptakan maupun dimusnahkan, melainkan hanya berubah dari satu bentuk ke bentuk lain. Sementara itu, perubahan wujud benda (mencair, membeku, menguap, mengembun, menyublim) terjadi akibat penyerapan atau pelepasan energi kalor (panas).`
+                    : `Melalui pendekatan inkuiri ilmiah (mengamati, menanya, mencoba, dan menyimpulkan), siswa ${className} menelusuri sebab-akibat fenomena "${topicTitle}" dan dampaknya bagi keseimbangan alam maupun kehidupan masyarakat Indonesia.`,
+            domainTerms: isPlant
+                ? [
+                    { term: 'Klorofil', meaning: 'Zat hijau daun yang berfungsi menangkap energi cahaya matahari saat fotosintesis.' },
+                    { term: 'Stomata', meaning: 'Mulut daun tempat pertukaran gas karbon dioksida (CO₂) masuk dan oksigen (O₂) keluar.' },
+                    { term: 'Fotosintesis', meaning: 'Proses pembuatan makanan oleh tumbuhan hijau menghasilkan glukosa dan oksigen.' },
+                    { term: 'Xilem & Floem', meaning: 'Jaringan pembuluh pengangkut air dari akar dan pengedar hasil fotosintesis.' }
+                ]
+                : [
+                    { term: 'Energi Kalor / Panas', meaning: 'Energi yang berpindah dari benda bersuhu tinggi ke rendah dan memicu perubahan wujud benda.' },
+                    { term: 'Gaya Otot & Gesek', meaning: 'Dorongan/tarikan otot serta gaya hambat yang terjadi saat dua permukaan benda bersentuhan.' },
+                    { term: 'Hubungan Sebab-Akibat', meaning: 'Keterkaitan logis antara faktor penyebab perubahan dan akibat yang teramati.' },
+                    { term: 'Pengamatan Ilmiah', meaning: 'Proses mengumpulkan fakta nyata menggunakan panca indera atau alat ukur.' }
+                ],
+            poinPenting: isPlant
+                ? [
+                    'Bahan utama fotosintesis adalah air (H₂O), karbon dioksida (CO₂), cahaya matahari, dan klorofil.',
+                    'Hasil fotosintesis berupa karbohidrat/glukosa (sumber energi tumbuhan) dan oksigen (O₂) untuk bernapas makhluk hidup.',
+                    'Bunga berperan sebagai alat perkembangbiakan generatif melalui penyerbukan.'
+                ]
+                : [
+                    'Setiap perubahan pada benda atau alam selalu memiliki penyebab yang dapat diamati dan diuji.',
+                    'Energi bermanfaat jika digunakan hemat dan bijak sesuai kebutuhan sehari-hari.',
+                    'Menjaga kelestarian lingkungan menjaga keseimbangan ekosistem dan kehidupan manusia.'
+                ],
+            contohKonkret: isPlant
+                ? 'Saat daun tanaman diletakkan di bawah cahaya matahari pagi dan disiram secukupnya, gelembung gas oksigen dilepaskan dari daun melalui proses fotosintesis.'
+                : 'Saat menyalakan kipas angin di kelas, energi listrik berubah menjadi energi gerak yang menghasilkan hembusan angin.',
+            contohSehariHari: [
+                'Di Rumah: Mematikan lampu dan peralatan listrik yang tidak dipakai untuk menghemat energi.',
+                'Di Halaman/Kebun: Menyiram tanaman dan memberi sinar matahari cukup agar tumbuh subur.',
+                'Di Lingkungan Sekitar: Memilah sampah dan menanam pohon untuk menjaga udara tetap segar.'
+            ],
+            klasifikasiAtauProses: {
+                judul: isPlant ? 'Alur Proses Fotosintesis pada Tumbuhan Hijau' : `Tahapan Proses Ilmiah: ${topicTitle}`,
+                butir: isPlant
+                    ? [
+                        { label: '1. Penyerapan Air & CO₂', uraian: 'Akar menyerap air dari tanah menuju daun, sementara stomata menyerap karbon dioksida dari udara.' },
+                        { label: '2. Reaksi dengan Cahaya', uraian: 'Klorofil di daun menangkap energi cahaya matahari untuk mengolah air dan CO₂.' },
+                        { label: '3. Pelepasan O₂ & Glukosa', uraian: 'Tumbuhan menghasilkan makanan (glukosa) untuk tumbuh dan melepaskan oksigen ke udara.' }
+                    ]
+                    : [
+                        { label: '1. Pengamatan Fakta', uraian: `Mengamati ciri benda, makhluk hidup, atau gejala alam terkait ${topicTitle}.` },
+                        { label: '2. Identifikasi Penyebab', uraian: 'Menemukan faktor pemicu perubahan (kalor, gaya, cahaya, atau interaksi manusia).' },
+                        { label: '3. Simpulan & Pelestarian', uraian: 'Merumuskan manfaat dan cara menjaga keseimbangan lingkungan.' }
+                    ]
+            },
+            tabelInformatif: {
+                judul: isPlant ? 'Bagian Tumbuhan & Fungsi Utamanya' : `Ringkasan Fenomena & Penerapan ${topicTitle}`,
+                kolom: ['Bagian / Unsur', 'Fungsi / Peran Ilmiah', 'Contoh Pengamatan'],
+                baris: isPlant
+                    ? [
+                        ['Akar', 'Menyerap air, mineral, dan memperkokoh tumbuhan', 'Akar tunggang mangga & serabut padi'],
+                        ['Batang', 'Menyalurkan air & makanan serta menopang daun', 'Batang kayu jati & batang rumput'],
+                        ['Daun', 'Tempat berlangsungnya fotosintesis & penguapan', 'Daun hijau berklorofil']
+                    ]
+                    : [
+                        ['Sumber Energi / Gaya', 'Pemicu kerja atau perubahan gerak/wujud', 'Listrik, matahari, dorongan otot'],
+                        ['Proses Perubahan', 'Transformasi energi atau wujud benda', 'Es mencair saat dipanaskan'],
+                        ['Dampak Lingkungan', 'Manfaat atau risiko bagi makhluk hidup', 'Hemat energi menjaga kelestarian alam']
+                    ]
+            },
+            miskonsepsiUmum: isPlant
+                ? [
+                    { salah: 'Mengira tumbuhan mengambil makanannya langsung dari tanah seperti manusia makan nasi.', pelurusan: 'Akar hanya menyerap air dan mineral; makanan (glukosa) dibuat sendiri di daun melalui fotosintesis.' },
+                    { salah: 'Mengira tumbuhan hanya menghasilkan oksigen tanpa pernah bernapas.', pelurusan: 'Tumbuhan juga melakukan pernapasan (respirasi) sepanjang waktu, tetapi pada siang hari fotosintesis menghasilkan jauh lebih banyak oksigen.' }
+                ]
+                : [
+                    { salah: 'Mengira energi habis dan hilang begitu saja setelah lampu dimatikan.', pelurusan: 'Energi tidak hilang, melainkan berubah bentuk (misalnya energi listrik menjadi energi cahaya dan panas).' },
+                    { salah: 'Mengira benda berat selalu jatuh lebih cepat hanya karena massanya tanpa memperhitungkan hambatan udara.', pelurusan: 'Hambatan udara (luas permukaan benda seperti kertas vs batu) sangat memengaruhi kecepatan jatuh di udara.' }
+                ],
+            aktivitasSederhana: {
+                judul: `Observasi Sains Mini: ${topicTitle}`,
+                langkah: [
+                    'Amati satu objek nyata di lingkungan sekolah/rumah (tanaman, alat listrik, atau perubahan benda).',
+                    'Catat bagian utama beserta peran atau perubahan yang terjadi pada lembar pengamatan.',
+                    'Jelaskan 1 manfaat temuanmu bagi kehidupan manusia sehari-hari.'
+                ],
+                hasilDiharapkan: `Siswa mampu menjelaskan fakta ilmiah ${topicTitle} berdasarkan pengamatan langsung.`
+            },
+            rangkumanPoin: [
+                isPlant ? 'Fotosintesis di daun berklorofil menghasilkan glukosa dan oksigen dengan bantuan cahaya matahari.' : `Fenomena ${topicTitle} bekerja mengikuti aturan sebab-akibat ilmiah yang dapat diamati langsung.`,
+                'Setiap bagian komponen sistem saling bergantung menjaga keseimbangan alam.',
+                'Pemahaman IPAS menumbuhkan sikap peduli lingkungan dan hemat sumber daya.'
+            ],
+            latihanFormatif: isPlant
+                ? [
+                    { no: 1, pertanyaan: 'Sebutkan 4 unsur utama yang dibutuhkan tumbuhan hijau untuk melakukan fotosintesis!', kunciSingkat: 'Air, karbon dioksida (CO₂), cahaya matahari, dan klorofil.' },
+                    { no: 2, pertanyaan: 'Mengapa fotosintesis tumbuhan sangat penting bagi kehidupan manusia dan hewan?', kunciSingkat: 'Karena menghasilkan oksigen (O₂) untuk bernapas dan bahan makanan sumber energi.' },
+                    { no: 3, pertanyaan: 'Apa fungsi utama akar dan batang pada tubuh tumbuhan?', kunciSingkat: 'Akar menyerap air dan mineral serta memperkokoh tumbuhan; batang menyalurkan air dan menopang daun/bunga.' }
+                ]
+                : [
+                    { no: 1, pertanyaan: `Jelaskan dengan bahasamu sendiri hubungan sebab-akibat yang terjadi pada materi "${topicTitle}"!`, kunciSingkat: 'Menjelaskan faktor pemicu dan hasil perubahan yang dapat diamati secara ilmiah.' },
+                    { no: 2, pertanyaan: `Berikan 2 contoh nyata penerapan konsep "${topicTitle}" di rumah atau di sekolah!`, kunciSingkat: 'Dua contoh pengamatan benda atau peristiwa alam sehari-hari yang sesuai konsep.' },
+                    { no: 3, pertanyaan: 'Bagaimana sikap bijak kita terhadap pemanfaatan sumber daya dan lingkungan terkait materi ini?', kunciSingkat: 'Menggunakan secukupnya, menghemat energi, dan merawat kelestarian lingkungan.' }
+                ],
+            visualCaption: `Skema Ilmiah IPAS: ${topicTitle}`
+        };
+    }
+
+    // 4. PAIBP (Pendidikan Agama Islam dan Budi Pekerti)
+    if (subjLower.includes('islam') || subjLower.includes('pai')) {
+        const isWudu = /(berwud[hu]?u|wud[hu]?u|bersuci|tayamum|thaharah)/.test(combined);
+        const isQuran = /\b(al-?qur'?an|surah|ayat|tajwid|tartil|harakat|mushaf)\b/.test(combined);
+        return {
+            pengertianKonsep: isWudu
+                ? `Wudu adalah bersuci menggunakan air suci yang menyucikan untuk menghilangkan hadas kecil pada anggota tubuh tertentu (wajah, kedua tangan sampai siku, sebagian kepala, dan kedua kaki sampai mata kaki) disertai niat tulus karena Allah Swt. sebagai syarat sahnya salat.`
+                : isQuran
+                    ? `Al-Qur'an adalah firman Allah Swt. yang diturunkan kepada Nabi Muhammad saw. melalui Malaikat Jibril sebagai pedoman hidup umat Islam, yang wajib dibaca secara tartil (jelas, tenang, sesuai makhraj huruf dan kaidah tajwid) serta diamalkan isi kandungannya.`
+                    : `Materi PAIBP "${topicTitle}" menanamkan keimanan yang benar kepada Allah Swt., tata cara ibadah sesuai tuntunan syariat Islam, serta pembiasaan akhlakul karimah dalam kehidupan bermasyarakat.`,
+            penjelasanUtama: isWudu
+                ? `Berdasarkan Buku Siswa PAIBP SD Kurikulum Merdeka, wudu memiliki 6 rukun wajib yang harus dilakukan berurutan (tertib): (1) Niat dalam hati saat membasuh wajah, (2) Membasuh seluruh wajah, (3) Membasuh kedua tangan hingga siku, (4) Mengusap sebagian kepala, (5) Membasuh kedua kaki hingga mata kaki, dan (6) Tertib (berurutan tidak dibolak-balik).`
+                : isQuran
+                    ? `Mempelajari Al-Qur'an di jenjang SD meliputi pelafalan huruf hijaiyah sesuai makhraj dan harakat panjang-pendek (mad), memahami arti dan pesan pokok surah pendek untuk menumbuhkan kepedulian sosial (seperti menyayangi anak yatim, jujur, dan saling menghargai), serta menghafalkannya dengan tertib.`
+                    : `Dalam Islam, pemahaman ilmu agama wajib berjalan beriringan antara keyakinan hati (akidah), ketepatan tata cara beribadah (fikih), dan perilaku terpuji kepada orang tua, guru, teman, maupun lingkungan sekitar (akhlak).`,
+            domainTerms: isWudu
+                ? [
+                    { term: 'Air Mutlak', meaning: 'Air suci yang dapat menyucikan (air keran bersih, air sumur, air hujan) dan tidak berubah warna/rasa/bau.' },
+                    { term: 'Rukun Wudu (6 Wajib)', meaning: 'Bagian pokok wudu yang wajib dikerjakan; jika tertinggal satu saja maka wudunya tidak sah.' },
+                    { term: 'Hadas Kecil', meaning: 'Keadaan tidak suci yang mewajibkan wudu sebelum salat, misalnya setelah buang air atau tidur nyenyak.' },
+                    { term: 'Tertib', meaning: 'Melaksanakan urutan membasuh anggota wudu dari wajah hingga kaki secara berurutan.' }
+                ]
+                : [
+                    { term: 'Niat Ikhlas', meaning: 'Kesungguhan hati beribadah dan berbuat baik semata-mata mengharap rida Allah Swt.' },
+                    { term: 'Tartil & Makhraj', meaning: 'Membaca Al-Qur’an dengan tenang, jelas pelafalan hurufnya, dan tepat panjang-pendek bacaannya.' },
+                    { term: 'Akhlakul Karimah', meaning: 'Budi pekerti mulia seperti jujur, amanah, santun, dan peduli terhadap sesama.' },
+                    { term: 'Teladan Rasulullah saw.', meaning: 'Mencontoh sifat siddiq, amanah, tabligh, dan fatanah dalam kegiatan sehari-hari.' }
+                ],
+            poinPenting: isWudu
+                ? [
+                    'Enam rukun wudu: niat, membasuh wajah, tangan hingga siku, mengusap sebagian kepala, kaki hingga mata kaki, dan tertib.',
+                    'Gunakan air secukupnya (hemat air, tidak boros) sesuai ajaran Rasulullah saw.',
+                    'Hal yang membatalkan wudu antara lain keluar sesuatu dari dua jalan, tidur pulas, atau hilang akal.'
+                ]
+                : [
+                    'Awali setiap ibadah dan kegiatan belajar dengan basmalah serta niat tulus karena Allah Swt.',
+                    'Pahami isi pokok materi agar ibadah dilaksanakan dengan ilmu dan penuh kesadaran.',
+                    'Wujudkan nilai agama melalui sikap santun kepada orang tua, guru, dan teman tanpa membeda-bedakan.'
+                ],
+            contohKonkret: isWudu
+                ? 'Saat mendengar azan Zuhur, Ahmad menuju tempat wudu sekolah, membuka keran air secukupnya, membaca basmalah, berniat wudu, lalu membasuh wajah, tangan s.d. siku, kepala, dan kaki s.d. mata kaki secara tertib.'
+                : `Contoh nyata: Ketika menemukan pensil teman yang terjatuh di kelas, siswa segera mengembalikannya sebagai wujud sifat amanah dan jujur.`,
+            contohSehariHari: [
+                'Di Rumah: Berbakti kepada ayah dan ibu, berbicara lemah lembut, serta salat tepat waktu.',
+                'Di Sekolah: Berbagi dengan teman yang membutuhkan, menyapa guru dengan salam, dan menjaga kebersihan musala.',
+                'Di Masyarakat: Menghormati tetangga dan teman yang berbeda latar belakang dengan rukun.'
+            ],
+            klasifikasiAtauProses: {
+                judul: isWudu ? 'Urutan Rukun Wudu yang Sah & Tertib' : `Pilar Pengamalan Materi ${topicTitle}`,
+                butir: isWudu
+                    ? [
+                        { label: '1. Niat & Membasuh Wajah', uraian: 'Membaca niat wudu dalam hati berbarengan dengan membasuh seluruh bagian wajah merata.' },
+                        { label: '2. Tangan s.d. Siku & Usap Kepala', uraian: 'Membasuh kedua tangan dari ujung jari hingga melewati siku, lalu mengusap sebagian rambut/kepala.' },
+                        { label: '3. Kaki s.d. Mata Kaki & Doa', uraian: 'Membasuh kedua kaki hingga mata kaki secara tertib (berurutan), lalu membaca doa setelah wudu.' }
+                    ]
+                    : [
+                        { label: '1. Memahami Tuntunan', uraian: `Mempelajari dasar ayat/hadis atau ketentuan syariat pada ${topicTitle}.` },
+                        { label: '2. Membiasakan Praktik', uraian: 'Mempraktikkan tata cara ibadah atau adab secara tertib dan istikamah.' },
+                        { label: '3. Akhlak Terpuji', uraian: 'Menunjukkan perubahan sikap menjadi lebih jujur, peduli, dan bertanggung jawab.' }
+                    ]
+            },
+            tabelInformatif: {
+                judul: isWudu ? 'Perbedaan Rukun (Wajib) dan Sunah dalam Wudu' : `Panduan Nilai & Pengamalan ${topicTitle}`,
+                kolom: ['Aspek', 'Ketentuan Pokok', 'Contoh Praktik'],
+                baris: isWudu
+                    ? [
+                        ['Rukun Wudu', 'Wajib dikerjakan berurutan (jika tinggal, tidak sah)', 'Niat, wajah, tangan, kepala, kaki, tertib'],
+                        ['Sunah Wudu', 'Dianjurkan untuk menambah pahala', 'Membaca basmalah, berkumur, membasuh 3 kali'],
+                        ['Adab Hemat Air', 'Tidak menyalakan keran terlalu besar', 'Menutup keran segera setelah selesai']
+                    ]
+                    : [
+                        ['Keyakinan (Iman)', 'Meyakini kebesaran & kasih sayang Allah Swt.', 'Berdoa sebelum belajar & bersyukur'],
+                        ['Ibadah / Ilmu', 'Melaksanakan aturan sesuai syariat yang benar', 'Membaca tartil / menunaikan rukun ibadah'],
+                        ['Akhlak Harian', 'Meneladani sikap mulia terhadap sesama', 'Jujur, santun, dan membantu teman']
+                    ]
+            },
+            miskonsepsiUmum: isWudu
+                ? [
+                    { salah: 'Membasuh tangan hanya sampai pergelangan tangan saja, tidak sampai siku.', pelurusan: 'Rukun wudu mewajibkan membasuh kedua tangan mulai dari ujung jari hingga melewati siku.' },
+                    { salah: 'Membuka keran air selebar-lebarnya saat berwudu.', pelurusan: 'Islam melarang sikap boros (tabzir); berwudu cukup menggunakan air secukupnya secara merata.' }
+                ]
+                : [
+                    { salah: 'Menganggap hafal bacaan saja sudah cukup tanpa memahami artinya dan menerapkannya.', pelurusan: 'Ajaran Islam menekankan pemahaman makna dan pembuktian dalam akhlak sehari-hari.' },
+                    { salah: 'Mengira adab baik hanya berlaku saat berada di masjid.', pelurusan: 'Akhlak mulia wajib dijaga di mana saja: di rumah, sekolah, maupun saat bermain.' }
+                ],
+            aktivitasSederhana: {
+                judul: isWudu ? 'Simulasi Urutan Rukun Wudu yang Benar' : `Refleksi & Praktik Kebaikan: ${topicTitle}`,
+                langkah: isWudu
+                    ? [
+                        'Sebutkan 6 rukun wudu secara berurutan di depan pasangan belajarmu.',
+                        'Praktikkan gerakan membasuh wajah, tangan s.d. siku, mengusap kepala, dan kaki s.d. mata kaki secara tertib.',
+                        'Pastikan kamu ingat doa setelah berwudu.'
+                    ]
+                    : [
+                        `Tuliskan 1 pesan utama atau nilai keteladanan dari "${topicTitle}".`,
+                        'Rencanakan 1 perbuatan baik yang akan kamu lakukan hari ini di rumah atau sekolah.',
+                        'Ceritakan pengalamanmu pada pertemuan berikutnya.'
+                    ],
+                hasilDiharapkan: `Siswa mampu mempraktikkan ${topicTitle} dengan benar dan membiasakan akhlak mulia.`
+            },
+            rangkumanPoin: isWudu
+                ? [
+                    'Wudu membersihkan hadas kecil sebelum salat menggunakan air suci yang menyucikan.',
+                    'Enam rukun wudu wajib dilakukan secara tertib dan merata hingga batas siku dan mata kaki.',
+                    'Gunakan air dengan hemat karena pemborosan tidak disukai dalam Islam.'
+                ]
+                : [
+                    `${topicTitle} mengajarkan keselarasan antara iman, ilmu ibadah yang sah, dan akhlak terpuji.`,
+                    'Membaca dan memahami tuntunan agama membantu kita beribadah dengan tenang dan benar.',
+                    'Sikap jujur, peduli, dan menghargai sesama adalah cerminan pelajar muslim berakhlak mulia.'
+                ],
+            latihanFormatif: isWudu
+                ? [
+                    { no: 1, pertanyaan: 'Tuliskan 6 rukun wudu secara berurutan dengan benar!', kunciSingkat: '1) Niat, 2) Membasuh wajah, 3) Membasuh kedua tangan sampai siku, 4) Mengusap sebagian kepala, 5) Membasuh kedua kaki sampai mata kaki, 6) Tertib.' },
+                    { no: 2, pertanyaan: 'Apa akibatnya jika seseorang saat berwudu tidak membasuh tangannya sampai siku?', kunciSingkat: 'Wudunya tidak sah karena membasuh tangan sampai siku adalah salah satu rukun wajib wudu.' },
+                    { no: 3, pertanyaan: 'Mengapa kita harus menghemat air saat berwudu di sekolah maupun di rumah?', kunciSingkat: 'Karena Islam mengajarkan larangan bersikap boros dan menjaga kelestarian air bersih.' }
+                ]
+                : [
+                    { no: 1, pertanyaan: `Apa nilai keteladanan utama yang kamu pelajari dari materi "${topicTitle}"?`, kunciSingkat: 'Menyebutkan nilai iman, ibadah sah, atau akhlak mulia sesuai topik.' },
+                    { no: 2, pertanyaan: 'Bagaimana cara menerapkan pesan pembelajaran ini saat berinteraksi dengan teman di kelas?', kunciSingkat: 'Berkata sopan, jujur, saling menolong, dan menghormati perbedaan.' },
+                    { no: 3, pertanyaan: 'Mengapa niat yang tulus penting sebelum melakukan ibadah atau kebaikan?', kunciSingkat: 'Agar setiap amal bernilai ibadah di sisi Allah Swt. dan dilakukan dengan sungguh-sungguh.' }
+                ],
+            visualCaption: `Ilustrasi Edukatif PAIBP: ${topicTitle}`
+        };
+    }
+
+    // 5. BAHASA SUNDA
+    if (isSunda) {
+        return {
+            pengertianKonsep: `Dina pangajaran Basa Sunda, "${topicTitle}" mangrupa kamampuh basa jeung sastra pikeun maham eusi bacaan atawa paguneman sarta ngagunakeun undak-usuk basa (basa hormat/lemes jeung basa loma) kalayan merenah luyu jeung tatakrama urang Sunda.`,
+            penjelasanUtama: `Luyu jeung buku pangajaran Basa Sunda SD, basa Sunda mibanda aturan sopan santun dina nyarita. Basa lemes dipaké nalika nyarita ka saluhureun (kolot, guru, tamu), sedengkeun basa loma dipaké ka babaturan saumur kalayan tetep ngajaga soméah jeung silih ajénan.`,
+            domainTerms: [
+                { term: 'Undak-usuk Basa', meaning: 'Tatacara maké basa Sunda luyu jeung umur katut kahormatan lawan nyarita (lemes & loma).' },
+                { term: 'Kecap Lemes', meaning: 'Kecap hormat saperti punten, mangga, hatur nuhun, abdi, bapa/ibu pikeun ka nu leuwih kolot.' },
+                { term: 'Kecap Loma', meaning: 'Basa sapopoé nu akrab tur sopan pikeun ka babaturan sapantar.' },
+                { term: 'Silih Asah, Silih Asih, Silih Asuh', meaning: 'Falsafah Sunda pikeun silih bimbing, silih pikanyaah, jeung silih jaga.' }
+            ],
+            poinPenting: [
+                'Bedakeun pamakéan kecap abdi (lemes) jeung kuring/urang (loma) luyu jeung saha nu diajak nyarita.',
+                'Perhatikeun lentong (intonasi) jeung éjaan aksara é, e, eu sangkan harti kecap teu salah.',
+                'Biasakeun ngucapkeun punten, mangga, jeung hatur nuhun dina paguneman sapopoé.'
+            ],
+            contohKonkret: `Paguneman ka guru: "Punten Pa Guru, abdi badé naroskeun tugas nyerat dongéng." Sedengkeun ka babaturan: "Hayu urang diajar babarengan di perpustakaan!"`,
+            contohSehariHari: [
+                'Di Imah: Nyarita ku basa lemes ka ibu sareng rama ("Mangga Bu, abdi bade mios ka sakola").',
+                'Di Sakola: Ngajawab patarosan guru kalayan sopan sarta ngucapkeun hatur nuhun ka babaturan.',
+                'Di Lingkungan: Ngariksa jeung reueus ngagunakeun basa Sunda dina kaulinan barudak atawa kasenian daérah.'
+            ],
+            klasifikasiAtauProses: {
+                judul: `Sistematika Nyarita & Nulis Basa Sunda: ${topicTitle}`,
+                butir: [
+                    { label: '1. Niténan Kontéks & Palaku', uraian: 'Tangtukeun saha nu nyarita jeung ka saha nyaritana (kolot/guru atanapi babaturan).' },
+                    { label: '2. Milih Undak-usuk Kecap', uraian: 'Pilih kecap lemes keur saluhureun (tuang, sumping, mios) atawa loma keur babaturan (dahar, datang, indit).' },
+                    { label: '3. Ngalarapkeun dina Kalimah', uraian: 'Rakit kalimah nu jéntré tur sopan kalayan merhatikeun éjaan é, e, jeung eu.' }
+                ]
+            },
+            tabelInformatif: {
+                judul: 'Conto Babandingan Kecap Loma jeung Kecap Lemes',
+                kolom: ['Harti (Indonesia)', 'Basa Loma (Ka Babaturan)', 'Basa Lemes (Ka Kolot/Guru)'],
+                baris: [
+                    ['Saya / Aku', 'Kuring / Urang', 'Abdi / Simkuring'],
+                    ['Makan', 'Dahar', 'Neda (sorangan) / Tuang (ka batur)'],
+                    ['Pergi / Berangkat', 'Indit', 'Mios / Angkat'],
+                    ['Datang', 'Datang', 'Dongkap (sorangan) / Sumping (ka batur)']
+                ]
+            },
+            miskonsepsiUmum: [
+                { salah: 'Maké kecap "tuang" keur diri sorangan ("Abdi nuju tuang").', pelurusan: 'Kecap "tuang" téh lemes keur ka batur; keur diri sorangan nu bener nyaéta "neda" ("Abdi nuju neda").' },
+                { salah: 'Nuliskeun vokal e, é, jeung eu disaruakeun kabéh.', pelurusan: 'Dina basa Sunda bédana é, e, eu ngarobah harti (contona: séréh vs sereh, leumpang vs lempeng).' }
+            ],
+            aktivitasSederhana: {
+                judul: 'Prakték Paguneman Undak-usuk Basa',
+                langkah: [
+                    'Jieun pasangan 2 murid di kelas.',
+                    'Susun 2 kalimah paguneman maké kecap punten jeung hatur nuhun ngeunaan kagiatan di sakola.',
+                    'Perankeun di hareup kelas kalayan lentong nu merenah jeung soméah.'
+                ],
+                hasilDiharapkan: 'Murid mampuh ngabédakeun basa loma jeung lemes sarta wani nyarita basa Sunda kalayan sopan.'
+            },
+            rangkumanPoin: [
+                'Basa Sunda mibanda undak-usuk basa pikeun ngahormat saluhureun jeung ngaraketkeun babaturan.',
+                'Kecap "neda" dipaké keur diri sorangan, ari "tuang" dipaké keur ngahormat batur.',
+                'Éjaan vokal e, é, jeung eu kudu diperhatikeun sangkan harti kecap tetep bener.'
+            ],
+            latihanFormatif: [
+                { no: 1, pertanyaan: 'Naon bédana pamakéan kecap "neda" jeung "tuang" dina undak-usuk basa Sunda?', kunciSingkat: 'Neda dipaké keur diri sorangan, sedengkeun tuang dipaké keur ngahormat batur (kolot/guru).' },
+                { no: 2, pertanyaan: 'Robah kalimah ieu jadi basa lemes keur ka guru: "Kuring rék indit ka perpustakaan."', kunciSingkat: 'Abdi badé mios ka perpustakaan.' },
+                { no: 3, pertanyaan: 'Tuliskeun 2 kecap sopan dina basa Sunda nu mindeng dipaké nalika ménta tulung atawa nganuhunkeun!', kunciSingkat: 'Punten sareng hatur nuhun.' }
+            ],
+            visualCaption: `Ilustrasi Paguneman & Budaya Sunda: ${topicTitle}`
+        };
+    }
+
+    // 6. BAHASA INDONESIA, PPKN, SENI, BAHASA INGGRIS, KODING & GENERAL DOMAIN-SPECIFIC PACK
+    const subjectPack = (() => {
+        if (subjLower.includes('indonesia')) {
+            const isProcedure = /\b(prosedur|petunjuk|langkah|membuat|cara)\b/.test(combined);
+            const isPoem = /\b(puisi|pantun|sajak|majas|rima|bait)\b/.test(combined);
+            return {
+                def: isProcedure
+                    ? `Teks prosedur adalah teks yang berisi tujuan dan urutan langkah-langkah sistematis menggunakan kalimat perintah (imperatif), kata kerja aktif, dan kata hubung urutan agar pembaca dapat membuat atau melakukan sesuatu dengan tepat.`
+                    : isPoem
+                        ? `Puisi dan pantun adalah karya sastra berbentuk bait dan larik yang mengutamakan pilihan kata indah (diksi), rima/persajakan, serta ungkapan perasaan atau pesan moral yang mendalam.`
+                        : `Kompetensi Bahasa Indonesia pada "${topicTitle}" melatih kemampuan menyimak, membaca pemahaman (menemukan gagasan pokok & informasi tersurat/tersirat), serta berbicara dan menulis menggunakan kaidah Ejaan Bahasa Indonesia (EYD) dan kalimat efektif.`,
+                exp: isProcedure
+                    ? `Ciri utama teks prosedur adalah penggunaan kalimat perintah yang santun dan jelas (misal: "Potonglah kertas menjadi dua bagian"), kata keterangan cara/alat, serta urutan kronologis dari langkah pertama hingga selesai.`
+                    : `Dalam memahami bacaan Bahasa Indonesia sesuai Buku Siswa Kemendikdasmen, pembaca mengidentifikasi kalimat utama (berisi ide pokok/gagasan utama) dan kalimat penjelas di setiap paragraf, serta memperhatikan huruf kapital dan tanda baca (titik, koma, tanda tanya, tanda seru) saat menulis.`,
+                terms: [
+                    { term: 'Ide Pokok / Gagasan Utama', meaning: 'Inti pembicaraan yang menjadi dasar pengembangan seluruh kalimat dalam satu paragraf.' },
+                    { term: 'Kalimat Efektif & EYD', meaning: 'Kalimat lengkap berstruktur S-P-O-K yang memakai huruf kapital dan tanda baca secara tepat.' },
+                    { term: 'ADIKSIMBA (5W+1H)', meaning: 'Kata tanya Apa, Di mana, Kapan, Siapa, Mengapa, dan Bagaimana untuk menggali isi teks.' },
+                    { term: 'Informasi Tersurat & Tersirat', meaning: 'Fakta yang tertulis langsung di teks serta pesan moral yang disimpulkan dari bacaan.' }
+                ],
+                example: `Contoh Kalimat Efektif: "Raka membaca buku cerita di perpustakaan sekolah dengan tenang." (Menggunakan huruf kapital di awal kalimat dan nama orang, serta diakhiri tanda titik).`,
+                misconceptions: [
+                    { salah: 'Mengira ide pokok selalu berbentuk kalimat panjang yang disalin persis dari teks.', pelurusan: 'Ide pokok adalah inti gagasan paragraf yang dapat diringkas padat dari kalimat utama.' },
+                    { salah: 'Lupa menggunakan huruf kapital pada nama orang, hari, bulan, atau awal kalimat.', pelurusan: 'Sesuai kaidah EYD V, huruf kapital wajib dipakai di awal kalimat serta nama diri, tempat, hari, dan bulan.' }
+                ],
+                q1: { q: 'Apa perbedaan antara kalimat utama dan kalimat penjelas dalam sebuah paragraf?', a: 'Kalimat utama berisi gagasan pokok paragraf, sedangkan kalimat penjelas menguraikan atau memberi contoh untuk mendukung kalimat utama.' },
+                q2: { q: 'Perbaiki penulisan kalimat berikut sesuai EYD: "pada hari senin ani pergi ke bandung"', a: 'Pada hari Senin, Ani pergi ke Bandung.' }
+            };
+        }
+
+        if (subjLower.includes('pancasila') || subjLower.includes('ppkn')) {
+            return {
+                def: `Materi Pendidikan Pancasila "${topicTitle}" mempelajari penerapan nilai-nilai luhur Pancasila (Ketuhanan, Kemanusiaan, Persatuan, Musyawarah, dan Keadilan Sosial), keseimbangan hak dan kewajiban, serta sikap menghargai keberagaman dalam bingkai Bhinneka Tunggal Ika.`,
+                exp: `Sesuai Buku Siswa Pendidikan Pancasila Kemendikdasmen, setiap warga negara termasuk siswa SD memiliki hak (sesuatu yang layak diterima, seperti mendapat pendidikan dan rasa aman) dan kewajiban (tanggung jawab yang wajib dilaksanakan lebih dahulu, seperti menaati tata tertib sekolah dan menghormati guru).`,
+                terms: [
+                    { term: 'Hak & Kewajiban Seimbang', meaning: 'Kewajiban dilaksanakan dengan tanggung jawab agar hak diri dan orang lain terpenuhi adil.' },
+                    { term: 'Musyawarah Mufakat', meaning: 'Pengambilan keputusan bersama dengan berdiskusi santun, menghargai perbedaan pendapat, dan menerima hasil dengan lapang dada.' },
+                    { term: 'Gotong Royong', meaning: 'Kerja sama sukarela untuk meringankan pekerjaan bersama di rumah, kelas, maupun masyarakat.' },
+                    { term: 'Bhinneka Tunggal Ika', meaning: 'Berbeda-beda suku, agama, bahasa, dan budaya tetapi tetap satu kesatuan bangsa Indonesia.' }
+                ],
+                example: `Contoh Musyawarah di Kelas: Memilih ketua kelas atau jadwal piket melalui diskusi bersama sehingga semua siswa menyepakati keputusan dengan tertib.`,
+                misconceptions: [
+                    { salah: 'Menuntut hak terlebih dahulu sebelum melaksanakan kewajiban sebagai siswa.', pelurusan: 'Kewajiban dan hak berjalan beriringan; melaksanakan kewajiban dengan baik memastikan hak bersama tetap terjaga.' },
+                    { salah: 'Memaksakan kehendak pribadi saat berdiskusi kelompok.', pelurusan: 'Musyawarah mengutamakan kepentingan bersama dan menghormati pendapat teman yang berbeda.' }
+                ],
+                q1: { q: 'Mengapa pelaksanaan kewajiban harus diimbangi dengan pemenuhan hak secara adil?', a: 'Agar tercipta ketertiban, keadilan, dan kenyamanan bersama di rumah maupun di sekolah.' },
+                q2: { q: 'Apa yang harus dilakukan jika pendapat kita tidak terpilih dalam musyawarah kelas?', a: 'Menerima keputusan bersama dengan lapang dada dan tetap ikut melaksanakannya dengan tanggung jawab.' }
+            };
+        }
+
+        if (subjLower.includes('koding') || subjLower.includes('kecerdasan')) {
+            return {
+                def: `Materi Koding dan Kecerdasan Artifisial "${topicTitle}" melatih kemampuan berpikir komputasional (dekomposisi, pengenalan pola, abstraksi, dan algoritma) serta memahami cara kerja program dan sistem AI menggunakan data secara etis dan aman.`,
+                exp: `Dalam pemrograman dasar SD, suatu masalah besar dipecah menjadi bagian kecil (dekomposisi), kemudian disusun menjadi urutan langkah logis tanpa ambigu (algoritma / flowchart) yang memanfaatkan struktur urutan (sequence), perulangan (loop), dan kondisi percabangan (jika-maka / if-else).`,
+                terms: [
+                    { term: 'Algoritma & Flowchart', meaning: 'Urutan langkah logis penyelesaian masalah yang digambarkan dengan simbol mulai, proses, dan keputusan.' },
+                    { term: 'Dekomposisi', meaning: 'Memecah masalah rumit menjadi bagian-bagian kecil agar mudah diselesaikan.' },
+                    { term: 'Percabangan (If-Else)', meaning: 'Aturan pengambilan keputusan program berdasarkan syarat kondisi tertentu.' },
+                    { term: 'Dataset & Keamanan Digital', meaning: 'Kumpulan data latih untuk AI serta kewaspadaan menjaga kata sandi dan privasi diri.' }
+                ],
+                example: `Contoh Logika If-Else: "JIKA lampu lalu lintas berwarna merah, MAKA kendaraan berhenti; JIKA TIDAK dan berwarna hijau, MAKA kendaraan berjalan."`,
+                misconceptions: [
+                    { salah: 'Mengira kecerdasan artifisial (AI) memiliki perasaan dan kesadaran seperti manusia.', pelurusan: 'AI bekerja memproses pola dari data yang diberikan manusia, sehingga manusia tetap bertanggung jawab memeriksa kebenaran hasilnya.' },
+                    { salah: 'Mengira urutan langkah algoritma boleh dibolak-balik sesuka hati.', pelurusan: 'Urutan instruksi yang salah dapat membuat program menghasilkan error (bug) atau hasil yang keliru.' }
+                ],
+                q1: { q: 'Apa yang dimaksud dengan dekomposisi dalam berpikir komputasional?', a: 'Memecah masalah besar menjadi bagian-bagian kecil yang lebih mudah disusun dan diselesaikan.' },
+                q2: { q: 'Mengapa kita tidak boleh membagikan kata sandi (password) atau data pribadi ke sembarang situs/aplikasi?', a: 'Untuk menjaga keamanan digital dan mencegah penyalahgunaan akun oleh pihak yang tidak bertanggung jawab.' }
+            };
+        }
+
+        if (subjLower.includes('seni')) {
+            return {
+                def: `Pembelajaran Seni Budaya (${subject}) pada topik "${topicTitle}" mengembangkan kepekaan estetik, keterampilan berkarya melalui unsur seni (garis, warna, bentuk, tekstur, nada, irama, gerak, atau peran), serta apresiasi terhadap kekayaan budaya Nusantara.`,
+                exp: `Dalam berkarya seni rupa maupun pertunjukan, siswa mengenali bahan, alat, dan teknik dasar (seperti mencampur warna primer merah-kuning-biru menjadi warna sekunder, menjaga tempo/irama musik, atau mengatur pola lantai gerak tari) untuk mengekspresikan ide secara kreatif dan rapi.`,
+                terms: [
+                    { term: 'Warna Primer & Sekunder', meaning: 'Warna dasar (merah, kuning, biru) dan hasil pencampurannya (oranye, hijau, ungu).' },
+                    { term: 'Unsur Rupa / Irama', meaning: 'Elemen pembentuk karya seperti titik, garis, bidang, tekstur, tempo, dan pola lantai.' },
+                    { term: 'Teknik Berkarya', meaning: 'Cara mengolah alat dan bahan (menggambar, menempel/kolase, membentuk, atau menyanyi).' },
+                    { term: 'Apresiasi Karya', meaning: 'Kemampuan menghargai keindahan, makna, dan kerja keras karya sendiri maupun teman.' }
+                ],
+                example: `Contoh Pencampuran Warna: Mencampurkan cat warna primer biru dan kuning dengan takaran seimbang menghasilkan warna sekunder hijau.`,
+                misconceptions: [
+                    { salah: 'Mengira karya seni yang bagus hanya dinilai dari mahal atau tidaknya alat gambar.', pelurusan: 'Karya seni yang baik lahir dari komposisi unsur yang rapi, kreativitas ide, dan ketekunan teknik berkarya.' },
+                    { salah: 'Menggunakan bahan alam atau pewarna tanpa menjaga kebersihan area kerja.', pelurusan: 'Seniman cilik selalu menata alat dengan tertib dan membersihkan meja setelah berkarya.' }
+                ],
+                q1: { q: 'Sebutkan 3 warna primer (dasar) dan hasil pencampuran warna merah dengan kuning!', a: 'Warna primer adalah merah, kuning, dan biru; pencampuran merah + kuning menghasilkan warna oranye (jingga).' },
+                q2: { q: 'Bagaimana sikap apresiasi yang baik terhadap karya seni milik teman sekelas?', a: 'Menghargai usahanya, memuji kelebihannya dengan santun, dan memberi masukan membangun tanpa mengejek.' }
+            };
+        }
+
+        // Bahasa Inggris & Other Subjects
+        if (subjLower.includes('inggris')) {
+            return {
+                def: `In elementary English learning ("${topicTitle}"), students develop foundational communicative competence through authentic key vocabulary, simple sentence structures, accurate pronunciation, and polite daily expressions in classroom and home contexts.`,
+                exp: `Students learn to connect English words directly with concrete objects, pictures, and actions (such as "Good morning", "I have two books", "The ball is on the table") while practicing listening, speaking, reading, and simple writing step by step.`,
+                terms: [
+                    { term: 'Key Vocabulary', meaning: 'Kata kunci Bahasa Inggris yang merujuk langsung pada benda, waktu, kegiatan, atau sifat nyata.' },
+                    { term: 'Sentence Pattern', meaning: 'Pola kalimat sederhana (Subject + Verb + Object/Complement) yang benar tata bahasanya.' },
+                    { term: 'Pronunciation', meaning: 'Pelafalan kata Bahasa Inggris yang jelas dan mudah dipahami lawan bicara.' },
+                    { term: 'Polite Expression', meaning: 'Ungkapan sopan seperti "Excuse me", "Thank you", dan "Please" dalam percakapan.' }
+                ],
+                example: `Example in Context: "Good morning, Teacher! May I borrow a pencil, please?" — "Sure, here you are." — "Thank you!"`,
+                misconceptions: [
+                    { salah: 'Membaca tulisan Bahasa Inggris persis seperti ejaan huruf Bahasa Indonesia.', pelurusan: 'Pelafalan Bahasa Inggris berbeda dari penulisannya sehingga siswa perlu mendengarkan dan menirukan pengucapan yang tepat.' },
+                    { salah: 'Menghafal kata tunggal tanpa mempraktikkannya dalam kalimat.', pelurusan: 'Kosakata lebih mudah diingat jika langsung dipakai dalam percakapan pendek bersama teman.' }
+                ],
+                q1: { q: 'Write 2 polite English expressions you use when asking for help or saying thanks to a friend!', a: '"Please help me" and "Thank you very much".' },
+                q2: { q: `Create 1 simple English sentence related to "${topicTitle}"!`, a: 'A grammatically correct simple sentence using the target vocabulary.' }
+            };
+        }
+
+        return {
+            def: `Materi "${topicTitle}" pada mata pelajaran ${subject} (${elementName}) membahas konsep keilmuan esensial, ciri khas, aturan kerja, serta penerapannya secara sistematis untuk jenjang ${className}.`,
+            exp: `Melalui topik "${topicTitle}", peserta didik dibimbing memahami makna istilah pokok, hubungan antarunsur materi, dan langkah penerapan konkret dalam kehidupan sehari-hari sesuai ruang lingkup ${elementName}.`,
+            terms: [
+                { term: 'Konsep Pokok', meaning: `Gagasan dasar yang menjelaskan hakikat dan ciri utama ${topicTitle}.` },
+                { term: 'Prinsip Kerja', meaning: `Aturan atau langkah terstruktur dalam menerapkan ${topicTitle} secara tepat.` },
+                { term: 'Contoh Kontekstual', meaning: 'Situasi nyata di rumah atau sekolah yang membuktikan penerapan konsep.' },
+                { term: 'Bukti Pemahaman', meaning: 'Kemampuan menjelaskan ulang dan mempraktikkan kompetensi TP secara mandiri.' }
+            ],
+            example: `Contoh penerapan ${topicTitle} dapat diamati langsung melalui kegiatan belajar terarah di kelas bersama guru dan teman.`,
+            misconceptions: [
+                { salah: `Menghafal definisi ${topicTitle} tanpa memahami alasan penerapannya.`, pelurusan: 'Konsep harus dipahami maknanya dan dihubungkan dengan contoh nyata sehari-hari.' },
+                { salah: 'Mencampuradukkan istilah dari pokok bahasan lain yang belum dipelajari.', pelurusan: 'Fokuskan pemahaman sesuai batasan Tujuan Pembelajaran (TP) yang sedang dipelajari.' }
+            ],
+            q1: { q: `Jelaskan konsep utama dari "${topicTitle}" dengan bahasamu sendiri!`, a: `Menjelaskan pengertian, ciri utama, dan manfaat ${topicTitle} secara runtut.` },
+            q2: { q: `Berikan 2 contoh penerapan "${topicTitle}" di sekolah atau di rumah!`, a: 'Dua contoh aktivitas nyata yang sesuai dengan konsep materi.' }
+        };
+    })();
+
+    return {
+        pengertianKonsep: subjectPack.def,
+        penjelasanUtama: subjectPack.exp,
+        domainTerms: subjectPack.terms,
+        poinPenting: subjectPack.terms.slice(0, 3).map(t => `${t.term}: ${t.meaning}`),
+        contohKonkret: subjectPack.example,
+        contohSehariHari: [
+            `Di Rumah: Mempraktikkan pemahaman ${topicTitle} dalam kegiatan harian bersama keluarga.`,
+            `Di Sekolah: Mengamati dan menerapkan ${topicTitle} secara tertib selama belajar di kelas.`,
+            `Di Lingkungan Sekitar: Menghubungkan materi ${topicTitle} dengan peristiwa nyata di sekitar siswa.`
+        ],
+        klasifikasiAtauProses: {
+            judul: `Sistematika Pemahaman & Unsur ${topicTitle}`,
+            butir: [
+                { label: `1. ${subjectPack.terms[0].term}`, uraian: subjectPack.terms[0].meaning },
+                { label: `2. ${subjectPack.terms[1].term}`, uraian: subjectPack.terms[1].meaning },
+                { label: `3. ${subjectPack.terms[2].term}`, uraian: subjectPack.terms[2].meaning }
+            ]
+        },
+        tabelInformatif: {
+            judul: `Matriks Konsep & Penerapan ${topicTitle} (${subject})`,
+            kolom: ['Istilah / Unsur', 'Penjelasan Keilmuan', 'Penerapan Nyata'],
+            baris: [
+                [subjectPack.terms[0].term, subjectPack.terms[0].meaning, 'Pengamatan di kelas'],
+                [subjectPack.terms[1].term, subjectPack.terms[1].meaning, 'Latihan terbimbing guru'],
+                [subjectPack.terms[2].term, subjectPack.terms[2].meaning, 'Praktik di rumah/sekolah']
+            ]
+        },
+        miskonsepsiUmum: subjectPack.misconceptions,
+        aktivitasSederhana: {
+            judul: `Aktivitas Belajar Terarah: ${topicTitle}`,
+            langkah: [
+                `Baca kembali pengertian konsep dan amati ilustrasi pendukung ${topicTitle}.`,
+                `Temukan 1 contoh nyata di lingkunganmu yang sesuai dengan penjelasan materi.`,
+                `Jelaskan temuanmu kepada teman sebangku dengan bahasa yang jelas.`
+            ],
+            hasilDiharapkan: `Siswa mampu menjelaskan dan mempraktikkan konsep ${topicTitle} dengan tepat.`
+        },
+        rangkumanPoin: [
+            subjectPack.def,
+            `${subjectPack.terms[0].term} dan ${subjectPack.terms[1].term} menjadi dasar pemahaman ${topicTitle}.`,
+            'Menghubungkan materi pelajaran dengan contoh sehari-hari membantu pemahaman bertahan lebih lama.'
+        ],
+        latihanFormatif: [
+            { no: 1, pertanyaan: subjectPack.q1.q, kunciSingkat: subjectPack.q1.a },
+            { no: 2, pertanyaan: subjectPack.q2.q, kunciSingkat: subjectPack.q2.a },
+            { no: 3, pertanyaan: `Mengapa kita perlu menghindari kesalahan pemahaman pada materi "${topicTitle}"?`, kunciSingkat: 'Agar konsep dipahami secara benar secara keilmuan dan tepat saat dipraktikkan.' }
+        ],
+        visualCaption: `Ilustrasi Edukatif ${subject}: ${topicTitle}`
+    };
 }
 
 /**
@@ -1006,66 +2014,18 @@ export const synthesizeAuthenticMateriAjar = (params: {
     const topicTitle = extractCleanTopicTitle(tpText, atpText, elementName, subject);
     const shortFocus = focusLevel === 'atp' ? (atpText || tpText) : focusLevel === 'tp' ? tpText : elementName;
     const isLowerGrade = /kelas\s*[12]/i.test(className);
-    const lowerAll = `${subject} ${elementName} ${tpText} ${atpText}`.toLowerCase();
 
-    const domainTerms = (() => {
-        if (isSunda) {
-            return [
-                { term: 'Undak-usuk Basa', meaning: 'Tatacara ngagunakeun basa Sunda nu merenah luyu jeung lawan nyarita (lemes jeung loma).' },
-                { term: 'Kecap Rajékan / Pupuh', meaning: 'Wangun kecap atawa puisi tradisional Sunda anu ngandung piwuruk kahirupan.' },
-                { term: 'Kalimah Wawaran', meaning: 'Kalimah anu eusina méré béja atawa katerangan kalayan sopan tur jéntré.' },
-                { term: 'Silih Asah, Silih Asih, Silih Asuh', meaning: 'Ajén budaya Sunda pikeun silih tulungan, silih ajénan, jeung diajar babarengan.' }
-            ];
-        }
-        if (lowerAll.includes('islam') || lowerAll.includes('pai')) {
-            return [
-                { term: 'Niat Tulus Karena Allah', meaning: 'Kesungguhan hati sebelum melaksanakan ibadah atau kebaikan sehari-hari.' },
-                { term: 'Ilmu & Tata Cara Sah', meaning: 'Memahami syarat, rukun, dan urutan yang benar sesuai tuntunan ajaran Islam.' },
-                { term: 'Akhlakul Karimah', meaning: 'Perilaku terpuji seperti jujur, santun, peduli sesama, dan menyayangi ciptaan Allah.' },
-                { term: 'Pembiasaan Harian', meaning: 'Mengamalkan nilai ibadah dan budi pekerti secara konsisten di rumah maupun sekolah.' }
-            ];
-        }
-        if (lowerAll.includes('matematika') || /\b(pecahan|bangun|bilangan|satuan|data|luas|keliling)\b/.test(lowerAll)) {
-            return [
-                { term: 'Konsep Bilangan / Satuan', meaning: 'Dasar ukuran atau nilai kuantitatif yang dipakai untuk menyatakan jumlah atau besaran.' },
-                { term: 'Operasi & Pola', meaning: 'Aturan langkah pengerjaan hitung terstruktur untuk menemukan hasil yang tepat.' },
-                { term: 'Representasi Visual', meaning: 'Penyajian masalah angka ke dalam gambar benda konkret, pita pecahan, atau bangun.' },
-                { term: 'Verifikasi Hasil', meaning: 'Kebiasaan mengecek ulang jawaban agar logis dan sesuai satuan pada soal.' }
-            ];
-        }
-        if (lowerAll.includes('ipas') || /\b(alam|energi|tumbuhan|ekosistem|zat|gaya|sejarah)\b/.test(lowerAll)) {
-            return [
-                { term: 'Fenomena Alam / Sosial', meaning: 'Kejadian nyata di lingkungan sekitar yang dapat diamati dan diselidiki sebab-akibatnya.' },
-                { term: 'Komponen Utama', meaning: 'Bagian-bagian penyusun sistem yang saling bekerja sama menjaga keseimbangan.' },
-                { term: 'Hubungan Sebab-Akibat', meaning: 'Keterkaitan logis antara perubahan suatu kondisi dengan dampak yang ditimbulkannya.' },
-                { term: 'Sikap Peduli Lingkungan', meaning: 'Tindakan nyata siswa menjaga alam dan lingkungan sosial berdasarkan pemahaman ilmiah.' }
-            ];
-        }
-        if (lowerAll.includes('pancasila') || lowerAll.includes('ppkn')) {
-            return [
-                { term: 'Nilai Luhur Pancasila', meaning: 'Pedoman sikap ketuhanan, kemanusiaan, persatuan, musyawarah, dan keadilan sosial.' },
-                { term: 'Hak & Kewajiban', meaning: 'Keseimbangan antara sesuatu yang patut diterima dengan tanggung jawab yang wajib dilaksanakan.' },
-                { term: 'Musyawarah Mufakat', meaning: 'Cara mengambil keputusan bersama dengan saling menghargai pendapat seluruh anggota.' },
-                { term: 'Gotong Royong', meaning: 'Kerja sama tulus di tengah keberagaman budaya, agama, dan kebiasaan di sekolah/rumah.' }
-            ];
-        }
-        if (lowerAll.includes('inggris')) {
-            return [
-                { term: 'Key Vocabulary', meaning: 'Kosakata bahasa Inggris penting yang sering dipakai dalam kehidupan sehari-hari.' },
-                { term: 'Expression Pattern', meaning: 'Susunan kalimat sederhana yang sopan untuk menyapa, bertanya, atau menjawab.' },
-                { term: 'Pronunciation & Meaning', meaning: 'Cara pengucapan yang tepat beserta artinya dalam Bahasa Indonesia.' },
-                { term: 'Daily Practice', meaning: 'Mempraktikkan ungkapan langsung bersama teman dan guru di kelas.' }
-            ];
-        }
-        return [
-            { term: 'Gagasan Pokok', meaning: 'Inti informasi utama yang menjadi dasar pembahasan dalam topik pembelajaran.' },
-            { term: 'Bukti & Contoh Nyata', meaning: 'Ilustrasi situasi sehari-hari yang membuktikan dan memperjelas konsep yang dipelajari.' },
-            { term: 'Keterampilan Proses', meaning: 'Langkah mengamati, menanya, mengolah informasi, dan menyimpulkan dengan jelas.' },
-            { term: 'Manfaat Nyata', meaning: 'Penerapan langsung materi pelajaran dalam kebiasaan baik peserta didik.' }
-        ];
-    })();
-
-    const visualCaption = `Ilustrasi Pendukung: ${topicTitle}`;
+    const domainPack = buildSubjectDomainKnowledge({
+        subject,
+        className,
+        fase,
+        elementName,
+        tpText,
+        atpText,
+        topicTitle
+    });
+    const domainTerms = domainPack.domainTerms;
+    const visualCaption = domainPack.visualCaption;
     const visualSvg = buildConcretePosterIllustrationSvg(subject, elementName, tpText, atpText, topicTitle);
 
     const baseData: GeneratedMateriAjarData = {
@@ -1086,369 +2046,70 @@ export const synthesizeAuthenticMateriAjar = (params: {
         atpText,
         alokasiWaktu,
         // A. HEADER
-        title: isSunda
-            ? `Basa Sunda: ${topicTitle}`
-            : topicTitle,
-        subtitle: `Infografis Materi Ajar ${subject} · ${className} (${fase})`,
+        title: isSunda ? `Basa Sunda: ${topicTitle}` : topicTitle,
+        subtitle: `Materi Ajar ${subject} · ${className} (${fase})`,
         // B. PENGANTAR MATERI
         pengantarSingkat: isSunda
             ? `Wilujeng diajar murangkalih ${className}! Dina bahasan ieu urang bakal mikawanoh "${topicTitle}" anu raket patalina jeung tatakrama sapopoé.`
-            : `Halo sahabat belajar ${className}! Hari ini kita akan mempelajari "${topicTitle}" agar kamu memahami konsep dasarnya dengan mudah dan bisa langsung mempraktikkannya.`,
+            : `Halo sahabat belajar ${className}! Pada pelajaran ${subject} kali ini, kita akan mempelajari "${topicTitle}" secara tuntas mulai dari konsep dasarnya hingga praktik nyata.`,
         pertanyaanPemantik: isSunda
             ? [
                 `Kumaha cara nyarita anu sopan ka kolot atawa guru dina basa Sunda?`,
                 `Naon waé conto dina kahirupan sapopoé anu patali jeung "${topicTitle}"?`
             ]
             : [
-                `Pernahkah kamu mengalami kejadian di rumah atau sekolah yang berkaitan dengan "${topicTitle}"?`,
-                `Mengapa kita perlu memahami dan menerapkan materi ini dengan cara yang benar?`
+                `Pernahkah kamu menjumpai atau mempraktikkan langsung kegiatan yang berkaitan dengan "${topicTitle}"?`,
+                `Mengapa penting menguasai teknik atau aturan yang benar pada materi "${topicTitle}"?`
             ],
-        // C. INTI MATERI
-        pengertianKonsep: isSunda
-            ? `"${topicTitle}" téh nyaéta kamampuh pikeun mikawanoh jeung ngagunakeun ungkara basa Sunda nu luyu jeung kontéks sopan santun dina elemen ${elementName}.`
-            : `"${topicTitle}" adalah pemahaman pokok pada elemen ${elementName} yang membantu siswa ${className} mengenali konsep inti serta cara menerapkannya secara tepat.`,
-        penjelasanUtama: isSunda
-            ? `Luyu jeung Tujuan Pembelajaran "${tpText}", murid diajak niténan harti kecap, struktur kalimah, sarta conto paguneman anu merenah pikeun dilarapkeun di sakola jeung di imah.`
-            : `Sesuai tujuan pembelajaran "${tpText}", fokus belajar hari ini (${shortFocus}) membimbing kamu memahami ciri utama, aturan penting, dan langkah penerapannya secara bertahap.`,
-        poinPenting: [
-            `${domainTerms[0]?.term}: ${domainTerms[0]?.meaning}`,
-            `${domainTerms[1]?.term}: ${domainTerms[1]?.meaning}`,
-            `${domainTerms[2]?.term}: ${domainTerms[2]?.meaning}`
-        ],
-        contohKonkret: isSunda
-            ? `Contona: "Punten Pa Guru, abdi badé naroskeun pancén dinten ieu" (ngagunakeun basa lemes ka guru kalayan sopan).`
-            : `Contoh konkret: Ketika mempelajari ${topicTitle}, perhatikan hubungan antara ${domainTerms[0]?.term} dan ${domainTerms[1]?.term} melalui pengamatan langsung di kelas.`,
+        // C. INTI MATERI (SPECIFIC TO SUBJECT DISCIPLINE)
+        pengertianKonsep: domainPack.pengertianKonsep,
+        penjelasanUtama: domainPack.penjelasanUtama,
+        poinPenting: domainPack.poinPenting,
+        contohKonkret: domainPack.contohKonkret,
         visualCaption,
         visualSvg,
         // D. CONTOH DALAM KEHIDUPAN SEHARI-HARI
-        contohSehariHari: isSunda
-            ? [
-                `Di Imah: Nyarita maké kecap lemes jeung sopan ka ibu, rama, sarta dulur nu leuwih kolot.`,
-                `Di Sakola: Ngucapkeun "hatur nuhun" jeung "punten" nalika silih tulungan jeung babaturan.`,
-                `Di Lingkungan: Ngajaga silih asih jeung ngagunakeun basa daérah kalayan reueus.`
-            ]
-            : [
-                `Di Rumah: Menerapkan pemahaman ${topicTitle} saat membantu orang tua atau berdiskusi bersama keluarga.`,
-                `Di Sekolah: Mempraktikkan sikap teliti, tertib, dan kerja sama bersama teman satu kelas saat belajar.`,
-                `Di Lingkungan Sekitar: Mengamati peristiwa nyata di halaman, masjid/tempat ibadah, atau taman sekitar rumah.`
-            ],
+        contohSehariHari: domainPack.contohSehariHari,
         // E. AKTIVITAS SISWA
-        aktivitasSederhana: isSunda
-            ? {
-                judul: `Prakték Paguneman Sopan (5 Menit)`,
-                langkah: [
-                    `Pilih pasangan babaturan sabangku di kelas.`,
-                    `Susun 2 kalimah tanya jeung jawaban maké basa Sunda anu sopan ngeunaan "${topicTitle}".`,
-                    `Bacakeun di hareup kelas kalayan sora anu jelas tur tatakrama nu hadé.`
-                ],
-                hasilDiharapkan: `Murid wani jeung parigel ngagunakeun basa Sunda nu merenah dina situasi nyata.`
-            }
-            : {
-                judul: `Ayo Amati & Ceritakan! (Aktivitas 5 Menit)`,
-                langkah: [
-                    `Amati ilustrasi pada infografis di atas dengan teliti.`,
-                    `Temukan 1 contoh nyata di sekitarmu yang sesuai dengan "${topicTitle}".`,
-                    `Tuliskan di buku catatanmu lalu ceritakan secara singkat kepada teman sebangku.`
-                ],
-                hasilDiharapkan: `Siswa mampu menghubungkan konsep materi dengan pengalaman nyata secara mandiri.`
-            },
-        // F. RANGKUMAN (3-5 POIN PENTING)
-        rangkumanPoin: isSunda
-            ? [
-                `Poko bahasan utama nyaéta "${topicTitle}" dina elemen ${elementName}.`,
-                `Salawasna merhatikeun undak-usuk basa (loma ka babaturan, lemes ka kolot/guru).`,
-                `Contoh sapopoé saperti "punten", "hatur nuhun", jeung "mangga" kudu dibiasakeun.`,
-                `Diajar basa Sunda ngajarkeun urang pikeun nyaah kana budaya sorangan.`
-            ]
-            : [
-                `Inti pelajaran hari ini adalah memahami "${topicTitle}" sesuai elemen ${elementName}.`,
-                `${domainTerms[0]?.term} menjadi pondasi agar tidak keliru dalam memahami materi berikutnya.`,
-                `Contoh nyata di rumah dan sekolah membantu konsep ini lebih cepat dipahami dan diingat.`,
-                `Ketelitian saat mengamati dan berlatih membuat pemahamanmu semakin kuat dan siap diaplikasikan.`
-            ],
-        // G. LATIHAN PEMAHAMAN (3 SOAL SEDERHANA)
-        latihanFormatif: isSunda
-            ? [
-                { no: 1, pertanyaan: `Jéntrékeun ku basa sorangan naon maksud utama tina materi "${topicTitle}"!`, kunciSingkat: 'Nyaritakeun eusi poko materi maké kalimah basa Sunda anu bener jeung sopan.' },
-                { no: 2, pertanyaan: `Tuliskeun 2 conto kecap atawa kalimah basa Sunda anu luyu jeung conto dina infografis ieu!`, kunciSingkat: 'Conto kalimah merenah luyu jeung undak-usuk basa pikeun ka kolot atawa babaturan.' },
-                { no: 3, pertanyaan: `Kumaha sikep urang sangkan basa Sunda tetep dipaké dina kahirupan sapopoé?`, kunciSingkat: 'Ngabiasakeun nyarita ku basa Sunda di imah jeung di sakola kalayan reueus.' }
-            ]
-            : [
-                { no: 1, pertanyaan: `Apa pengertian singkat dari "${topicTitle}" menurut bahasamu sendiri?`, kunciSingkat: `Siswa menyebutkan makna inti elemen ${elementName} dengan kalimat sederhana yang tepat.` },
-                { no: 2, pertanyaan: `Sebutkan 2 contoh penerapan "${topicTitle}" yang ada di rumah atau di sekolah!`, kunciSingkat: 'Dua contoh nyata dari kehidupan sehari-hari siswa SD.' },
-                {
-                    no: 3,
-                    pertanyaan: isLowerGrade
-                        ? `Tuliskan 1 hal penting yang kamu ingat dari rangkuman pelajaran hari ini!`
-                        : `Mengapa kita perlu memahami ${domainTerms[0]?.term} sebelum mempraktikkan "${topicTitle}"? Jelaskan singkat!`,
-                    kunciSingkat: isLowerGrade
-                        ? 'Siswa menuliskan satu poin rangkuman dengan jelas.'
-                        : 'Agar penerapan konsep berjalan tertib, benar, dan terhindar dari kesalahan.'
-                }
-            ],
+        aktivitasSederhana: domainPack.aktivitasSederhana,
+        // F. RANGKUMAN
+        rangkumanPoin: domainPack.rangkumanPoin,
+        // G. LATIHAN PEMAHAMAN
+        latihanFormatif: domainPack.latihanFormatif,
         // Metadata PPA tambahan
         pemahamanBermakna: isSunda
             ? `Ku ngawasa materi "${topicTitle}", murid ${className} bisa ngagunakeun basa Sunda anu merenah tur sopan dina kahirupan sapopoé.`
-            : `Dengan memahami "${topicTitle}", peserta didik ${className} mampu menghubungkan konsep pada elemen ${elementName} dengan kehidupan nyata secara mandiri.`,
+            : `Dengan menguasai "${topicTitle}", peserta didik ${className} memahami konsep ilmiah ${subject} pada elemen ${elementName} serta menerapkannya dengan tepat dan bertanggung jawab.`,
         kataKunci: domainTerms,
         ringkasanKonsepInti: `Fokus TP: "${tpText}". Alur belajar: "${shortFocus}".`,
         aktivitasPembelajaran: [
-            { tahap: '1. Memahami', kegiatan: `Peserta didik mengamati ilustrasi dan konsep dasar "${topicTitle}".` },
-            { tahap: '2. Mengaplikasi', kegiatan: `Peserta didik melakukan aktivitas sederhana dan menjawab contoh sehari-hari.` },
-            { tahap: '3. Merefleksi', kegiatan: 'Peserta didik menyimpulkan rangkuman 3–5 poin dan berlatih 3 soal pemahaman.' }
+            { tahap: '1. Memahami', kegiatan: `Peserta didik mengamati ilustrasi dan mempelajari konsep ${domainTerms[0]?.term || topicTitle}.` },
+            { tahap: '2. Mengaplikasi', kegiatan: domainPack.aktivitasSederhana.judul },
+            { tahap: '3. Merefleksi', kegiatan: 'Peserta didik menyimpulkan rangkuman inti dan menjawab latihan pemahaman.' }
         ],
         refleksiSiswa: [
-            'Saya sudah memahami pengertian dan contoh nyata materi ini.',
-            'Saya dapat mengerjakan 3 soal latihan pemahaman dengan percaya diri.'
+            `Saya sudah memahami arti dan cara kerja ${topicTitle} sesuai kaidah ${subject}.`,
+            'Saya dapat mempraktikkan contoh nyata dan menghindari kesalahan umum yang dijelaskan guru.'
         ]
     };
 
-    // Populate template-specific payloads cleanly
-    if (templateId === 'educational_infographic') {
-        baseData.infographicData = {
-            heroStatLabel: 'Alokasi & Fokus PPA',
-            heroStatValue: alokasiWaktu || '3 JP · Siap Cetak A4',
-            heroNote: `Selaras CP Elemen "${elementName}" (${className} · ${fase})`,
-            pillars: [
-                {
-                    number: '01',
-                    title: 'Pengertian Konsep',
-                    summary: baseData.pengertianKonsep,
-                    keyFact: domainTerms[0]?.meaning || '',
-                    example: baseData.contohKonkret
-                },
-                {
-                    number: '02',
-                    title: 'Penjelasan Materi Utama',
-                    summary: baseData.penjelasanUtama,
-                    keyFact: domainTerms[1]?.meaning || '',
-                    example: baseData.contohSehariHari[0] || ''
-                },
-                {
-                    number: '03',
-                    title: 'Poin-Poin Penting',
-                    summary: baseData.poinPenting.join(' '),
-                    keyFact: domainTerms[2]?.meaning || '',
-                    example: baseData.contohSehariHari[1] || ''
-                },
-                {
-                    number: '04',
-                    title: 'Penerapan Sehari-hari',
-                    summary: baseData.contohSehariHari[2] || baseData.aktivitasSederhana.hasilDiharapkan,
-                    keyFact: domainTerms[3]?.meaning || '',
-                    example: baseData.aktivitasSederhana.judul
-                }
-            ],
-            goldenTakeaway: baseData.rangkumanPoin.join(' ')
-        };
-    } else if (templateId === 'cheat_sheet') {
-        baseData.cheatSheetData = {
-            quickOverview: baseData.pengantarSingkat,
-            boxes: [
-                {
-                    title: 'Pengertian & Kata Kunci',
-                    category: 'Konsep Inti',
-                    items: domainTerms.map(t => `${t.term}: ${t.meaning}`),
-                    formulaOrRule: `Fokus TP: ${tpText}`
-                },
-                {
-                    title: 'Penjelasan & Aturan Kunci',
-                    category: 'Poin Penting',
-                    items: baseData.poinPenting,
-                    formulaOrRule: baseData.contohKonkret
-                }
-            ],
-            commonMistakes: [
-                {
-                    mistake: 'Membaca konsep tanpa mengamati contoh konkret di sekitar.',
-                    correction: 'Selalu hubungkan konsep dengan 1 contoh nyata di rumah/sekolah.'
-                },
-                {
-                    mistake: 'Langsung mengerjakan soal sebelum membaca langkah penting.',
-                    correction: 'Cek rangkuman 3–5 poin sebelum menjawab latihan.'
-                }
-            ]
-        };
-    } else if (templateId === 'sticky_notes') {
-        baseData.stickyNotesData = {
-            boardTopic: `Catatan Penting: ${topicTitle}`,
-            notes: [
-                { title: '1. Pengertian Konsep', tag: 'Inti', colorTheme: 'amber', content: baseData.pengertianKonsep, reminder: domainTerms[0]?.term || '' },
-                { title: '2. Penjelasan Utama', tag: 'Materi', colorTheme: 'sky', content: baseData.penjelasanUtama, reminder: alokasiWaktu },
-                { title: '3. Contoh Konkret', tag: 'Contoh', colorTheme: 'emerald', content: baseData.contohKonkret, reminder: 'Amati sekitarmu!' },
-                { title: '4. Aktivitas Siswa', tag: 'Praktik', colorTheme: 'rose', content: baseData.aktivitasSederhana.langkah.join(' '), reminder: baseData.aktivitasSederhana.judul }
-            ]
-        };
-    } else if (templateId === 'mind_map') {
-        baseData.mindMapData = {
-            centralNode: topicTitle.length > 34 ? topicTitle.slice(0, 32) + '…' : topicTitle,
-            centralSubtitle: `${subject} · ${className}`,
-            branches: [
-                { title: '1. Pengertian Konsep', colorHex: '#0284c7', keywords: [domainTerms[0]?.term || 'Konsep', elementName], explanation: baseData.pengertianKonsep },
-                { title: '2. Poin Penting', colorHex: '#059669', keywords: [domainTerms[1]?.term || 'Aturan', domainTerms[2]?.term || 'Ciri'], explanation: baseData.poinPenting[0] || baseData.penjelasanUtama },
-                { title: '3. Contoh Nyata', colorHex: '#d97706', keywords: ['Di Rumah', 'Di Sekolah'], explanation: baseData.contohKonkret },
-                { title: '4. Aktivitas & Latihan', colorHex: '#7c3aed', keywords: ['Amati', 'Praktik', '3 Soal'], explanation: baseData.aktivitasSederhana.hasilDiharapkan }
-            ]
-        };
-    } else if (templateId === 'comic_strip') {
-        baseData.comicStripData = isSunda
-            ? {
-                storyTitle: `Diajar ${topicTitle} Bareng Dadan jeung Sari`,
-                setting: 'Di sakola jeung imah',
-                panels: [
-                    { panelNo: 1, sceneTitle: 'Patarosan Awal', characterLeft: 'Dadan', characterRight: 'Sari', dialogueLeft: baseData.pertanyaanPemantik[0] || 'Kumaha carana nya?', dialogueRight: 'Hayu urang tanya ka Ibu Guru sangkan écés!', narration: baseData.pengantarSingkat, mood: 'curious' },
-                    { panelNo: 2, sceneTitle: 'Katerangan Poko', characterLeft: 'Ibu Guru', characterRight: 'Dadan', dialogueLeft: baseData.pengertianKonsep, dialogueRight: 'Oh kitu hartina téh, Bu!', narration: 'Ibu Guru ngajelaskeun konsep dasar kalayan basajan.', mood: 'explain' },
-                    { panelNo: 3, sceneTitle: 'Conto Sapopoé', characterLeft: 'Sari', characterRight: 'Dadan', dialogueLeft: baseData.contohKonkret, dialogueRight: 'Urang cobian langsung dina aktivitas kelas yuk!', narration: baseData.contohSehariHari[0] || '', mood: 'happy' },
-                    { panelNo: 4, sceneTitle: 'Ngamalkeun!', characterLeft: 'Dadan', characterRight: 'Sari', dialogueLeft: 'Ayeuna urang geus paham sarta siap ngerjakeun 3 soal latihan!', dialogueRight: 'Sumanget! Basa Sunda kudu dijaga unggal poé.', narration: baseData.rangkumanPoin[0] || '', mood: 'eureka' }
-                ],
-                moralLesson: baseData.rangkumanPoin[baseData.rangkumanPoin.length - 1] || ''
-            }
-            : {
-                storyTitle: `Cerita Belajar: ${topicTitle}`,
-                setting: `Kelas ${className} & Lingkungan Rumah`,
-                panels: [
-                    { panelNo: 1, sceneTitle: 'Rasa Ingin Tahu', characterLeft: 'Raka', characterRight: 'Sinta', dialogueLeft: baseData.pertanyaanPemantik[0] || 'Bagaimana cara memahaminya?', dialogueRight: 'Yuk kita pelajari inti materinya pelan-pelan!', narration: baseData.pengantarSingkat, mood: 'curious' },
-                    { panelNo: 2, sceneTitle: 'Penjelasan Konsep', characterLeft: 'Bu Guru', characterRight: 'Raka', dialogueLeft: baseData.pengertianKonsep, dialogueRight: 'Sekarang aku mengerti maksud konsep dasarnya!', narration: baseData.penjelasanUtama, mood: 'explain' },
-                    { panelNo: 3, sceneTitle: 'Contoh Sehari-hari', characterLeft: 'Sinta', characterRight: 'Raka', dialogueLeft: baseData.contohKonkret, dialogueRight: 'Aku juga sering melihat contoh seperti itu di rumah!', narration: baseData.contohSehariHari[0] || '', mood: 'happy' },
-                    { panelNo: 4, sceneTitle: 'Berhasil Paham', characterLeft: 'Raka', characterRight: 'Sinta', dialogueLeft: 'Ayo kita coba aktivitas sederhananya lalu kerjakan 3 soal latihan!', dialogueRight: 'Siap! Belajar jadi seru kalau langsung dipraktikkan.', narration: baseData.rangkumanPoin[0] || '', mood: 'eureka' }
-                ],
-                moralLesson: baseData.rangkumanPoin.join(' ')
-            };
-    } else if (templateId === 'flashcard') {
-        baseData.flashcardData = {
-            deckTitle: `Kartu Hafalan: ${topicTitle}`,
-            studyTip: 'Baca pertanyaan di sisi depan lalu cocokkan dengan jawaban di sisi belakang!',
-            cards: [
-                { cardNo: 1, category: 'Konsep', frontPrompt: `Apa pengertian "${topicTitle}"?`, hint: `Elemen ${elementName}`, backAnswer: baseData.pengertianKonsep, realExample: baseData.contohKonkret },
-                ...domainTerms.slice(0, 3).map((dt, idx) => ({
-                    cardNo: idx + 2,
-                    category: 'Kata Kunci',
-                    frontPrompt: `Apa arti "${dt.term}"?`,
-                    hint: `Poin materi ${subject}`,
-                    backAnswer: dt.meaning,
-                    realExample: baseData.contohSehariHari[idx % baseData.contohSehariHari.length] || baseData.contohKonkret
-                }))
-            ]
-        };
-    } else if (templateId === 'step_by_step') {
-        baseData.stepByStepData = {
-            goalStatement: tpText,
-            toolsNeeded: [`Catatan ${subject}`, 'Alat tulis', 'Ilustrasi & contoh di infografis'],
-            stages: [
-                { stepNo: 1, title: 'Pahami Pengantar & Pemantik', instruction: baseData.pengantarSingkat, checkpoint: 'Mengetahui tujuan belajar hari ini.', tip: 'Jawab pertanyaan pemantik di dalam hati.' },
-                { stepNo: 2, title: 'Kuasai Pengertian Konsep', instruction: baseData.pengertianKonsep, checkpoint: 'Bisa mengulang pengertian dengan kata sendiri.', tip: 'Catat istilah kuncinya.' },
-                { stepNo: 3, title: 'Amati Contoh Konkret', instruction: baseData.contohKonkret, checkpoint: 'Melihat hubungan konsep dengan benda nyata.', tip: 'Perhatikan gambar ilustrasi pendukung.' },
-                { stepNo: 4, title: 'Lakukan Aktivitas Siswa', instruction: baseData.aktivitasSederhana.langkah.join(' '), checkpoint: baseData.aktivitasSederhana.hasilDiharapkan, tip: 'Kerjakan dengan tertib dan teliti.' }
-            ],
-            successIndicator: baseData.aktivitasSederhana.hasilDiharapkan
-        };
-    } else if (templateId === 'timeline') {
-        baseData.timelineData = {
-            timelineTitle: `Urutan Pemahaman: ${topicTitle}`,
-            periodSpan: `${className} · ${fase}`,
-            events: [
-                { orderLabel: 'Tahap 1 · Pengantar', title: 'Mengenal Masalah & Pemantik', actorOrContext: 'Awal Belajar', description: baseData.pengantarSingkat, impact: 'Membangkitkan rasa ingin tahu siswa.' },
-                { orderLabel: 'Tahap 2 · Konsep', title: 'Pengertian & Penjelasan Inti', actorOrContext: elementName, description: baseData.pengertianKonsep, impact: 'Memahami aturan dan ciri dasar.' },
-                { orderLabel: 'Tahap 3 · Contoh Nyata', title: 'Penerapan Sehari-hari', actorOrContext: 'Rumah & Sekolah', description: baseData.contohKonkret, impact: 'Konsep terasa dekat dengan kehidupan siswa.' },
-                { orderLabel: 'Tahap 4 · Penguasaan', title: 'Aktivitas & Latihan 3 Soal', actorOrContext: `Siswa ${className}`, description: baseData.aktivitasSederhana.hasilDiharapkan, impact: 'Siap melangkah ke pembelajaran selanjutnya.' }
-            ],
-            synthesisNote: baseData.rangkumanPoin.join(' ')
-        };
-    } else if (templateId === 'comparison_chart') {
-        baseData.comparisonData = {
-            conceptAName: `Konsep Inti (${domainTerms[0]?.term || 'Pengertian'})`,
-            conceptBName: `Penerapan Nyata (${domainTerms[1]?.term || 'Contoh'})`,
-            similarities: [
-                `Keduanya membahas fokus TP: ${tpText}`,
-                `Sama-sama perlu dipahami siswa ${className} secara utuh.`
-            ],
-            rows: [
-                { aspect: 'Makna Utama', conceptAValue: baseData.pengertianKonsep, conceptBValue: baseData.contohKonkret },
-                { aspect: 'Poin Kunci', conceptAValue: baseData.poinPenting[0] || '-', conceptBValue: baseData.contohSehariHari[0] || '-' },
-                { aspect: 'Aplikasi di Sekolah', conceptAValue: baseData.poinPenting[1] || '-', conceptBValue: baseData.contohSehariHari[1] || '-' }
-            ],
-            conclusion: baseData.rangkumanPoin[0] || baseData.pemahamanBermakna
-        };
-    } else if (templateId === 'isometric_3d') {
-        const sceneType = pickIsometricSceneType(subject, `${elementName} ${tpText} ${atpText}`);
-        baseData.isometric3dData = {
-            objectTitle: `Visualisasi Objek 3D: ${topicTitle}`,
-            visualSceneType: sceneType,
-            dimensionSummary: `Proyeksi Isometrik 30° · ${className}`,
-            parts: [
-                { pinNo: 1, partName: 'Fondasi Konsep', functionOrProperty: baseData.pengertianKonsep, measurementOrDetail: domainTerms[0]?.term || 'Dasar' },
-                { pinNo: 2, partName: 'Unsur Utama', functionOrProperty: baseData.poinPenting[0] || baseData.penjelasanUtama, measurementOrDetail: domainTerms[1]?.term || 'Inti' },
-                { pinNo: 3, partName: 'Contoh Konkret', functionOrProperty: baseData.contohKonkret, measurementOrDetail: 'Kontekstual' },
-                { pinNo: 4, partName: 'Aplikasi Harian', functionOrProperty: baseData.contohSehariHari[0] || '', measurementOrDetail: 'Sehari-hari' }
-            ],
-            spatialInsight: baseData.penjelasanUtama
-        };
-    }
-
     const kaitanPengalamanSiswa = isSunda
         ? `Dina kahirupan sapopoé di imah jeung di sakola, murangkalih ${className} pasti mindeng nyaksian atawa ngalaman kajadian anu patali jeung "${topicTitle}".`
-        : `Setiap hari di rumah maupun saat bermain bersama teman di sekolah, siswa ${className} pasti pernah menjumpai hal nyata yang berkaitan dengan "${topicTitle}".`;
+        : `Setiap hari saat beraktivitas di rumah, bermain di halaman, maupun belajar bersama di kelas, siswa ${className} sering mengalami situasi nyata yang berkaitan langsung dengan "${topicTitle}".`;
 
     const unsurPenting = domainTerms.map(t => `${t.term}: ${t.meaning}`);
 
-    const klasifikasiAtauProses = isSunda
-        ? {
-            judul: `Pilah & Runtutkeun: ${topicTitle}`,
-            butir: [
-                { label: '1. Niténan Kontéks', uraian: `Mireungeuh saha nu nyarita, ka saha nyaritana, jeung naon maksud kalimahna dina elemen ${elementName}.` },
-                { label: '2. Milih Kecap Merenah', uraian: 'Ngagunakeun kecap lemes keur ka kolot/guru sarta kecap loma nu sopan keur ka babaturan.' },
-                { label: '3. Ngalarapkeun dina Kalimat', uraian: 'Nyusun kalimah saderhana anu jéntré, sopan, tur merenah di sakola jeung di imah.' }
-            ]
-        }
-        : {
-            judul: `Sistematika Pemahaman & Unsur ${topicTitle}`,
-            butir: [
-                { label: '1. Identifikasi Konsep Inti', uraian: `${domainTerms[0]?.term || 'Konsep Dasar'} — ${domainTerms[0]?.meaning || 'Memahami definisi dan ciri pokok materi secara benar.'}` },
-                { label: '2. Prinsip & Hubungan', uraian: `${domainTerms[1]?.term || 'Aturan Inti'} — ${domainTerms[1]?.meaning || 'Menghubungkan unsur konsep dengan situasi belajar nyata.'}` },
-                { label: '3. Penerapan Kontekstual', uraian: `${domainTerms[2]?.term || 'Penerapan'} — ${domainTerms[2]?.meaning || 'Menerapkan pemahaman secara tepat dalam aktivitas harian.'}` }
-            ]
-        };
-
-    const tabelInformatif = isSunda
-        ? {
-            judul: `Tabel Babandingan & Conto Basa Sunda (${className})`,
-            kolom: ['Aspék', 'Katerangan Merenah', 'Conto Nyata'],
-            baris: [
-                ['Ragam Basa', 'Undak-usuk basa hormat & loma', 'Punten (hormat), mangga (sopan)'],
-                ['Penerapan', 'Paguneman di kelas jeung kulawarga', 'Wilujeng énjing Pa/Bu Guru'],
-                ['Sikep Budaya', 'Silih asah, silih asih, silih asuh', 'Ngabantuan babaturan kalayan soméah']
-            ]
-        }
-        : {
-            judul: `Matriks Konsep & Contoh ${topicTitle}`,
-            kolom: ['Komponen Materi', 'Penjelasan Esensial', 'Contoh Nyata'],
-            baris: [
-                [domainTerms[0]?.term || 'Konsep Inti', domainTerms[0]?.meaning || 'Dasar pemahaman topik.', `Pengamatan langsung materi ${subject}`],
-                [domainTerms[1]?.term || 'Penerapan', domainTerms[1]?.meaning || 'Cara mempraktikkan dengan tepat.', 'Aktivitas siswa di kelas/rumah'],
-                [domainTerms[2]?.term || 'Nilai / Sikap', domainTerms[2]?.meaning || 'Sikap positif yang dibangun.', 'Kebiasaan baik setiap hari']
-            ]
-        };
-
     const pendalamanMateri = {
         analisisSederhana: isLowerGrade
-            ? `Untuk siswa ${className} (Fase A), pemahaman dibangun melalui pengamatan benda nyata dan kebiasaan sederhana yang mudah dilihat langsung.`
+            ? `Untuk siswa ${className} (Fase A), konsep ${subject} dipahami lewat pengamatan objek konkret, peragaan langsung langkah demi langkah, dan kebiasaan sederhana sehari-hari.`
             : /kelas\s*[34]/i.test(className)
-                ? `Pada ${className} (Fase B), siswa mengelompokkan ciri utama, membandingkan contoh benar dan keliru, serta menjelaskan alasan sebab-akibatnya secara runtut.`
-                : `Pada ${className} (Fase C), siswa menganalisis keterkaitan konsep pada elemen ${elementName}, mengevaluasi bukti nyata, dan merumuskan kesimpulan logis sesuai TP.`,
+                ? `Pada ${className} (Fase B), siswa mengelompokkan ciri pokok ${topicTitle}, membandingkan contoh benar vs keliru, serta mengaitkan aturan konsep dengan praktik nyata.`
+                : `Pada ${className} (Fase C), siswa menganalisis prinsip kerja dan hubungan sebab-akibat ${topicTitle}, meluruskan miskonsepsi, serta mengevaluasi penerapannya secara mandiri.`,
         faktaTeridentifikasi: [
-            `Materi disusun ketat berdasarkan ruang lingkup Elemen "${elementName}" dan TP: "${tpText}".`,
-            `Kedalaman konsep disesuaikan untuk peserta didik ${className} (${fase}).`
+            `Konsep keilmuan disusun sesuai ruang lingkup ${subject} (Elemen: ${elementName}) dan TP terkunci.`,
+            `Istilah kunci meliputi: ${domainTerms.map(d => d.term).join(', ')}.`
         ],
-        miskonsepsiUmum: [
-            {
-                salah: `Menganggap "${topicTitle}" cukup dihafal tanpa memahami alasan atau konteks penerapannya.`,
-                pelurusan: `Pemahaman harus dibuktikan dengan kemampuan menjelaskan dengan bahasa sendiri dan memberi contoh nyata sehari-hari.`
-            },
-            {
-                salah: `Mencampuradukkan istilah atau aturan dari topik lain yang belum dipelajari di TP ini.`,
-                pelurusan: `Fokuskan pemahaman pada batasan CP elemen ${elementName} dan alur pembelajaran (ATP) yang sedang dipelajari.`
-            }
-        ]
+        miskonsepsiUmum: domainPack.miskonsepsiUmum
     };
 
     const baselineAnalysis = analyzeTpAtpDeterministic(
@@ -1463,7 +2124,7 @@ export const synthesizeAuthenticMateriAjar = (params: {
     const references = buildVerifiableReferences(subject, className);
     const teacherNotes = [
         'Kunci jawaban/panduan jawaban pada Bagian Pemeriksaan Pemahaman disajikan khusus bagi guru untuk mengecek ketercapaian TP.',
-        'Sebagian rujukan buku teks/panduan resmi mata pelajaran perlu verifikasi kesesuaian edisi/bab oleh guru di satuan pendidikan (status: PERLU VERIFIKASI GURU).'
+        'Sesuaikan nomor halaman/bab pada Buku Siswa & Buku Panduan Guru Kemendikdasmen edisi yang digunakan di sekolah (status: PERLU VERIFIKASI GURU).'
     ];
 
     baseData.curriculumMeta = {
@@ -1477,11 +2138,24 @@ export const synthesizeAuthenticMateriAjar = (params: {
     baseData.tpAtpAnalysis = baselineAnalysis;
     baseData.kaitanPengalamanSiswa = kaitanPengalamanSiswa;
     baseData.unsurPenting = unsurPenting;
-    baseData.klasifikasiAtauProses = klasifikasiAtauProses;
-    baseData.tabelInformatif = tabelInformatif;
+    baseData.klasifikasiAtauProses = domainPack.klasifikasiAtauProses;
+    baseData.tabelInformatif = domainPack.tabelInformatif;
     baseData.pendalamanMateri = pendalamanMateri;
     baseData.referensi = references;
     baseData.teacherNotes = teacherNotes;
+
+    // Populate all 10 template-specific payloads cleanly from rich domain data
+    buildTemplatePayloadsFromMerged(baseData, {
+        subject,
+        className,
+        fase,
+        elementName,
+        tpText,
+        atpText,
+        alokasiWaktu,
+        templateId
+    });
+
     baseData.qualityControl = evaluateMateriQualityControl(baseData, {
         subject,
         className,
@@ -1495,6 +2169,193 @@ export const synthesizeAuthenticMateriAjar = (params: {
     });
 
     return baseData;
+};
+
+/**
+ * Syncs all 10 visual template payloads directly from substantive merged/AI content
+ * (never reverting back to generic boilerplate).
+ */
+export const buildTemplatePayloadsFromMerged = (
+    data: GeneratedMateriAjarData,
+    params: {
+        subject: string;
+        className: string;
+        fase: string;
+        elementName: string;
+        tpText: string;
+        atpText: string;
+        alokasiWaktu: string;
+        templateId: MateriTemplateId;
+    }
+): void => {
+    const { subject, className, fase, elementName, tpText, atpText, alokasiWaktu, templateId } = params;
+    const isSunda = isBahasaSundaTopic(subject, elementName, tpText);
+    const terms = data.kataKunci || [];
+    const points = data.poinPenting || [];
+    const daily = data.contohSehariHari || [];
+    const summary = data.rangkumanPoin || [];
+    const steps = data.klasifikasiAtauProses?.butir || [];
+    const misconceptions = data.pendalamanMateri?.miskonsepsiUmum || [];
+
+    if (templateId === 'educational_infographic') {
+        data.infographicData = {
+            heroStatLabel: 'Alokasi & Fokus PPA',
+            heroStatValue: alokasiWaktu || '3 JP · Siap Cetak A4',
+            heroNote: `Selaras CP Elemen "${elementName}" (${className} · ${fase})`,
+            pillars: [
+                { number: '01', title: 'Pengertian Konsep', summary: data.pengertianKonsep, keyFact: points[0] || '', example: data.contohKonkret },
+                { number: '02', title: 'Penjelasan Materi Utama', summary: data.penjelasanUtama, keyFact: points[1] || '', example: daily[0] || '' },
+                { number: '03', title: 'Unsur & Poin Penting', summary: (data.unsurPenting || points).slice(0, 3).join(' · '), keyFact: points[2] || '', example: daily[1] || '' },
+                { number: '04', title: 'Penerapan & Pelurusan', summary: data.pendalamanMateri?.analisisSederhana || data.aktivitasSederhana.hasilDiharapkan, keyFact: data.aktivitasSederhana.judul, example: summary[0] || '' }
+            ],
+            goldenTakeaway: summary.join(' ')
+        };
+    } else if (templateId === 'cheat_sheet') {
+        data.cheatSheetData = {
+            quickOverview: data.pengertianKonsep,
+            boxes: [
+                {
+                    title: 'Konsep & Istilah Kunci',
+                    category: subject,
+                    items: terms.map(t => `${t.term}: ${t.meaning}`),
+                    formulaOrRule: data.penjelasanUtama.slice(0, 180)
+                },
+                {
+                    title: data.klasifikasiAtauProses?.judul || 'Aturan & Langkah Inti',
+                    category: elementName,
+                    items: steps.length > 0 ? steps.map(s => `${s.label}: ${s.uraian}`) : points,
+                    formulaOrRule: data.contohKonkret
+                }
+            ],
+            commonMistakes: misconceptions.length > 0
+                ? misconceptions.map(m => ({ mistake: m.salah, correction: m.pelurusan }))
+                : [
+                    { mistake: 'Membaca konsep tanpa mengecek contoh nyata.', correction: 'Hubungkan selalu dengan 1 contoh di rumah/sekolah.' }
+                ]
+        };
+    } else if (templateId === 'sticky_notes') {
+        data.stickyNotesData = {
+            boardTopic: `Catatan Penting ${subject}: ${data.title}`,
+            notes: [
+                { title: '1. Pengertian Konsep', tag: 'Konsep', colorTheme: 'amber', content: data.pengertianKonsep, reminder: terms[0]?.term || subject },
+                { title: '2. Penjelasan Inti', tag: 'Materi', colorTheme: 'sky', content: data.penjelasanUtama, reminder: alokasiWaktu },
+                { title: '3. Contoh Konkret', tag: 'Contoh', colorTheme: 'emerald', content: data.contohKonkret, reminder: daily[0] || 'Amati sekitarmu!' },
+                { title: '4. Pelurusan Miskonsepsi', tag: 'Penting', colorTheme: 'rose', content: misconceptions[0]?.pelurusan || data.aktivitasSederhana.hasilDiharapkan, reminder: misconceptions[0]?.salah || data.aktivitasSederhana.judul }
+            ]
+        };
+    } else if (templateId === 'mind_map') {
+        data.mindMapData = {
+            centralNode: data.title.length > 34 ? data.title.slice(0, 32) + '…' : data.title,
+            centralSubtitle: `${subject} · ${className}`,
+            branches: [
+                { title: '1. Pengertian Konsep', colorHex: '#0284c7', keywords: [terms[0]?.term || 'Konsep', elementName], explanation: data.pengertianKonsep },
+                { title: '2. Penjelasan & Unsur', colorHex: '#059669', keywords: [terms[1]?.term || 'Aturan', terms[2]?.term || 'Ciri'], explanation: data.penjelasanUtama },
+                { title: '3. Contoh & Penerapan', colorHex: '#d97706', keywords: ['Konkret', 'Sehari-hari'], explanation: data.contohKonkret },
+                { title: '4. Aktivitas & Latihan', colorHex: '#7c3aed', keywords: ['Praktik', 'Miskonsepsi'], explanation: data.aktivitasSederhana.hasilDiharapkan }
+            ]
+        };
+    } else if (templateId === 'comic_strip') {
+        data.comicStripData = isSunda
+            ? {
+                storyTitle: `Diajar ${data.title} Bareng Dadan jeung Sari`,
+                setting: `Kelas ${className} & Lingkungan Sakola`,
+                panels: [
+                    { panelNo: 1, sceneTitle: 'Patarosan Awal', characterLeft: 'Dadan', characterRight: 'Sari', dialogueLeft: data.pertanyaanPemantik[0] || 'Kumaha carana nya?', dialogueRight: 'Hayu urang tanya ka Ibu Guru sangkan écés!', narration: data.pengantarSingkat, mood: 'curious' },
+                    { panelNo: 2, sceneTitle: 'Katerangan Poko', characterLeft: 'Ibu Guru', characterRight: 'Dadan', dialogueLeft: data.pengertianKonsep, dialogueRight: 'Oh kitu hartina téh, Bu!', narration: data.penjelasanUtama, mood: 'explain' },
+                    { panelNo: 3, sceneTitle: 'Conto Sapopoé', characterLeft: 'Sari', characterRight: 'Dadan', dialogueLeft: data.contohKonkret, dialogueRight: 'Urang cobian langsung dina aktivitas kelas yuk!', narration: daily[0] || '', mood: 'happy' },
+                    { panelNo: 4, sceneTitle: 'Ngamalkeun!', characterLeft: 'Dadan', characterRight: 'Sari', dialogueLeft: summary[0] || 'Ayeuna urang geus paham sarta siap ngerjakeun latihan!', dialogueRight: 'Sumanget! Basa Sunda kudu dijaga unggal poé.', narration: summary[1] || '', mood: 'eureka' }
+                ],
+                moralLesson: summary.join(' ')
+            }
+            : {
+                storyTitle: `Cerita Belajar ${subject}: ${data.title}`,
+                setting: `Kelas ${className} & Lingkungan Sekitar`,
+                panels: [
+                    { panelNo: 1, sceneTitle: 'Rasa Ingin Tahu', characterLeft: 'Raka', characterRight: 'Sinta', dialogueLeft: data.pertanyaanPemantik[0] || 'Bagaimana cara kerjanya?', dialogueRight: 'Yuk kita pelajari konsep aslinya bersama Bu Guru!', narration: data.pengantarSingkat, mood: 'curious' },
+                    { panelNo: 2, sceneTitle: 'Penjelasan Ilmiah', characterLeft: 'Bu Guru', characterRight: 'Raka', dialogueLeft: data.pengertianKonsep, dialogueRight: 'Oh, jadi itu konsep utamanya dalam pelajaran ini!', narration: data.penjelasanUtama, mood: 'explain' },
+                    { panelNo: 3, sceneTitle: 'Praktik Nyata', characterLeft: 'Sinta', characterRight: 'Raka', dialogueLeft: data.contohKonkret, dialogueRight: 'Aku jadi paham cara mempraktikkannya dengan benar!', narration: daily[0] || '', mood: 'happy' },
+                    { panelNo: 4, sceneTitle: 'Paham Tuntas', characterLeft: 'Raka', characterRight: 'Sinta', dialogueLeft: `Ingat, ${misconceptions[0]?.pelurusan || summary[0] || ''}`, dialogueRight: 'Siap! Ayo kerjakan aktivitas dan latihan pemahamannya!', narration: summary[0] || '', mood: 'eureka' }
+                ],
+                moralLesson: summary.join(' ')
+            };
+    } else if (templateId === 'flashcard') {
+        data.flashcardData = {
+            deckTitle: `Kartu Hafalan ${subject}: ${data.title}`,
+            studyTip: 'Baca pertanyaan di sisi depan, lalu balik atau lipat untuk mencocokkan penjelasan ilmiahnya!',
+            cards: [
+                { cardNo: 1, category: 'Definisi', frontPrompt: `Apa pengertian "${data.title}" pada ${subject}?`, hint: `Elemen ${elementName}`, backAnswer: data.pengertianKonsep, realExample: data.contohKonkret },
+                ...terms.slice(0, 3).map((dt, idx) => ({
+                    cardNo: idx + 2,
+                    category: 'Istilah Kunci',
+                    frontPrompt: `Jelaskan makna "${dt.term}"!`,
+                    hint: subject,
+                    backAnswer: dt.meaning,
+                    realExample: daily[idx % Math.max(1, daily.length)] || data.contohKonkret
+                }))
+            ]
+        };
+    } else if (templateId === 'step_by_step') {
+        data.stepByStepData = {
+            goalStatement: tpText,
+            toolsNeeded: [`Buku Teks ${subject} ${className}`, 'Alat tulis / perlengkapan praktik', 'Ilustrasi panduan di halaman 1'],
+            stages: (steps.length >= 3 ? steps : [
+                { label: '1. Pahami Konsep', uraian: data.pengertianKonsep },
+                { label: '2. Pelajari Aturan / Teknik', uraian: data.penjelasanUtama },
+                { label: '3. Amati Contoh Konkret', uraian: data.contohKonkret },
+                { label: '4. Lakukan Aktivitas Siswa', uraian: data.aktivitasSederhana.langkah.join(' ') }
+            ]).map((st, idx) => ({
+                stepNo: idx + 1,
+                title: st.label,
+                instruction: st.uraian,
+                checkpoint: idx === 0 ? 'Memahami istilah pokok materi.' : 'Mampu menunjukkan langkah secara runtut.',
+                tip: misconceptions[idx % Math.max(1, misconceptions.length)]?.pelurusan || 'Lakukan dengan teliti dan tertib.'
+            })),
+            successIndicator: data.aktivitasSederhana.hasilDiharapkan
+        };
+    } else if (templateId === 'timeline') {
+        data.timelineData = {
+            timelineTitle: `Kronologi & Tahapan: ${data.title}`,
+            periodSpan: `${subject} · ${className} · ${fase}`,
+            events: [
+                { orderLabel: 'Tahap 1 · Konsep', title: 'Pengertian & Latar Materi', actorOrContext: elementName, description: data.pengertianKonsep, impact: 'Memahami dasar keilmuan topik.' },
+                { orderLabel: 'Tahap 2 · Mekanisme', title: data.klasifikasiAtauProses?.judul || 'Proses & Aturan Utama', actorOrContext: subject, description: data.penjelasanUtama, impact: 'Mengetahui urutan atau prinsip kerjanya.' },
+                { orderLabel: 'Tahap 3 · Bukti Nyata', title: 'Contoh Konkret & Penerapan', actorOrContext: 'Kehidupan Sehari-hari', description: data.contohKonkret, impact: 'Menghubungkan materi dengan kenyataan.' },
+                { orderLabel: 'Tahap 4 · Penguasaan', title: data.aktivitasSederhana.judul, actorOrContext: `Siswa ${className}`, description: data.aktivitasSederhana.hasilDiharapkan, impact: 'Teruji lewat latihan formatif.' }
+            ],
+            synthesisNote: summary.join(' ')
+        };
+    } else if (templateId === 'comparison_chart') {
+        const tblRows = data.tabelInformatif?.baris || [];
+        data.comparisonData = {
+            conceptAName: `Konsep & Aturan (${terms[0]?.term || subject})`,
+            conceptBName: `Penerapan & Pelurusan (${terms[1]?.term || 'Praktik'})`,
+            similarities: [
+                `Fokus pada TP: ${tpText}`,
+                `Mengacu pada CP Elemen ${elementName} (${className})`
+            ],
+            rows: tblRows.length > 0
+                ? tblRows.map(r => ({ aspect: r[0] || '-', conceptAValue: r[1] || '-', conceptBValue: r[2] || '-' }))
+                : [
+                    { aspect: 'Konsep Utama', conceptAValue: data.pengertianKonsep, conceptBValue: data.contohKonkret },
+                    { aspect: 'Miskonsepsi vs Benar', conceptAValue: misconceptions[0]?.salah || '-', conceptBValue: misconceptions[0]?.pelurusan || '-' }
+                ],
+            conclusion: summary[0] || data.pemahamanBermakna
+        };
+    } else if (templateId === 'isometric_3d') {
+        const sceneType = pickIsometricSceneType(subject, `${elementName} ${tpText} ${atpText}`);
+        data.isometric3dData = {
+            objectTitle: `Model Struktural 3D: ${data.title}`,
+            visualSceneType: sceneType,
+            dimensionSummary: `Proyeksi Isometrik 30° · ${subject} ${className}`,
+            parts: [
+                { pinNo: 1, partName: terms[0]?.term || 'Konsep Dasar', functionOrProperty: data.pengertianKonsep, measurementOrDetail: 'Fondasi' },
+                { pinNo: 2, partName: terms[1]?.term || 'Prinsip Utama', functionOrProperty: data.penjelasanUtama, measurementOrDetail: 'Mekanisme' },
+                { pinNo: 3, partName: 'Contoh Konkret', functionOrProperty: data.contohKonkret, measurementOrDetail: 'Nyata' },
+                { pinNo: 4, partName: 'Pelurusan Miskonsepsi', functionOrProperty: misconceptions[0]?.pelurusan || daily[0] || '', measurementOrDetail: 'Akurat' }
+            ],
+            spatialInsight: data.penjelasanUtama
+        };
+    }
 };
 
 export const getRecommendedOrientationForTemplate = (templateId: MateriTemplateId): PageOrientationMode => {
@@ -1570,9 +2431,107 @@ export const validateLockedCurriculumInputs = (params: {
     };
 };
 
-export const buildVerifiableReferences = (subject: string, className: string): ReferenceItem[] => {
+interface GroundedTextbookContext {
+    summary: string;
+    refs: ReferenceItem[];
+}
+
+const getSubjectDisciplineInstruction = (subject: string): string => {
+    const s = subject.toLowerCase();
+    if (s.includes('pjok') || s.includes('jasmani') || s.includes('olahraga')) {
+        return 'WAJIB DISIPLIN PJOK: Jelaskan biomekanika/prinsip gerak (mis. kaki tumpu vs kaki ayun, titik berat, kelenturan/keseimbangan), rincikan sikap awal -> pelaksanaan gerak -> sikap akhir secara teknis & aman bagi anak SD, serta sertakan manfaat kebugaran dan pencegahan cedera.';
+    }
+    if (s.includes('matematika')) {
+        return 'WAJIB DISIPLIN MATEMATIKA: Sertakan definisi matematis presisi, notasi/simbol atau aturan operasi/rumus yang benar, contoh perhitungan bertahap dengan angka konkret yang sesuai fase SD, serta pelurusan kesalahan hitung/konsep yang umum terjadi.';
+    }
+    if (s.includes('ipas') || s.includes('ipa') || s.includes('ips')) {
+        return 'WAJIB DISIPLIN IPAS: Jelaskan mekanisme ilmiah/sosial secara sebab-akibat (bagian, fungsi, proses, atau interaksi sosial/geografis), gunakan istilah sains/sosial baku yang dijelaskan dengan bahasa anak SD, dan berikan pengamatan nyata.';
+    }
+    if (s.includes('pai') || s.includes('agama') || s.includes('islam')) {
+        return 'WAJIB DISIPLIN PAIBP: Jelaskan pengertian istilah syariat/akhlak/Al-Qur’an secara autentik (rukun, syarat, urutan sah, atau kandungan ayat/sifat mulia) dengan adab dan contoh pembiasaan harian anak SD Indonesia tanpa mengarang nomor ayat/hadis yang tidak pasti.';
+    }
+    if (s.includes('sunda')) {
+        return 'WAJIB DISIPLIN BASA SUNDA: Terapkan kaidah Basa Sunda nu bener (undak-usuk basa lemes/loma, kalimah conto nu merenah, struktur pupuh/biantara/paguneman) dina basa Sunda nu hirup sarta kaharti ku murid SD.';
+    }
+    if (s.includes('indonesia')) {
+        return 'WAJIB DISIPLIN BAHASA INDONESIA: Jelaskan unsur/struktur teks atau kaidah kebahasaan (EYD, ide pokok, kalimat perintah/tanya, rima, majas) beserta contoh kutipan kalimat/paragraf yang lengkap agar siswa langsung bisa mempraktikkan.';
+    }
+    if (s.includes('pancasila') || s.includes('ppkn')) {
+        return 'WAJIB DISIPLIN PENDIDIKAN PANCASILA: Hubungkan secara tepat nilai sila Pancasila, hak dan kewajiban, norma/aturan sekolah & rumah, atau musyawarah-gotong royong dengan perilaku warga negara muda di sekolah dan keluarga.';
+    }
+    if (s.includes('seni')) {
+        return 'WAJIB DISIPLIN SENI BUDAYA: Jelaskan unsur estetika cabang seni terkait (rupa: garis, bentuk, warna primer/sekunder, tekstur; musik: nada, birama, dinamika; tari/teater: wiraga, wirama, wirasa) beserta teknik berkarya langkah demi langkah.';
+    }
+    if (s.includes('inggris') || s.includes('english')) {
+        return 'WAJIB DISIPLIN BAHASA INGGRIS: Cantumkan kosakata kunci dalam Bahasa Inggris beserta arti Bahasa Indonesia dan pola kalimat (sentence pattern) + contoh dialog pendek sehari-hari sesuai level siswa SD.';
+    }
+    if (s.includes('koding') || s.includes('informatika') || s.includes('artifisial') || s.includes('ka')) {
+        return 'WAJIB DISIPLIN KODING & KECERDASAN ARTIFISIAL: Jelaskan prinsip berpikir komputasional (dekomposisi, pengenalan pola, abstraksi, algoritma/percabangan) dengan contoh analogi kehidupan sehari-hari dan langkah alur logika (flowchart) yang jelas.';
+    }
+    return `WAJIB DISIPLIN ${subject.toUpperCase()}: Gunakan definisi, istilah teknis, aturan keilmuan, contoh konkret, dan langkah analisis yang autentik sesuai buku teks siswa SD Kurikulum Merdeka.`;
+};
+
+const fetchTextbookGroundedContext = async (params: {
+    subject: string;
+    className: string;
+    elementName: string;
+    tpText: string;
+    atpText: string;
+}): Promise<GroundedTextbookContext> => {
+    try {
+        const searchPrompt = `Cari referensi materi ajar resmi Kurikulum Merdeka / Buku Siswa & Buku Panduan Guru Kemendikdasmen (SIBI buku.kemdikbud.go.id atau sumber pendidikan kredibel Indonesia) untuk topik spesifik berikut:
+- Mata Pelajaran: ${params.subject}
+- Jenjang/Kelas: SD ${params.className}
+- Elemen: ${params.elementName}
+- Tujuan Pembelajaran: ${params.tpText}
+- Alur Tujuan Pembelajaran: ${params.atpText}
+
+Ringkas secara faktual dan padat (maksimal 220 kata):
+1. Pengertian konsep & istilah teknis resmi yang dipakai dalam buku siswa SD untuk topik ini.
+2. Unsur/langkah/aturan/prosedur pokok yang diajarkan di buku teks.
+3. Contoh konkret dan kesalahan pemahaman (miskonsepsi) yang sering muncul pada siswa SD.
+Catatan: Jangan mencantumkan nomor halaman, ISBN, atau DOI.`;
+
+        const res = await generateGeminiContent({
+            contents: searchPrompt,
+            config: {
+                tools: [{ googleSearch: {} }]
+            }
+        });
+
+        const summary = (res.text || '').trim().slice(0, 1600);
+        const chunks: any[] = res.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        const seenUrls = new Set<string>();
+        const refs: ReferenceItem[] = [];
+
+        for (const chunk of chunks) {
+            const uri = String(chunk?.web?.uri || '').trim();
+            const title = String(chunk?.web?.title || '').trim();
+            if (!uri || !/^https?:\/\//i.test(uri) || seenUrls.has(uri)) continue;
+            seenUrls.add(uri);
+            refs.push({
+                title: title || `Referensi ${params.subject} ${params.className}`,
+                category: 'Rekomendasi Pedagogis & Referensi Mapel',
+                source: uri,
+                status: 'Teridentifikasi',
+                note: `Rujukan materi ${params.subject} (${params.className}) teridentifikasi melalui penelusuran buku teks/sumber ajar daring.`
+            });
+            if (refs.length >= 4) break;
+        }
+
+        return { summary, refs };
+    } catch {
+        return { summary: '', refs: [] };
+    }
+};
+
+export const buildVerifiableReferences = (
+    subject: string,
+    className: string,
+    groundedRefs: ReferenceItem[] = []
+): ReferenceItem[] => {
     const faseInfo = getFaseInfoForClass(className);
-    return [
+    const baseRefs: ReferenceItem[] = [
         {
             title: 'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional',
             category: 'Ketentuan Wajib Regulasi',
@@ -1608,6 +2567,7 @@ export const buildVerifiableReferences = (subject: string, className: string): R
             status: 'Teridentifikasi',
             note: 'Rujukan penyusunan TP, ATP, pembelajaran berkesadaran-bermakna-menggembirakan, dan asesmen formatif.'
         },
+        ...groundedRefs,
         {
             title: `Buku Panduan Guru & Buku Siswa ${subject} ${className} Kemendikdasmen`,
             category: 'Rekomendasi Pedagogis & Referensi Mapel',
@@ -1616,6 +2576,7 @@ export const buildVerifiableReferences = (subject: string, className: string): R
             note: 'PERLU VERIFIKASI GURU: Cocokkan edisi cetak/bab spesifik buku teks yang dipakai sekolah tanpa mengarang nomor halaman.'
         }
     ];
+    return baseRefs;
 };
 
 const detectOperationalVerb = (tpText: string): { kko: string; level: TpAtpAnalysisResult['kedalamanLevel']; depthNote: string } => {
@@ -2015,14 +2976,25 @@ export const generateMateriAjarContent = async (params: {
         : undefined;
 
     reportProgress(4);
-    const prompt = `Anda adalah AI Educational Content Generator profesional jenjang SD/MI (Kelas I–VI) yang mengintegrasikan keahlian kurikulum dasar Indonesia, substansi keilmuan, pedagogi perkembangan fase, instructional design, dan desain grafis edukatif.
+    const groundedTextbook = await fetchTextbookGroundedContext({
+        subject: params.subject,
+        className: params.className,
+        elementName: params.elementName,
+        tpText: params.tpText,
+        atpText: params.atpText
+    });
+    const disciplineRule = getSubjectDisciplineInstruction(params.subject);
+
+    const prompt = `Anda adalah AI Educational Content Generator profesional jenjang SD/MI (Kelas I–VI) yang mengintegrasikan keahlian kurikulum dasar Indonesia, substansi keilmuan bidang studi, pedagogi perkembangan fase, instructional design, dan desain grafis edukatif.
 
 ATURAN MUTLAK:
 1. JANGAN mengubah, mengedit, mengganti, atau memperluas ke luar ruang lingkup TP & ATP terkunci berikut.
 2. JANGAN mengarang fakta, angka statistik palsu, pasal hukum, nomor halaman, DOI, atau ISBN.
-3. Sesuaikan bahasa & kedalaman pembahasan untuk ${params.className} (${params.fase}) dengan KKO utama "${activeAnalysis.kataKerjaOperasional}" (tingkat ${activeAnalysis.kedalamanLevel}).
-4. Hasil wajib SUBSTANTIF, KOMPREHENSIF, AKURAT, dan SIAP DIPAKAI GURU (bukan sekadar definisi dangkal).
-${params.revisionInstruction ? `5. INSTRUKSI REVISI GURU (PRIORITAS): ${params.revisionInstruction}` : ''}
+3. DILARANG KERAS menulis definisi/kalimat klise yang terlalu umum (seperti "adalah pemahaman pokok pada elemen", "membantu siswa memahami konsep inti", atau definisi dangkal yang bisa berlaku untuk semua pelajaran). Setiap pengertian, penjelasan, contoh, miskonsepsi, dan istilah kunci WAJIB spesifik dan akurat secara keilmuan ${params.subject}.
+4. Sesuaikan bahasa & kedalaman pembahasan untuk ${params.className} (${params.fase}) dengan KKO utama "${activeAnalysis.kataKerjaOperasional}" (tingkat ${activeAnalysis.kedalamanLevel}).
+5. ${disciplineRule}
+6. Hasil wajib SUBSTANTIF, KOMPREHENSIF, AKURAT, dan SIAP DIPAKAI GURU sesuai standar Buku Siswa & Buku Panduan Guru Kemendikdasmen.
+${params.revisionInstruction ? `7. INSTRUKSI REVISI GURU (PRIORITAS): ${params.revisionInstruction}` : ''}
 
 DATA KURIKULUM TERKUNCI:
 - Satuan Pendidikan: ${params.institutionName || 'SD/MI'}
@@ -2034,26 +3006,26 @@ DATA KURIKULUM TERKUNCI:
 - Alur Tujuan Pembelajaran (ATP Terkunci): ${params.atpText} (${params.alokasiWaktu})
 - Gaya Template Terpilih: ${tplMeta.name} (${tplMeta.subtitle})
 - Potensi Miskonsepsi yang Harus Diluruskan: ${activeAnalysis.potensiMiskonsepsi}
-
+${groundedTextbook.summary ? `\nRINGKASAN REFERENSI BUKU TEKS / PENELUSURAN TERKAIT:\n${groundedTextbook.summary}\n` : ''}
 ${isSunda ? 'WAJIB KHUSUS BAHASA SUNDA: Gunakan Basa Sunda anu alami, merenah undak-usukna, jeung ramah barudak SD pikeun judul, panganteur, conto paguneman, aktivitas, rangkuman, jeung soal!' : ''}
 
 Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
 {
   "title": "Judul materi menarik & spesifik TP ini",
   "subtitle": "Subjudul singkat selaras CP/TP",
-  "pengantarSingkat": "Pengantar kontekstual 2 kalimat ramah siswa ${params.className}",
-  "kaitanPengalamanSiswa": "1-2 kalimat mengaitkan topik dengan pengalaman nyata anak",
-  "pertanyaanPemantik": ["Pertanyaan pemantik 1", "Pertanyaan pemantik 2"],
-  "pengertianKonsep": "Definisi konsep yang benar secara keilmuan dan mudah dipahami siswa ${params.className}",
-  "penjelasanUtama": "Penjelasan materi utama yang sistematis dan proporsional sesuai KKO ${activeAnalysis.kataKerjaOperasional}",
-  "poinPenting": ["Poin penting 1", "Poin penting 2", "Poin penting 3"],
-  "unsurPenting": ["Unsur/bagian 1 beserta fungsinya", "Unsur/bagian 2 beserta fungsinya", "Unsur/bagian 3 beserta fungsinya"],
+  "pengantarSingkat": "Pengantar kontekstual 2-3 kalimat spesifik ${params.subject} ramah siswa ${params.className}",
+  "kaitanPengalamanSiswa": "1-2 kalimat mengaitkan topik nyata dengan pengalaman langsung anak SD Indonesia",
+  "pertanyaanPemantik": ["Pertanyaan pemantik 1 yang memancing rasa ingin tahu", "Pertanyaan pemantik 2"],
+  "pengertianKonsep": "Definisi konsep yang tepat secara keilmuan ${params.subject} (bukan kalimat umum), lengkap dengan istilah baku dan penjelasannya bagi siswa ${params.className}",
+  "penjelasanUtama": "Penjelasan materi inti yang kaya substansi (3-4 kalimat), memuat aturan/mekanisme/prosedur/unsur spesifik topik serta sesuai KKO ${activeAnalysis.kataKerjaOperasional}",
+  "poinPenting": ["Poin keilmuan spesifik 1", "Poin keilmuan spesifik 2", "Poin keilmuan spesifik 3", "Poin keilmuan spesifik 4"],
+  "unsurPenting": ["Unsur/komponen/tahapan 1 beserta fungsi atau cara benarnya", "Unsur/komponen/tahapan 2", "Unsur/komponen/tahapan 3"],
   "klasifikasiAtauProses": {
-    "judul": "Judul klasifikasi atau tahapan proses sesuai materi",
+    "judul": "Judul tahapan proses, prosedur teknik, atau klasifikasi konsep",
     "butir": [
-      { "label": "Tahap/Jenis 1", "uraian": "Penjelasan akurat" },
-      { "label": "Tahap/Jenis 2", "uraian": "Penjelasan akurat" },
-      { "label": "Tahap/Jenis 3", "uraian": "Penjelasan akurat" }
+      { "label": "Tahap/Jenis 1", "uraian": "Penjelasan teknis akurat & aplikatif" },
+      { "label": "Tahap/Jenis 2", "uraian": "Penjelasan teknis akurat & aplikatif" },
+      { "label": "Tahap/Jenis 3", "uraian": "Penjelasan teknis akurat & aplikatif" }
     ]
   },
   "tabelInformatif": {
@@ -2065,9 +3037,9 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
       ["Baris 3", "Keterangan akurat", "Contoh nyata"]
     ]
   },
-  "contohKonkret": "1 contoh konkret yang mudah diamati siswa SD Indonesia",
+  "contohKonkret": "1 contoh konkret lengkap beserta angka/kalimat/langkah praktiknya yang mudah diamati siswa SD Indonesia",
   "visualCaption": "Keterangan ilustrasi pendukung yang faktual dan mendidik",
-  "visualSearchQuery": "2-4 kata kunci gambar objek nyata edukatif (atau kosong jika konsep abstrak)",
+  "visualSearchQuery": "2-4 kata kunci foto objek/tempat/hewan nyata edukatif (WAJIB string kosong \"\" jika materi berupa gerakan tubuh PJOK, rumus/diagram matematika, algoritma/flowchart, atau konsep abstrak)",
   "contohSehariHari": [
     "Di Rumah: contoh nyata",
     "Di Sekolah: contoh nyata",
@@ -2184,7 +3156,7 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
         latihanFormatif: Array.isArray(aiResult?.latihanFormatif) && aiResult.latihanFormatif.length > 0 ? aiResult.latihanFormatif.slice(0, 3) : baseline.latihanFormatif,
         kataKunci: Array.isArray(aiResult?.kataKunci) && aiResult.kataKunci.length > 0 ? aiResult.kataKunci.slice(0, 4) : baseline.kataKunci,
         refleksiSiswa: Array.isArray(aiResult?.refleksiSiswa) && aiResult.refleksiSiswa.length > 0 ? aiResult.refleksiSiswa.slice(0, 3) : baseline.refleksiSiswa,
-        referensi: buildVerifiableReferences(params.subject, params.className),
+        referensi: buildVerifiableReferences(params.subject, params.className, groundedTextbook.refs),
         teacherNotes: [
             ...(manualMismatchNotice ? [manualMismatchNotice] : []),
             ...(usedFallback
@@ -2205,10 +3177,22 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
         merged.visualCaption || merged.title
     );
 
+    // Protect dedicated 2D action poses & domain diagrams (PJOK movement poses, Matematika diagrams, Koding flowcharts)
+    // from being paired with generic/irrelevant stock photos.
+    const subjLowerVisual = params.subject.toLowerCase();
+    const combinedTopicVisual = `${params.subject} ${params.elementName} ${params.tpText} ${params.atpText}`.toLowerCase();
+    const isActionOrDiagramTopic =
+        subjLowerVisual.includes('pjok') ||
+        subjLowerVisual.includes('jasmani') ||
+        subjLowerVisual.includes('matematika') ||
+        subjLowerVisual.includes('koding') ||
+        subjLowerVisual.includes('informatika') ||
+        /\b(mengayun|ayunan|ayun kaki|non-?lokomotor|lokomotor|manipulatif|keseimbangan|senam|pecahan|sudut|bangun|algoritma|flowchart|diagram)\b/.test(combinedTopicVisual);
+
     const searchCandidate =
         (typeof aiResult?.visualSearchQuery === 'string' && aiResult.visualSearchQuery.trim()) ||
         '';
-    if (searchCandidate && !/(konsep|abstrak|umum|materi)/i.test(searchCandidate)) {
+    if (!isActionOrDiagramTopic && searchCandidate && !/(konsep|abstrak|umum|materi|ilustrasi|diagram|gerakan|berjalan|berlari)/i.test(searchCandidate)) {
         const proxiedDataUrl = await tryFetchProxiedIllustrationDataUrl(searchCandidate);
         if (proxiedDataUrl) {
             merged.visualImageDataUrl = proxiedDataUrl;
@@ -2216,27 +3200,17 @@ Kembalikan HANYA JSON valid (tanpa markdown) dengan struktur persis:
     }
 
     reportProgress(8);
-    // Sync all 10 template payloads cleanly with merged substantive data
-    const resynced = synthesizeAuthenticMateriAjar({ ...params });
-    merged.infographicData = {
-        ...resynced.infographicData!,
-        pillars: [
-            { number: '01', title: 'Pengertian Konsep', summary: merged.pengertianKonsep, keyFact: merged.poinPenting[0] || '', example: merged.contohKonkret },
-            { number: '02', title: 'Penjelasan Utama', summary: merged.penjelasanUtama, keyFact: merged.poinPenting[1] || '', example: merged.contohSehariHari[0] || '' },
-            { number: '03', title: 'Unsur & Poin Penting', summary: (merged.unsurPenting || merged.poinPenting).slice(0, 3).join(' · '), keyFact: merged.poinPenting[2] || '', example: merged.contohSehariHari[1] || '' },
-            { number: '04', title: 'Penerapan & Pelurusan', summary: merged.pendalamanMateri?.analisisSederhana || merged.aktivitasSederhana.hasilDiharapkan, keyFact: merged.aktivitasSederhana.judul, example: merged.rangkumanPoin[0] || '' }
-        ],
-        goldenTakeaway: merged.rangkumanPoin.join(' ')
-    };
-    merged.cheatSheetData = resynced.cheatSheetData;
-    merged.stickyNotesData = resynced.stickyNotesData;
-    merged.mindMapData = resynced.mindMapData;
-    merged.comicStripData = resynced.comicStripData;
-    merged.flashcardData = resynced.flashcardData;
-    merged.stepByStepData = resynced.stepByStepData;
-    merged.timelineData = resynced.timelineData;
-    merged.comparisonData = resynced.comparisonData;
-    merged.isometric3dData = resynced.isometric3dData;
+    // Sync all 10 template payloads directly from substantive merged/AI content
+    buildTemplatePayloadsFromMerged(merged, {
+        subject: params.subject,
+        className: params.className,
+        fase: params.fase,
+        elementName: params.elementName,
+        tpText: params.tpText,
+        atpText: params.atpText,
+        alokasiWaktu: params.alokasiWaktu,
+        templateId: params.templateId
+    });
 
     reportProgress(9);
     merged.qualityControl = evaluateMateriQualityControl(merged, {
